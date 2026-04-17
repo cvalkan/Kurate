@@ -3413,6 +3413,158 @@ async def _compute_institution_bias_samepair():
 
 
 
+# ── ICLR 2026 Validation Tournament ──
+
+@router.get("/iclr2026-tournament")
+async def iclr2026_tournament():
+    """Live stats for the ICLR 2026 58K validation match tournament."""
+    import trueskill as ts
+    import ast
+
+    dataset_id = "iclr-2026-validation"
+
+    # 1. Load completed matches
+    matches = await collect_all(
+        db.validation_matches.find(
+            {"dataset_id": dataset_id, "completed": True, "winner_id": {"$exists": True}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1,
+             "model_used": 1, "flipped": 1},
+        )
+    )
+
+    if not matches:
+        return {"status": "no_data", "total_matches": 0}
+
+    # 2. Load paper metadata (titles, human scores)
+    papers_meta = {}
+    async for p in db.validation_papers.find(
+        {"dataset_id": dataset_id},
+        {"_id": 0, "id": 1, "openreview_id": 1, "title": 1, "human_scores": 1, "label": 1},
+    ):
+        papers_meta[p["id"]] = p
+
+    # 3. Load human reviewer scores from validation_papers DB
+    human_scores = {}
+    async for p in db.validation_papers.find(
+        {"dataset_id": dataset_id, "reviewer_scores": {"$exists": True, "$ne": None}},
+        {"_id": 0, "openreview_id": 1, "reviewer_scores": 1},
+    ):
+        oid = p.get("openreview_id")
+        rs = p.get("reviewer_scores")
+        if oid and rs:
+            try:
+                scores = ast.literal_eval(rs) if isinstance(rs, str) else rs
+                if isinstance(scores, list) and len(scores) > 0:
+                    human_scores[oid] = sum(scores) / len(scores)
+            except Exception:
+                continue
+
+    # 4. Build openreview_id mapping from validation_papers
+    uuid_to_orid = {}
+    for pid, pm in papers_meta.items():
+        if pm.get("openreview_id"):
+            uuid_to_orid[pid] = pm["openreview_id"]
+
+    # 5. Compute TrueSkill ratings
+    env = ts.TrueSkill(draw_probability=0.0)
+    ratings = {}
+    wins = defaultdict(int)
+    losses = defaultdict(int)
+    total_matches_per_paper = defaultdict(int)
+    model_counts = defaultdict(int)
+
+    for m in matches:
+        p1, p2, w = m["paper1_id"], m["paper2_id"], m["winner_id"]
+        model = m.get("model_used", {}).get("model", "unknown")
+        model_counts[model] += 1
+
+        if p1 not in ratings:
+            ratings[p1] = env.create_rating()
+        if p2 not in ratings:
+            ratings[p2] = env.create_rating()
+
+        r1, r2 = ratings[p1], ratings[p2]
+        if w == p1:
+            (nr1,), (nr2,) = env.rate([(r1,), (r2,)], ranks=[0, 1])
+            wins[p1] += 1
+            losses[p2] += 1
+        else:
+            (nr1,), (nr2,) = env.rate([(r1,), (r2,)], ranks=[1, 0])
+            wins[p2] += 1
+            losses[p1] += 1
+        ratings[p1] = nr1
+        ratings[p2] = nr2
+        total_matches_per_paper[p1] += 1
+        total_matches_per_paper[p2] += 1
+
+    # 6. Build leaderboard
+    leaderboard = []
+    for pid, rating in ratings.items():
+        orid = uuid_to_orid.get(pid, "")
+        pm = papers_meta.get(pid, {})
+        n = total_matches_per_paper[pid]
+        w = wins[pid]
+        l = losses[pid]
+        wr = (w / n * 100) if n > 0 else 50
+        human_avg = human_scores.get(orid)
+        leaderboard.append({
+            "paper_id": pid,
+            "openreview_id": orid,
+            "title": pm.get("title", ""),
+            "label": pm.get("label", ""),
+            "trueskill_mu": round(rating.mu, 3),
+            "trueskill_sigma": round(rating.sigma, 3),
+            "wins": w,
+            "losses": l,
+            "matches": n,
+            "win_rate": round(wr, 1),
+            "human_avg": round(human_avg, 2) if human_avg is not None else None,
+        })
+
+    leaderboard.sort(key=lambda x: -x["trueskill_mu"])
+    for i, entry in enumerate(leaderboard):
+        entry["rank"] = i + 1
+
+    # 7. Compute correlation with human scores
+    paired_ts, paired_wr, paired_human = [], [], []
+    for entry in leaderboard:
+        if entry["human_avg"] is not None and entry["matches"] >= 3:
+            paired_ts.append(entry["trueskill_mu"])
+            paired_wr.append(entry["win_rate"])
+            paired_human.append(entry["human_avg"])
+
+    correlation = {}
+    if len(paired_ts) > 10:
+        sp_ts = scipy_stats.spearmanr(paired_ts, paired_human)
+        pr_ts = scipy_stats.pearsonr(paired_ts, paired_human)
+        sp_wr = scipy_stats.spearmanr(paired_wr, paired_human)
+        correlation = {
+            "trueskill_spearman": round(float(sp_ts.statistic), 4),
+            "trueskill_pearson": round(float(pr_ts.statistic), 4),
+            "winrate_spearman": round(float(sp_wr.statistic), 4),
+            "n_paired": len(paired_ts),
+        }
+
+    # 8. Per-model stats
+    model_stats = []
+    for model, count in sorted(model_counts.items(), key=lambda x: -x[1]):
+        model_stats.append({"model": model, "matches": count})
+
+    return {
+        "status": "ok",
+        "total_matches": len(matches),
+        "total_papers": len(ratings),
+        "target_matches": 57256,
+        "progress_pct": round(len(matches) / 57256 * 100, 1),
+        "correlation": correlation,
+        "model_stats": model_stats,
+        "leaderboard_top": leaderboard[:25],
+        "leaderboard_bottom": leaderboard[-10:],
+        "avg_matches_per_paper": round(sum(total_matches_per_paper.values()) / max(len(total_matches_per_paper), 1), 1),
+    }
+
+
+
 # ── Positional Bias Analysis (live tournament matches) ──
 
 @router.get("/positional-bias")

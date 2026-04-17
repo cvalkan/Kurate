@@ -15,6 +15,7 @@ import SummarizerComparisonSection from "./SummarizerComparisonSection";
 import SummaryBiasSection from "./SummaryBiasSection";
 import DeeperDiveSection from "./DeeperDiveSection";
 import ICLRDeepDiveSection from "./ICLRDeepDiveSection";
+import ICLR2026TournamentSection from "./ICLR2026TournamentSection";
 import ExtendedThinkingSection from "./ExtendedThinkingSection";
 import TieExperimentSection from "./TieExperimentSection";
 import MultiAspectSection from "./MultiAspectSection";
@@ -187,6 +188,7 @@ export default function ValidationHubPage() {
   const meta = useMemo(() => {
     const STATIC_META = {
       "pw-qeios": { title: "Pairwise — Qeios (Legacy)", desc: "Head-to-head AI comparison using Qeios open peer review data. Separate dataset — not part of main validation system." },
+      "t-iclr2026-validation": { title: "Tournament — ICLR 2026 (58K Validation)", desc: "58,363 pairwise matches across 3,912 ICLR 2026 papers. Round-robin judging by GPT-5.4, Claude Opus 4.6, and Gemini 3 Pro. Anonymized abstracts + AI summaries (scores stripped)." },
       "pw-scipost": { title: "Pairwise — SciPost (Legacy)", desc: "Per-dimension head-to-head comparison using SciPost peer review data. Separate dataset — not part of main validation system." },
       "si-scipost": { title: "Single-item — SciPost (Legacy)", desc: "AI rates each paper on 4 dimensions (1-6 scale). Separate dataset." },
       "si-elife-cancer": { title: "Single-Item — eLife Cancer", desc: "Opus 4.6 Thinking rates each paper 1-10 with sub-dimensions. 80 papers, compared against pairwise tournament." },
@@ -315,6 +317,7 @@ export default function ValidationHubPage() {
 
           {/* Tournament — public shows ICLR/eLife/MIDL only */}
           <CollapsibleGroup label="Tournament" icon={Trophy} defaultOpen={!selected || selected?.startsWith("t-")}>
+            <NavItem item={{ id: "t-iclr2026-validation", label: "ICLR 2026 (58K)", sub: "3,912 papers \u00b7 live" }} selected={selected} onSelect={setSelected} />
             {Object.entries(tournamentGroups).map(([source, items]) => (
               <SourceGroup
                 key={`t-${source}`}
@@ -447,6 +450,7 @@ export default function ValidationHubPage() {
           {selected === "exp-positional-bias" && <PositionalBiasSection />}
           {selected === "exp-institution-bias-samepair" && <InstitutionBiasSamePairSection />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
+          {selected === "t-iclr2026-validation" && <ICLR2026TournamentSection />}
         </div>
       </div>
     </div>
