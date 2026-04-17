@@ -337,6 +337,7 @@ export default function ValidationHubPage() {
             <NavItem item={{ id: "exp-ai-ranking-quality-unfiltered", label: "AI Ranking Quality", sub: "All pairs incl. within-tier" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "exp-human-ai-benchmark-unfiltered", label: "Human vs AI Benchmark", sub: "All pairs incl. within-tier" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "exp-human-ai-benchmark-fixed", label: "Human vs AI Benchmark (Fixed)", sub: "ICLR-only, ≥1 expert" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "exp-human-ai-benchmark-iclr2026", label: "Human vs AI — ICLR 2026", sub: "3,912 papers · live" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "exp-unified-comp", label: "PW vs SI — Comparative GT", sub: "Same pairs, head-to-head" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "exp-unified-stan", label: "PW vs SI — Standalone GT", sub: "Same pairs, head-to-head" }} selected={selected} onSelect={setSelected} />
           </CollapsibleGroup>
