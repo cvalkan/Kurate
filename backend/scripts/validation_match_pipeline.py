@@ -188,6 +188,30 @@ def load_completed(output_path: str) -> set:
     return completed
 
 
+async def load_completed_from_db(oid_to_uuid: dict) -> set:
+    """Load completed pairs from MongoDB as the canonical source of truth.
+
+    Returns a set of "{oid_1}|{oid_2}" keys (unordered: a pair A-B counts as
+    completed regardless of which side was paper1). Prevents duplicate LLM
+    calls after a crash where the JSONL tail wasn't flushed.
+    """
+    uuid_to_oid = {v: k for k, v in oid_to_uuid.items()}
+    completed = set()
+    cursor = db.validation_matches.find(
+        {"dataset_id": DATASET_ID, "completed": True, "failed": {"$ne": True}},
+        {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+    )
+    async for doc in cursor:
+        o1 = uuid_to_oid.get(doc["paper1_id"])
+        o2 = uuid_to_oid.get(doc["paper2_id"])
+        if not o1 or not o2:
+            continue
+        # Mark both orderings completed — matching how pairs are generated.
+        completed.add(f"{o1}|{o2}")
+        completed.add(f"{o2}|{o1}")
+    return completed
+
+
 # ── DB seeding ──
 
 async def seed_validation_papers(summaries: dict, abstracts: dict) -> dict:
@@ -439,14 +463,13 @@ async def main():
             skipped += 1
     print(f"\n3. Runnable matches: {len(runnable):,} (skipped {skipped} missing summaries)")
 
-    # 4. Resume from JSONL
-    completed = load_completed(args.output)
-    remaining = [(a, b) for a, b in runnable if f"{a}|{b}" not in completed]
-    print(f"\n4. Resumability: {len(completed):,} done, {len(remaining):,} remaining")
+    # 4. Resume check — query MongoDB after seeding (needs oid_to_uuid)
+    # (moved below — we need oid_to_uuid first)
+    completed_jsonl = load_completed(args.output)
+    print(f"\n4. JSONL resume markers: {len(completed_jsonl):,}")
 
     if args.limit > 0:
-        remaining = remaining[:args.limit]
-        print(f"   Limited to {args.limit} matches")
+        print(f"   (--limit {args.limit} will be applied after DB-based resume check)")
 
     # 5. Load abstracts
     print(f"\n5. Loading abstracts from {ABSTRACTS_CACHE}")
@@ -465,6 +488,20 @@ async def main():
     # 6. Seed validation_papers in DB
     print(f"\n6. Seeding validation_papers (dataset_id={DATASET_ID})")
     oid_to_uuid = await seed_validation_papers(summaries, abstracts)
+
+    # 6b. DB-based resume check (canonical source of truth)
+    print("\n6b. DB resume check (canonical)...")
+    completed_db = await load_completed_from_db(oid_to_uuid)
+    # Union JSONL + DB markers to be safe (JSONL may reference pairs not in DB yet)
+    completed_union = completed_jsonl | completed_db
+    remaining = [(a, b) for a, b in runnable if f"{a}|{b}" not in completed_union]
+    print(f"   DB-completed pairs: {len(completed_db)//2:,} (×2 for both orderings)")
+    print(f"   JSONL-only markers: {len(completed_jsonl - completed_db):,}")
+    print(f"   Runnable: {len(runnable):,}  Remaining: {len(remaining):,}")
+
+    if args.limit > 0:
+        remaining = remaining[:args.limit]
+        print(f"   Limited to {args.limit} matches")
 
     # 7. Build paper dicts
     print(f"\n7. Building paper dicts...")
