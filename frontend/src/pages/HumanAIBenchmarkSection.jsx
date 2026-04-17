@@ -483,6 +483,16 @@ function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered, hideEqualWeig
           )}
         </span>
       </div>
+      {data.total_ai_matches != null && (
+        <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-[10px] text-sky-900 leading-relaxed">
+          <strong>What do these numbers mean?</strong>{" "}
+          <strong>AI matches ({data.total_ai_matches.toLocaleString()})</strong>: each LLM judgment counts once — round-robin across GPT-5.4, Claude 4.6, Gemini 3 Pro means some pairs get 1 match, others 2–3.{" "}
+          <strong>Unique pairs ({data.total_unique_pairs?.toLocaleString()})</strong>: distinct (paperA, paperB) combinations with ≥1 AI verdict.{" "}
+          <strong>Controlled pairs ({data.total_controlled_pairs?.toLocaleString()})</strong>: subset where ≥1 human reviewer gave a non-tie preference <em>and</em> AI produced a verdict — the denominator for the "ties excluded" row.{" "}
+          <strong>Coin-flip pairs ({data.total_controlled_pairs_cf?.toLocaleString()})</strong>: subset where humans rated <em>both</em> papers (including ties) — the denominator for "All pairs (ties = coin flip)".{" "}
+          Each metric uses the smallest denominator that makes its question well-defined.
+        </div>
+      )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="border border-border rounded-lg p-3 bg-background">
           <Metric label="AI-Human Pairwise" value={`${cf?.ai_human ?? pw.ai_human.rate}%`} accent />
