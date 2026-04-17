@@ -341,7 +341,7 @@ async def run_comparison(
                 "winner": winner_id,
                 "model": model["name"],
                 "flipped": flipped,
-                "reasoning": parsed.get("reasoning", "")[:300],
+                "reasoning": parsed.get("reasoning", ""),
                 "tokens_in": tokens_in,
                 "tokens_out": tokens_out,
                 "elapsed_s": round(elapsed, 2),
