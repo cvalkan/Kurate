@@ -10,6 +10,17 @@ PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the "Revi
 
 ## What's Been Implemented
 
+### Human vs. AI Benchmark — Avg Tie Rates + Coin Flip (Apr 17, 2026)
+- Added tie rate + coin-flip numbers for `AI vs. Average` and `Human vs. Average (LOO)` columns (previously showed "—")
+- Backend (`services/benchmark_fixed.py`): added `ai_avg` / `h_avg_loo` entries to `tie_rates` dict, added `ai_avg` / `human_avg_loo` to `_pool_datasets` coin-flip pooling
+- Introduced `AVG_TIE_EPS = 0.25` rating-point tie threshold — averages within 0.25 treated as effectively tied (coin-flipped). Consistent with discreteness of 1-10 reviewer scale (ICLR uses only {1,3,5,6,8,10})
+- Updated `services/precompute.py` to route `human-ai-benchmark-fixed-comp` through `compute_fixed_benchmark` (same source of truth as endpoint handler)
+- Regenerated precomputed JSON cache; rebuilt frontend bundle
+- Updated frontend footnotes (`HumanAIBenchmarkSection.jsx`):
+  - Footnote ²: added "Selection bias warning" explaining Majority drops pairs with no clear majority (~5-10pp inflation)
+  - New "avg" footnote: documents epsilon threshold and why Average preserves all pairs
+  - Footnote ⁶: added AI/H vs. Average tie-condition explanation (< 0.25 rating points)
+
 ### Archive Current-Week Visibility Fix (Apr 13, 2026)
 - Removed current-week/month exclusion from `_filter_archives_by_frequency`
 - Archives now appear immediately upon creation (previously hidden until the following week)

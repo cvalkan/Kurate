@@ -329,6 +329,11 @@ async def _compute_dataset(db, dataset_id: str):
     # - Reviewer i's preference: score_A_i vs score_B_i
     # - Agreement: does reviewer i's preference match LOO avg direction?
     # This avoids the super-reviewer artifact in the majority-based LOO.
+    # Tie threshold (AVG_TIE_EPS): averages within 0.25 rating points are
+    # treated as "indistinguishable" (same spirit as majority ties where no
+    # clear direction emerges). Individual reviewer ties (sa == sb) are also
+    # counted as ties (reviewer has no preference to match against avg).
+    AVG_TIE_EPS = 0.25
     h_avg_loo_agree, h_avg_loo_total = 0, 0
     cf_h_avg_loo_agree, cf_h_avg_loo_total = 0.0, 0
 
@@ -368,9 +373,9 @@ async def _compute_dataset(db, dataset_id: str):
             cf_h_avg_loo_total += 1
             if sa == sb:
                 # Reviewer tied → coin flip
-                cf_h_avg_loo_agree += 0.5 if avg_a != avg_b else 0.5
-            elif avg_a == avg_b:
-                # LOO avg tied → coin flip
+                cf_h_avg_loo_agree += 0.5
+            elif abs(avg_a - avg_b) < AVG_TIE_EPS:
+                # LOO avg effectively tied (within epsilon) → coin flip
                 cf_h_avg_loo_agree += 0.5
             else:
                 h_avg_loo_total += 1
@@ -382,6 +387,7 @@ async def _compute_dataset(db, dataset_id: str):
 
     # --- 4d. AI vs Average ---
     # For each pair, check if AI preference matches direction of human avg scores.
+    # Uses the same AVG_TIE_EPS threshold as human_avg_loo for consistency.
     ai_avg_agree, ai_avg_total = 0, 0
     cf_ai_avg_agree, cf_ai_avg_total = 0.0, 0
 
@@ -401,7 +407,8 @@ async def _compute_dataset(db, dataset_id: str):
             cf_ai_avg_agree += 0.5
             continue
 
-        if avg_a == avg_b:
+        if abs(avg_a - avg_b) < AVG_TIE_EPS:
+            # Avg effectively tied → coin flip
             cf_ai_avg_agree += 0.5
         else:
             ai_avg_total += 1
@@ -623,6 +630,8 @@ async def _compute_dataset(db, dataset_id: str):
         "ac": round((1 - ac_total / cf_ac_total) * 100, 1) if cf_ac_total else 0,
         "hc": round((1 - hc_total / cf_hc_total) * 100, 1) if cf_hc_total else 0,
         "hc_loo": round((1 - hc_loo_total / cf_hc_loo_total) * 100, 1) if cf_hc_loo_total else 0,
+        "ai_avg": round((1 - ai_avg_total / cf_ai_avg_total) * 100, 1) if cf_ai_avg_total else 0,
+        "h_avg_loo": round((1 - h_avg_loo_total / cf_h_avg_loo_total) * 100, 1) if cf_h_avg_loo_total else 0,
         "tier_ai": round((1 - tier_ai_total / cf_tier_ai_total) * 100, 1) if cf_tier_ai_total else 0,
         "tier_hh": round((1 - tier_hh_total / cf_tier_hh_total) * 100, 1) if cf_tier_hh_total else 0,
     }
@@ -775,12 +784,13 @@ def _pool_datasets(per_dataset):
     # Pool tie rates (weighted by CF pair count)
     total_cf = sum(d["controlled_pairs_cf"] for d in per_dataset)
     pooled_tie_rates = {}
-    for tr_key in ["ah", "hh", "ac", "hc", "hc_loo", "tier_ai", "tier_hh"]:
+    for tr_key in ["ah", "hh", "ac", "hc", "hc_loo", "ai_avg", "h_avg_loo", "tier_ai", "tier_hh"]:
         numerator = sum(d["tie_impact"]["tie_rates"].get(tr_key, 0) * d["controlled_pairs_cf"] for d in per_dataset)
         pooled_tie_rates[tr_key] = round(numerator / total_cf, 1) if total_cf else 0
 
     # Pool coin_flip (match old format: plain float rates, not dicts)
-    cf_keys = ["ai_human", "human_human", "ai_committee", "human_committee", "human_committee_loo"]
+    cf_keys = ["ai_human", "human_human", "ai_committee", "human_committee", "human_committee_loo",
+               "ai_avg", "human_avg_loo"]
     pooled_cf = {}
     for ck in cf_keys:
         total_cf_pairs = sum(d["tie_impact"]["coin_flip"].get(ck, {}).get("total", 0) for d in per_dataset)
