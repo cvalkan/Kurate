@@ -58,9 +58,9 @@ function DistributionChart({ data, metric, color, showRaw }) {
           )}
         </svg>
         <div className="absolute bottom-0 left-0 right-0 flex justify-between px-1">
-          <span className="text-[8px] text-muted-foreground">1</span>
-          <span className="text-[8px] text-muted-foreground">5</span>
-          <span className="text-[8px] text-muted-foreground">10</span>
+          <span className="text-[10px] text-muted-foreground">1</span>
+          <span className="text-[10px] text-muted-foreground">5</span>
+          <span className="text-[10px] text-muted-foreground">10</span>
         </div>
       </div>
     </div>
@@ -202,7 +202,7 @@ export function SiRatingSection({ category, hidePwVsSi = false, siData: propData
               } ${!tab.id || count > 0 ? "" : "opacity-40"}`}
               data-testid={`si-model-${tab.id || "all"}`}>
               {tab.label}
-              {tab.id && <span className="ml-1 text-[9px] opacity-60">({count})</span>}
+              {tab.id && <span className="ml-1 text-[10px] opacity-60">({count})</span>}
             </button>
           );
         })}
@@ -245,7 +245,7 @@ export function SiRatingSection({ category, hidePwVsSi = false, siData: propData
                 <div key={m} className="p-2 border border-border rounded-lg text-center" data-testid={`si-stat-${m}`}>
                   <div className="text-[10px] text-muted-foreground mb-0.5">{METRIC_LABELS[m]}</div>
                   <div className="font-mono text-lg font-bold" style={{ color: METRIC_COLORS[m] }}>{d.mean}</div>
-                  <div className="text-[9px] text-muted-foreground">&sigma;={d.std} | {d.min}-{d.max}</div>
+                  <div className="text-[10px] text-muted-foreground">&sigma;={d.std} | {d.min}-{d.max}</div>
                 </div>
               );
             })}
@@ -311,7 +311,7 @@ export function SiRatingSection({ category, hidePwVsSi = false, siData: propData
                         </thead>
                         <tbody>
                           {combinedRows.length > 0 && (
-                            <tr><td colSpan={4} className="py-0.5 px-2 text-[9px] text-muted-foreground bg-secondary/5 font-medium">Combined PW</td></tr>
+                            <tr><td colSpan={4} className="py-0.5 px-2 text-[10px] text-muted-foreground bg-secondary/5 font-medium">Combined PW</td></tr>
                           )}
                           {combinedRows.map(row => (
                             <tr key={`c-${row.method}`} className={`border-b border-border/10 ${row.spearman_rho === bestRho ? "bg-emerald-500/[0.04]" : ""}`}>
@@ -322,7 +322,7 @@ export function SiRatingSection({ category, hidePwVsSi = false, siData: propData
                             </tr>
                           ))}
                           {withinRows.length > 0 && (
-                            <tr><td colSpan={4} className="py-0.5 px-2 text-[9px] text-muted-foreground bg-secondary/5 font-medium">
+                            <tr><td colSpan={4} className="py-0.5 px-2 text-[10px] text-muted-foreground bg-secondary/5 font-medium">
                               {mData.label.split(" ")[0]}-only PW
                               {wmData?.n_matches ? <span className="ml-1 font-normal">({wmData.n_matches.toLocaleString()} matches)</span> : ""}
                             </td></tr>
@@ -354,15 +354,15 @@ export function SiRatingSection({ category, hidePwVsSi = false, siData: propData
               <div className="flex items-center gap-4">
                 <div className="text-center">
                   <div className="text-2xl font-mono font-bold text-emerald-700">{data.bt_vs_si.spearman_rho}</div>
-                  <div className="text-[9px] text-muted-foreground">Spearman {"\u03C1"}</div>
+                  <div className="text-[10px] text-muted-foreground">Spearman {"\u03C1"}</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-mono font-bold text-emerald-600">{data.bt_vs_si.kendall_tau}</div>
-                  <div className="text-[9px] text-muted-foreground">Kendall {"\u03C4"}</div>
+                  <div className="text-[10px] text-muted-foreground">Kendall {"\u03C4"}</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-mono font-bold text-emerald-600">{data.bt_vs_si.pearson_r}</div>
-                  <div className="text-[9px] text-muted-foreground">Pearson r</div>
+                  <div className="text-[10px] text-muted-foreground">Pearson r</div>
                 </div>
                 <div className="text-[10px] text-muted-foreground ml-2">
                   n = {data.bt_vs_si.n} papers

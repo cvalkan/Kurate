@@ -24,11 +24,11 @@ function CoherenceChart({ models }) {
       <div className="relative h-44 border-l border-b border-border/40 ml-8">
         {[100, 80, 60, 40].map(pct => (
           <div key={pct} className="absolute left-0 right-0 border-t border-border/15" style={{ bottom: `${pct}%` }}>
-            <span className="absolute -left-9 -top-2 text-[9px] text-muted-foreground font-mono">{pct}%</span>
+            <span className="absolute -left-9 -top-2 text-[10px] text-muted-foreground font-mono">{pct}%</span>
           </div>
         ))}
         <div className="absolute left-0 right-0 border-t border-dashed border-amber-400/40" style={{ bottom: "50%" }}>
-          <span className="absolute right-1 -top-3 text-[8px] text-amber-600/60 font-medium">coin flip</span>
+          <span className="absolute right-1 -top-3 text-[10px] text-amber-600/60 font-medium">coin flip</span>
         </div>
         <div className="absolute inset-0 flex">
           {binLabels.map((label, bi) => (
@@ -45,14 +45,14 @@ function CoherenceChart({ models }) {
                       className="w-full max-w-5 rounded-t-sm transition-all relative group"
                       style={{ height: `${h}%`, backgroundColor: col.line, opacity: 0.75 }}
                     >
-                      <div className="absolute -top-5 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-background border border-border rounded px-1 py-0.5 text-[8px] font-mono whitespace-nowrap shadow-sm z-10 pointer-events-none">
+                      <div className="absolute -top-5 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-background border border-border rounded px-1 py-0.5 text-[10px] font-mono whitespace-nowrap shadow-sm z-10 pointer-events-none">
                         {(rate * 100).toFixed(1)}% (n={bin.n})
                       </div>
                     </div>
                   </div>
                 );
               })}
-              <span className="absolute -bottom-5 left-0 right-0 text-center text-[9px] text-muted-foreground font-mono">{label}</span>
+              <span className="absolute -bottom-5 left-0 right-0 text-center text-[10px] text-muted-foreground font-mono">{label}</span>
             </div>
           ))}
         </div>
@@ -79,7 +79,7 @@ function CoherenceTable({ models }) {
   const binLabels = models[modelKeys[0]]?.bins?.map(b => b.label) || [];
 
   return (
-    <table className="w-full text-[11px]">
+    <table className="w-full text-xs">
       <thead>
         <tr className="border-b border-border text-muted-foreground bg-secondary/5">
           <th className="py-1.5 px-2 text-left font-medium">Model</th>
@@ -112,7 +112,7 @@ function CoherenceTable({ models }) {
                 return (
                   <td key={i} className={`py-1.5 px-1.5 text-right font-mono text-[10px] ${isBest ? "font-bold text-emerald-700" : ""}`}>
                     {rate != null ? `${(rate * 100).toFixed(1)}%` : "\u2014"}
-                    {bin.n > 0 && <span className="text-muted-foreground/50 ml-0.5 text-[8px]">({bin.n})</span>}
+                    {bin.n > 0 && <span className="text-muted-foreground/50 ml-0.5 text-[10px]">({bin.n})</span>}
                   </td>
                 );
               })}
@@ -158,7 +158,7 @@ export function PwVsSiSection({ category, siData: externalSiData, viewMode = "ag
               <button
                 key={key}
                 onClick={() => setControlled(key === "ctrl")}
-                className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   (key === "ctrl") === controlled
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
@@ -220,7 +220,7 @@ export function PwVsSiSection({ category, siData: externalSiData, viewMode = "ag
                 </thead>
                 <tbody>
                   {combinedRows.length > 0 && (
-                    <tr><td colSpan={4} className="py-0.5 px-2 text-[9px] text-muted-foreground bg-secondary/5 font-medium">
+                    <tr><td colSpan={4} className="py-0.5 px-2 text-[10px] text-muted-foreground bg-secondary/5 font-medium">
                       {controlled ? "All judges (controlled)" : "All judges combined"}
                     </td></tr>
                   )}
@@ -233,7 +233,7 @@ export function PwVsSiSection({ category, siData: externalSiData, viewMode = "ag
                     </tr>
                   ))}
                   {withinRows.length > 0 && (
-                    <tr><td colSpan={4} className="py-0.5 px-2 text-[9px] text-muted-foreground bg-secondary/5 font-medium">
+                    <tr><td colSpan={4} className="py-0.5 px-2 text-[10px] text-muted-foreground bg-secondary/5 font-medium">
                       {shortName} only
                       {wmDataAgg?.n_matches ? <span className="ml-1 font-normal">({wmDataAgg.n_matches.toLocaleString()} matches)</span> : ""}
                     </td></tr>

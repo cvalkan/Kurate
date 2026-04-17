@@ -247,11 +247,11 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, lo
           {hasTopK && (
             <div className="flex gap-1 border border-border rounded-lg p-0.5" data-testid="convergence-view-toggle">
               <button onClick={() => setShowTopK(false)}
-                className={`px-2 py-1 text-[11px] font-medium rounded transition-colors ${!showTopK ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
+                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${!showTopK ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
                 Rank Correlation
               </button>
               <button onClick={() => setShowTopK(true)}
-                className={`px-2 py-1 text-[11px] font-medium rounded transition-colors ${showTopK ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
+                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${showTopK ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
                 Top-{topKValues[0] || "K"} Overlap
               </button>
             </div>
@@ -260,7 +260,7 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, lo
             <div className="flex gap-1 border border-border rounded-lg p-0.5" data-testid="convergence-metric-toggle">
               {METRICS.map(m => (
                 <button key={m.id} onClick={() => setMetric(m.id)}
-                  className={`px-2 py-1 text-[11px] font-medium rounded transition-colors ${metric === m.id ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`px-2 py-1 text-xs font-medium rounded transition-colors ${metric === m.id ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}
                   data-testid={`convergence-metric-${m.id}`}>{m.label}</button>
               ))}
             </div>
@@ -268,11 +268,11 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, lo
           {setLogScale && (
             <div className="flex gap-1 border border-border rounded-lg p-0.5" data-testid="convergence-scale-toggle">
               <button onClick={() => setLogScale(false)}
-                className={`px-2 py-1 text-[11px] font-medium rounded transition-colors ${!logScale ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
+                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${!logScale ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
                 Linear
               </button>
               <button onClick={() => setLogScale(true)}
-                className={`px-2 py-1 text-[11px] font-medium rounded transition-colors ${logScale ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
+                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${logScale ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
                 Log
               </button>
             </div>

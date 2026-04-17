@@ -34,8 +34,8 @@ export function ScatterPlot({ data, xModel, yModel, xColor, yColor }) {
           const x = pad + (v / 100) * (w - 2 * pad);
           const y = h - pad - (v / 100) * (h - 2 * pad);
           return (<g key={v}>
-            <text x={x} y={h - pad + 12} textAnchor="middle" className="text-[8px] fill-muted-foreground">{v}</text>
-            <text x={pad - 5} y={y + 3} textAnchor="end" className="text-[8px] fill-muted-foreground">{v}</text>
+            <text x={x} y={h - pad + 12} textAnchor="middle" className="text-[10px] fill-muted-foreground">{v}</text>
+            <text x={pad - 5} y={y + 3} textAnchor="end" className="text-[10px] fill-muted-foreground">{v}</text>
           </g>);
         })}
         {data.map((d, i) => {
@@ -114,7 +114,7 @@ export function CorrelationSection({ sectionData, title, description, viewMode, 
                 <Bot className={`h-3.5 w-3.5 ${c.text}`} />
                 <span className={`font-mono text-xs font-medium ${c.text}`}>{m.short}</span>
               </div>
-              <div className="text-[11px] text-muted-foreground">
+              <div className="text-xs text-muted-foreground">
                 <span className="font-mono text-foreground">{m.total_matches}</span> matches
                 {m.short === "Claude Opus" && (
                   <span className="block text-[10px] mt-0.5 opacity-70">Opus 4.6 (and 4.5 until Feb 22, 2026)</span>
@@ -135,7 +135,7 @@ export function CorrelationSection({ sectionData, title, description, viewMode, 
                   <button
                     key={key}
                     onClick={() => setViewMode(key)}
-                    className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
+                    className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                       viewMode === key
                         ? "bg-background text-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground"
@@ -163,10 +163,10 @@ export function CorrelationSection({ sectionData, title, description, viewMode, 
               }).join(" \u2194 ");
               return (
                 <div key={pair} className="p-3 rounded-lg border border-border bg-secondary/20">
-                  <div className="text-[11px] text-muted-foreground mb-2">{shortPair}</div>
+                  <div className="text-xs text-muted-foreground mb-2">{shortPair}</div>
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-3">
-                      <div className="text-[9px] text-muted-foreground w-16 shrink-0">Win Rate</div>
+                      <div className="text-[10px] text-muted-foreground w-16 shrink-0">Win Rate</div>
                       <div className={`font-mono text-lg font-bold ${stats.spearman_r > 0.7 ? "text-green-600" : stats.spearman_r > 0.4 ? "text-amber-600" : "text-red-600"}`}>
                         {stats.spearman_r?.toFixed(2) ?? "—"}
                       </div>
@@ -175,7 +175,7 @@ export function CorrelationSection({ sectionData, title, description, viewMode, 
                     </div>
                     {tsStats && (
                       <div className="flex items-center gap-3">
-                        <div className="text-[9px] text-muted-foreground w-16 shrink-0">TrueSkill</div>
+                        <div className="text-[10px] text-muted-foreground w-16 shrink-0">TrueSkill</div>
                         <div className={`font-mono text-lg font-bold ${tsStats.spearman_r > 0.7 ? "text-green-600" : tsStats.spearman_r > 0.4 ? "text-amber-600" : "text-red-600"}`}>
                           {tsStats.spearman_r?.toFixed(2) ?? "—"}
                         </div>
@@ -184,7 +184,7 @@ export function CorrelationSection({ sectionData, title, description, viewMode, 
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-6 mt-1 text-[9px] text-muted-foreground ml-16">
+                  <div className="flex items-center gap-6 mt-1 text-[10px] text-muted-foreground ml-16">
                     <span>Spearman</span><span>Pearson</span>
                   </div>
                 </div>
@@ -209,13 +209,13 @@ export function CorrelationSection({ sectionData, title, description, viewMode, 
               const contested = stats.contested || {};
               return (
                 <div key={pair} className="p-3 rounded-lg border border-border bg-secondary/20">
-                  <div className="text-[11px] text-muted-foreground mb-2">{pair.split(" vs ").map(k => {
+                  <div className="text-xs text-muted-foreground mb-2">{pair.split(" vs ").map(k => {
                     const m = models.find(mo => mo.key === k);
                     return m ? m.short : k.split("/").pop();
                   }).join(" \u2194 ")}</div>
                   <div className="flex items-center gap-3 mb-2">
                     <div className="font-mono text-xl font-bold">{stats.rate}%</div>
-                    <div className="text-[11px] text-muted-foreground">
+                    <div className="text-xs text-muted-foreground">
                       <div className="flex items-center gap-1"><CheckCircle2 className="h-2.5 w-2.5 text-green-600" />{stats.agree}</div>
                       <div className="flex items-center gap-1"><XCircle className="h-2.5 w-2.5 text-red-500" />{stats.disagree}</div>
                     </div>
@@ -265,7 +265,7 @@ export function CorrelationSection({ sectionData, title, description, viewMode, 
                   key={key}
                   onClick={() => setScatterMode(key)}
                   data-testid={`scatter-toggle-${key}`}
-                  className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
+                  className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                     scatterMode === key
                       ? "bg-background text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground"

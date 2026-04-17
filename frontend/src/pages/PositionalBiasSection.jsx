@@ -27,7 +27,7 @@ function BiasBar({ pos1Rate, color, label, total, pValue, significant }) {
 
   return (
     <div className="space-y-1.5" data-testid={`bias-bar-${label}`}>
-      <div className="flex items-center justify-between text-[11px]">
+      <div className="flex items-center justify-between text-xs">
         <span className="font-medium" style={{ color }}>{MODEL_LABELS[label] || label}</span>
         <span className="text-muted-foreground font-mono">{total.toLocaleString()} matches</span>
       </div>
@@ -102,7 +102,7 @@ export default function PositionalBiasSection() {
       <div className="border border-border rounded-lg p-3 bg-secondary/5">
         <div className="flex items-start gap-2">
           <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-          <div className="text-[11px] text-muted-foreground space-y-1">
+          <div className="text-xs text-muted-foreground space-y-1">
             <p>
               LLM judges may develop a preference for whichever paper appears first (or second) in the prompt,
               regardless of content — a phenomenon known as <strong>positional bias</strong>. To measure this,
@@ -126,9 +126,9 @@ export default function PositionalBiasSection() {
         </div>
         <div className="p-4">
           <div className="flex items-center gap-3 mb-3">
-            <div className="text-[11px] text-muted-foreground">Paper shown 1st</div>
+            <div className="text-xs text-muted-foreground">Paper shown 1st</div>
             <div className="flex-1" />
-            <div className="text-[11px] text-muted-foreground">Paper shown 2nd</div>
+            <div className="text-xs text-muted-foreground">Paper shown 2nd</div>
           </div>
           <div className="relative h-9 rounded-md overflow-hidden bg-secondary/20 flex">
             <div
@@ -193,7 +193,7 @@ export default function PositionalBiasSection() {
           <h3 className="text-xs font-medium">Detailed Statistics</h3>
         </div>
         <div className="p-3 overflow-x-auto">
-          <table className="w-full text-[11px]">
+          <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-border text-[10px]">
                 <th className="text-left py-1.5 pr-3 font-medium">Model</th>

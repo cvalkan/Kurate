@@ -63,10 +63,10 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
               <span className="text-[10px] text-muted-foreground ml-1.5">
                 (how similarly do models rank papers from their pairwise matches)
               </span>
-              {hasOs && osUpdatedAt && <span className="text-[9px] text-muted-foreground/50 ml-1">· OS updated {new Date(osUpdatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>}
+              {hasOs && osUpdatedAt && <span className="text-[10px] text-muted-foreground/50 ml-1">· OS updated {new Date(osUpdatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>}
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-[11px]">
+              <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-border text-muted-foreground bg-secondary/5">
                     <th className="py-1.5 px-3 text-left font-medium">Pair</th>
@@ -113,7 +113,7 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
                 (how similarly do models rate papers directly)
               </span>
             </div>
-            <table className="w-full text-[11px]">
+            <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border text-muted-foreground bg-secondary/5">
                   <th className="py-1.5 px-3 text-left font-medium">Pair</th>
