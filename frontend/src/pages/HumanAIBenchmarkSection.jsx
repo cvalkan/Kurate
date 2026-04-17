@@ -467,7 +467,21 @@ function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered, hideEqualWeig
       {/* Header metrics */}
       <div className="text-[10px] text-muted-foreground mb-1 flex items-center justify-between flex-wrap gap-1">
         <span>{headerDesc}</span>
-        <span className="font-mono text-muted-foreground/80"><strong>{data.total_controlled_pairs?.toLocaleString()}</strong> pairs across <strong>{data.total_papers?.toLocaleString()}</strong> papers ({data.avg_matches_per_paper} matches/paper avg)</span>
+        <span className="font-mono text-muted-foreground/80">
+          {data.total_ai_matches != null ? (
+            <>
+              <strong>{data.total_ai_matches.toLocaleString()}</strong> AI matches on{" "}
+              <strong>{data.total_unique_pairs?.toLocaleString()}</strong> unique pairs,{" "}
+              <strong>{data.total_papers?.toLocaleString()}</strong> papers ({data.avg_matches_per_paper} matches/paper avg);{" "}
+              <strong>{data.total_controlled_pairs?.toLocaleString()}</strong> controlled pairs
+            </>
+          ) : (
+            <>
+              <strong>{data.total_controlled_pairs?.toLocaleString()}</strong> pairs across{" "}
+              <strong>{data.total_papers?.toLocaleString()}</strong> papers{data.avg_matches_per_paper != null ? ` (${data.avg_matches_per_paper} matches/paper avg)` : ""}
+            </>
+          )}
+        </span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="border border-border rounded-lg p-3 bg-background">

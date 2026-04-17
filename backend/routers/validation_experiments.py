@@ -3703,12 +3703,33 @@ async def human_ai_benchmark_iclr2026(gt_type: str = Query("comp")):
         if not result:
             return {"status": "no_data", "message": "Insufficient data for ICLR 2026 benchmark."}
         pooled = _pool_datasets([result])
+
+        # Compute total AI matches (completed) and unique pairs for header transparency
+        total_ai_matches = await db.validation_matches.count_documents({
+            "dataset_id": "iclr-2026-validation", "completed": True, "failed": {"$ne": True},
+        })
+        unique_pairs_agg = await db.validation_matches.aggregate([
+            {"$match": {"dataset_id": "iclr-2026-validation", "completed": True, "failed": {"$ne": True}}},
+            {"$group": {"_id": {"$cond": [
+                {"$lt": ["$paper1_id", "$paper2_id"]},
+                {"a": "$paper1_id", "b": "$paper2_id"},
+                {"a": "$paper2_id", "b": "$paper1_id"},
+            ]}}},
+            {"$count": "n"},
+        ]).to_list(1)
+        total_unique_pairs = unique_pairs_agg[0]["n"] if unique_pairs_agg else 0
+        n_papers = result["n_papers"]
+        avg_matches_per_paper = round(2 * total_ai_matches / n_papers, 1) if n_papers else None
+
         response = {
             "status": "ok",
             "n_datasets": 1,
-            "total_papers": result["n_papers"],
+            "total_papers": n_papers,
             "total_controlled_pairs": result["controlled_pairs"],
             "total_controlled_pairs_cf": result["controlled_pairs_cf"],
+            "total_ai_matches": total_ai_matches,
+            "total_unique_pairs": total_unique_pairs,
+            "avg_matches_per_paper": avg_matches_per_paper,
             "pooled": pooled,
             "per_dataset": [result],
         }
