@@ -3759,7 +3759,7 @@ async def iclr2026_convergence():
     papers = await collect_all(db.validation_papers.find(
         {"dataset_id": dataset_id},
         {"_id": 0, "id": 1, "openreview_id": 1, "evaluations": 1, "decision": 1,
-         "reviewer_scores": 1, "h1_avg_rating": 1},
+         "reviewer_scores": 1, "h1_avg_rating": 1, "ai_rating": 1},
     ))
     papers_by_id = {p["id"]: p for p in papers}
     oid_to_uuid = {p.get("openreview_id"): p["id"] for p in papers if p.get("openreview_id")}
@@ -3864,4 +3864,32 @@ async def iclr2026_convergence():
         "checkpoints": results,
         "current_avg": round(total_match_events / papers_seen, 1) if papers_seen else 0,
         "total_matches": len(ai_matches),
+        "si_baseline": _compute_si_baseline(papers),
+    }
+
+
+def _compute_si_baseline(papers):
+    """Spearman rho between AI single-item score (ai_rating) and human avg rating.
+
+    This is a constant (independent of match count) — it uses one AI score per
+    paper, not pairwise judgments. Useful as a reference line on the convergence
+    chart: pairwise AI should reach or surpass this level.
+    """
+    ai_scores, hum_scores = [], []
+    for p in papers:
+        r = p.get("ai_rating")
+        if isinstance(r, dict):
+            ai = r.get("score")
+        else:
+            ai = r
+        h = p.get("h1_avg_rating")
+        if ai is not None and h is not None:
+            ai_scores.append(float(ai))
+            hum_scores.append(float(h))
+    if len(ai_scores) < 20:
+        return None
+    sp = scipy_stats.spearmanr(ai_scores, hum_scores)
+    return {
+        "rho": round(float(sp.statistic), 4),
+        "n_papers": len(ai_scores),
     }

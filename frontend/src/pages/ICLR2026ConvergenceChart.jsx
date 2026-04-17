@@ -5,8 +5,8 @@ import { TrendingUp } from "lucide-react";
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const SERIES = [
-  { key: "ai_vs_avg_rating", label: "AI vs Avg Rating", color: "#16a34a" },
-  { key: "ai_vs_committee", label: "AI vs Committee Tier", color: "#2563eb" },
+  { key: "ai_vs_avg_rating", label: "AI Pairwise vs Avg Rating", color: "#16a34a" },
+  { key: "ai_vs_committee", label: "AI Pairwise vs Committee Tier", color: "#2563eb" },
 ];
 
 export default function ConvergenceChart() {
@@ -26,6 +26,8 @@ export default function ConvergenceChart() {
   const points = data.checkpoints.filter(cp => cp.total_matches > 0 && (cp.ai_vs_avg_rating || cp.ai_vs_committee));
   if (points.length < 2) return null;
 
+  const siBaseline = data.si_baseline?.rho ?? null;
+
   // Chart dimensions
   const W = 600, H = 260, PAD_L = 50, PAD_R = 20, PAD_T = 20, PAD_B = 40;
   const plotW = W - PAD_L - PAD_R;
@@ -34,7 +36,7 @@ export default function ConvergenceChart() {
   const xMax = Math.max(...points.map(p => p.avg_matches));
   const xMin = 0;
 
-  // Find y range across all series
+  // Find y range across all series + SI baseline
   let yMin = 1, yMax = 0;
   for (const s of SERIES) {
     for (const p of points) {
@@ -44,6 +46,10 @@ export default function ConvergenceChart() {
         yMax = Math.max(yMax, v);
       }
     }
+  }
+  if (siBaseline != null) {
+    yMin = Math.min(yMin, siBaseline);
+    yMax = Math.max(yMax, siBaseline);
   }
   yMin = Math.floor(yMin * 10) / 10;
   yMax = Math.ceil(yMax * 10) / 10;
@@ -70,6 +76,12 @@ export default function ConvergenceChart() {
         <p className="text-[10px] text-muted-foreground mt-0.5">
           Shows how AI-human ranking correlation improves as more pairwise matches accumulate per paper.
           Currently at {data.current_avg} avg matches/paper ({data.total_matches.toLocaleString()} total).
+          {siBaseline != null && (
+            <> The dashed <span style={{ color: "#ea580c" }}>orange</span> line shows the
+            <strong> Single-Item baseline</strong> — Spearman ρ = <strong>{siBaseline.toFixed(3)}</strong> between
+            the AI's direct per-paper score (Opus 4.6 Thinking, 1-10 scale) and human avg reviewer rating
+            across {data.si_baseline.n_papers.toLocaleString()} papers. Pairwise should reach or exceed this level.</>
+          )}
         </p>
       </div>
       <div className="p-4 flex justify-center">
@@ -111,6 +123,18 @@ export default function ConvergenceChart() {
             );
           })}
 
+          {/* Single-Item baseline — horizontal reference line */}
+          {siBaseline != null && (
+            <g>
+              <line x1={PAD_L} x2={W - PAD_R} y1={yScale(siBaseline)} y2={yScale(siBaseline)}
+                stroke="#ea580c" strokeWidth={1.5} strokeDasharray="5,3" />
+              <text x={W - PAD_R - 4} y={yScale(siBaseline) - 4} textAnchor="end" fontSize={9}
+                fill="#ea580c" fontWeight={600}>
+                Single-Item ρ = {siBaseline.toFixed(3)}
+              </text>
+            </g>
+          )}
+
           {/* Legend */}
           {SERIES.map((s, i) => (
             <g key={s.key} transform={`translate(${PAD_L + 10}, ${PAD_T + 8 + i * 16})`}>
@@ -119,6 +143,12 @@ export default function ConvergenceChart() {
               <text x={22} y={3.5} fontSize={10} fill="var(--foreground)">{s.label}</text>
             </g>
           ))}
+          {siBaseline != null && (
+            <g transform={`translate(${PAD_L + 10}, ${PAD_T + 8 + SERIES.length * 16})`}>
+              <line x1={0} x2={16} y1={0} y2={0} stroke="#ea580c" strokeWidth={1.5} strokeDasharray="5,3" />
+              <text x={22} y={3.5} fontSize={10} fill="var(--foreground)">AI Single-Item vs Avg Rating</text>
+            </g>
+          )}
         </svg>
       </div>
     </div>
