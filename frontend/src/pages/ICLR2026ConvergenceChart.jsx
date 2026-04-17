@@ -92,8 +92,8 @@ export default function ConvergenceChart({ apiPath = "/api/validation/iclr2026-c
           Shows how AI-human ranking correlation improves as more pairwise matches accumulate per paper.
           Currently at {data.current_avg} avg matches/paper ({data.total_matches.toLocaleString()} total).
           {siBaseline != null && (
-            <> Dashed reference lines: <span style={{ color: "#ea580c" }}>orange</span> = AI Single-Item vs Avg Rating
-            (ρ = <strong>{siBaseline.toFixed(3)}</strong>){siBaselineTier != null && <>, <span style={{ color: "#a855f7" }}>purple</span> = AI Single-Item vs Committee Tier
+            <> Dashed reference lines match their pairwise counterparts: <span style={{ color: "#16a34a" }}>green</span> = AI Single-Item vs Avg Rating
+            (ρ = <strong>{siBaseline.toFixed(3)}</strong>){siBaselineTier != null && <>, <span style={{ color: "#2563eb" }}>blue</span> = AI Single-Item vs Committee Tier
             (ρ = <strong>{siBaselineTier.toFixed(3)}</strong>)</>}. Pairwise should reach or exceed these levels.</>
           )}
         </p>
@@ -141,9 +141,9 @@ export default function ConvergenceChart({ apiPath = "/api/validation/iclr2026-c
           {siBaseline != null && (
             <g>
               <line x1={PAD_L} x2={W - PAD_R} y1={yScale(siBaseline)} y2={yScale(siBaseline)}
-                stroke="#ea580c" strokeWidth={1.5} strokeDasharray="5,3" />
+                stroke="#16a34a" strokeWidth={1.5} strokeDasharray="5,3" />
               <text x={W - PAD_R - 4} y={yScale(siBaseline) - 4} textAnchor="end" fontSize={9}
-                fill="#ea580c" fontWeight={600}>
+                fill="#16a34a" fontWeight={600}>
                 Single-Item ρ = {siBaseline.toFixed(3)}
               </text>
             </g>
@@ -151,9 +151,9 @@ export default function ConvergenceChart({ apiPath = "/api/validation/iclr2026-c
           {siBaselineTier != null && (
             <g>
               <line x1={PAD_L} x2={W - PAD_R} y1={yScale(siBaselineTier)} y2={yScale(siBaselineTier)}
-                stroke="#a855f7" strokeWidth={1.5} strokeDasharray="5,3" />
+                stroke="#2563eb" strokeWidth={1.5} strokeDasharray="5,3" />
               <text x={W - PAD_R - 4} y={yScale(siBaselineTier) - 4} textAnchor="end" fontSize={9}
-                fill="#a855f7" fontWeight={600}>
+                fill="#2563eb" fontWeight={600}>
                 Single-Item vs Tier ρ = {siBaselineTier.toFixed(3)}
               </text>
             </g>
@@ -169,13 +169,13 @@ export default function ConvergenceChart({ apiPath = "/api/validation/iclr2026-c
           ))}
           {siBaseline != null && (
             <g transform={`translate(${PAD_L + 10}, ${PAD_T + 8 + SERIES.length * 16})`}>
-              <line x1={0} x2={16} y1={0} y2={0} stroke="#ea580c" strokeWidth={1.5} strokeDasharray="5,3" />
+              <line x1={0} x2={16} y1={0} y2={0} stroke="#16a34a" strokeWidth={1.5} strokeDasharray="5,3" />
               <text x={22} y={3.5} fontSize={10} fill="var(--foreground)">AI Single-Item vs Avg Rating</text>
             </g>
           )}
           {siBaselineTier != null && (
             <g transform={`translate(${PAD_L + 10}, ${PAD_T + 8 + (SERIES.length + 1) * 16})`}>
-              <line x1={0} x2={16} y1={0} y2={0} stroke="#a855f7" strokeWidth={1.5} strokeDasharray="5,3" />
+              <line x1={0} x2={16} y1={0} y2={0} stroke="#2563eb" strokeWidth={1.5} strokeDasharray="5,3" />
               <text x={22} y={3.5} fontSize={10} fill="var(--foreground)">AI Single-Item vs Committee Tier</text>
             </g>
           )}
