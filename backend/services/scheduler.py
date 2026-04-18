@@ -50,13 +50,6 @@ _summary_gen_stop = False
 # They won't be retried until paper/match counts change (new data invalidates exhaustion).
 _pair_exhausted_cats: Dict[str, dict] = {}  # {category: {"papers": N, "matches": M}}
 
-# --- Revision epoch tracker (in-memory) ---
-# Incremented on _handle_revision(). Consulted at match-insertion time so
-# comparisons selected before a revision but finishing afterwards can be
-# marked revision_superseded immediately on insert (prevents stale matches
-# from polluting the freshly-reset tournament).
-_paper_revision_epochs: Dict[str, int] = {}
-
 
 def _mark_pair_exhausted(category: str):
     """Mark a category as pair-exhausted (no new pairs possible)."""
@@ -650,261 +643,126 @@ async def _check_goals_met_impl(category: str = "cs.RO") -> bool:
 
 
 
-# Common English + scientific-paper stopwords — excluded from similarity to
-# avoid high Jaccard baselines driven by shared technical vocabulary.
-_SIM_STOPWORDS = frozenset({
-    "the", "a", "an", "and", "or", "but", "of", "in", "on", "at", "to", "for",
-    "with", "by", "from", "as", "is", "are", "was", "were", "be", "been", "being",
-    "it", "its", "this", "that", "these", "those", "we", "our", "they", "their",
-    "i", "he", "she", "his", "her", "not", "no", "so", "if", "then", "than",
-    "also", "can", "may", "might", "will", "would", "could", "should", "has",
-    "have", "had", "do", "does", "did", "such", "which", "who", "whom", "what",
-    "where", "when", "how", "why", "all", "any", "each", "both", "more", "most",
-    "some", "other", "many", "few", "same", "different", "new", "used", "use",
-    # scientific paper boilerplate
-    "figure", "table", "section", "chapter", "appendix", "abstract",
-    "introduction", "conclusion", "method", "methods", "result", "results",
-    "show", "shown", "shows", "propose", "proposed", "paper", "approach",
-    "work", "study", "studies", "et", "al", "eq", "equation", "see", "fig",
-    "e.g", "i.e", "ref", "refs", "based", "using", "given", "present",
-})
-
-
-def _tokenize_for_similarity(text: str) -> set:
-    """Tokenize + stopword filter for Jaccard similarity."""
-    import re as _re
-    clean = _re.sub(r'[^\w\s]', ' ', text.lower())
-    # Drop stopwords and pure-number tokens (years, equation numbers)
-    return {w for w in clean.split()
-            if len(w) > 2 and w not in _SIM_STOPWORDS and not w.isdigit()}
-
-
-def _content_similarity(text_a: str, text_b: str) -> float:
-    """Stopword-filtered Jaccard similarity on word sets. Returns 0.0–1.0.
-
-    Filters out common English + scientific-paper boilerplate (figure, table,
-    section, etc.) so the score reflects *topical* overlap rather than shared
-    vocabulary. Two unrelated ML papers typically score 0.10–0.25; two versions
-    of the same paper with light edits score 0.85+.
-    """
-    if not text_a or not text_b:
-        return 0.0
-    clean_a = _tokenize_for_similarity(text_a)
-    clean_b = _tokenize_for_similarity(text_b)
-    if not clean_a or not clean_b:
-        return 0.0
-    return len(clean_a & clean_b) / len(clean_a | clean_b)
-
-
 async def _handle_revision(paper_id: str, new_arxiv_data: dict, new_version: int, settings: dict) -> str:
-    """Handle an arXiv revision for an existing paper.
+    """Handle an arXiv revision under the *standalone-paper-per-version* model.
 
-    Every revision: snapshot old version, re-download PDF, clear summaries
-    (triggers re-generation of summaries & ratings for the new content).
-
-    Content-diff gate (admin setting `revision_diff_threshold`) controls only
-    whether the tournament is also reset (matches superseded, ranking zeroed).
+    Semantics:
+      * The existing paper (the previous "latest") is FROZEN: its summaries,
+        ranking, and matches are left exactly as they are, and it is flagged
+        `is_latest_version=False` so pair-selection and the leaderboard skip it.
+      * A fresh paper document is INSERTED for the new version (new UUID, new
+        arxiv_id like `2602.12345v2`, shared `arxiv_id_base`, a link back to
+        the previous version via `previous_version_paper_id`).
+      * A new ranking row is seeded for the new paper (baseline TrueSkill).
+      * No matches are deleted, superseded, or moved. The old paper's page
+        continues to show its frozen match history; the new paper's tournament
+        starts from scratch.
+      * `version_history` arrays are NOT written — the standalone-paper model
+        makes them redundant. Navigation between versions is via the new
+        `sibling_versions` API (see get_sibling_versions).
 
     Returns:
-      "revised"  — tournament reset (content changed significantly)
-      "updated"  — new content ingested, summaries will regenerate, but tournament kept
+      "revised" if a new paper was successfully created; "updated" otherwise
+      (e.g., PDF download failed — in which case the old paper stays latest).
     """
     now_iso = datetime.now(timezone.utc).isoformat()
-    threshold = settings.get("revision_diff_threshold", 0.95)
-
-    # Single atomic read of the full paper document — avoids three separate
-    # find_one calls (TOCTOU window for concurrent writers).
-    full_existing = await db.papers.find_one({"id": paper_id})
-    if not full_existing:
+    existing = await db.papers.find_one({"id": paper_id})
+    if not existing:
         return "updated"
-    # Strip _id for downstream use
-    full_existing.pop("_id", None)
-    existing = {k: v for k, v in full_existing.items() if k != "full_text"}
-    old_full_text = full_existing.get("full_text") or ""
+    existing.pop("_id", None)
 
-    # Download new PDF
+    # Download new PDF (required — we want full content for the new version).
     new_pdf_link = new_arxiv_data.get("pdf_link") or f"https://arxiv.org/pdf/{new_arxiv_data['arxiv_id']}"
     try:
         new_full_text = await download_and_extract_pdf(new_pdf_link)
     except Exception as e:
         logger.warning(f"Revision PDF download failed for {paper_id}: {e}")
         return "updated"
-
     if not new_full_text:
         logger.warning(f"Revision PDF extraction empty for {paper_id}")
         return "updated"
 
-    # Content-diff gate — determines tournament reset, NOT whether to re-evaluate.
-    # Preference order:
-    #   1. full_text vs full_text (most accurate)
-    #   2. abstract vs abstract (fallback if old full_text missing)
-    #   3. reset by default (cannot compare)
-    reset_tournament = True
-    similarity_basis = "default_reset"
-    similarity = None
-    if old_full_text:
-        similarity = _content_similarity(old_full_text, new_full_text)
-        reset_tournament = similarity < threshold
-        similarity_basis = "full_text"
-    else:
-        # Orphan full_text case — fall back to abstracts (short but better than nothing)
-        old_abstract = existing.get("abstract") or ""
-        new_abstract = new_arxiv_data.get("abstract") or ""
-        if old_abstract and new_abstract:
-            similarity = _content_similarity(old_abstract, new_abstract)
-            reset_tournament = similarity < threshold
-            similarity_basis = "abstract"
-            logger.info(f"Revision v{new_version} for {paper_id}: old full_text missing, "
-                        f"using abstract similarity={similarity:.3f}")
-        else:
-            logger.warning(f"Revision v{new_version} for {paper_id}: no comparable text "
-                           f"(full_text + abstract both missing) — treating as content update only")
-            reset_tournament = False
-            similarity_basis = "no_comparable_text"
-
-    if similarity is not None:
-        logger.info(f"Revision v{new_version} for {paper_id}: "
-                    f"similarity={similarity:.3f} (basis={similarity_basis}), "
-                    f"threshold={threshold}, reset_tournament={reset_tournament}")
-
-    # --- Always: snapshot old version, re-ingest new content ---
-
-    # 1. Snapshot old version data (reuses the single full_existing read above)
-    ranking_doc = await db.rankings.find_one(
-        {"paper_id": paper_id},
-        {"_id": 0, "rank_ts": 1, "ts_score": 1, "comparisons": 1, "win_rate": 1, "wins": 1, "losses": 1}
-    )
-
-    version_snapshot = {
-        "version": existing.get("current_version", 1),
-        "arxiv_id": existing.get("arxiv_id"),
-        "summaries": full_existing.get("summaries", {}),
-        "summary_dates": full_existing.get("summary_dates", {}),
-        "ai_ratings_by_model": full_existing.get("ai_ratings_by_model", {}),
-        "ai_rating": full_existing.get("ai_rating"),
-        "added_at": existing.get("added_at"),
-        "archived_at": now_iso,
-        "tournament_reset": reset_tournament,
-        "similarity": similarity,
-        "similarity_basis": similarity_basis,
-    }
-    if ranking_doc:
-        version_snapshot["last_rank"] = ranking_doc.get("rank_ts")
-        version_snapshot["last_ts_score"] = ranking_doc.get("ts_score")
-        version_snapshot["last_comparisons"] = ranking_doc.get("comparisons", 0)
-        version_snapshot["last_win_rate"] = ranking_doc.get("win_rate", 0)
-
-    # 2. Push snapshot to version_history, update paper with new content, clear summaries.
-    #    Increment revision_epoch — used by in-flight matches to detect staleness.
     base, _ = strip_arxiv_version(new_arxiv_data["arxiv_id"])
-    prev_epoch = full_existing.get("revision_epoch", 0)
-    new_epoch = prev_epoch + 1
-    update_set = {
+
+    # --- 1. Create the new paper document ---
+    new_paper_id = str(uuid.uuid4())
+    new_paper = {
+        "id": new_paper_id,
+        "title": new_arxiv_data.get("title", existing.get("title", "")),
+        "authors": new_arxiv_data.get("authors", existing.get("authors", [])),
+        "abstract": new_arxiv_data.get("abstract", existing.get("abstract", "")),
+        "full_text": new_full_text,
+        "categories": new_arxiv_data.get("categories", existing.get("categories", [])),
+        "published": new_arxiv_data.get("published", existing.get("published")),
+        "link": new_arxiv_data.get("link", f"https://arxiv.org/abs/{new_arxiv_data['arxiv_id']}"),
+        "pdf_link": new_pdf_link,
         "arxiv_id": new_arxiv_data["arxiv_id"],
         "arxiv_id_base": base,
         "current_version": new_version,
-        "revision_epoch": new_epoch,
-        "pdf_link": new_pdf_link,
-        "link": new_arxiv_data.get("link", existing.get("link", "")),
-        "abstract": new_arxiv_data.get("abstract", existing.get("abstract", "")),
-        "full_text": new_full_text,
+        "is_latest_version": True,
+        "previous_version_paper_id": paper_id,
+        "added_at": now_iso,
         "needs_pdf": False,
-        "revised_at": now_iso,
     }
+    try:
+        await db.papers.insert_one(new_paper)
+    except Exception as e:
+        # Duplicate arxiv_id (someone else already ingested this version).
+        logger.warning(f"Revision insert skipped for {new_arxiv_data['arxiv_id']}: {e}")
+        return "updated"
+
+    # --- 2. Freeze the previous version (paper doc + its ranking row) ---
     await db.papers.update_one(
         {"id": paper_id},
-        {
-            "$push": {"version_history": {"$each": [version_snapshot], "$slice": -20}},
-            "$set": update_set,
-            "$unset": {
-                "summaries": "",
-                "summary_dates": "",
-                "summary_tokens": "",
-                "ai_ratings_by_model": "",
-                "ai_rating": "",
-            }
-        }
+        {"$set": {
+            "is_latest_version": False,
+            "frozen_at": now_iso,
+            "superseded_by_paper_id": new_paper_id,
+        }}
     )
-    # Update in-memory epoch tracker so in-flight comparisons can detect staleness.
-    _paper_revision_epochs[paper_id] = new_epoch
+    # Denormalize the flag onto the ranking row so leaderboard queries can
+    # filter efficiently without a $lookup (critical-path performance).
+    await db.rankings.update_one(
+        {"paper_id": paper_id},
+        {"$set": {"is_latest_version": False, "frozen_at": now_iso}}
+    )
 
-    # 3. Tournament reset (only if content changed significantly)
-    if reset_tournament:
-        # Soft-delete old matches
-        superseded_result = await db.matches.update_many(
-            {
-                "$or": [{"paper1_id": paper_id}, {"paper2_id": paper_id}],
-                "completed": True,
-                "revision_superseded": {"$ne": True},
-            },
-            {"$set": {"revision_superseded": True, "superseded_at": now_iso}}
-        )
-        superseded_count = superseded_result.modified_count
+    # --- 3. Seed a fresh ranking row for the new paper ---
+    # Denormalize paper fields into the ranking row so leaderboard queries
+    # (which project from rankings only) can display title/authors/arxiv link
+    # without a papers lookup.
+    from services.ranking import SCORE_BASE_CONST
+    category = (new_paper["categories"] or ["unknown"])[0]
+    await db.rankings.insert_one({
+        "paper_id": new_paper_id,
+        "category": category,
+        "wins": 0, "losses": 0, "comparisons": 0, "unique_opponents": 0,
+        "score": SCORE_BASE_CONST, "ci": 0, "wilson_margin": 100.0, "win_rate": 0.0,
+        "ts_mu": 25.0, "ts_sigma": 25.0 / 3,
+        "ts_score": SCORE_BASE_CONST,
+        "is_latest_version": True,
+        "model_stats": {},
+        "model_ts": {},
+        # Denormalized paper fields for leaderboard display
+        "title": new_paper["title"],
+        "authors": new_paper["authors"],
+        "arxiv_id": new_paper["arxiv_id"],
+        "link": new_paper["link"],
+        "published": new_paper["published"],
+        "added_at": now_iso,
+        "categories": new_paper["categories"],
+        "current_version": new_version,
+        "updated_at": now_iso,
+    })
 
-        # Reset ranking
-        if ranking_doc:
-            revision_badge = {
-                "version": new_version,
-                "prev_rank": ranking_doc.get("rank_ts"),
-                "prev_ts_score": ranking_doc.get("ts_score"),
-                "prev_comparisons": ranking_doc.get("comparisons", 0),
-                "prev_win_rate": ranking_doc.get("win_rate", 0),
-                "revised_at": now_iso,
-            }
-            from services.ranking import SCORE_BASE_CONST
-            await db.rankings.update_one(
-                {"paper_id": paper_id},
-                {"$set": {
-                    "wins": 0, "losses": 0, "comparisons": 0, "unique_opponents": 0,
-                    "score": SCORE_BASE_CONST, "ci": 0, "wilson_margin": 100.0, "win_rate": 0.0,
-                    "ts_mu": 25.0, "ts_sigma": 25.0 / 3,
-                    "ts_score": SCORE_BASE_CONST,
-                    "revision_badge": revision_badge,
-                    "model_stats": {},
-                    "model_ts": {},
-                    "updated_at": now_iso,
-                }}
-            )
-
-        # Keep in-memory _incr_match_counts consistent with DB. Count how many
-        # matches we actually superseded per primary_category and decrement.
-        if superseded_count > 0:
-            try:
-                from routers.leaderboard import _incr_match_counts
-                async for doc in db.matches.aggregate([
-                    {"$match": {
-                        "$or": [{"paper1_id": paper_id}, {"paper2_id": paper_id}],
-                        "revision_superseded": True,
-                        "superseded_at": now_iso,
-                        "completed": True,
-                        "failed": {"$ne": True},
-                    }},
-                    {"$group": {"_id": "$primary_category", "count": {"$sum": 1}}},
-                ]):
-                    cat = doc["_id"]
-                    if cat:
-                        _incr_match_counts[cat] = max(0, _incr_match_counts.get(cat, 0) - doc["count"])
-                        # Keep cat_status.matches_count aligned — read by UI
-                        cs = _category_status.get(cat)
-                        if cs is not None:
-                            cs["matches_count"] = _incr_match_counts.get(cat, 0)
-            except Exception as e:
-                logger.warning(f"Failed to decrement match counters after revision {paper_id}: {e}")
-
-        logger.info(f"Revision v{new_version} for {paper_id} ({base}): TOURNAMENT RESET — "
-                     f"archived v{version_snapshot['version']}, superseded {superseded_count} matches, "
-                     f"epoch {prev_epoch}→{new_epoch}")
-    else:
-        logger.info(f"Revision v{new_version} for {paper_id} ({base}): content update only — "
-                     f"summaries cleared for re-generation, tournament kept, epoch {prev_epoch}→{new_epoch}")
-
-    # 4. Invalidate caches
+    # --- 4. Invalidate caches ---
     from routers.leaderboard import notify_data_changed
     notify_data_changed()
-    category = existing.get("categories", ["unknown"])[0]
     invalidate_goals_cache(category)
 
-    return "revised" if reset_tournament else "updated"
+    logger.info(f"Revision v{new_version} for base {base}: created new paper {new_paper_id} "
+                f"(previous v{existing.get('current_version', 1)} paper {paper_id} frozen)")
+    return "revised"
 
 
 
@@ -944,14 +802,20 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             revisions_detected = 0
             existing_ids = set()
             existing_hashes = set()
-            # Build lookup of arxiv_id_base → existing paper for revision detection.
-            # IMPORTANT: scanned across ALL categories (not just current) — a paper
-            # can switch primary category between versions, and the sparse unique
-            # index on arxiv_id_base would otherwise raise DuplicateKeyError on insert.
+            # Version-aware lookup: for each arxiv_id_base, find the paper marked
+            # as latest. Multiple papers may share the same base (one per version
+            # in the new standalone-paper-per-version model) — we only want the
+            # LATEST one, since that's the one we compare against.
             existing_bases = {}  # base → {arxiv_id, current_version, id}
             if id_field == "arxiv_id":
                 async for doc in db.papers.find(
-                    {"arxiv_id_base": {"$exists": True}},
+                    {
+                        "arxiv_id_base": {"$exists": True},
+                        # Legacy papers (pre-revision-system) don't have this
+                        # field — treat them as latest. Post-refactor papers
+                        # will have it explicitly set.
+                        "is_latest_version": {"$ne": False},
+                    },
                     {"_id": 0, id_field: 1, "arxiv_id_base": 1, "current_version": 1, "id": 1}
                 ):
                     if doc.get("arxiv_id_base"):
@@ -1023,7 +887,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                     base, version = strip_arxiv_version(rp["arxiv_id"])
                     paper_doc["arxiv_id_base"] = base
                     paper_doc["current_version"] = version
-                    paper_doc["revision_epoch"] = 0
+                    paper_doc["is_latest_version"] = True
                 if rp.get("chemrxiv_id"):
                     paper_doc["chemrxiv_id"] = rp["chemrxiv_id"]
                 if rp.get("doi"):
@@ -1292,6 +1156,9 @@ async def get_matchable_paper_ids(category: str, summary_source: str = "claude")
     all_keys = [required_key] + fallback_keys
     summary_filter = {"$or": [{f"summaries.{k}": {"$exists": True}} for k in all_keys]}
     summary_filter["categories.0"] = category
+    # Exclude frozen older versions (is_latest_version=False). Treat missing
+    # field as latest (legacy pre-refactor papers).
+    summary_filter["is_latest_version"] = {"$ne": False}
     matchable_ids = set()
     async for doc in db.papers.find(summary_filter, {"_id": 0, "id": 1}):
         matchable_ids.add(doc["id"])
@@ -1623,12 +1490,6 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                 return {"status": "no_pairs"}
 
             paper_lookup = {p["id"]: p for p in all_papers}
-            # Snapshot revision epochs at pair-selection time. If a paper is
-            # revised while its comparisons are in-flight, the match will be
-            # flagged revision_superseded at insertion (see _run_one below).
-            epochs_at_selection = {
-                pid: _paper_revision_epochs.get(pid, 0) for pid in paper_lookup.keys()
-            }
             completed = 0
             failed = 0
             total_matches = cat_status.get("matches_count", 0)
@@ -1699,26 +1560,12 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                     })
                     completed += 1
 
-                # If either paper was revised while this comparison was in-flight,
-                # mark the match revision_superseded at insertion so it never
-                # contaminates the freshly-reset tournament for v{N+1}.
-                stale = (
-                    _paper_revision_epochs.get(p1_id, 0) != epochs_at_selection.get(p1_id, 0)
-                    or _paper_revision_epochs.get(p2_id, 0) != epochs_at_selection.get(p2_id, 0)
-                )
-                if stale:
-                    match_doc["revision_superseded"] = True
-                    match_doc["superseded_at"] = datetime.now(timezone.utc).isoformat()
-
                 await db.matches.insert_one(match_doc)
-                # Only bump counters for matches that will actually count in
-                # rankings (skip revision-superseded ones).
-                if not match_doc.get("revision_superseded"):
-                    from routers.leaderboard import bump_match_counter
-                    bump_match_counter(category, failed=match_doc.get("failed", False))
+                # Bump incremental match counter (avoids full-collection scan in _refresh_cache)
+                from routers.leaderboard import bump_match_counter
+                bump_match_counter(category, failed=match_doc.get("failed", False))
                 # Incrementally update DB-backed rankings for this match
-                if (match_doc.get("completed") and match_doc.get("winner_id")
-                        and not match_doc.get("revision_superseded")):
+                if match_doc.get("completed") and match_doc.get("winner_id"):
                     from services.ranking import update_rankings_for_match
                     w_id = match_doc["winner_id"]
                     l_id = p2_id if w_id == p1_id else p1_id

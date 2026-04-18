@@ -3425,80 +3425,112 @@ async def run_data_audit():
 
 @router.get("/revision-feed")
 async def get_revision_feed(admin=Depends(verify_admin), limit: int = Query(50, le=200)):
-    """Return recent paper revisions for debugging.
+    """Return papers grouped by arxiv_id_base where more than one version exists.
 
-    Lists papers with version_history, ordered by most recent revision.
-    Shows similarity scores, whether tournament was reset, and match counts.
+    Lists "paper families" — arXiv base IDs with 2+ standalone paper documents
+    (the new standalone-paper-per-version model). Also surfaces legacy
+    in-place revised papers (those with a non-empty `version_history` array)
+    for reverse compatibility.
     """
-    papers = []
+    families = []
+
+    # Families from the NEW standalone-paper-per-version model —
+    # arxiv_id_base with 2+ papers.
+    async for group in db.papers.aggregate([
+        {"$match": {"arxiv_id_base": {"$exists": True, "$ne": None}}},
+        {"$group": {
+            "_id": "$arxiv_id_base",
+            "n": {"$sum": 1},
+            "versions": {"$push": {
+                "id": "$id",
+                "arxiv_id": "$arxiv_id",
+                "version": "$current_version",
+                "is_latest_version": "$is_latest_version",
+                "title": "$title",
+                "frozen_at": "$frozen_at",
+                "added_at": "$added_at",
+                "categories": "$categories",
+            }},
+        }},
+        {"$match": {"n": {"$gt": 1}}},
+        {"$sort": {"_id": 1}},
+        {"$limit": limit},
+    ]):
+        versions = sorted(group["versions"], key=lambda v: v.get("version") or 1)
+        latest = next((v for v in versions if v.get("is_latest_version") is not False), versions[-1])
+        ranking = await db.rankings.find_one(
+            {"paper_id": latest["id"]},
+            {"_id": 0, "rank_ts": 1, "ts_score": 1, "comparisons": 1, "win_rate": 1}
+        ) or {}
+        match_count = await db.matches.count_documents({
+            "$or": [{"paper1_id": latest["id"]}, {"paper2_id": latest["id"]}],
+            "completed": True, "failed": {"$ne": True},
+        })
+        families.append({
+            "source": "standalone_versions",
+            "arxiv_id_base": group["_id"],
+            "title": latest.get("title", ""),
+            "category": (latest.get("categories") or ["?"])[0],
+            "latest_paper_id": latest["id"],
+            "latest_arxiv_id": latest.get("arxiv_id"),
+            "latest_version": latest.get("version"),
+            "total_versions": len(versions),
+            "active_matches": match_count,
+            "current_ranking": {
+                "rank_ts": ranking.get("rank_ts"),
+                "ts_score": ranking.get("ts_score"),
+                "comparisons": ranking.get("comparisons"),
+                "win_rate": ranking.get("win_rate"),
+            },
+            "versions": [
+                {
+                    "paper_id": v["id"],
+                    "arxiv_id": v.get("arxiv_id"),
+                    "version": v.get("version"),
+                    "is_latest": v.get("is_latest_version") is not False,
+                    "frozen_at": v.get("frozen_at"),
+                    "added_at": v.get("added_at"),
+                }
+                for v in versions
+            ],
+        })
+
+    # Legacy in-place revised papers (pre-refactor) — surfaced so admins can
+    # audit them, but they never receive new standalone sibling docs.
+    legacy = []
     async for doc in db.papers.find(
         {"version_history": {"$exists": True, "$ne": []}},
         {"_id": 0, "id": 1, "title": 1, "arxiv_id": 1, "arxiv_id_base": 1,
-         "current_version": 1, "version_history": 1, "revised_at": 1,
-         "categories": 1, "summaries": 1}
+         "current_version": 1, "version_history": 1, "revised_at": 1, "categories": 1}
     ).sort("revised_at", -1).limit(limit):
-        # Count active vs superseded matches
-        active = await db.matches.count_documents({
-            "$or": [{"paper1_id": doc["id"]}, {"paper2_id": doc["id"]}],
-            "completed": True, "revision_superseded": {"$ne": True}
-        })
-        superseded = await db.matches.count_documents({
-            "$or": [{"paper1_id": doc["id"]}, {"paper2_id": doc["id"]}],
-            "revision_superseded": True
-        })
-
-        # Get current ranking
-        ranking = await db.rankings.find_one(
-            {"paper_id": doc["id"]},
-            {"_id": 0, "rank_ts": 1, "ts_score": 1, "comparisons": 1,
-             "win_rate": 1, "revision_badge": 1}
-        )
-
-        versions = []
-        for v in doc.get("version_history", []):
-            versions.append({
-                "version": v.get("version"),
-                "arxiv_id": v.get("arxiv_id"),
-                "archived_at": v.get("archived_at"),
-                "tournament_reset": v.get("tournament_reset"),
-                "merged_from_duplicate": v.get("merged_from_duplicate", False),
-                "last_rank": v.get("last_rank"),
-                "last_ts_score": v.get("last_ts_score"),
-                "last_comparisons": v.get("last_comparisons"),
-                "last_win_rate": v.get("last_win_rate"),
-                "had_summaries": bool(v.get("summaries")),
-                "had_ratings": v.get("ai_rating") is not None,
-            })
-
-        has_new_summaries = bool(doc.get("summaries"))
-
-        papers.append({
+        legacy.append({
+            "source": "legacy_in_place",
             "id": doc["id"],
-            "title": doc.get("title", ""),
-            "arxiv_id": doc.get("arxiv_id"),
             "arxiv_id_base": doc.get("arxiv_id_base"),
+            "title": doc.get("title", ""),
+            "current_arxiv_id": doc.get("arxiv_id"),
             "current_version": doc.get("current_version"),
             "category": (doc.get("categories") or ["?"])[0],
             "revised_at": doc.get("revised_at"),
-            "has_new_summaries": has_new_summaries,
-            "active_matches": active,
-            "superseded_matches": superseded,
-            "current_ranking": {
-                "rank_ts": ranking.get("rank_ts") if ranking else None,
-                "ts_score": ranking.get("ts_score") if ranking else None,
-                "comparisons": ranking.get("comparisons") if ranking else None,
-                "win_rate": ranking.get("win_rate") if ranking else None,
-                "revision_badge": ranking.get("revision_badge") if ranking else None,
-            },
-            "archived_versions": versions,
+            "archived_versions_count": len(doc.get("version_history", [])),
         })
 
-    # Summary stats
-    total_revised = await db.papers.count_documents({"version_history": {"$exists": True, "$ne": []}})
-    total_superseded_matches = await db.matches.count_documents({"revision_superseded": True})
+    total_standalone_families = 0
+    async for group in db.papers.aggregate([
+        {"$match": {"arxiv_id_base": {"$exists": True}}},
+        {"$group": {"_id": "$arxiv_id_base", "n": {"$sum": 1}}},
+        {"$match": {"n": {"$gt": 1}}},
+        {"$count": "total"},
+    ]):
+        total_standalone_families = group.get("total", 0)
+
+    total_legacy = await db.papers.count_documents({"version_history": {"$exists": True, "$ne": []}})
+    total_frozen = await db.papers.count_documents({"is_latest_version": False})
 
     return {
-        "total_revised_papers": total_revised,
-        "total_superseded_matches": total_superseded_matches,
-        "papers": papers,
+        "total_standalone_families": total_standalone_families,
+        "total_legacy_in_place": total_legacy,
+        "total_frozen_papers": total_frozen,
+        "families": families,
+        "legacy_in_place": legacy,
     }

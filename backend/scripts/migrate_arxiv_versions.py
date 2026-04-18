@@ -1,15 +1,17 @@
 """
-One-time migration: backfill arxiv_id_base and current_version for all papers.
+One-time migration: backfill `arxiv_id_base`, `current_version`, and
+`is_latest_version` fields on existing papers so the revision system
+(standalone-paper-per-version model) can operate cleanly.
 
-Handles pre-existing duplicate versions (v1 + v2 both ingested separately) by
-merging them — keeping the higher version and archiving the lower.
+Backfill only — does NOT touch matches, rankings, or merge any duplicates.
+If duplicate arxiv_id_base groups exist (from the legacy in-place model),
+they are preserved: the highest version is flagged is_latest_version=True,
+the rest is_latest_version=False. Their rankings are flagged accordingly too.
 
 Safety guarantees (hardened for production):
-  * Requires MONGO_URL env var (fails fast if unset — no silent localhost fallback).
-  * Pauses the scheduler via `db.settings.key=global paused=true` BEFORE touching
-    papers, restores the prior paused flag on completion. Prevents new
-    inserts creating duplicates between Step 2 (merge) and Step 3 (unique index).
-  * Step 2 loops until no duplicates remain (defensive against insert races).
+  * Requires MONGO_URL + DB_NAME env vars (fails fast if unset).
+  * Pauses the scheduler via `db.settings.key=global paused=true` BEFORE
+    writing, restores the prior paused flag in `finally`.
   * --dry-run flag: logs what would change without writing.
   * Connection cleanup in finally.
 
@@ -29,18 +31,6 @@ def strip_arxiv_version(arxiv_id: str):
     if m:
         return m.group(1), int(m.group(2))
     return arxiv_id, 1
-
-
-async def _find_duplicate_bases(db):
-    """Return list of arxiv_id_base values that have > 1 paper."""
-    dupes = []
-    async for group in db.papers.aggregate([
-        {"$match": {"arxiv_id_base": {"$exists": True}}},
-        {"$group": {"_id": "$arxiv_id_base", "count": {"$sum": 1}, "ids": {"$push": "$id"}}},
-        {"$match": {"count": {"$gt": 1}}},
-    ]):
-        dupes.append(group)
-    return dupes
 
 
 async def migrate(dry_run: bool = False):
@@ -82,7 +72,7 @@ async def migrate(dry_run: bool = False):
         else:
             print("Step 0: DRY-RUN — skipping scheduler pause")
 
-        # ── Step 1: Backfill arxiv_id_base and current_version ─────────────
+        # ── Step 1: Backfill arxiv_id_base + current_version on papers ─────
         updated = 0
         skipped = 0
         async for doc in db.papers.find(
@@ -106,117 +96,76 @@ async def migrate(dry_run: bool = False):
         print(f"Step 1: {'Would backfill' if dry_run else 'Backfilled'} "
               f"{updated} papers, skipped {skipped}")
 
-        # ── Step 2: Merge duplicate arxiv_id_base entries (loop until clean) ─
-        total_merged = 0
-        iterations = 0
-        while True:
-            iterations += 1
-            if iterations > 10:
-                print("WARN: Step 2 aborting after 10 iterations — manual investigation needed")
-                break
-            groups = await _find_duplicate_bases(db)
-            if not groups:
-                break
-            print(f"Step 2 iter {iterations}: found {len(groups)} duplicate bases")
-            merged_this_iter = 0
-
-            for group in groups:
-                base = group["_id"]
-                paper_ids = group["ids"]
-
-                # Load all versions
-                papers = []
-                async for p in db.papers.find(
-                    {"id": {"$in": paper_ids}},
-                    {"_id": 0, "id": 1, "arxiv_id": 1, "current_version": 1, "summaries": 1,
-                     "summary_dates": 1, "ai_ratings_by_model": 1, "ai_rating": 1, "added_at": 1,
-                     "comparisons": 1}
-                ):
-                    papers.append(p)
-
-                # Sort by version desc — keep highest
-                papers.sort(key=lambda p: p.get("current_version", 1), reverse=True)
-                keeper = papers[0]
-                to_archive = papers[1:]
-
-                for old_paper in to_archive:
-                    old_ranking = await db.rankings.find_one(
-                        {"paper_id": old_paper["id"]},
-                        {"_id": 0, "rank_ts": 1, "ts_score": 1, "comparisons": 1, "win_rate": 1}
-                    )
-                    snapshot = {
-                        "version": old_paper.get("current_version", 1),
-                        "arxiv_id": old_paper.get("arxiv_id"),
-                        "summaries": old_paper.get("summaries", {}),
-                        "summary_dates": old_paper.get("summary_dates", {}),
-                        "ai_ratings_by_model": old_paper.get("ai_ratings_by_model", {}),
-                        "ai_rating": old_paper.get("ai_rating"),
-                        "added_at": old_paper.get("added_at"),
-                        "archived_at": now_iso,
-                        "tournament_reset": True,
-                        "merged_from_duplicate": True,
-                    }
-                    if old_ranking:
-                        snapshot["last_rank"] = old_ranking.get("rank_ts")
-                        snapshot["last_ts_score"] = old_ranking.get("ts_score")
-                        snapshot["last_comparisons"] = old_ranking.get("comparisons", 0)
-                        snapshot["last_win_rate"] = old_ranking.get("win_rate", 0)
-
-                    if dry_run:
-                        print(f"  [dry-run] would merge {old_paper.get('arxiv_id')} → "
-                              f"{keeper.get('arxiv_id')} (base={base})")
-                    else:
-                        await db.papers.update_one(
-                            {"id": keeper["id"]},
-                            {"$push": {"version_history": snapshot}}
-                        )
-                        await db.matches.update_many(
-                            {
-                                "$or": [{"paper1_id": old_paper["id"]}, {"paper2_id": old_paper["id"]}],
-                                "completed": True,
-                            },
-                            {"$set": {"revision_superseded": True, "superseded_at": now_iso}}
-                        )
-                        await db.rankings.delete_one({"paper_id": old_paper["id"]})
-                        await db.papers.delete_one({"id": old_paper["id"]})
-                        print(f"  Merged duplicate: {old_paper.get('arxiv_id')} → {keeper.get('arxiv_id')}")
-                    merged_this_iter += 1
-
-            total_merged += merged_this_iter
-            if dry_run:
-                # Dry-run can't actually clear duplicates — stop after one iter
-                print(f"Step 2 dry-run: would merge {merged_this_iter} papers, stopping loop")
-                break
-            if merged_this_iter == 0:
-                break
-
-        print(f"Step 2: {'Would merge' if dry_run else 'Merged'} {total_merged} duplicate papers "
-              f"(in {iterations} iteration(s))")
-
-        # ── Step 3: Create sparse unique index ─────────────────────────────
-        if not dry_run:
-            existing_indexes = await db.papers.index_information()
-            if "arxiv_id_base_1" not in existing_indexes:
-                await db.papers.create_index(
-                    "arxiv_id_base",
-                    unique=True,
-                    sparse=True,
-                    name="arxiv_id_base_1"
+        # ── Step 2: Flag is_latest_version on papers (and their rankings) ──
+        # For each arxiv_id_base group, mark the highest version as latest and
+        # everything else as frozen. Papers without arxiv_id_base are left alone
+        # (they're non-arXiv or pre-arXiv; treated as latest by the app default).
+        latest_set = 0
+        frozen_set = 0
+        async for group in db.papers.aggregate([
+            {"$match": {"arxiv_id_base": {"$exists": True, "$ne": None}}},
+            {"$group": {"_id": "$arxiv_id_base",
+                        "docs": {"$push": {"id": "$id", "version": "$current_version"}}}}
+        ]):
+            docs = group["docs"]
+            if not docs:
+                continue
+            # Keep the highest version as latest
+            docs.sort(key=lambda d: d.get("version", 1) or 1, reverse=True)
+            latest_id = docs[0]["id"]
+            if not dry_run:
+                await db.papers.update_one(
+                    {"id": latest_id},
+                    {"$set": {"is_latest_version": True}, "$unset": {"frozen_at": "", "superseded_by_paper_id": ""}}
                 )
-                print("Step 3: Created unique sparse index on arxiv_id_base")
+                await db.rankings.update_one(
+                    {"paper_id": latest_id},
+                    {"$set": {"is_latest_version": True}}
+                )
+            latest_set += 1
+            # Freeze everything else
+            for stale in docs[1:]:
+                if not dry_run:
+                    await db.papers.update_one(
+                        {"id": stale["id"]},
+                        {"$set": {"is_latest_version": False, "frozen_at": now_iso,
+                                  "superseded_by_paper_id": latest_id}}
+                    )
+                    await db.rankings.update_one(
+                        {"paper_id": stale["id"]},
+                        {"$set": {"is_latest_version": False, "frozen_at": now_iso}}
+                    )
+                frozen_set += 1
+
+        print(f"Step 2: {'Would flag' if dry_run else 'Flagged'} "
+              f"{latest_set} latest papers, {frozen_set} frozen papers")
+
+        # ── Step 3: Ensure non-unique sparse index on arxiv_id_base ────────
+        if not dry_run:
+            existing = await db.papers.index_information()
+            base_idx = existing.get("arxiv_id_base_1")
+            if base_idx and base_idx.get("unique"):
+                print("Step 3: Existing unique index detected — dropping and replacing with non-unique "
+                      "(the standalone-paper-per-version model requires shared base across docs)")
+                await db.papers.drop_index("arxiv_id_base_1")
+                base_idx = None
+            if not base_idx:
+                await db.papers.create_index(
+                    "arxiv_id_base", sparse=True, name="arxiv_id_base_1"
+                )
+                print("Step 3: Created non-unique sparse index on arxiv_id_base")
             else:
-                print("Step 3: Index arxiv_id_base_1 already exists")
+                print("Step 3: Non-unique sparse index already in place")
         else:
-            print("Step 3: DRY-RUN — skipping index creation")
+            print("Step 3: DRY-RUN — skipping index work")
 
         # ── Step 4: Verify ─────────────────────────────────────────────────
         total = await db.papers.count_documents({"arxiv_id": {"$exists": True}})
         with_base = await db.papers.count_documents({"arxiv_id_base": {"$exists": True}})
-        remaining = await _find_duplicate_bases(db)
-        print(f"Step 4: {with_base}/{total} arxiv papers have arxiv_id_base, "
-              f"{len(remaining)} remaining duplicates")
-        if remaining and not dry_run:
-            print("WARN: duplicates remain — manual investigation required.", file=sys.stderr)
+        latest = await db.papers.count_documents({"is_latest_version": True})
+        frozen = await db.papers.count_documents({"is_latest_version": False})
+        print(f"Step 4: {with_base}/{total} arxiv papers have arxiv_id_base; "
+              f"latest_flag={latest}, frozen_flag={frozen}")
 
     finally:
         # ── Step 5: restore scheduler state ────────────────────────────────
@@ -236,8 +185,8 @@ async def migrate(dry_run: bool = False):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Migrate arxiv_id → arxiv_id_base + current_version")
+    parser = argparse.ArgumentParser(description="Backfill arxiv_id_base, current_version, is_latest_version")
     parser.add_argument("--dry-run", action="store_true",
-                        help="Log changes without writing. Skips scheduler pause and index creation.")
+                        help="Log changes without writing. Skips scheduler pause and index changes.")
     args = parser.parse_args()
     asyncio.run(migrate(dry_run=args.dry_run))

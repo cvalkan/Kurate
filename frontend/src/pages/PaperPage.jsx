@@ -7,7 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { ModelBadge } from "@/components/ModelBadge";
 import {
-  ArrowLeft, ExternalLink, XCircle, CheckCircle2, Clock, Sparkles, Tag, Trophy, Share2, Bookmark, Target, Award, RefreshCw, History, ChevronDown as ArrowDown,
+  ArrowLeft, ExternalLink, XCircle, CheckCircle2, Clock, Sparkles, Tag, Trophy, Share2, Bookmark, Target, Award,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBookmarks } from "@/contexts/BookmarkContext";
@@ -185,167 +185,51 @@ function AbstractText({ text }) {
 
 const MATCHES_PER_PAGE = 20;
 
-function RevisionBanner({ badge, currentVersion }) {
-  if (!badge) return null;
-  const prevRank = badge.prev_rank ? `#${badge.prev_rank}` : "—";
-  const prevScore = badge.prev_ts_score != null ? badge.prev_ts_score : "—";
-  const prevCmp = badge.prev_comparisons != null ? badge.prev_comparisons : 0;
-  const revisedOn = badge.revised_at ? new Date(badge.revised_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : null;
+/**
+ * Segmented pill toggle showing all versions of a paper (v1 | v2 | v3 …).
+ * Each version is a standalone paper with its own URL — clicking navigates.
+ * Hidden entirely when the paper has no siblings (i.e. no revisions exist).
+ */
+function VersionToggle({ currentId, currentVersion, siblings }) {
+  if (!siblings || siblings.length < 2) return null;
+  // Sort ascending by version
+  const ordered = [...siblings].sort((a, b) => (a.version || 0) - (b.version || 0));
   return (
     <div
-      className="mb-6 flex items-start gap-3 p-4 rounded-lg border border-amber-200 bg-amber-50/60"
-      data-testid="revision-banner"
+      className="inline-flex items-center rounded-md border border-border bg-secondary/30 p-0.5"
+      data-testid="version-toggle"
+      role="tablist"
+      aria-label="Paper versions"
     >
-      <RefreshCw className="h-4 w-4 text-amber-700 mt-0.5 shrink-0" />
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-amber-900">
-          Revised on arXiv — tournament restarted for v{currentVersion || badge.version || 2}
-        </p>
-        <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
-          Before this revision, the paper was ranked <span className="font-semibold">{prevRank}</span>{" "}
-          with a TrueSkill score of <span className="font-semibold">{prevScore}</span> after{" "}
-          <span className="font-semibold">{prevCmp}</span> comparisons.
-          {revisedOn && <> Revised {revisedOn}.</>}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function VersionHistory({ versions }) {
-  const [open, setOpen] = useState(false);
-  if (!versions || versions.length === 0) return null;
-  return (
-    <div className="mb-8" data-testid="version-history">
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-        data-testid="version-history-toggle"
-      >
-        <History className="h-3.5 w-3.5" />
-        Version history ({versions.length} previous)
-        <ArrowDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div className="mt-3 space-y-2">
-          {versions.slice().reverse().map((v, i) => {
-            const archivedOn = v.archived_at ? new Date(v.archived_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : null;
-            const sim = typeof v.similarity === "number" ? v.similarity.toFixed(2) : null;
-            return (
-              <div
-                key={`${v.version}-${i}`}
-                className="p-3 rounded-lg border border-border bg-secondary/20"
-                data-testid={`version-entry-${v.version}`}
-              >
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="font-mono font-semibold">v{v.version}</span>
-                    {v.arxiv_id && (
-                      <span className="text-xs text-muted-foreground font-mono">
-                        arXiv:{v.arxiv_id}
-                      </span>
-                    )}
-                    <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
-                        v.tournament_reset
-                          ? "bg-amber-50 text-amber-700 border border-amber-200"
-                          : "bg-blue-50 text-blue-700 border border-blue-200"
-                      }`}
-                    >
-                      {v.tournament_reset ? "tournament reset" : "cosmetic edit"}
-                    </span>
-                  </div>
-                  {archivedOn && (
-                    <span className="text-[10px] text-muted-foreground font-mono">
-                      archived {archivedOn}
-                    </span>
-                  )}
-                </div>
-                <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  <div>
-                    <span className="text-muted-foreground block text-[10px] uppercase">Rank</span>
-                    <span className="font-mono">{v.last_rank ? `#${v.last_rank}` : "—"}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground block text-[10px] uppercase">Score</span>
-                    <span className="font-mono">{v.last_ts_score != null ? v.last_ts_score : "—"}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground block text-[10px] uppercase">Matches</span>
-                    <span className="font-mono">{v.last_comparisons != null ? v.last_comparisons : "—"}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground block text-[10px] uppercase">
-                      Similarity{v.similarity_basis ? ` (${v.similarity_basis})` : ""}
-                    </span>
-                    <span className="font-mono">{sim != null ? sim : "—"}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ArchivedMatches({ matches }) {
-  const [open, setOpen] = useState(false);
-  if (!matches || matches.length === 0) return null;
-  return (
-    <div className="mt-6" data-testid="archived-matches">
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-        data-testid="archived-matches-toggle"
-      >
-        <History className="h-3.5 w-3.5" />
-        Archived comparisons from previous versions ({matches.length})
-        <ArrowDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div className="mt-3 space-y-2 opacity-70">
-          {matches.slice(0, 50).map((match) => (
-            <div
-              key={match.id}
-              className="p-3 border border-dashed border-border rounded-lg"
-              data-testid={`archived-match-${match.id}`}
+      {ordered.map((v) => {
+        const isCurrent = v.paper_id === currentId || (v.version != null && v.version === currentVersion);
+        const label = `v${v.version}`;
+        const title = `Version ${v.version}${v.is_latest ? " (latest)" : " (frozen)"}`;
+        if (isCurrent) {
+          return (
+            <span
+              key={v.paper_id || v.version}
+              className="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-mono font-semibold bg-primary text-primary-foreground shadow-sm"
+              data-testid={`version-toggle-active-${v.version}`}
+              title={title}
+              aria-current="page"
             >
-              <div className="flex items-start justify-between gap-3 mb-1">
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  {match.won ? (
-                    <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                  ) : (
-                    <XCircle className="h-4 w-4 text-red-500 shrink-0" />
-                  )}
-                  <span className="text-sm truncate">
-                    vs. <span className="font-medium">{match.opponent_title}</span>
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <ModelBadge model={match.model_used} />
-                  {match.created_at && (
-                    <span className="text-[10px] text-muted-foreground font-mono">
-                      {new Date(match.created_at).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
-              </div>
-              {match.reasoning && (
-                <p className="text-xs text-muted-foreground leading-relaxed pl-6">
-                  {match.reasoning}
-                </p>
-              )}
-            </div>
-          ))}
-          {matches.length > 50 && (
-            <p className="text-xs text-muted-foreground text-center py-2">
-              Showing first 50 of {matches.length} archived matches.
-            </p>
-          )}
-        </div>
-      )}
+              {label}
+            </span>
+          );
+        }
+        return (
+          <Link
+            key={v.paper_id || v.version}
+            to={`/paper/${v.paper_id}`}
+            className="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-mono text-muted-foreground hover:text-foreground hover:bg-background transition-colors"
+            data-testid={`version-toggle-${v.version}`}
+            title={title}
+          >
+            {label}
+          </Link>
+        );
+      })}
     </div>
   );
 }
@@ -474,8 +358,6 @@ export default function PaperPage() {
   }
 
   const { paper, matches, stats } = data;
-  const archivedMatches = data.archived_matches || [];
-  const versionHistory = paper.version_history || [];
   const winRate = stats.comparisons > 0 ? Math.round((stats.wins / stats.comparisons) * 100) : 0;
   const summaryEntries = getSummaryEntries(paper.summaries, paper.summary_dates);
 
@@ -489,9 +371,6 @@ export default function PaperPage() {
         <ArrowLeft className="h-4 w-4" />
         Back to Leaderboard
       </button>
-
-      {/* Revision banner — shows if the paper has been revised on arXiv */}
-      <RevisionBanner badge={paper.revision_badge} currentVersion={paper.current_version} />
 
       {/* Paper Header */}
       <div className="mb-8" data-testid="paper-header">
@@ -527,6 +406,11 @@ export default function PaperPage() {
               <ExternalLink className="h-3 w-3" />
             </a>
           )}
+          <VersionToggle
+            currentId={paper.id}
+            currentVersion={paper.current_version}
+            siblings={paper.sibling_versions}
+          />
         </div>
 
         {/* Categories — clickable links to leaderboards (only if category has a leaderboard) */}
@@ -877,14 +761,8 @@ export default function PaperPage() {
         </div>
       ) : null}
 
-      {/* Version History — archived versions with their snapshot stats */}
-      <VersionHistory versions={versionHistory} />
-
       {/* Comparison Logs */}
       <ComparisonHistory matches={matches} />
-
-      {/* Archived matches from previous versions (superseded) */}
-      <ArchivedMatches matches={archivedMatches} />
     </div>
   );
 }

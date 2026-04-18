@@ -10,6 +10,26 @@ PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the "Revi
 
 ## What's Been Implemented
 
+### Revision System — Standalone-Paper-Per-Version Refactor (Apr 18, 2026 · second pass)
+- **Model change**: each arXiv revision is now a *new standalone paper document* with its own UUID, ranking row, and match history — not an in-place mutation of the original.
+- **`_handle_revision`** (scheduler.py): on new version detection it now (1) inserts a fresh paper doc with the new arxiv_id, shared `arxiv_id_base`, and `previous_version_paper_id` link; (2) flips the old paper's `is_latest_version=False`, sets `frozen_at`, `superseded_by_paper_id`; (3) denormalises the flag onto the old ranking row so leaderboard queries can filter without a `$lookup`; (4) seeds a fresh ranking (baseline TrueSkill) for the new paper with denormalised title/authors/arxiv_id for leaderboard display. Old paper's summaries, matches, ranking stats are left untouched.
+- **Filters applied** — frozen rows are now excluded from:
+  - Category, tag-filtered, and all-papers leaderboard queries (`is_latest_version: {$ne: false}` added to `_RANK_PROJ`-consuming queries)
+  - Monthly/weekly archive ingestion
+  - Pair selection (`get_matchable_paper_ids`)
+  - Version-detection lookup in `run_fetch_cycle` (only latest sibling is compared against new raw papers)
+- **Paper detail API**: `GET /api/papers/{id}` now returns `sibling_versions` (list of `{paper_id, version, arxiv_id, is_latest, frozen_at}`) when 2+ standalone versions exist, driving the front-end toggle.
+- **Index model**: previous unique-sparse index on `arxiv_id_base` dropped (multiple versions legitimately share a base) and replaced with a non-unique sparse index. New compound index `(category, is_latest_version, ts_score)` on rankings keeps leaderboard queries fast.
+- **Frontend**:
+  - New `VersionToggle` component on the paper page — segmented pill control (`v1 | v2 | v3`) placed inline to the right of the arXiv link, active version dark / other versions are clickable router links. Hidden when `sibling_versions` is absent.
+  - Leaderboard: `v{N}` badge rendered from the `arxiv_id` suffix (e.g., `2602.12345v3` → badge `v3`) next to the paper title, amber accent.
+  - Previous revision UI (RevisionBanner / VersionHistory / ArchivedMatches) removed — each version is a standalone page.
+- **Admin revision feed** (`/api/admin/revision-feed`): reworked to surface standalone-paper families (grouped by `arxiv_id_base`, 2+ docs) alongside legacy in-place revised papers for auditability.
+- **Migration script** updated: backfills `is_latest_version=True` on the highest-version sibling within each `arxiv_id_base` group, `False` on the rest; idempotent, env-guarded, scheduler-paused during writes.
+- **Tests**: 69/69 passing (`backend/tests/test_standalone_versions.py`) — covers sibling creation, leaderboard filtering, frozen-page access, match isolation, pair-selection exclusion, `_handle_revision` new-doc creation, preserved-old-state invariants, admin feed, index shape, and legacy compatibility.
+- **Demo data**: 3 standalone versions (`demo-multi-v1-abc` → `demo-multi-v3-abc`) share base `8888.77777` and are wired into the cs.RO leaderboard for live UI review.
+- Files touched: `backend/services/scheduler.py`, `backend/routers/leaderboard.py`, `backend/routers/admin.py`, `backend/server.py`, `backend/scripts/migrate_arxiv_versions.py`, `backend/scripts/seed_standalone_versions_demo.py` (new), `backend/tests/test_standalone_versions.py` (new), `frontend/src/pages/PaperPage.jsx`, `frontend/src/components/leaderboard/LeaderboardTable.jsx`
+
 ### Revision System Hardening + Frontend UI (Apr 18, 2026)
 - **🔴 Critical backend fixes**:
   - `_incr_match_counts` now decrements after supersession (UI/DB consistency — previously counter stayed inflated after every revision, misreporting match counts to admin dashboards).

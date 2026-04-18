@@ -514,7 +514,7 @@ _RANK_PROJ = {"_id": 0, "paper_id": 1, "category": 1, "rank": 1, "rank_wr": 1, "
               "ci": 1, "wilson_margin": 1, "win_rate": 1, "wins": 1, "losses": 1,
               "comparisons": 1, "title": 1, "authors": 1, "arxiv_id": 1, "link": 1,
               "published": 1, "added_at": 1, "ai_rating": 1, "gap_score": 1, "gap_score_ts": 1,
-              "categories": 1, "revision_badge": 1}
+              "categories": 1, "current_version": 1, "is_latest_version": 1}
 
 
 def _encode_cursor(score: int, paper_id: str) -> str:
@@ -566,8 +566,12 @@ def _rank_doc_to_entry(doc: dict) -> dict:
         **({"os_sigma": doc["os_sigma"]} if doc.get("os_sigma") is not None else {}),
         **({"rank_os": doc["rank_os"]} if doc.get("rank_os") is not None else {}),
     }
-    if doc.get("revision_badge"):
-        entry["revision_badge"] = doc["revision_badge"]
+    # Propagate the arXiv version for the leaderboard `vN` badge (only shown
+    # when > 1). Ranking rows don't always carry current_version directly —
+    # it's denormalized from the paper doc at seed time; missing value means
+    # v1.
+    if doc.get("current_version") and doc["current_version"] > 1:
+        entry["current_version"] = doc["current_version"]
     return entry
 
 
@@ -720,6 +724,9 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
         }
 
     query = {"category": category}
+    # Exclude frozen older paper versions — denormalized flag on ranking rows.
+    # Missing field == latest (legacy rankings pre-refactor).
+    query["is_latest_version"] = {"$ne": False}
 
     # Period filter (rolling window for "recent")
     if period == "recent":
@@ -831,6 +838,8 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
     else:
         total_papers, total_matches = await asyncio.gather(*phase1)
         query = _build_period_filter(period)
+    # Exclude frozen older paper versions
+    query["is_latest_version"] = {"$ne": False}
 
     if search:
         import re as _re
@@ -948,6 +957,8 @@ async def _db_tag_leaderboard_impl(
     else:
         rank_query = dict(tag_filter)
         rank_query.update(recent_filter if recent_filter else _build_period_filter(period))
+    # Exclude frozen older paper versions
+    rank_query["is_latest_version"] = {"$ne": False}
 
     if search:
         rank_query["$or"] = [
@@ -1129,7 +1140,10 @@ async def get_paper_detail(paper_id: str):
     ).to_list(500)
     opponent_lookup = {o["id"]: o for o in opponents}
 
-    # Enrich matches with paper titles — split by revision status
+    # Enrich matches with paper titles. Split out `revision_superseded` matches
+    # from legacy in-place revision data (pre-standalone-paper-per-version
+    # refactor). These are kept in `archived_matches` for backward compat; new
+    # revisions don't produce superseded matches anymore.
     enriched_matches = []
     archived_matches = []
     for m in matches:
@@ -1184,8 +1198,27 @@ async def get_paper_detail(paper_id: str):
         for field in ["ts_score", "ts_sigma", "os_score", "os_sigma"]:
             if ranking_doc.get(field) is not None:
                 paper[field] = ranking_doc[field]
-        if ranking_doc.get("revision_badge"):
-            paper["revision_badge"] = ranking_doc["revision_badge"]
+
+    # Sibling versions: find all standalone papers sharing the same arxiv_id_base
+    # (new standalone-paper-per-version model). Only returned when there are ≥2
+    # versions — drives the version toggle on the paper page.
+    if paper.get("arxiv_id_base"):
+        siblings = []
+        async for sib in db.papers.find(
+            {"arxiv_id_base": paper["arxiv_id_base"]},
+            {"_id": 0, "id": 1, "arxiv_id": 1, "current_version": 1,
+             "is_latest_version": 1, "added_at": 1, "frozen_at": 1}
+        ).sort("current_version", 1):
+            siblings.append({
+                "paper_id": sib["id"],
+                "arxiv_id": sib.get("arxiv_id"),
+                "version": sib.get("current_version", 1),
+                "is_latest": sib.get("is_latest_version", True),
+                "added_at": sib.get("added_at"),
+                "frozen_at": sib.get("frozen_at"),
+            })
+        if len(siblings) >= 2:
+            paper["sibling_versions"] = siblings
 
     # Get category OS score range for CI bar
     primary_cat = paper.get("categories", [None])[0]
@@ -1218,7 +1251,6 @@ async def get_paper_detail(paper_id: str):
         "matches": enriched_matches,
         "stats": stats,
     }
-    # Include archived matches from previous versions if any exist
     if archived_matches:
         response["archived_matches"] = archived_matches
 
@@ -1632,7 +1664,7 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
 
     # Get papers for this period from rankings DB
     period_filter = _build_period_filter("month" if period_type == "monthly" else "week")
-    rank_query = {"category": category}
+    rank_query = {"category": category, "is_latest_version": {"$ne": False}}
     rank_query.update(period_filter)
     source_entries = await db.rankings.find(rank_query, _RANK_PROJ).sort("ts_score", -1).to_list(10000)
     if not source_entries:

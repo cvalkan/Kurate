@@ -392,22 +392,15 @@ async def _deferred_startup():
         await db.matches.create_index([
             ("primary_category", 1), ("dedup_pair", 1)
         ], name="pair_dedup_idx")
-        # Compound indexes on paper-id fields with revision_superseded — help
-        # the per-paper match queries in get_paper_detail / _handle_revision's
-        # supersede sweep / top-K cross-matching in _check_goals_met_impl.
-        # (Note: MongoDB partial indexes can't use $ne on revision_superseded,
-        # so we rely on regular compound indexes instead.)
+        # Ranking filter index — leaderboard queries now filter on
+        # is_latest_version to exclude frozen older paper versions.
         try:
-            await db.matches.create_index(
-                [("paper1_id", 1), ("revision_superseded", 1)],
-                name="paper1_revision_idx",
-            )
-            await db.matches.create_index(
-                [("paper2_id", 1), ("revision_superseded", 1)],
-                name="paper2_revision_idx",
+            await db.rankings.create_index(
+                [("category", 1), ("is_latest_version", 1), ("ts_score", -1)],
+                name="rank_cat_latest_ts_idx",
             )
         except Exception as _idx_err:
-            logger.warning(f"paper-revision indexes create skipped: {_idx_err}")
+            logger.warning(f"rank_cat_latest_ts_idx create skipped: {_idx_err}")
         await db.user_sessions.create_index("user_id")
         await db.suggestions.create_index("created_at")
         # Tournament indexes — drop stale ones first to avoid conflicts
