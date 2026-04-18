@@ -3418,3 +3418,87 @@ async def run_data_audit():
 
     asyncio.create_task(_run())
     return {"status": "started", "check_status": "/api/admin/backfill-status/audit"}
+
+
+
+# ─── Revision Feed (debugging) ─────────────────────────────────────────────
+
+@router.get("/revision-feed")
+async def get_revision_feed(admin=Depends(verify_admin), limit: int = Query(50, le=200)):
+    """Return recent paper revisions for debugging.
+
+    Lists papers with version_history, ordered by most recent revision.
+    Shows similarity scores, whether tournament was reset, and match counts.
+    """
+    papers = []
+    async for doc in db.papers.find(
+        {"version_history": {"$exists": True, "$ne": []}},
+        {"_id": 0, "id": 1, "title": 1, "arxiv_id": 1, "arxiv_id_base": 1,
+         "current_version": 1, "version_history": 1, "revised_at": 1,
+         "categories": 1, "summaries": 1}
+    ).sort("revised_at", -1).limit(limit):
+        # Count active vs superseded matches
+        active = await db.matches.count_documents({
+            "$or": [{"paper1_id": doc["id"]}, {"paper2_id": doc["id"]}],
+            "completed": True, "revision_superseded": {"$ne": True}
+        })
+        superseded = await db.matches.count_documents({
+            "$or": [{"paper1_id": doc["id"]}, {"paper2_id": doc["id"]}],
+            "revision_superseded": True
+        })
+
+        # Get current ranking
+        ranking = await db.rankings.find_one(
+            {"paper_id": doc["id"]},
+            {"_id": 0, "rank_ts": 1, "ts_score": 1, "comparisons": 1,
+             "win_rate": 1, "revision_badge": 1}
+        )
+
+        versions = []
+        for v in doc.get("version_history", []):
+            versions.append({
+                "version": v.get("version"),
+                "arxiv_id": v.get("arxiv_id"),
+                "archived_at": v.get("archived_at"),
+                "tournament_reset": v.get("tournament_reset"),
+                "merged_from_duplicate": v.get("merged_from_duplicate", False),
+                "last_rank": v.get("last_rank"),
+                "last_ts_score": v.get("last_ts_score"),
+                "last_comparisons": v.get("last_comparisons"),
+                "last_win_rate": v.get("last_win_rate"),
+                "had_summaries": bool(v.get("summaries")),
+                "had_ratings": v.get("ai_rating") is not None,
+            })
+
+        has_new_summaries = bool(doc.get("summaries"))
+
+        papers.append({
+            "id": doc["id"],
+            "title": doc.get("title", ""),
+            "arxiv_id": doc.get("arxiv_id"),
+            "arxiv_id_base": doc.get("arxiv_id_base"),
+            "current_version": doc.get("current_version"),
+            "category": (doc.get("categories") or ["?"])[0],
+            "revised_at": doc.get("revised_at"),
+            "has_new_summaries": has_new_summaries,
+            "active_matches": active,
+            "superseded_matches": superseded,
+            "current_ranking": {
+                "rank_ts": ranking.get("rank_ts") if ranking else None,
+                "ts_score": ranking.get("ts_score") if ranking else None,
+                "comparisons": ranking.get("comparisons") if ranking else None,
+                "win_rate": ranking.get("win_rate") if ranking else None,
+                "revision_badge": ranking.get("revision_badge") if ranking else None,
+            },
+            "archived_versions": versions,
+        })
+
+    # Summary stats
+    total_revised = await db.papers.count_documents({"version_history": {"$exists": True, "$ne": []}})
+    total_superseded_matches = await db.matches.count_documents({"revision_superseded": True})
+
+    return {
+        "total_revised_papers": total_revised,
+        "total_superseded_matches": total_superseded_matches,
+        "papers": papers,
+    }

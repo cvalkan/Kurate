@@ -115,10 +115,11 @@ PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the "Revi
 - Version history stored as append-only array on paper document
 - Revision badge on rankings shows previous rank/score on hover
 - Paper detail API returns `version_history`, `revision_badge`, split `matches` vs `archived_matches`
+- Admin revision feed: `GET /api/admin/revision-feed` — lists all revised papers with match counts, superseding status, version history
 - Migration script: backfilled `arxiv_id_base` + `current_version` for 2,180 papers, merged 9 pre-existing duplicates, created sparse unique index
 - `revision_superseded` filter added to all ranking/match queries (backwards-compatible — no behavior change for non-revised papers)
-- Files: `services/arxiv.py`, `services/scheduler.py`, `services/ranking.py`, `routers/leaderboard.py`, `core/config.py`, `scripts/migrate_arxiv_versions.py`
-- Tested: 7/7 tests passing (test_revision_handling.py)
+- Files: `services/arxiv.py`, `services/scheduler.py`, `services/ranking.py`, `routers/leaderboard.py`, `routers/admin.py`, `core/config.py`, `scripts/migrate_arxiv_versions.py`
+- Tested: 7/7 unit tests + 12/12 regression tests covering duplicate prevention, match superseding, dedup reuse, summary clearing, version history, ranking reset, cosmetic revision, migration idempotency, revision feed, orphan detection, production data regression
 
 ## Prioritized Backlog
 
