@@ -10,6 +10,25 @@ PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the "Revi
 
 ## What's Been Implemented
 
+### Revision System Hardening + Frontend UI (Apr 18, 2026)
+- **🔴 Critical backend fixes**:
+  - `_incr_match_counts` now decrements after supersession (UI/DB consistency — previously counter stayed inflated after every revision, misreporting match counts to admin dashboards).
+  - Migration script hardened for production: requires `MONGO_URL` env var (no localhost default), auto-pauses scheduler via `db.settings.paused=true`, loops merge step until zero duplicates remain, restores prior pause state in `finally`, adds `--dry-run` flag.
+  - Cross-category version drift: `existing_bases` lookup now scans all categories (not just the current one) so v1→v2 papers that switch primary category don't trigger `DuplicateKeyError` and abort the fetch batch. `insert_one` wrapped in try/except so a single collision only skips that paper.
+- **🟠 High-priority fixes**:
+  - In-flight match race: new in-memory `_paper_revision_epochs` tracker bumped inside `_handle_revision`. Pair selection snapshots the epoch; at match insert, if the paper's epoch has moved forward, the new match is flagged `revision_superseded=True` at write time. Counter bump and ranking update are both skipped for stale matches. Prevents matches judged against old summaries from polluting the freshly-reset v2 tournament.
+  - `_content_similarity` now stopword-filtered (common English + scientific boilerplate). Unrelated ML papers score ~0.00 instead of ~0.30; paraphrased edits score 0.80+. Threshold 0.95 now works as intended.
+  - Orphan full_text (paper with PDF extraction failure) falls back to abstract similarity instead of defaulting to tournament-reset. If both texts are missing, treat as "updated" not "revised".
+  - Compound indexes added: `paper1_revision_idx`, `paper2_revision_idx` for per-paper archived-match queries. (Partial index with `$ne` not supported by MongoDB — documented in server.py comment.)
+  - `version_history` array capped at 20 most-recent versions via `$slice: -20` to prevent unbounded growth.
+- **Frontend revision UI**:
+  - Paper page: amber `RevisionBanner` surfaces "Revised on arXiv — tournament restarted for v{N}" with previous rank / score / match count.
+  - Paper page: collapsible `VersionHistory` section below score card showing each archived version (rank, score, matches, similarity score + basis, tournament_reset flag).
+  - Paper page: collapsible `ArchivedMatches` section showing superseded comparisons from previous versions (dashed borders, faded opacity).
+  - Leaderboard: inline `v{N}` chip next to the paper title on revised papers, with hover tooltip showing `prev_rank`, `prev_ts_score`, `prev_comparisons`.
+- Tests: 7 original + 12 regression + 4 new race-fix tests = **23/23 passing**. New tests cover counter drift, epoch mismatch detection, stopword similarity, and abstract fallback.
+- Files touched: `backend/services/scheduler.py`, `backend/server.py`, `backend/scripts/migrate_arxiv_versions.py`, `backend/tests/test_revision_race_fixes.py`, `frontend/src/pages/PaperPage.jsx`, `frontend/src/components/leaderboard/LeaderboardTable.jsx`
+
 ### Convergence Chart on Fixed Benchmark + Fair Pooling (Apr 17, 2026)
 - Added convergence chart to AI vs. Human (Fixed) page via new `/api/validation/fixed-convergence` endpoint
 - Refactored `_compute_convergence` to run **per-dataset** TrueSkill tournaments and equal-weight average ρ across datasets, eliminating cross-dataset score-scale mixing artifact
@@ -133,8 +152,8 @@ PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the "Revi
 - Email notifications via Resend
 - Circular import cleanup
 - 14 papers missing `ai_rating` on production
-- Frontend: Paper page version toggle (view archived summaries/ratings per version)
-- Frontend: Leaderboard revision badge with hover tooltip
+- Missing GPT/Gemini SI Ratings — enforce `{"score": X.X}` JSON schema across all 3 models
+- Sub-topic Matchmaking via LLM classifier (Option B)
 
 ### P2
 - httpOnly cookie migration

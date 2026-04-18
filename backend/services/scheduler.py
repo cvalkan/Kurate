@@ -50,6 +50,13 @@ _summary_gen_stop = False
 # They won't be retried until paper/match counts change (new data invalidates exhaustion).
 _pair_exhausted_cats: Dict[str, dict] = {}  # {category: {"papers": N, "matches": M}}
 
+# --- Revision epoch tracker (in-memory) ---
+# Incremented on _handle_revision(). Consulted at match-insertion time so
+# comparisons selected before a revision but finishing afterwards can be
+# marked revision_superseded immediately on insert (prevents stale matches
+# from polluting the freshly-reset tournament).
+_paper_revision_epochs: Dict[str, int] = {}
+
 
 def _mark_pair_exhausted(category: str):
     """Mark a category as pair-exhausted (no new pairs possible)."""
@@ -643,14 +650,47 @@ async def _check_goals_met_impl(category: str = "cs.RO") -> bool:
 
 
 
+# Common English + scientific-paper stopwords — excluded from similarity to
+# avoid high Jaccard baselines driven by shared technical vocabulary.
+_SIM_STOPWORDS = frozenset({
+    "the", "a", "an", "and", "or", "but", "of", "in", "on", "at", "to", "for",
+    "with", "by", "from", "as", "is", "are", "was", "were", "be", "been", "being",
+    "it", "its", "this", "that", "these", "those", "we", "our", "they", "their",
+    "i", "he", "she", "his", "her", "not", "no", "so", "if", "then", "than",
+    "also", "can", "may", "might", "will", "would", "could", "should", "has",
+    "have", "had", "do", "does", "did", "such", "which", "who", "whom", "what",
+    "where", "when", "how", "why", "all", "any", "each", "both", "more", "most",
+    "some", "other", "many", "few", "same", "different", "new", "used", "use",
+    # scientific paper boilerplate
+    "figure", "table", "section", "chapter", "appendix", "abstract",
+    "introduction", "conclusion", "method", "methods", "result", "results",
+    "show", "shown", "shows", "propose", "proposed", "paper", "approach",
+    "work", "study", "studies", "et", "al", "eq", "equation", "see", "fig",
+    "e.g", "i.e", "ref", "refs", "based", "using", "given", "present",
+})
+
+
+def _tokenize_for_similarity(text: str) -> set:
+    """Tokenize + stopword filter for Jaccard similarity."""
+    import re as _re
+    clean = _re.sub(r'[^\w\s]', ' ', text.lower())
+    # Drop stopwords and pure-number tokens (years, equation numbers)
+    return {w for w in clean.split()
+            if len(w) > 2 and w not in _SIM_STOPWORDS and not w.isdigit()}
+
+
 def _content_similarity(text_a: str, text_b: str) -> float:
-    """Jaccard similarity on word sets (punctuation-normalized). Returns 0.0–1.0."""
+    """Stopword-filtered Jaccard similarity on word sets. Returns 0.0–1.0.
+
+    Filters out common English + scientific-paper boilerplate (figure, table,
+    section, etc.) so the score reflects *topical* overlap rather than shared
+    vocabulary. Two unrelated ML papers typically score 0.10–0.25; two versions
+    of the same paper with light edits score 0.85+.
+    """
     if not text_a or not text_b:
         return 0.0
-    import re as _re
-    # Strip punctuation, lowercase, split into words
-    clean_a = set(_re.sub(r'[^\w\s]', '', text_a.lower()).split())
-    clean_b = set(_re.sub(r'[^\w\s]', '', text_b.lower()).split())
+    clean_a = _tokenize_for_similarity(text_a)
+    clean_b = _tokenize_for_similarity(text_b)
     if not clean_a or not clean_b:
         return 0.0
     return len(clean_a & clean_b) / len(clean_a | clean_b)
@@ -672,10 +712,15 @@ async def _handle_revision(paper_id: str, new_arxiv_data: dict, new_version: int
     now_iso = datetime.now(timezone.utc).isoformat()
     threshold = settings.get("revision_diff_threshold", 0.95)
 
-    # Load existing paper (without full_text for the snapshot)
-    existing = await db.papers.find_one({"id": paper_id}, {"_id": 0, "full_text": 0})
-    if not existing:
+    # Single atomic read of the full paper document — avoids three separate
+    # find_one calls (TOCTOU window for concurrent writers).
+    full_existing = await db.papers.find_one({"id": paper_id})
+    if not full_existing:
         return "updated"
+    # Strip _id for downstream use
+    full_existing.pop("_id", None)
+    existing = {k: v for k, v in full_existing.items() if k != "full_text"}
+    old_full_text = full_existing.get("full_text") or ""
 
     # Download new PDF
     new_pdf_link = new_arxiv_data.get("pdf_link") or f"https://arxiv.org/pdf/{new_arxiv_data['arxiv_id']}"
@@ -689,20 +734,42 @@ async def _handle_revision(paper_id: str, new_arxiv_data: dict, new_version: int
         logger.warning(f"Revision PDF extraction empty for {paper_id}")
         return "updated"
 
-    # Content-diff gate: determines tournament reset, NOT whether to re-evaluate
-    old_full_text_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "full_text": 1})
-    old_full_text = (old_full_text_doc or {}).get("full_text", "")
-    reset_tournament = True  # default: reset if we can't compare
+    # Content-diff gate — determines tournament reset, NOT whether to re-evaluate.
+    # Preference order:
+    #   1. full_text vs full_text (most accurate)
+    #   2. abstract vs abstract (fallback if old full_text missing)
+    #   3. reset by default (cannot compare)
+    reset_tournament = True
+    similarity_basis = "default_reset"
+    similarity = None
     if old_full_text:
         similarity = _content_similarity(old_full_text, new_full_text)
         reset_tournament = similarity < threshold
-        logger.info(f"Revision v{new_version} for {paper_id}: similarity={similarity:.3f}, "
-                     f"threshold={threshold}, reset_tournament={reset_tournament}")
+        similarity_basis = "full_text"
+    else:
+        # Orphan full_text case — fall back to abstracts (short but better than nothing)
+        old_abstract = existing.get("abstract") or ""
+        new_abstract = new_arxiv_data.get("abstract") or ""
+        if old_abstract and new_abstract:
+            similarity = _content_similarity(old_abstract, new_abstract)
+            reset_tournament = similarity < threshold
+            similarity_basis = "abstract"
+            logger.info(f"Revision v{new_version} for {paper_id}: old full_text missing, "
+                        f"using abstract similarity={similarity:.3f}")
+        else:
+            logger.warning(f"Revision v{new_version} for {paper_id}: no comparable text "
+                           f"(full_text + abstract both missing) — treating as content update only")
+            reset_tournament = False
+            similarity_basis = "no_comparable_text"
+
+    if similarity is not None:
+        logger.info(f"Revision v{new_version} for {paper_id}: "
+                    f"similarity={similarity:.3f} (basis={similarity_basis}), "
+                    f"threshold={threshold}, reset_tournament={reset_tournament}")
 
     # --- Always: snapshot old version, re-ingest new content ---
 
-    # 1. Snapshot old version data
-    full_existing = await db.papers.find_one({"id": paper_id}, {"_id": 0})
+    # 1. Snapshot old version data (reuses the single full_existing read above)
     ranking_doc = await db.rankings.find_one(
         {"paper_id": paper_id},
         {"_id": 0, "rank_ts": 1, "ts_score": 1, "comparisons": 1, "win_rate": 1, "wins": 1, "losses": 1}
@@ -718,6 +785,8 @@ async def _handle_revision(paper_id: str, new_arxiv_data: dict, new_version: int
         "added_at": existing.get("added_at"),
         "archived_at": now_iso,
         "tournament_reset": reset_tournament,
+        "similarity": similarity,
+        "similarity_basis": similarity_basis,
     }
     if ranking_doc:
         version_snapshot["last_rank"] = ranking_doc.get("rank_ts")
@@ -725,23 +794,28 @@ async def _handle_revision(paper_id: str, new_arxiv_data: dict, new_version: int
         version_snapshot["last_comparisons"] = ranking_doc.get("comparisons", 0)
         version_snapshot["last_win_rate"] = ranking_doc.get("win_rate", 0)
 
-    # 2. Push snapshot to version_history, update paper with new content, clear summaries
+    # 2. Push snapshot to version_history, update paper with new content, clear summaries.
+    #    Increment revision_epoch — used by in-flight matches to detect staleness.
     base, _ = strip_arxiv_version(new_arxiv_data["arxiv_id"])
+    prev_epoch = full_existing.get("revision_epoch", 0)
+    new_epoch = prev_epoch + 1
+    update_set = {
+        "arxiv_id": new_arxiv_data["arxiv_id"],
+        "arxiv_id_base": base,
+        "current_version": new_version,
+        "revision_epoch": new_epoch,
+        "pdf_link": new_pdf_link,
+        "link": new_arxiv_data.get("link", existing.get("link", "")),
+        "abstract": new_arxiv_data.get("abstract", existing.get("abstract", "")),
+        "full_text": new_full_text,
+        "needs_pdf": False,
+        "revised_at": now_iso,
+    }
     await db.papers.update_one(
         {"id": paper_id},
         {
-            "$push": {"version_history": version_snapshot},
-            "$set": {
-                "arxiv_id": new_arxiv_data["arxiv_id"],
-                "arxiv_id_base": base,
-                "current_version": new_version,
-                "pdf_link": new_pdf_link,
-                "link": new_arxiv_data.get("link", existing.get("link", "")),
-                "abstract": new_arxiv_data.get("abstract", existing.get("abstract", "")),
-                "full_text": new_full_text,
-                "needs_pdf": False,
-                "revised_at": now_iso,
-            },
+            "$push": {"version_history": {"$each": [version_snapshot], "$slice": -20}},
+            "$set": update_set,
             "$unset": {
                 "summaries": "",
                 "summary_dates": "",
@@ -751,6 +825,8 @@ async def _handle_revision(paper_id: str, new_arxiv_data: dict, new_version: int
             }
         }
     )
+    # Update in-memory epoch tracker so in-flight comparisons can detect staleness.
+    _paper_revision_epochs[paper_id] = new_epoch
 
     # 3. Tournament reset (only if content changed significantly)
     if reset_tournament:
@@ -790,11 +866,37 @@ async def _handle_revision(paper_id: str, new_arxiv_data: dict, new_version: int
                 }}
             )
 
+        # Keep in-memory _incr_match_counts consistent with DB. Count how many
+        # matches we actually superseded per primary_category and decrement.
+        if superseded_count > 0:
+            try:
+                from routers.leaderboard import _incr_match_counts
+                async for doc in db.matches.aggregate([
+                    {"$match": {
+                        "$or": [{"paper1_id": paper_id}, {"paper2_id": paper_id}],
+                        "revision_superseded": True,
+                        "superseded_at": now_iso,
+                        "completed": True,
+                        "failed": {"$ne": True},
+                    }},
+                    {"$group": {"_id": "$primary_category", "count": {"$sum": 1}}},
+                ]):
+                    cat = doc["_id"]
+                    if cat:
+                        _incr_match_counts[cat] = max(0, _incr_match_counts.get(cat, 0) - doc["count"])
+                        # Keep cat_status.matches_count aligned — read by UI
+                        cs = _category_status.get(cat)
+                        if cs is not None:
+                            cs["matches_count"] = _incr_match_counts.get(cat, 0)
+            except Exception as e:
+                logger.warning(f"Failed to decrement match counters after revision {paper_id}: {e}")
+
         logger.info(f"Revision v{new_version} for {paper_id} ({base}): TOURNAMENT RESET — "
-                     f"archived v{version_snapshot['version']}, superseded {superseded_count} matches")
+                     f"archived v{version_snapshot['version']}, superseded {superseded_count} matches, "
+                     f"epoch {prev_epoch}→{new_epoch}")
     else:
         logger.info(f"Revision v{new_version} for {paper_id} ({base}): content update only — "
-                     f"summaries cleared for re-generation, tournament kept")
+                     f"summaries cleared for re-generation, tournament kept, epoch {prev_epoch}→{new_epoch}")
 
     # 4. Invalidate caches
     from routers.leaderboard import notify_data_changed
@@ -842,22 +944,31 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             revisions_detected = 0
             existing_ids = set()
             existing_hashes = set()
-            # Build lookup of arxiv_id_base → existing paper for revision detection
+            # Build lookup of arxiv_id_base → existing paper for revision detection.
+            # IMPORTANT: scanned across ALL categories (not just current) — a paper
+            # can switch primary category between versions, and the sparse unique
+            # index on arxiv_id_base would otherwise raise DuplicateKeyError on insert.
             existing_bases = {}  # base → {arxiv_id, current_version, id}
+            if id_field == "arxiv_id":
+                async for doc in db.papers.find(
+                    {"arxiv_id_base": {"$exists": True}},
+                    {"_id": 0, id_field: 1, "arxiv_id_base": 1, "current_version": 1, "id": 1}
+                ):
+                    if doc.get("arxiv_id_base"):
+                        existing_bases[doc["arxiv_id_base"]] = {
+                            "arxiv_id": doc.get(id_field),
+                            "current_version": doc.get("current_version", 1),
+                            "id": doc["id"],
+                        }
+            # Per-category dedup hashes + id set (faster for normal dedup path)
             async for doc in db.papers.find(
                 {"categories.0": category} if not category.startswith("chemrxiv.") else {},
-                {"_id": 0, id_field: 1, "dedup_hash": 1, "arxiv_id_base": 1, "current_version": 1, "id": 1}
+                {"_id": 0, id_field: 1, "dedup_hash": 1}
             ):
                 if doc.get(id_field):
                     existing_ids.add(doc[id_field])
                 if doc.get("dedup_hash"):
                     existing_hashes.add(doc["dedup_hash"])
-                if doc.get("arxiv_id_base"):
-                    existing_bases[doc["arxiv_id_base"]] = {
-                        "arxiv_id": doc.get(id_field),
-                        "current_version": doc.get("current_version", 1),
-                        "id": doc["id"],
-                    }
 
             for rp in raw_papers:
                 dedup_value = rp.get(id_field) or rp.get("doi") or rp.get("arxiv_id")
@@ -912,13 +1023,25 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                     base, version = strip_arxiv_version(rp["arxiv_id"])
                     paper_doc["arxiv_id_base"] = base
                     paper_doc["current_version"] = version
+                    paper_doc["revision_epoch"] = 0
                 if rp.get("chemrxiv_id"):
                     paper_doc["chemrxiv_id"] = rp["chemrxiv_id"]
                 if rp.get("doi"):
                     paper_doc["doi"] = rp["doi"]
-                await db.papers.insert_one(paper_doc)
-                existing_hashes.add(content_hash)
-                new_count += 1
+                try:
+                    await db.papers.insert_one(paper_doc)
+                    existing_hashes.add(content_hash)
+                    new_count += 1
+                except Exception as ins_err:
+                    # Most likely DuplicateKeyError on arxiv_id or arxiv_id_base
+                    # (e.g., paper just inserted by a parallel fetcher, or
+                    # category-switched version we missed in the base lookup).
+                    # Skip this one but don't abort the rest of the batch.
+                    err_name = type(ins_err).__name__
+                    logger.warning(f"[{category}] Insert skipped for "
+                                   f"{paper_doc.get('arxiv_id') or paper_doc.get('chemrxiv_id')}: "
+                                   f"{err_name}: {str(ins_err)[:120]}")
+                    continue
 
             result["new_papers"] = new_count
             result["revisions"] = revisions_detected
@@ -1500,6 +1623,12 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                 return {"status": "no_pairs"}
 
             paper_lookup = {p["id"]: p for p in all_papers}
+            # Snapshot revision epochs at pair-selection time. If a paper is
+            # revised while its comparisons are in-flight, the match will be
+            # flagged revision_superseded at insertion (see _run_one below).
+            epochs_at_selection = {
+                pid: _paper_revision_epochs.get(pid, 0) for pid in paper_lookup.keys()
+            }
             completed = 0
             failed = 0
             total_matches = cat_status.get("matches_count", 0)
@@ -1570,12 +1699,26 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                     })
                     completed += 1
 
+                # If either paper was revised while this comparison was in-flight,
+                # mark the match revision_superseded at insertion so it never
+                # contaminates the freshly-reset tournament for v{N+1}.
+                stale = (
+                    _paper_revision_epochs.get(p1_id, 0) != epochs_at_selection.get(p1_id, 0)
+                    or _paper_revision_epochs.get(p2_id, 0) != epochs_at_selection.get(p2_id, 0)
+                )
+                if stale:
+                    match_doc["revision_superseded"] = True
+                    match_doc["superseded_at"] = datetime.now(timezone.utc).isoformat()
+
                 await db.matches.insert_one(match_doc)
-                # Bump incremental match counter (avoids full-collection scan in _refresh_cache)
-                from routers.leaderboard import bump_match_counter
-                bump_match_counter(category, failed=match_doc.get("failed", False))
+                # Only bump counters for matches that will actually count in
+                # rankings (skip revision-superseded ones).
+                if not match_doc.get("revision_superseded"):
+                    from routers.leaderboard import bump_match_counter
+                    bump_match_counter(category, failed=match_doc.get("failed", False))
                 # Incrementally update DB-backed rankings for this match
-                if match_doc.get("completed") and match_doc.get("winner_id"):
+                if (match_doc.get("completed") and match_doc.get("winner_id")
+                        and not match_doc.get("revision_superseded")):
                     from services.ranking import update_rankings_for_match
                     w_id = match_doc["winner_id"]
                     l_id = p2_id if w_id == p1_id else p1_id

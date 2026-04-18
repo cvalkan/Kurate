@@ -224,7 +224,35 @@ export function LeaderboardTable({
               <RankBadge rank={scoreRankMap[paper.id] || paper._displayRank || paper.rank} />
             </div>
             <div className="min-w-0">
-              <p className="text-xs sm:text-sm font-medium truncate leading-tight" title={paper.title}>{paper.title}</p>
+              <p className="text-xs sm:text-sm font-medium truncate leading-tight" title={paper.title}>
+                {paper.title}
+                {paper.revision_badge && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        className="ml-1.5 inline-flex items-center px-1 py-px text-[9px] sm:text-[10px] font-mono rounded bg-amber-50 text-amber-700 border border-amber-200 align-middle"
+                        data-testid={`revision-badge-${paper.id}`}
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                      >
+                        v{paper.revision_badge.version || 2}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <p className="text-xs">
+                        <strong>Revised</strong> — previously ranked{" "}
+                        {paper.revision_badge.prev_rank ? `#${paper.revision_badge.prev_rank}` : "—"}
+                        {paper.revision_badge.prev_ts_score
+                          ? ` at score ${paper.revision_badge.prev_ts_score}`
+                          : ""}
+                        {paper.revision_badge.prev_comparisons != null
+                          ? ` (${paper.revision_badge.prev_comparisons} comparisons)`
+                          : ""}
+                        . Tournament restarted after arXiv v{paper.revision_badge.version || 2}.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </p>
               <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">
                 {paper.authors?.slice(0, 2).join(", ")}
                 {paper.authors?.length > 2 && ` +${paper.authors.length - 2}`}
