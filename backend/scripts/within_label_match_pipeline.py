@@ -62,15 +62,11 @@ MODELS = [
         "api_base": None,
         "custom_llm_provider": None,
     },
-    {
-        "name": "claude-opus-4-6",
-        "provider": "anthropic",
-        "model": "claude-opus-4-6",
-        "litellm_model": "claude-opus-4-6",
-        "api_key": EMERGENT_LLM_KEY,
-        "api_base": PROXY_URL,
-        "custom_llm_provider": "openai",
-    },
+    # Claude temporarily disabled — 502 Bad Gateway with 230s timeouts
+    # {
+    #     "name": "claude-opus-4-6",
+    #     ...
+    # },
     {
         "name": "gemini-3-pro-preview",
         "provider": "gemini",
@@ -269,6 +265,7 @@ async def run_comparison(
 
         try:
             loop = asyncio.get_event_loop()
+            params["timeout"] = 60  # 60s max per call, prevents 230s hangs
             resp = await loop.run_in_executor(None, lambda: litellm.completion(**params))
             raw = resp.choices[0].message.content
 
