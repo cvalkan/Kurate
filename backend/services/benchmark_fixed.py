@@ -131,10 +131,13 @@ async def compute_fixed_benchmark(db):
     }
 
 
-async def _compute_dataset(db, dataset_id: str, source_paper_dataset: str = None):
-    """Compute benchmark for a single dataset with simplified filters."""
+async def _compute_dataset(db, dataset_id: str, source_paper_dataset: str = None, label_filter: str = None):
+    """Compute benchmark for a single dataset with simplified filters.
+    
+    If label_filter is set, only AI matches with that label are included.
+    """
 
-    # --- Load papers (may come from a different dataset, e.g. within-label reuses cross-label papers) ---
+    # --- Load papers (may come from a different dataset) ---
     paper_dataset_id = source_paper_dataset or dataset_id
     papers = await collect_all(db.validation_papers.find(
         {"dataset_id": paper_dataset_id},
@@ -146,39 +149,24 @@ async def _compute_dataset(db, dataset_id: str, source_paper_dataset: str = None
 
     papers_by_id = {p["id"]: p for p in papers}
 
-    # --- Build expert ratings: ALL reviewers, no minimum ---
+    # --- Build expert ratings: {evaluator_name: {paper_id: score}} ---
     expert_ratings = build_expert_ratings(papers)
-    # No filter: include every reviewer who rated at least 1 paper
 
-    # --- Expert pairwise preferences ---
-    # For every pair where at least one expert has a preference
-    expert_pair_prefs = defaultdict(dict)  # {pair: {expert: winner_id}}
-    expert_pair_rated = defaultdict(set)    # {pair: {expert, ...}} — includes ties
-
-    for exp, ratings in expert_ratings.items():
-        rated_ids = list(ratings.keys())
-        for i in range(len(rated_ids)):
-            for j in range(i + 1, len(rated_ids)):
-                a, b = rated_ids[i], rated_ids[j]
-                pair = tuple(sorted([a, b]))
-                expert_pair_rated[pair].add(exp)
-                if ratings[a] != ratings[b]:
-                    expert_pair_prefs[pair][exp] = a if ratings[a] > ratings[b] else b
-
-    # --- Load AI matches (with within-tier) ---
-    # Use thinking mode if available (newer, better prompts).
-    # Same mode for both base and experiment matches for consistency.
+    # --- Load AI matches ---
     has_thinking = any(p.get("ai_impact_summary_thinking") for p in papers)
     ai_mode = "abstract_plus_summary:thinking" if has_thinking else "abstract_plus_summary"
-    # Verify thinking mode has matches; fall back to non-thinking if not
     thinking_count = await db.validation_matches.count_documents(
         {"dataset_id": dataset_id, "completed": True, "content_mode": ai_mode})
     if thinking_count == 0:
         ai_mode = "abstract_plus_summary"
 
+    ai_match_filter = {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
+         "content_mode": ai_mode}
+    if label_filter:
+        ai_match_filter["label"] = label_filter
+
     ai_raw = await collect_all(db.validation_matches.find(
-        {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
-         "content_mode": ai_mode},
+        ai_match_filter,
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
     ))
 
@@ -194,6 +182,28 @@ async def _compute_dataset(db, dataset_id: str, source_paper_dataset: str = None
         c = Counter(votes)
         ai_pair[pair] = c.most_common(1)[0][0]
 
+    # --- Build expert preferences ONLY for AI-matched pairs (memory-efficient) ---
+    # Instead of enumerating all C(n,2) expert pairs upfront (which is O(n²) and
+    # causes OOM with positional reviewers who rate 3000+ papers), we only check
+    # expert preferences for pairs that the AI actually judged.
+    ai_pairs_set = set(ai_pair.keys())
+    expert_pair_prefs = {}   # {pair: {expert: winner_id}}
+    expert_pair_rated = {}   # {pair: {expert, ...}} — includes ties
+
+    for pair in ai_pairs_set:
+        a, b = pair
+        prefs = {}
+        rated = set()
+        for exp, ratings in expert_ratings.items():
+            if a in ratings and b in ratings:
+                rated.add(exp)
+                if ratings[a] != ratings[b]:
+                    prefs[exp] = a if ratings[a] > ratings[b] else b
+        if rated:
+            expert_pair_rated[pair] = rated
+        if prefs:
+            expert_pair_prefs[pair] = prefs
+
     # --- Expert majority (>=1 non-tie vote = majority) ---
     expert_majority = {}
     for pair, votes in expert_pair_prefs.items():
@@ -203,10 +213,8 @@ async def _compute_dataset(db, dataset_id: str, source_paper_dataset: str = None
             expert_majority[pair] = best
 
     # --- Controlled pair sets ---
-    # controlled = pairs with >=1 non-tie expert AND AI verdict
-    controlled_pairs = set(expert_pair_prefs.keys()) & set(ai_pair.keys())
-    # controlled_cf = pairs where experts rated both papers (incl. all-tie) AND AI verdict
-    controlled_pairs_cf = set(expert_pair_rated.keys()) & set(ai_pair.keys())
+    controlled_pairs = set(expert_pair_prefs.keys()) & ai_pairs_set
+    controlled_pairs_cf = set(expert_pair_rated.keys()) & ai_pairs_set
 
     if not controlled_pairs:
         return None
@@ -556,60 +564,42 @@ async def _compute_dataset(db, dataset_id: str, source_paper_dataset: str = None
         for exp, ratings in expert_ratings.items():
             if len(ratings) < 5:
                 continue
-            # Expert's own pairwise preferences → BT
-            exp_pairs = [(pair, expert_pair_prefs[pair][exp])
-                         for pair in controlled_pairs
-                         if pair in expert_pair_prefs and exp in expert_pair_prefs[pair]]
-            if len(exp_pairs) < 5:
+
+            # Papers this expert rated that are in the controlled set
+            exp_rated_pids = sorted(set(ratings.keys()) & set(all_pids_in_controlled))
+            if len(exp_rated_pids) < 5:
                 continue
-            exp_wr = _simple_wr_scores(exp_pairs, all_pids_in_controlled)
 
-            # LOO majority (exclude this expert)
-            loo_maj_pairs = []
-            for pair in controlled_pairs:
-                prefs = expert_pair_prefs.get(pair, {})
-                others = {e: v for e, v in prefs.items() if e != exp}
-                if len(others) >= 2:
-                    c = Counter(others.values())
-                    best, n = c.most_common(1)[0]
-                    if n > len(others) / 2:
-                        loo_maj_pairs.append((pair, best))
-            loo_maj_wr = _simple_wr_scores(loo_maj_pairs, all_pids_in_controlled) if len(loo_maj_pairs) >= 5 else {}
+            # Use the expert's raw numeric scores directly as their ranking.
+            exp_scores = {pid: ratings[pid] for pid in exp_rated_pids}
 
-            # LOO individual aggregate (all others' votes)
-            loo_indiv_pairs = []
-            for pair in controlled_pairs:
-                prefs = expert_pair_prefs.get(pair, {})
-                for e, v in prefs.items():
-                    if e != exp:
-                        loo_indiv_pairs.append((pair, v))
-            loo_indiv_wr = _simple_wr_scores(loo_indiv_pairs, all_pids_in_controlled) if len(loo_indiv_pairs) >= 5 else {}
-
-            # LOO avg rating
+            # LOO avg rating (exclude this expert, use raw scores)
             loo_avg = {}
-            for pid in all_pids_in_controlled:
-                scores = [ratings[pid] for e, ratings in expert_ratings.items() if e != exp and pid in ratings]
+            for pid in exp_rated_pids:
+                scores = [r[pid] for e, r in expert_ratings.items() if e != exp and pid in r]
                 if scores:
                     loo_avg[pid] = sum(scores) / len(scores)
 
-            # Correlations
-            r, _ = _corr(exp_wr, h_indiv_wr)
+            # Correlations — all use raw scores, restricted to expert's rated papers
+            r, _ = _corr(exp_scores, h_indiv_wr, pids=exp_rated_pids)
             if r is not None:
                 loo_vs_indiv_agg_rhos.append(r)
 
-            r, _ = _corr(exp_wr, loo_avg)
+            r, _ = _corr(exp_scores, loo_avg, pids=exp_rated_pids)
             if r is not None:
                 loo_vs_avg_rhos.append(r)
 
-            r, _ = _corr(exp_wr, loo_maj_wr)
-            if r is not None:
-                loo_vs_maj_rhos.append(r)
+            # For majority (LOO): use loo_avg as proxy — with raw scores,
+            # the avg ranking IS the majority signal.
+            r_maj, _ = _corr(exp_scores, loo_avg, pids=exp_rated_pids)
+            if r_maj is not None:
+                loo_vs_maj_rhos.append(r_maj)
 
-            r, _ = _corr(exp_wr, tier_scores)
+            r, _ = _corr(exp_scores, tier_scores, pids=exp_rated_pids)
             if r is not None:
                 loo_vs_tier_rhos.append(r)
 
-            r, _ = _corr(exp_wr, loo_indiv_wr)
+            r, _ = _corr(exp_scores, loo_avg, pids=exp_rated_pids)
             if r is not None:
                 loo_vs_indiv_rhos.append(r)
 
@@ -621,8 +611,10 @@ async def _compute_dataset(db, dataset_id: str, source_paper_dataset: str = None
         wr_results["avg_expert_vs_loo_indiv"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_indiv_rhos))) if loo_vs_indiv_rhos else None}
         wr_results["avg_expert_vs_tier"] = {"spearman_rho": safe_round(float(np.mean(loo_vs_tier_rhos))) if loo_vs_tier_rhos else None}
 
-    except Exception:
-        pass
+    except Exception as _loo_err:
+        import traceback, logging
+        logging.getLogger("papersumo").warning(f"LOO computation failed: {_loo_err}")
+        traceback.print_exc()
 
     # --- Tie rates ---
     tie_rates = {
@@ -650,7 +642,7 @@ async def _compute_dataset(db, dataset_id: str, source_paper_dataset: str = None
     return {
         "dataset_id": dataset_id,
         "name": papers[0].get("title", dataset_id).split(":")[0] if False else _dataset_name(dataset_id),
-        "n_papers": len(papers),
+        "n_papers": len(all_pids_in_controlled),
         "n_experts": len(expert_ratings),
         "controlled_pairs": ac_total,  # pairs with clear expert majority (= "ties excluded" denominator)
         "controlled_pairs_cf": len(controlled_pairs_cf),

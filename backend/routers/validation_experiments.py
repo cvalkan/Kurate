@@ -3763,10 +3763,15 @@ async def human_ai_benchmark_iclr2026_within_label(gt_type: str = Query("comp"))
         return cached["data"]
     try:
         from services.benchmark_fixed import _compute_dataset, _pool_datasets
-        # Within-label dataset reuses papers from the cross-label dataset
-        result = await _compute_dataset(db, "iclr-2026-within-label", source_paper_dataset="iclr-2026-validation")
+
+        # Single aggregate computation (all within-label matches as one dataset)
+        result = await _compute_dataset(
+            db, "iclr-2026-within-label",
+            source_paper_dataset="iclr-2026-validation",
+        )
         if not result:
             return {"status": "no_data", "message": "No within-label matches yet. Run the pipeline first."}
+
         pooled = _pool_datasets([result])
 
         total_ai_matches = await db.validation_matches.count_documents({
@@ -3785,7 +3790,7 @@ async def human_ai_benchmark_iclr2026_within_label(gt_type: str = Query("comp"))
         n_papers = result["n_papers"]
         avg_matches_per_paper = round(2 * total_ai_matches / n_papers, 1) if n_papers else None
 
-        # Per-label breakdown
+        # Lightweight per-label match counts
         label_agg = await db.validation_matches.aggregate([
             {"$match": {"dataset_id": "iclr-2026-within-label", "completed": True, "failed": {"$ne": True}}},
             {"$group": {"_id": "$label", "count": {"$sum": 1}}},
@@ -3793,6 +3798,7 @@ async def human_ai_benchmark_iclr2026_within_label(gt_type: str = Query("comp"))
         ]).to_list(100)
         label_breakdown = {doc["_id"]: doc["count"] for doc in label_agg if doc["_id"]}
 
+        result["name"] = "iclr-2026-within-label"
         response = {
             "status": "ok",
             "n_datasets": 1,
