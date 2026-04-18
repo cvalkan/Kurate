@@ -389,29 +389,7 @@ export default function LeaderboardPage() {
           if (data) setLoading(false);
         }}
         activeArchiveLabel={activeArchive?.label}
-        scoringToggle={(
-          <div className="flex items-center gap-2 shrink-0" data-testid="scoring-method-toggle">
-            <div className="flex items-center gap-0.5 p-0.5 bg-secondary/50 rounded-md">
-              {[["ts", "TrueSkill"], ["os", "OpenSkill"]].map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => { if (!activeArchive) { setSortPending(true); setNextCursor(null); } setScoringMethod(key); }}
-                  className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
-                    scoringMethod === key
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                  data-testid={`scoring-method-${key}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <span className="text-[10px] text-muted-foreground hidden sm:inline">
-              {scoringMethod === "ts" ? "Bayesian TrueSkill rating" : "Bayesian OpenSkill rating"}
-            </span>
-          </div>
-        )}
+        scoringToggle={null}
       />
 
       {warmingUp && (
