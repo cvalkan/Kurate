@@ -160,6 +160,11 @@ PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the "Revi
 - Files: `services/arxiv.py`, `services/scheduler.py`, `services/ranking.py`, `routers/leaderboard.py`, `routers/admin.py`, `core/config.py`, `scripts/migrate_arxiv_versions.py`
 - Tested: 7/7 unit tests + 12/12 regression tests covering duplicate prevention, match superseding, dedup reuse, summary clearing, version history, ranking reset, cosmetic revision, migration idempotency, revision feed, orphan detection, production data regression
 
+### Static Convergence + File Cleanup (Apr 18, 2026)
+- Confirmed ICLR 2026 tournament 100% complete (57,256 / 57,256 matches, 3,854 papers)
+- Convergence chart served statically from `/static-data/convergence-iclr-2026-validation.json` (no backend API call)
+- Cleaned up redundant result files: removed `validation_match_results.jsonl.bak` (30MB) and `validation_match_results.jsonl.before-retry-412` (55MB), keeping only the canonical `validation_match_results.jsonl` (410KB)
+
 ## Prioritized Backlog
 
 ### P0
