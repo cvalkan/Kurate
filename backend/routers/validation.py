@@ -15,7 +15,7 @@ import os
 import requests
 from datetime import datetime, timezone
 from collections import defaultdict, Counter
-from fastapi import APIRouter, Depends, Query, Request, HTTPException
+from fastapi import APIRouter, Depends, Query, Request, HTTPException, Response
 from pydantic import BaseModel
 from typing import Optional
 import numpy as np
@@ -2322,22 +2322,70 @@ async def _compute_convergence(dataset_id: str, content_mode: Optional[str], ste
 
 
 @router.get("/convergence-all")
-async def get_convergence_all(dataset_id: str = Query(...), steps: int = Query(20)):
-    """Return convergence data for ALL available modes. Serves from cache only — never computes on-demand."""
+async def get_convergence_all(
+    dataset_id: str = Query(...),
+    steps: int = Query(20),
+    response: Response = None,
+):
+    """Return convergence data for ALL available modes. Serves from cache only — never computes on-demand.
+
+    For datasets marked as finalised (convergence is a snapshot that will not
+    change), the response is served with long-lived browser/CDN cache headers
+    so subsequent visits skip the server entirely.
+    """
+    finalised = await _is_dataset_finalised(dataset_id)
+
     entry = convergence_all_cache.get(dataset_id)
     if entry:
-        return entry["data"]
+        data = entry["data"]
+    else:
+        from core.cache import get_cached
+        mongo_key = f"convergence_all_{dataset_id}"
+        db_cached = await get_cached(mongo_key)
+        if db_cached:
+            convergence_all_cache[dataset_id] = {"data": db_cached, "ts": _time.time()}
+            data = db_cached
+        else:
+            # Not cached — return empty rather than computing (which blocks the event loop for 10-60s)
+            return {"status": "no_data", "dataset_id": dataset_id, "modes": {},
+                    "message": "Convergence data not yet precomputed for this dataset"}
 
-    # Try MongoDB persistent cache
-    from core.cache import get_cached
-    mongo_key = f"convergence_all_{dataset_id}"
-    db_cached = await get_cached(mongo_key)
-    if db_cached:
-        convergence_all_cache[dataset_id] = {"data": db_cached, "ts": _time.time()}
-        return db_cached
+    # Annotate finalised datasets so the frontend can stop polling.
+    if isinstance(data, dict) and finalised:
+        data = {**data, "finalised": True}
+        if response is not None:
+            # 1-day browser cache + SWR for 1 week. These responses are already
+            # large so even a single re-fetch hit matters.
+            response.headers["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=604800"
+    elif response is not None:
+        # Short cache for live datasets — still avoids repeated same-second hits
+        response.headers["Cache-Control"] = "public, max-age=60"
+    return data
 
-    # Not cached — return empty rather than computing (which blocks the event loop for 10-60s)
-    return {"status": "no_data", "dataset_id": dataset_id, "modes": {}, "message": "Convergence data not yet precomputed for this dataset"}
+
+async def _is_dataset_finalised(dataset_id: str) -> bool:
+    """A dataset is 'finalised' when its convergence snapshot is stable enough
+    that re-computing it would produce essentially identical curves.
+
+    Explicit marker: `validation_datasets.finalised=True`.
+    Fallback heuristic: ≥95% of the target match corpus is completed (when a
+    `target_matches` field is present on the dataset doc).
+    """
+    doc = await db.validation_datasets.find_one(
+        {"dataset_id": dataset_id},
+        {"_id": 0, "finalised": 1, "target_matches": 1}
+    )
+    if not doc:
+        return False
+    if doc.get("finalised") is True:
+        return True
+    target = doc.get("target_matches")
+    if isinstance(target, int) and target > 0:
+        done = await db.validation_matches.count_documents({
+            "dataset_id": dataset_id, "completed": True, "failed": {"$ne": True}
+        })
+        return done / target >= 0.95
+    return False
 
 
 async def _compute_convergence_and_cache(dataset_id: str, steps: int = 20):
