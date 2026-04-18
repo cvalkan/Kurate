@@ -147,4 +147,5 @@ DEFAULT_SETTINGS = {
     "show_rating_column": True,
     "show_gap_column": True,
     "ranking_method": "reg_wr",
+    "revision_diff_threshold": 0.95,
 }

@@ -1,8 +1,20 @@
+import re
 import httpx
 import asyncio
 import xml.etree.ElementTree as ET
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from core.config import logger
+
+
+def strip_arxiv_version(arxiv_id: str) -> Tuple[str, int]:
+    """Strip version suffix from an arXiv ID.
+    '2602.12345v2' → ('2602.12345', 2)
+    '2602.12345'   → ('2602.12345', 1)
+    """
+    m = re.match(r'^(.+?)v(\d+)$', arxiv_id)
+    if m:
+        return m.group(1), int(m.group(2))
+    return arxiv_id, 1
 
 
 async def fetch_arxiv_papers(

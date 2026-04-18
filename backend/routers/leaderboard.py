@@ -33,7 +33,7 @@ async def _seed_match_counters():
     """One-time seed from DB. Called at startup."""
     global _incr_seeded
     async for doc in db.matches.aggregate([
-        {"$match": {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}},
+        {"$match": {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}, "revision_superseded": {"$ne": True}}},
         {"$group": {"_id": "$primary_category", "count": {"$sum": 1}}},
     ]):
         _incr_match_counts[doc["_id"]] = doc["count"]
@@ -68,7 +68,7 @@ async def _get_match_count(category: str = None) -> int:
     cached = _match_count_cache.get(key)
     if cached and (time.time() - cached["ts"]) < _MATCH_COUNT_TTL:
         return cached["count"]
-    q = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+    q = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}, "revision_superseded": {"$ne": True}}
     if category:
         q["primary_category"] = category
     count = await db.matches.count_documents(q)
@@ -309,7 +309,7 @@ async def _refresh_cache():
 
     tag_match_counts = Counter()
     async for doc in db.matches.aggregate([
-        {"$match": {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}},
+        {"$match": {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}, "revision_superseded": {"$ne": True}}},
         {"$unwind": "$shared_categories"},
         {"$group": {"_id": "$shared_categories", "count": {"$sum": 1}}},
     ]):
@@ -472,7 +472,7 @@ async def get_all_tags():
         tag_counts[doc["_id"]] = doc["count"]
     tag_match_counts = Counter()
     async for doc in db.matches.aggregate([
-        {"$match": {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}},
+        {"$match": {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}, "revision_superseded": {"$ne": True}}},
         {"$unwind": "$shared_categories"},
         {"$group": {"_id": "$shared_categories", "count": {"$sum": 1}}},
     ]):
@@ -514,19 +514,21 @@ _RANK_PROJ = {"_id": 0, "paper_id": 1, "category": 1, "rank": 1, "rank_wr": 1, "
               "ci": 1, "wilson_margin": 1, "win_rate": 1, "wins": 1, "losses": 1,
               "comparisons": 1, "title": 1, "authors": 1, "arxiv_id": 1, "link": 1,
               "published": 1, "added_at": 1, "ai_rating": 1, "gap_score": 1, "gap_score_ts": 1,
-              "categories": 1}
+              "categories": 1, "revision_badge": 1}
 
 
 def _encode_cursor(score: int, paper_id: str) -> str:
     """Encode a keyset pagination cursor as a URL-safe base64 token."""
-    import base64, json
+    import base64
+    import json
     payload = json.dumps({"s": score, "p": paper_id}, separators=(",", ":"))
     return base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
 
 
 def _decode_cursor(cursor: str) -> tuple:
     """Decode a keyset cursor → (score, paper_id). Returns (None, None) on invalid input."""
-    import base64, json
+    import base64
+    import json
     try:
         padded = cursor + "=" * (-len(cursor) % 4)
         payload = json.loads(base64.urlsafe_b64decode(padded))
@@ -538,7 +540,7 @@ def _decode_cursor(cursor: str) -> tuple:
 def _rank_doc_to_entry(doc: dict) -> dict:
     """Convert a rankings DB document to a leaderboard entry (matching the old cache format).
     Uses rank_ts (TrueSkill rank) as the primary rank — the canonical ranking metric."""
-    return {
+    entry = {
         "id": doc["paper_id"],
         "rank": doc.get("rank_ts", doc.get("rank", 0)),
         "rank_wr": doc.get("rank_wr", doc.get("rank", 0)),
@@ -564,6 +566,9 @@ def _rank_doc_to_entry(doc: dict) -> dict:
         **({"os_sigma": doc["os_sigma"]} if doc.get("os_sigma") is not None else {}),
         **({"rank_os": doc["rank_os"]} if doc.get("rank_os") is not None else {}),
     }
+    if doc.get("revision_badge"):
+        entry["revision_badge"] = doc["revision_badge"]
+    return entry
 
 
 
@@ -1105,7 +1110,9 @@ async def get_paper_detail(paper_id: str):
             "mode": {"$exists": False},
             "$or": [{"paper1_id": paper_id}, {"paper2_id": paper_id}],
         },
-        {"_id": 0},
+        {"_id": 0, "revision_superseded": 1, "paper1_id": 1, "paper2_id": 1,
+         "winner_id": 1, "reasoning": 1, "model_used": 1, "created_at": 1,
+         "failed": 1, "id": 1},
     ).sort("created_at", -1).to_list(500)
 
     # Get opponent paper titles
@@ -1122,13 +1129,14 @@ async def get_paper_detail(paper_id: str):
     ).to_list(500)
     opponent_lookup = {o["id"]: o for o in opponents}
 
-    # Enrich matches with paper titles
+    # Enrich matches with paper titles — split by revision status
     enriched_matches = []
+    archived_matches = []
     for m in matches:
         opponent_id = m["paper2_id"] if m["paper1_id"] == paper_id else m["paper1_id"]
         opp = opponent_lookup.get(opponent_id, {})
         won = m.get("winner_id") == paper_id
-        enriched_matches.append({
+        entry = {
             "id": m["id"],
             "opponent_id": opponent_id,
             "opponent_title": opp.get("title", "Unknown"),
@@ -1138,14 +1146,18 @@ async def get_paper_detail(paper_id: str):
             "model_used": m.get("model_used", {}),
             "created_at": m.get("created_at", ""),
             "failed": m.get("failed", False),
-        })
+        }
+        if m.get("revision_superseded"):
+            archived_matches.append(entry)
+        else:
+            enriched_matches.append(entry)
 
     # Stats from rankings collection (same source as leaderboard — always in sync)
     ranking_doc = await db.rankings.find_one(
         {"paper_id": paper_id},
         {"_id": 0, "wins": 1, "losses": 1, "comparisons": 1,
          "score": 1, "rank": 1, "rank_ts": 1, "win_rate": 1, "ci": 1, "wilson_margin": 1,
-         "ts_score": 1, "ts_sigma": 1, "os_score": 1, "os_sigma": 1}
+         "ts_score": 1, "ts_sigma": 1, "os_score": 1, "os_sigma": 1, "revision_badge": 1}
     )
 
     if ranking_doc:
@@ -1172,6 +1184,8 @@ async def get_paper_detail(paper_id: str):
         for field in ["ts_score", "ts_sigma", "os_score", "os_sigma"]:
             if ranking_doc.get(field) is not None:
                 paper[field] = ranking_doc[field]
+        if ranking_doc.get("revision_badge"):
+            paper["revision_badge"] = ranking_doc["revision_badge"]
 
     # Get category OS score range for CI bar
     primary_cat = paper.get("categories", [None])[0]
@@ -1199,11 +1213,16 @@ async def get_paper_detail(paper_id: str):
         paper["total_in_category"] = total_in_cat
         paper["category_name"] = _CAT_NAMES.get(primary_cat, primary_cat)
 
-    return {
+    response = {
         "paper": paper,
         "matches": enriched_matches,
         "stats": stats,
     }
+    # Include archived matches from previous versions if any exist
+    if archived_matches:
+        response["archived_matches"] = archived_matches
+
+    return response
 
 
 _status_cache = {"data": None, "ts": 0}
@@ -1218,7 +1237,7 @@ async def get_system_status():
         # Query DB directly — no dependency on in-memory cache
         total_papers = await db.rankings.count_documents({})
         total_matches = await db.matches.count_documents(
-            {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+            {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}, "revision_superseded": {"$ne": True}}
         )
         failed_matches = await db.matches.count_documents({"failed": True})
         _status_cache["data"] = {
@@ -1339,7 +1358,7 @@ async def _compute_convergence(category, steps):
 
     pid_set = {p["id"] for p in papers}
 
-    match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+    match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}, "revision_superseded": {"$ne": True}}
     if category:
         match_query["primary_category"] = category
     all_matches = await collect_all(db.matches.find(

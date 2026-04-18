@@ -106,6 +106,20 @@ PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the "Revi
 - Backend: `_compute_score_pairwise_coherence()` in model_analysis.py
 - Frontend: `CoherenceSection.jsx` component
 
+### Revision Handling System (Apr 18, 2026)
+- Implemented arXiv revision detection and handling in the live ingestion pipeline
+- Every revision: snapshots old version (summaries, ratings, rank), re-downloads PDF, clears summaries for re-generation
+- Content-diff gate (admin setting `revision_diff_threshold`, default 0.95): controls whether tournament is also reset
+  - Significant revision (similarity < threshold): supersedes old matches (`revision_superseded` flag), resets ranking to 0
+  - Cosmetic revision (similarity ≥ threshold): keeps tournament state, only re-evaluates content
+- Version history stored as append-only array on paper document
+- Revision badge on rankings shows previous rank/score on hover
+- Paper detail API returns `version_history`, `revision_badge`, split `matches` vs `archived_matches`
+- Migration script: backfilled `arxiv_id_base` + `current_version` for 2,180 papers, merged 9 pre-existing duplicates, created sparse unique index
+- `revision_superseded` filter added to all ranking/match queries (backwards-compatible — no behavior change for non-revised papers)
+- Files: `services/arxiv.py`, `services/scheduler.py`, `services/ranking.py`, `routers/leaderboard.py`, `core/config.py`, `scripts/migrate_arxiv_versions.py`
+- Tested: 7/7 tests passing (test_revision_handling.py)
+
 ## Prioritized Backlog
 
 ### P0
@@ -118,6 +132,8 @@ PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the "Revi
 - Email notifications via Resend
 - Circular import cleanup
 - 14 papers missing `ai_rating` on production
+- Frontend: Paper page version toggle (view archived summaries/ratings per version)
+- Frontend: Leaderboard revision badge with hover tooltip
 
 ### P2
 - httpOnly cookie migration

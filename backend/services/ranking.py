@@ -647,7 +647,7 @@ async def seed_rankings(db, category: str = None):
 
         matches = await collect_all(db.matches.find(
             {"completed": True, "failed": {"$ne": True}, "primary_category": cat,
-             "mode": {"$exists": False}},
+             "mode": {"$exists": False}, "revision_superseded": {"$ne": True}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1,
              "completed": 1, "failed": 1},
         ))
@@ -997,12 +997,13 @@ async def process_repair_queue(db):
             # Count actual wins/comparisons from matches
             comparisons = await db.matches.count_documents({
                 "completed": True, "failed": {"$ne": True}, "primary_category": cat,
-                "mode": {"$exists": False},
+                "mode": {"$exists": False}, "revision_superseded": {"$ne": True},
                 "$or": [{"paper1_id": pid}, {"paper2_id": pid}],
             })
             wins = await db.matches.count_documents({
                 "completed": True, "failed": {"$ne": True}, "primary_category": cat,
-                "mode": {"$exists": False}, "winner_id": pid,
+                "mode": {"$exists": False}, "revision_superseded": {"$ne": True},
+                "winner_id": pid,
             })
             new_stats = compute_paper_score(wins, comparisons)
             await db.rankings.update_one(
@@ -1124,7 +1125,8 @@ async def rerank_category(db, category: str):
     actual_stats = {}
     async for doc in db.matches.aggregate([
         {"$match": {"completed": True, "failed": {"$ne": True},
-                     "primary_category": category, "mode": {"$exists": False}}},
+                     "primary_category": category, "mode": {"$exists": False},
+                     "revision_superseded": {"$ne": True}}},
         {"$facet": {
             "as_p1": [
                 {"$group": {"_id": "$paper1_id", "total": {"$sum": 1},
@@ -1301,12 +1303,12 @@ async def reconcile_rankings(db, category: str = None):
             # Count actual wins and comparisons from matches collection
             actual_comparisons = await db.matches.count_documents({
                 "completed": True, "failed": {"$ne": True}, "primary_category": cat,
-                "mode": {"$exists": False},
+                "mode": {"$exists": False}, "revision_superseded": {"$ne": True},
                 "$or": [{"paper1_id": pid}, {"paper2_id": pid}],
             })
             actual_wins = await db.matches.count_documents({
                 "completed": True, "failed": {"$ne": True}, "primary_category": cat,
-                "mode": {"$exists": False},
+                "mode": {"$exists": False}, "revision_superseded": {"$ne": True},
                 "winner_id": pid,
             })
 
@@ -1315,7 +1317,8 @@ async def reconcile_rankings(db, category: str = None):
             pair_keys_for_pid = []
             async for m in db.matches.find(
                 {"completed": True, "failed": {"$ne": True}, "primary_category": cat,
-                 "mode": {"$exists": False}, "dedup_pair": {"$exists": True},
+                 "mode": {"$exists": False}, "revision_superseded": {"$ne": True},
+                 "dedup_pair": {"$exists": True},
                  "$or": [{"paper1_id": pid}, {"paper2_id": pid}]},
                 {"_id": 0, "dedup_pair": 1},
             ):
@@ -1390,7 +1393,8 @@ async def backfill_trueskill(db, category: str = None):
         matches = []
         async for m in db.matches.find(
             {"completed": True, "failed": {"$ne": True},
-             "primary_category": cat, "mode": {"$exists": False}},
+             "primary_category": cat, "mode": {"$exists": False},
+             "revision_superseded": {"$ne": True}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "created_at": 1},
         ).sort("created_at", 1):
             matches.append(m)
@@ -1476,7 +1480,8 @@ async def backfill_model_stats(db, category: str = None):
 
         async for m in db.matches.find(
             {"completed": True, "failed": {"$ne": True},
-             "primary_category": cat, "mode": {"$exists": False}},
+             "primary_category": cat, "mode": {"$exists": False},
+             "revision_superseded": {"$ne": True}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
         ):
             mu = m.get("model_used", {})
