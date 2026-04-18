@@ -7,7 +7,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://kurate-core.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://paper-judge-ai.preview.emergentagent.com')
 
 class TestUCBBackendAPI:
     """Backend API tests for UCB feature"""

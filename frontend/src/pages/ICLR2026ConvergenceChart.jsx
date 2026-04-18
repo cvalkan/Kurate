@@ -2,7 +2,11 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { TrendingUp } from "lucide-react";
 
-const API = process.env.REACT_APP_BACKEND_URL;
+// Finalized convergence data — served from static JSON, bypassing backend.
+const STATIC_PATHS = {
+  "/api/validation/iclr2026-convergence": "/static-data/convergence-iclr2026.json",
+  "/api/validation/fixed-convergence": "/static-data/convergence-fixed.json",
+};
 
 const SERIES = [
   { key: "ai_vs_avg_rating", label: "AI Pairwise vs Avg Rating", color: "#16a34a" },
@@ -14,7 +18,9 @@ export default function ConvergenceChart({ apiPath = "/api/validation/iclr2026-c
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get(`${API}${apiPath}`)
+    const staticUrl = STATIC_PATHS[apiPath];
+    const url = staticUrl || `${process.env.REACT_APP_BACKEND_URL}${apiPath}`;
+    axios.get(url)
       .then(r => setData(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));

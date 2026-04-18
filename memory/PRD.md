@@ -162,7 +162,11 @@ PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the "Revi
 
 ### Static Convergence + File Cleanup (Apr 18, 2026)
 - Confirmed ICLR 2026 tournament 100% complete (57,256 / 57,256 matches, 3,854 papers)
-- Convergence chart served statically from `/static-data/convergence-iclr-2026-validation.json` (no backend API call)
+- All 3 convergence charts now served from static JSON (zero backend API calls):
+  - `/static-data/convergence-iclr-2026-validation.json` — Tournament convergence tab
+  - `/static-data/convergence-iclr2026.json` — Human vs AI ICLR 2026 benchmark page
+  - `/static-data/convergence-fixed.json` — Human vs AI Fixed benchmark page
+- Updated `ICLR2026ConvergenceChart.jsx` with `STATIC_PATHS` map to route known API paths to static files
 - Cleaned up redundant result files: removed `validation_match_results.jsonl.bak` (30MB) and `validation_match_results.jsonl.before-retry-412` (55MB), keeping only the canonical `validation_match_results.jsonl` (410KB)
 
 ## Prioritized Backlog
