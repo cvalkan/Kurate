@@ -438,13 +438,20 @@ function DatasetRankings({ datasets }) {
   );
 }
 
+// Finalized benchmarks — served from static JSON for instant loading.
+const STATIC_BENCHMARK = {
+  "/api/validation/human-ai-benchmark-iclr2026?gt_type=comp": "/static-data/benchmark-iclr2026.json",
+};
+
 function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered, hideEqualWeighted }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    axios.get(`${API}${apiUrl}`, { timeout: 90000 })
+    const staticUrl = STATIC_BENCHMARK[apiUrl];
+    const url = staticUrl || `${API}${apiUrl}`;
+    axios.get(url, { timeout: 90000 })
       .then(r => setData(r.data))
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
