@@ -1,30 +1,19 @@
-<analysis>### Handover Summary
-
-**original_problem_statement**: Build and maintain a sophisticated Validation Hub for an AI paper-judging system at kurate.org. PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the ReviewerToo academic paper to enhance pairwise ranking accuracy. Build an optimized parallel batch pipeline to download, anonymize, and summarize OpenReview papers. Run a 58K validation match tournament using ICLR 2026 dataset.
+<analysis>**original_problem_statement**: Build and maintain a sophisticated Validation Hub for an AI paper-judging system at kurate.org. PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the ReviewerToo academic paper to enhance pairwise ranking accuracy. Build an optimized parallel batch pipeline to download, anonymize, and summarize OpenReview papers. Run a 58K validation match tournament using ICLR 2026 dataset.
 
 **User's preferred language**: English (INSTRUCT next agent to respond in English only)
 
 **what currently exists?** 
-A highly optimized, full-stack AI paper-judging platform (FastAPI + React + MongoDB) utilizing TrueSkill and OpenSkill models to rank academic papers. It features a Validation Hub with Model Correlation, Positional Bias, Benchmark, and Tournament tracking. Convergence charts actively track and compare Pairwise TrueSkill correlations against Single-Item (SI) baseline correlations. A resumable parallel match pipeline is actively running a target of 58K matches for the ICLR 2026 dataset (currently at ~40K).
+A highly optimized, full-stack AI paper-judging platform (FastAPI + React + MongoDB) utilizing TrueSkill and OpenSkill models to rank academic papers. It features a Validation Hub with Model Correlation, Positional Bias, Benchmark, and Tournament tracking. **New in this session:** A complete arXiv revision detection and handling system integrated into the live backend ingestion pipeline. It detects revisions, archives old versions, gates tournament resets based on content diff, and provides an admin feed. 
 
 **Last working item**:
-    - Last item agent was working: The user requested a quick analysis of the current live database of papers to check the distribution of arxiv secondary-category overlap (to validate if Option A for sub-topic matchmaking is viable). The agent deferred this to the new session due to context token limits.
-    - Status: NOT STARTED
-    - Agent Testing Done: N
-    - Which testing method agent to use? python -c / backend script execution
+    - Last item agent was working: Implementing the backend arXiv paper revision handling system (detecting revisions via , soft-deleting matches via , content-diff gating). The backend is 100% complete and tested. The frontend UI to display this data is pending.
+    - Status: IN PROGRESS
+    - Agent Testing Done: Y
+    - Which testing method agent to use? python script execution (created custom backend test suites with 19 passing tests)
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  Issue 1: Analyze DB for arxiv secondary-category overlap (P0)
-     - Attempted fixes: N/A (deferred to new session).
-     - Next debug checklist: Write a script to query  for the  field, group by primary category, and for each primary category, compute the distribution of secondary-category overlap counts between random same-primary paper pairs (how many share 1, 2, 3+ secondaries).
-     - Why fix this issue and what will be achieved with the fix? Evaluates if Option A (from ) has enough natural signal to drive a 60/30/10 intra-category matchmaking split, or if most papers share no secondaries requiring an LLM classifier fallback.
-     - Status: NOT STARTED
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Backend (Analysis script only)
-     - Blocked on other issue: None
-
-  Issue 2: Missing GPT/Gemini SI Ratings (P1)
+  Issue 1: Missing GPT/Gemini SI Ratings (P1)
      - Attempted fixes: Not addressed in this session.
      - Next debug checklist: Claude SI ratings parse from a specific JSON block () at the end of the thinking summaries. GPT/Gemini don't reliably output this. The prompt pipeline needs updating to enforce this schema across all models.
      - Why fix this issue and what will be achieved with the fix? Allows coherence metric calculations across all 3 models evenly.
@@ -34,45 +23,50 @@ A highly optimized, full-stack AI paper-judging platform (FastAPI + React + Mong
      - Blocked on other issue: None
 
 **In progress Task List**:
-  Task 1: Run and Monitor 58K Validation Match Pipeline (P0)
-     - Where to resume: Verify if  is still running. It was at ~40K / 58K matches. (Note: Resume logic was fixed to read directly from MongoDB).
+  Task 1: Build Frontend UI for Revision Handling System (P0)
+     - Where to resume: Modify  and the Leaderboard UI components.
+     - What will be achieved with this? Render the new  and  data now returned by the backend APIs. Add a version toggle (v1 | v2) on the paper page to view archived summaries/matches, and add a  badge on leaderboard rows with a hover tooltip showing previous rank/score.
+     - Status: NOT STARTED
+     - Should Test frontend/backend/both after fix? Frontend
+     - Blocked on something: Nothing. Data contracts are fully ready in the API.
+
+  Task 2: Run and Monitor 58K Validation Match Pipeline (P0)
+     - Where to resume: Verify .
      - What will be achieved with this? Complete the pairwise comparison dataset for ICLR 2026.
      - Status: IN PROGRESS
      - Should Test frontend/backend/both after fix? Backend
-     - Blocked on something: Nothing, just requires time for LLMs to complete.
+     - Blocked on something: Requires time for LLMs to complete.
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P0) Implement Multiple Reviewer Personas: Implement prompt architecture for diverse AI judges (from the ReviewerToo paper) to enhance ranking accuracy and diversity.
-    - (P0) Run intra-label vs cross-label TrueSkill split on existing ICLR 2026 matches to empirically prove that intra-label pairwise correlates better with human ground truth than cross-label.
-    - (P1) Implement Sub-topic Matchmaking (Option A) behind a feature flag on cs.AI, based on findings from .
-    - (P1) Implement Author Verification flow: User connects ORCID via OAuth, adds paper to their profile, or pastes a Google Scholar URL.
-    - (P1) Architecture Split (Option A): Implement  environment variable (web vs worker) to isolate the FastAPI leaderboard routes from the background scheduler loops.
-
+    - (P0) Implement Multiple Reviewer Personas: Implement prompt architecture for diverse AI judges (from the ReviewerToo paper).
+    - (P0) Run intra-label vs cross-label TrueSkill split on existing ICLR 2026 matches.
+    - (P1) Implement Sub-topic Matchmaking (Option B). *CRITICAL NOTE: Option A (Arxiv secondary categories) was analyzed in this session and proven mathematically non-viable. Option B (LLM Classifier) MUST be used.*
+    - (P1) Implement Author Verification flow: User connects ORCID via OAuth, adds paper to profile.
+    - (P1) Architecture Split (Option A): Implement  env var to isolate web vs worker.
+    
     Future Tasks:
-    - (P1) Implement an email notification system for registered users using the Resend integration.
     - (P1) Code Quality: Resolve circular import ring ( ->  -> ).
+    - (P1) Implement an email notification system for registered users using the Resend integration.
     - (P2) Migrate from  to  cookies for auth tokens.
     - (P2) Refactor monolithic .
 
 **Completed work in this session**
-- Added Tie Rate & Coin-flip metrics: Wired  and  tie rates and coin-flip pooling logic with a 0.25-point rating epsilon threshold to  and updated UI footnotes. (DONE)
-- Cleaned ICLR 2026 Tournament Dataset: Swapped in the correct 58,363-pair target CSV, deleted 9,898 orphan matches and 2,086 duplicate matches from MongoDB & JSONL. (DONE)
-- Fixed Pipeline Resume Bug: Rewrote  in  to check MongoDB directly instead of relying solely on the JSONL log, preventing duplicate pairs on restarts. (DONE)
-- Refactored Convergence Charts: Fixed cross-dataset scale artifacts on the Fixed benchmark convergence chart by computing ρ per-dataset then equal-weight averaging. Switched X-axis back to linear. (DONE)
-- Unified Benchmark Caches: Fixed missing  and  caches causing blank pages. (DONE)
-- Single-Item Baselines: Added dashed reference lines (Orange = Avg Rating, Blue = Committee Tier) to the convergence charts on both ICLR 2026 and Fixed pages. (DONE)
-- Reshuffle Invariance Experiment: Proved TrueSkill ρ is stable and invariant to chronological match ordering. (DONE)
-- Drafted Sub-topic Matchmaking Strategy: Created  detailing Option A (Arxiv secondary categories) vs Option B (LLM Classifier). (DONE)
+- Analyzed DB for Arxiv secondary-category overlap. Proven that Option A for matchmaking is NOT viable (DONE)
+- Implemented arXiv revision detection logic and content-diff gate in  (DONE)
+- Implemented match soft-deletion logic () in  and  (DONE)
+- Added  endpoint (DONE)
+- Wrote and executed one-time migration script  on the preview database (DONE)
+- Wrote 19/19 passing regression tests for the revision backend system (DONE)
 
 **Earlier issues found/mentioned but not fixed**
    - Issue 1: Prewarm cache timeouts causing JSONDecodeErrors
-     - Debug checklist: Background proxy timeout on  was side-stepped by manually generating caches, but the underlying timeout may still exist during automated backend starts.
+     - Debug checklist: Background proxy timeout on . Underlying timeout may exist during automated backend starts.
      - Why to solve this issue and what will be achieved with this? Prevents  pages from crashing on load after a server restart.
      - Should Test frontend/backend/both after fix: Backend
      - Is recurring issue? Y
    - Issue 2: Mobile Unfurling on Twitter/X Fails
-     - Debug checklist: Cloudflare bot protection blocking crawlers. Monitor for policy adjustments.
+     - Debug checklist: Cloudflare bot protection blocking crawlers.
      - Why to solve this issue and what will be achieved with this? Enables rich social sharing cards.
      - Should Test frontend/backend/both after fix: Backend
      - Is recurring issue? Y
@@ -80,83 +74,83 @@ A highly optimized, full-stack AI paper-judging platform (FastAPI + React + Mong
 **Known issue recurrence from previous fork**
   - Issue recurrence in previous fork: Mobile Unfurling on Twitter/X Fails
   - Recurrence count: 10+
-  - Status: USER VERIFICATION PENDING
+  - Status: BLOCKED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **TrueSkill vs Single-Item**: Pairwise (TrueSkill) struggles to beat the Single-Item (SI) baseline when pairs are chosen randomly across completely different topics (cross-label). Intra-topic matchmaking is highly likely to fix this.
-- **Equal-weight Pooling**: The Fixed benchmark pools 8 distinct datasets. TrueSkill convergence must be calculated per-dataset and then averaged; otherwise, injecting new datasets into a global pool creates artifacts due to scale-mixing.
-- **Match Denominators**: Controlled pairs (humans showed non-tie preference) vs Coin-flip pairs (humans rated both, ties resolved randomly) vs Unique pairs (all matched pairs).
+- **Arxiv Revisions**:  strips the  suffix to detect papers already in the system. 
+- **Content-Diff Gating**: Jaccard similarity threshold determines if a revision is significant enough to reset tournament matches.
+- **Match Soft-Deletion**: Pre-revision matches are not physically deleted. They are flagged with  so they can be shown in historical UI tabs but excluded from active TrueSkill ranking.
+- **Option B Matchmaking**: LLM classification for sub-topic grouping (Option A was discarded).
 
 **key DB schema**
-  - : Stores output of .
-  - : Contains ,  (single item) and  (human average).
-  - : Main papers collection containing  (used for the upcoming secondary-category overlap analysis).
+  - : New fields  (indexed), ,  (array), .
+  - : New fields  (bool), .
+  - : New field  (object containing previous rank/score).
 
 **changes in tech stack**
   - None
 
 **All files of reference** 
-  -  (Created in this session - blueprint for upcoming matchmaking feature)
-  -  (Modified)
-  -  (Modified)
-  -  (Modified)
-  -  (Modified)
-  -  (Modified)
-  -  (The target dataset for the running match pipeline)
+  -  (Updated - core revision engine)
+  -  (Updated)
+  -  (Updated)
+  -  (Updated)
+  -  (Updated)
+  -  (Created)
+  -  (Created)
+  -  (Created)
+  -  (Updated)
 
 **Areas that need refactoring**:
   -  (monolithic).
   - Circular dependency ring:  ->  -> .
 
 **key api endpoints**
-  - 
-  - 
+  -  (Now returns  and )
   -  (New)
 
 **Critical Info for New Agent**
-1. **Pending Analysis Script**: You MUST begin your session by executing the requested analysis: query  for the  field, group by primary category, and compute the distribution of secondary-category overlap counts between random same-primary pairs. The user is waiting on this to decide how to build the Sub-topic matchmaking feature.
-2. **Match Pipeline**:  was left running in the background targeting 58,363 matches. Check its process or MongoDB state to see if it's finished.
-3. **No Testing Agent Used**: The previous agent utilized manual python scripts, curl, and frontend screenshots extensively instead of . 
+1. **Frontend Pending**: The backend for arXiv revisions is 100% done and tested. You MUST start by building the frontend representation (PaperPage version toggles, Leaderboard badges).
+2. **Production Migration**: The DB migration script () was run on the preview environment safely, but the user explicitly requested ensuring that it will work smoothly when transitioning to production. 
+3. **Sub-topic Matchmaking**: The user requested Option A initially, but a deep data analysis in this session proved it mathematically non-viable. You must proceed with Option B (LLM Classifier) when addressing the Matchmaking feature. 
 
 **documents and test reports created in this job** 
   - 
-  -  (Updated)
 
 **Last 10 User Messages and any pending HUMAN messages** 
- - User: Asks if doing each match in both positions (consistency filtering) to filter out positional bias would improve results.
- - Agent: Explains it improves finite-sample regime but not the infinite-match ceiling; recommends topic-aware matchmaking instead.
- - User: Asks to calculate single-item correlations for all labels separately.
- - Agent: Shows equal-weighted mean is 0.658, similar to the global 0.653.
- - User: Uploads a new CSV for intra-label matches, asks for analysis.
- - User: Please discard this because I uploaded the wrong list.
- - Agent: Discards the file.
- - User: Asks how to improve the live leaderboard for arxiv categories using sub-topics efficiently.
- - Agent: Suggests Option A (Arxiv secondary categories) and Option B (LLM Classifier), writes .
- - User: Suggests doing Option A as it's simpler. Asks for a quick analysis on the live DB of paper secondary-category overlaps.
- - Agent: Halts due to context token limit, requests a new session to run the DB aggregation.
- - **PENDING HUMAN MESSAGE**: The user requested a quick DB analysis of  across arxiv categories. Execute this script as your very first task.
+ - User: Asks for P0 secondary-category overlap analysis.
+ - Agent: Conducts analysis.
+ - User: Corrects agent to perform the analysis on the live production DB, not the validation dataset.
+ - Agent: Discovers Option A is non-viable because papers have very low overlap in secondary categories. Recommends Option B.
+ - User: Agrees, but pivots to a new topic: Wants to handle arXiv revisions on the live system (keep old summaries, reset tournament to 0).
+ - Agent: Proposes technical architecture with a warm start TrueSkill approach.
+ - User: Pushes back on warm start. Requests hard reset, but with a content-diff gate.
+ - Agent: Updates plan to hard reset matches with a Jaccard similarity content-diff gate. Implements backend.
+ - User: Suggests treating every revision as a re-evaluation, but only doing the tournament reset for meaningful changes. Asks to ensure production backfill will work smoothly.
+ - User: Uploads image (removed). Requests handoff summary for Opus 4.7 detailing risks and regressions.
+ - **PENDING HUMAN MESSAGE**: User is requesting this handover summary. Read the summary and start immediately on the pending Frontend UI implementation for the revision system. 
 
 **Project Health Check:**
-  - Broken: None blocking primary flow. (Cloudflare Twitter/X bot block persists).
+  - Broken: None.
   - Mocked: None.
 
-**3rd Party Integrations**
-  - OpenAI GPT-5.4 — requires User API Key (Stored in )
-  - OpenAI GPT-5.2 — uses Emergent LLM Key 
-  - Anthropic Claude Opus 4.6 — uses Emergent LLM Key
+**3rd Party Integrations** 
+  - OpenAI GPT-5.4 — requires User API Key
+  - OpenAI GPT-5.2 — uses Emergent LLM Key
+  - Anthropic Claude Opus 4.6/4.7 — uses Emergent LLM Key
   - Gemini 3 Pro — uses Emergent LLM Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Heavy visual manual testing and rigorous data analysis scripts applied by agent directly).
+  - Testing agent used after significant changes: NO (Agent opted for custom backend python test files instead).
   - Troubleshoot agent used after agent stuck in loop: NO.
-  - Test files created: None.
-  - Known regressions: None.
+  - Test files created: , 
+  - Known regressions: None. 19/19 tests passing.
 
 **Credentials to test flow:**
   - Admin panel:  (or  in backend/.env)
 
 **What agent forgot to execute**
-  - The agent ran out of context budget before it could write and execute the MongoDB aggregation to analyze arxiv secondary-category overlap distributions across the paper database. This must be the first action item.</analysis>
+  - The previous agent built the entire backend architecture for the arXiv Revision system but did not start implementing the required Frontend React changes to actually display the version toggle or the leaderboard badges to the end user.</analysis>
