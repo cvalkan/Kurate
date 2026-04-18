@@ -131,12 +131,13 @@ async def compute_fixed_benchmark(db):
     }
 
 
-async def _compute_dataset(db, dataset_id: str):
+async def _compute_dataset(db, dataset_id: str, source_paper_dataset: str = None):
     """Compute benchmark for a single dataset with simplified filters."""
 
-    # --- Load papers ---
+    # --- Load papers (may come from a different dataset, e.g. within-label reuses cross-label papers) ---
+    paper_dataset_id = source_paper_dataset or dataset_id
     papers = await collect_all(db.validation_papers.find(
-        {"dataset_id": dataset_id},
+        {"dataset_id": paper_dataset_id},
         {"_id": 0, "id": 1, "title": 1, "decision": 1, "evaluations": 1,
          "ai_impact_summary_thinking": 1},
     ))

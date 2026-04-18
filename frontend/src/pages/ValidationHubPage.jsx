@@ -29,7 +29,7 @@ import InstitutionBiasSamePairSection from "./InstitutionBiasSamePairSection";
 import SingleItemScoringSection from "./SingleItemScoringSection";
 import ValidationReportPage from "./ValidationReportPage";
 import AllPairsSection from "./AllPairsSection";
-import HumanAIBenchmarkSection, { HumanAIBenchmarkUnfilteredSection, HumanAIBenchmarkFixedSection, ICLR2026BenchmarkSection } from "./HumanAIBenchmarkSection";
+import HumanAIBenchmarkSection, { HumanAIBenchmarkUnfilteredSection, HumanAIBenchmarkFixedSection, ICLR2026BenchmarkSection, ICLR2026WithinLabelBenchmarkSection } from "./HumanAIBenchmarkSection";
 import AIRankingQualitySection, { AIRankingQualityUnfilteredSection } from "./AIRankingQualitySection";
 import { UnifiedCompSection, UnifiedStanSection } from "./UnifiedBenchmarkSection";
 import { DatasetView } from "./ValidationPage";
@@ -234,6 +234,7 @@ export default function ValidationHubPage() {
       "exp-human-ai-benchmark-unfiltered": { title: "Human vs AI Benchmark", desc: "Controlled same-pair comparison including within-tier matches (e.g. Poster vs Poster). Tests AI on the full difficulty spectrum. 8 ICLR topics + PeerRead." },
       "exp-human-ai-benchmark-fixed": { title: "Human vs AI Benchmark (Fixed)", desc: "ICLR-only, ≥1 expert preference, rankable tiers only (excl. withdrawn/desk-rejected). Designed for reproducibility with exported CSV data." },
       "exp-human-ai-benchmark-iclr2026": { title: "Human vs AI — ICLR 2026", desc: "3,912 ICLR 2026 papers. Round-robin AI judging (GPT-5.4, Claude Opus 4.6, Gemini 3 Pro) vs human reviewer scores. Anonymized abstracts + summaries." },
+      "exp-human-ai-benchmark-iclr2026-within-label": { title: "Human vs AI — ICLR 2026 (Within-Category)", desc: "22K within-category matches (e.g. LLM vs LLM). Same judges and prompt as cross-label. Tests AI on topically similar papers." },
       "exp-ai-ranking-quality-unfiltered": { title: "AI Ranking Quality", desc: "AI ranking quality including within-tier matches. Each method uses its full data independently — the human ranking includes expert pairs the AI didn't judge." },
     };
     if (!selected) return { title: "", desc: "" };
@@ -338,6 +339,7 @@ export default function ValidationHubPage() {
             <NavItem item={{ id: "exp-human-ai-benchmark-unfiltered", label: "Human vs AI Benchmark", sub: "All pairs incl. within-tier" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "exp-human-ai-benchmark-fixed", label: "Human vs AI Benchmark (Fixed)", sub: "ICLR-only, ≥1 expert" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "exp-human-ai-benchmark-iclr2026", label: "Human vs AI — ICLR 2026", sub: "3,912 papers · live" }} selected={selected} onSelect={setSelected} />
+            <NavItem item={{ id: "exp-human-ai-benchmark-iclr2026-within-label", label: "Within-Category — ICLR 2026", sub: "22K same-label pairs" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "exp-unified-comp", label: "PW vs SI — Comparative GT", sub: "Same pairs, head-to-head" }} selected={selected} onSelect={setSelected} />
             <NavItem item={{ id: "exp-unified-stan", label: "PW vs SI — Standalone GT", sub: "Same pairs, head-to-head" }} selected={selected} onSelect={setSelected} />
           </CollapsibleGroup>
@@ -442,6 +444,7 @@ export default function ValidationHubPage() {
           {selected === "exp-human-ai-benchmark-unfiltered" && <HumanAIBenchmarkUnfilteredSection />}
           {selected === "exp-human-ai-benchmark-fixed" && <HumanAIBenchmarkFixedSection />}
           {selected === "exp-human-ai-benchmark-iclr2026" && <ICLR2026BenchmarkSection />}
+          {selected === "exp-human-ai-benchmark-iclr2026-within-label" && <ICLR2026WithinLabelBenchmarkSection />}
           {selected === "exp-unified-comp" && <UnifiedCompSection />}
           {selected === "exp-unified-stan" && <UnifiedStanSection />}
           {selected === "exp-ai-ranking-quality" && <AIRankingQualitySection />}

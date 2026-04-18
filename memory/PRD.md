@@ -169,6 +169,16 @@ PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the "Revi
 - Updated `ICLR2026ConvergenceChart.jsx` with `STATIC_PATHS` map to route known API paths to static files
 - Cleaned up redundant result files: removed `validation_match_results.jsonl.bak` (30MB) and `validation_match_results.jsonl.before-retry-412` (55MB), keeping only the canonical `validation_match_results.jsonl` (410KB)
 
+### Within-Category Match Pipeline + Page (Apr 18, 2026)
+- Created `/app/backend/scripts/within_label_match_pipeline.py` — adapted from cross-label pipeline for 22K within-category matches (e.g. LLM vs LLM)
+- Reads from `/app/memory/sampled_same_label_matches.csv` (22,065 pairs across 16 topic labels, 1,474 unique papers)
+- Uses `dataset_id = "iclr-2026-within-label"`, reuses paper UUIDs from the cross-label dataset
+- Outputs to JSONL (`within_label_match_results.jsonl`) + MongoDB (resumable)
+- Added backend endpoints: `GET /api/validation/human-ai-benchmark-iclr2026-within-label`, `POST /api/validation/run-within-label-pipeline`, `GET /api/validation/within-label-pipeline-status`
+- Updated `_compute_dataset` in `benchmark_fixed.py` to accept `source_paper_dataset` parameter (within-label matches reference papers from the cross-label dataset)
+- Added frontend page at `?v=exp-human-ai-benchmark-iclr2026-within-label` reusing the same `BenchmarkPage` component structure
+- Dry-run verified: 21,534 runnable pairs (~1hr at 30 parallel), ~531 skipped (missing summaries)
+
 ## Prioritized Backlog
 
 ### P0

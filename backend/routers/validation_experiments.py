@@ -5,6 +5,8 @@ Extended Thinking, Tie-Allowed, Multi-Aspect, and Summarizer A/B experiments.
 Extracted from the main validation router for maintainability.
 """
 import asyncio
+import os
+import sys
 import uuid
 import random
 import time as _time
@@ -3745,6 +3747,139 @@ async def human_ai_benchmark_iclr2026(gt_type: str = Query("comp")):
         import traceback
         traceback.print_exc()
         return {"status": "no_data", "message": str(e)}
+
+
+_within_label_benchmark_cache = {"data": None}
+_within_label_pipeline_status = {"running": False, "pid": None, "started_at": None}
+
+@router.get("/human-ai-benchmark-iclr2026-within-label")
+async def human_ai_benchmark_iclr2026_within_label(gt_type: str = Query("comp")):
+    """Human vs AI benchmark for ICLR 2026 within-label matches."""
+    if _within_label_benchmark_cache["data"]:
+        return _within_label_benchmark_cache["data"]
+    cached = await db.computation_cache.find_one({"key": "iclr2026_within_label_benchmark"}, {"_id": 0, "data": 1})
+    if cached and cached.get("data"):
+        _within_label_benchmark_cache["data"] = cached["data"]
+        return cached["data"]
+    try:
+        from services.benchmark_fixed import _compute_dataset, _pool_datasets
+        # Within-label dataset reuses papers from the cross-label dataset
+        result = await _compute_dataset(db, "iclr-2026-within-label", source_paper_dataset="iclr-2026-validation")
+        if not result:
+            return {"status": "no_data", "message": "No within-label matches yet. Run the pipeline first."}
+        pooled = _pool_datasets([result])
+
+        total_ai_matches = await db.validation_matches.count_documents({
+            "dataset_id": "iclr-2026-within-label", "completed": True, "failed": {"$ne": True},
+        })
+        unique_pairs_agg = await db.validation_matches.aggregate([
+            {"$match": {"dataset_id": "iclr-2026-within-label", "completed": True, "failed": {"$ne": True}}},
+            {"$group": {"_id": {"$cond": [
+                {"$lt": ["$paper1_id", "$paper2_id"]},
+                {"a": "$paper1_id", "b": "$paper2_id"},
+                {"a": "$paper2_id", "b": "$paper1_id"},
+            ]}}},
+            {"$count": "n"},
+        ]).to_list(1)
+        total_unique_pairs = unique_pairs_agg[0]["n"] if unique_pairs_agg else 0
+        n_papers = result["n_papers"]
+        avg_matches_per_paper = round(2 * total_ai_matches / n_papers, 1) if n_papers else None
+
+        # Per-label breakdown
+        label_agg = await db.validation_matches.aggregate([
+            {"$match": {"dataset_id": "iclr-2026-within-label", "completed": True, "failed": {"$ne": True}}},
+            {"$group": {"_id": "$label", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+        ]).to_list(100)
+        label_breakdown = {doc["_id"]: doc["count"] for doc in label_agg if doc["_id"]}
+
+        response = {
+            "status": "ok",
+            "n_datasets": 1,
+            "total_papers": n_papers,
+            "total_controlled_pairs": result["controlled_pairs"],
+            "total_controlled_pairs_cf": result["controlled_pairs_cf"],
+            "total_ai_matches": total_ai_matches,
+            "total_unique_pairs": total_unique_pairs,
+            "avg_matches_per_paper": avg_matches_per_paper,
+            "label_breakdown": label_breakdown,
+            "pooled": pooled,
+            "per_dataset": [result],
+        }
+        _within_label_benchmark_cache["data"] = response
+        await db.computation_cache.update_one(
+            {"key": "iclr2026_within_label_benchmark"},
+            {"$set": {"key": "iclr2026_within_label_benchmark", "data": response}},
+            upsert=True,
+        )
+        return response
+    except Exception as e:
+        logger.warning(f"Within-label benchmark failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"status": "no_data", "message": str(e)}
+
+
+@router.post("/run-within-label-pipeline")
+async def run_within_label_pipeline(
+    parallel: int = 30,
+    limit: int = 0,
+    request: Request = None,
+):
+    """Start the within-label match pipeline as a background process."""
+    admin_token = request.headers.get("X-Admin-Token", "")
+    expected = os.environ.get("ADMIN_PASSWORD", "papersumo2025")
+    if admin_token != expected:
+        raise HTTPException(401, "Admin token required")
+    if _within_label_pipeline_status["running"]:
+        return {"status": "already_running", "pid": _within_label_pipeline_status["pid"]}
+
+    import subprocess
+    cmd = [
+        sys.executable, "/app/backend/scripts/within_label_match_pipeline.py",
+        "--parallel", str(parallel),
+    ]
+    if limit > 0:
+        cmd.extend(["--limit", str(limit)])
+
+    proc = subprocess.Popen(
+        cmd,
+        stdout=open("/app/memory/within_label_pipeline.log", "w"),
+        stderr=subprocess.STDOUT,
+        cwd="/app/backend",
+    )
+    _within_label_pipeline_status["running"] = True
+    _within_label_pipeline_status["pid"] = proc.pid
+    _within_label_pipeline_status["started_at"] = datetime.now(timezone.utc).isoformat()
+    return {"status": "started", "pid": proc.pid}
+
+
+@router.get("/within-label-pipeline-status")
+async def within_label_pipeline_status():
+    """Check within-label pipeline status."""
+    completed = await db.validation_matches.count_documents({
+        "dataset_id": "iclr-2026-within-label", "completed": True, "failed": {"$ne": True},
+    })
+    failed = await db.validation_matches.count_documents({
+        "dataset_id": "iclr-2026-within-label", "failed": True,
+    })
+    pid = _within_label_pipeline_status.get("pid")
+    running = False
+    if pid:
+        try:
+            os.kill(pid, 0)
+            running = True
+        except OSError:
+            _within_label_pipeline_status["running"] = False
+            running = False
+    return {
+        "running": running,
+        "pid": pid,
+        "started_at": _within_label_pipeline_status.get("started_at"),
+        "completed_matches": completed,
+        "failed_matches": failed,
+        "target_matches": 22065,
+    }
 
 
 @router.get("/iclr2026-convergence")

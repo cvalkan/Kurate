@@ -710,3 +710,15 @@ export function ICLR2026BenchmarkSection() {
   </>;
 }
 
+export function ICLR2026WithinLabelBenchmarkSection() {
+  return <>
+    <BenchmarkPage
+      apiUrl="/api/validation/human-ai-benchmark-iclr2026-within-label?gt_type=comp"
+      headerDesc={<><strong>ICLR 2026 — Within-Category</strong> — 22K pairwise matches where both papers share the same topic label (e.g. LLM vs LLM, RL vs RL). Same judges (GPT-5.4, Claude Opus 4.6, Gemini 3 Pro) and prompt as the cross-label tournament. Tests whether AI can distinguish quality when papers are topically similar.</>}
+      testId="human-ai-benchmark-iclr2026-within-label"
+      isUnfiltered
+      hideEqualWeighted
+    />
+  </>;
+}
+
