@@ -5,6 +5,12 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Re
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
+// Datasets whose convergence is frozen (tournament complete) — served from a
+// bundled static JSON snapshot, bypassing the backend entirely.
+const STATIC_CONVERGENCE_DATASETS = {
+  "iclr-2026-validation": "/static-data/convergence-iclr-2026-validation.json",
+};
+
 // Stable color assignments: same mode always gets the same color across all charts
 const MODE_COLORS = {
   "abstract":                          "#22c55e",  // green
@@ -66,13 +72,18 @@ export function ValidationConvergence({ datasets }) {
     if (!datasets?.length) return;
     let cancelled = false;
     setLoading(true);
-    // Single batch call per dataset — returns all modes at once
+    // Per dataset: use bundled static snapshot if available (finalised tournaments),
+    // otherwise fall back to the batched backend endpoint.
     Promise.all(
-      datasets.map(ds =>
-        axios.get(`${API}/api/validation/convergence-all`, { params: { dataset_id: ds.dataset_id } })
-          .then(r => ({ dsId: ds.dataset_id, dsName: ds.name, data: r.data }))
-          .catch(() => null)
-      )
+      datasets.map(ds => {
+        const staticUrl = STATIC_CONVERGENCE_DATASETS[ds.dataset_id];
+        const fetcher = staticUrl
+          ? axios.get(staticUrl).then(r => ({ dsId: ds.dataset_id, dsName: ds.name, data: r.data })).catch(() => null)
+          : axios.get(`${API}/api/validation/convergence-all`, { params: { dataset_id: ds.dataset_id } })
+              .then(r => ({ dsId: ds.dataset_id, dsName: ds.name, data: r.data }))
+              .catch(() => null);
+        return fetcher;
+      })
     ).then(results => {
       if (cancelled) return;
       const c = {};
