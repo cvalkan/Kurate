@@ -440,7 +440,6 @@ function DatasetRankings({ datasets }) {
 
 // Finalized benchmarks — served from static JSON for instant loading.
 const STATIC_BENCHMARK = {
-  "/api/validation/human-ai-benchmark-iclr2026?gt_type=comp": "/static-data/benchmark-iclr2026.json",
 };
 
 function BenchmarkPage({ apiUrl, headerDesc, testId, isUnfiltered, hideEqualWeighted }) {

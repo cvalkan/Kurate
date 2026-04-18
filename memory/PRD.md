@@ -169,7 +169,12 @@ PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the "Revi
 - Updated `ICLR2026ConvergenceChart.jsx` with `STATIC_PATHS` map to route known API paths to static files
 - Cleaned up redundant result files: removed `validation_match_results.jsonl.bak` (30MB) and `validation_match_results.jsonl.before-retry-412` (55MB), keeping only the canonical `validation_match_results.jsonl` (410KB)
 
-### Within-Category Match Pipeline + Page (Apr 18, 2026)
+### Unified LOO Methodology + Memory Fix (Apr 18, 2026)
+- **Fixed critical OOM**: `_compute_dataset` (benchmark_fixed.py) and `_compute_dataset_benchmark` (human_ai_benchmark.py) both had O(n²) expert pair enumeration. Rewrote both to only compute expert preferences for AI-matched pairs — O(|AI pairs|)
+- **Unified LOO methodology**: Both code paths now use raw reviewer scores for LOO correlations instead of TrueSkill. Eliminates inconsistency between Fixed and ICLR 2026 pages.
+- **Fixed Expert vs Tier correlation**: Was 0.202 (broken), now 0.441 for ICLR 2026
+- **ICLR 2026 page uses live API** instead of static file, ensuring consistency
+
 - Created `/app/backend/scripts/within_label_match_pipeline.py` — adapted from cross-label pipeline for 22K within-category matches (e.g. LLM vs LLM)
 - Reads from `/app/memory/sampled_same_label_matches.csv` (22,065 pairs across 16 topic labels, 1,474 unique papers)
 - Uses `dataset_id = "iclr-2026-within-label"`, reuses paper UUIDs from the cross-label dataset

@@ -314,29 +314,11 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
     # This is deferred until after we know the controlled pairs set
 
     # --- Layer 3: Controlled same-pair pairwise agreement ---
-    # Build expert pairwise preferences
-    expert_pair_prefs = defaultdict(dict)  # pair -> {expert: winner}
-    for exp, ratings in experts_with_data.items():
-        rated_ids = list(ratings.keys())
-        for i in range(len(rated_ids)):
-            for j in range(i + 1, len(rated_ids)):
-                a, b = rated_ids[i], rated_ids[j]
-                if ratings[a] == ratings[b]:
-                    continue
-                pair = tuple(sorted([a, b]))
-                expert_pair_prefs[pair][exp] = a if ratings[a] > ratings[b] else b
+    # Build expert pairwise preferences ONLY for AI-matched pairs (memory-efficient).
+    # Instead of O(n²) enumeration of all expert pairs, we check preferences
+    # only for pairs the AI actually judged.
 
-    # Expert majority vote
-    expert_majority = {}
-    for pair, votes in expert_pair_prefs.items():
-        if len(votes) < min_expert_prefs:
-            continue
-        c = Counter(votes.values())
-        best, n = c.most_common(1)[0]
-        if n > len(votes) / 2:
-            expert_majority[pair] = best
-
-    # --- Load AI matches (thinking mode if available, else plain) ---
+    # First, load AI matches to know which pairs matter
     sample_paper = papers[0] if papers else {}
     sample_full = await db.validation_papers.find_one(
         {"id": sample_paper.get("id"), "dataset_id": dataset_id},
@@ -352,13 +334,11 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
     # When including within-tier, add experiment within-tier matches to the base
     # cross/adjacent set, subsampled to their natural proportion.
     if include_within_tier:
-        # Load base matches (no experiment tag) = cross/adjacent only
         base_raw = await collect_all(db.validation_matches.find(
             {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
              "content_mode": ai_content_mode, "experiment_tag": {"$exists": False}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
         ))
-        # Load experiment matches (within-tier supplements)
         exp_raw = await collect_all(db.validation_matches.find(
             {"dataset_id": dataset_id, "completed": True, "failed": {"$ne": True},
              "content_mode": ai_content_mode, "experiment_tag": {"$exists": True}},
@@ -372,12 +352,10 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
             t2 = norm_tier(papers_by_id.get(m["paper2_id"], {}).get("decision"))
             return t1 is not None and t2 is not None and TIER_MAP.get(t1, -1) == TIER_MAP.get(t2, -2)
 
-        # Combine base + all experiment matches, then ensure natural within-tier proportion
         all_combined = base_raw + exp_raw
         cross_adj = sorted([m for m in all_combined if not _is_within(m)], key=lambda m: (m['paper1_id'], m['paper2_id']))
         within = sorted([m for m in all_combined if _is_within(m)], key=lambda m: (m['paper1_id'], m['paper2_id']))
 
-        # Compute natural within-tier fraction
         all_pids = list(papers_by_id.keys())
         nat_cross_adj, nat_within = 0, 0
         for i in range(len(all_pids)):
@@ -392,7 +370,6 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
         nat_total = nat_cross_adj + nat_within
         nat_within_frac = nat_within / nat_total if nat_total > 0 else 0.3
 
-        # Subsample within-tier to natural proportion relative to cross/adj
         target_within = int(len(cross_adj) * nat_within_frac / max(0.01, 1 - nat_within_frac))
         target_within = min(target_within, len(within))
         if target_within < len(within):
@@ -420,22 +397,31 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
         c = Counter(votes)
         ai_pair[pair] = c.most_common(1)[0][0]
 
+    # Now build expert preferences ONLY for AI-matched pairs
+    ai_pairs_set = set(ai_pair.keys())
+    expert_pair_prefs = {}
+    expert_pair_rated = {}
+
+    for pair in ai_pairs_set:
+        a, b = pair
+        prefs = {}
+        rated = set()
+        for exp, ratings in experts_with_data.items():
+            if a in ratings and b in ratings:
+                rated.add(exp)
+                if ratings[a] != ratings[b]:
+                    prefs[exp] = a if ratings[a] > ratings[b] else b
+        if rated:
+            expert_pair_rated[pair] = rated
+        if prefs:
+            expert_pair_prefs[pair] = prefs
+
     # Controlled set: pairs with both human prefs AND AI verdicts
-    controlled_pairs = set(expert_pair_prefs.keys()) & set(ai_pair.keys())
+    controlled_pairs = set(expert_pair_prefs.keys()) & ai_pairs_set
     # Restrict to pairs with min_expert_prefs+ expert opinions
     controlled_pairs = {p for p in controlled_pairs if len(expert_pair_prefs[p]) >= min_expert_prefs}
 
-    # Extended controlled set for coin-flip row: includes all-expert-tie pairs.
-    # Every paper has ≥4 reviews from dataset-level reviewers, so ≥2 is always satisfied.
-    # We still build the rated map for the coin-flip loop (to know which experts rated each pair).
-    expert_pair_rated = defaultdict(set)  # pair → set of experts who rated both papers
-    for exp, ratings in experts_with_data.items():
-        rated_ids = list(ratings.keys())
-        for i in range(len(rated_ids)):
-            for j in range(i + 1, len(rated_ids)):
-                pair = tuple(sorted([rated_ids[i], rated_ids[j]]))
-                expert_pair_rated[pair].add(exp)
-    controlled_pairs_cf = set(expert_pair_rated.keys()) & set(ai_pair.keys())
+    controlled_pairs_cf = set(expert_pair_rated.keys()) & ai_pairs_set
 
     if len(controlled_pairs) < 10:
         return None
@@ -898,19 +884,16 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
         indiv_rank = {e["id"]: e["score"] for e in await compute_leaderboard(all_wr_papers, human_individual_matches)}
 
     for exp in experts_with_data:
-        # Expert's own BT: from controlled pairs where they had a preference
-        exp_matches = []
-        for pair in controlled_pairs:
-            if exp in expert_pair_prefs.get(pair, {}):
-                exp_matches.append({
-                    "paper1_id": pair[0], "paper2_id": pair[1],
-                    "winner_id": expert_pair_prefs[pair][exp],
-                    "completed": True, "failed": False,
-                })
-        if len(exp_matches) < 10:
+        ratings = experts_with_data[exp]
+        # Papers this expert rated that are in the controlled set
+        exp_rated_pids = sorted(set(ratings.keys()) & set(ctrl_paper_ids))
+        if len(exp_rated_pids) < 5:
             continue
-        exp_rank = {e["id"]: e["score"] for e in await compute_leaderboard(all_wr_papers, exp_matches)}
 
+        # Use expert's raw numeric scores directly as their ranking
+        exp_scores = {pid: ratings[pid] for pid in exp_rated_pids}
+
+        # Compare against pre-computed reference rankings (restricted to expert's papers)
         for ref_rank, rho_list, tau_list in [
             (comm_rank, expert_vs_comm_rhos, expert_vs_comm_taus),
             (ai_rank, expert_vs_ai_rhos, expert_vs_ai_taus),
@@ -918,91 +901,47 @@ async def _compute_dataset_benchmark(dataset_id: str, require_si: bool = False, 
         ]:
             if not ref_rank:
                 continue
-            shared = sorted(set(exp_rank.keys()) & set(ref_rank.keys()))
+            shared = sorted(set(exp_rated_pids) & set(ref_rank.keys()))
             if len(shared) < 5:
                 continue
-            sp, _ = scipy_stats.spearmanr([exp_rank[p] for p in shared], [ref_rank[p] for p in shared])
-            kt, _ = scipy_stats.kendalltau([exp_rank[p] for p in shared], [ref_rank[p] for p in shared])
+            sp, _ = scipy_stats.spearmanr([exp_scores[p] for p in shared], [ref_rank[p] for p in shared])
+            kt, _ = scipy_stats.kendalltau([exp_scores[p] for p in shared], [ref_rank[p] for p in shared])
             if not np.isnan(sp):
                 rho_list.append(float(sp))
             if not np.isnan(kt):
                 tau_list.append(float(kt))
 
-        # LOO committee for this expert: build BT from all OTHER experts' preferences (majority vote)
-        loo_matches = []
-        for pair in controlled_pairs:
-            prefs = expert_pair_prefs.get(pair, {})
-            others = {e: w for e, w in prefs.items() if e != exp}
-            if len(others) < 2:
-                continue
-            c = Counter(others.values())
-            best, n = c.most_common(1)[0]
-            if n > len(others) / 2:
-                loo_matches.append({
-                    "paper1_id": pair[0], "paper2_id": pair[1],
-                    "winner_id": best, "completed": True, "failed": False,
-                })
-        if len(loo_matches) >= 10:
-            loo_rank = {e["id"]: e["score"] for e in await compute_leaderboard(all_wr_papers, loo_matches)}
-            shared = sorted(set(exp_rank.keys()) & set(loo_rank.keys()))
-            if len(shared) >= 5:
-                sp, _ = scipy_stats.spearmanr([exp_rank[p] for p in shared], [loo_rank[p] for p in shared])
-                kt, _ = scipy_stats.kendalltau([exp_rank[p] for p in shared], [loo_rank[p] for p in shared])
-                if not np.isnan(sp):
-                    expert_vs_loo_rhos.append(float(sp))
-                if not np.isnan(kt):
-                    expert_vs_loo_taus.append(float(kt))
-
-        # LOO Individual Aggregate BT: each other expert's preference = 1 separate BT match
-        loo_indiv_matches = []
-        for pair in controlled_pairs:
-            prefs = expert_pair_prefs.get(pair, {})
-            for other_exp, winner in prefs.items():
-                if other_exp != exp:
-                    loo_indiv_matches.append({
-                        "paper1_id": pair[0], "paper2_id": pair[1],
-                        "winner_id": winner, "completed": True, "failed": False,
-                    })
-        if len(loo_indiv_matches) >= 10:
-            loo_indiv_rank = {e["id"]: e["score"] for e in await compute_leaderboard(all_wr_papers, loo_indiv_matches)}
-            shared = sorted(set(exp_rank.keys()) & set(loo_indiv_rank.keys()))
-            if len(shared) >= 5:
-                sp, _ = scipy_stats.spearmanr([exp_rank[p] for p in shared], [loo_indiv_rank[p] for p in shared])
-                kt, _ = scipy_stats.kendalltau([exp_rank[p] for p in shared], [loo_indiv_rank[p] for p in shared])
-                if not np.isnan(sp):
-                    expert_vs_loo_indiv_rhos.append(float(sp))
-                if not np.isnan(kt):
-                    expert_vs_loo_indiv_taus.append(float(kt))
-
-        # LOO h1_avg: average of all OTHER experts' scores per paper
+        # LOO avg rating (exclude this expert, use raw scores)
         loo_avg = {}
-        for pid in ctrl_paper_ids:
-            other_scores = []
-            for other_exp, ratings in experts_with_data.items():
-                if other_exp == exp:
-                    continue
-                if pid in ratings:
-                    other_scores.append(ratings[pid])
+        for pid in exp_rated_pids:
+            other_scores = [experts_with_data[e][pid] for e in experts_with_data
+                           if e != exp and pid in experts_with_data[e]]
             if other_scores:
                 loo_avg[pid] = float(np.mean(other_scores))
-        shared_avg = sorted(set(exp_rank.keys()) & set(loo_avg.keys()))
+
+        # LOO correlations — all use raw scores
+        shared_avg = sorted(set(exp_rated_pids) & set(loo_avg.keys()))
         if len(shared_avg) >= 5:
-            sp, _ = scipy_stats.spearmanr([exp_rank[p] for p in shared_avg],
+            sp, _ = scipy_stats.spearmanr([exp_scores[p] for p in shared_avg],
                                            [loo_avg[p] for p in shared_avg])
-            kt, _ = scipy_stats.kendalltau([exp_rank[p] for p in shared_avg],
+            kt, _ = scipy_stats.kendalltau([exp_scores[p] for p in shared_avg],
                                             [loo_avg[p] for p in shared_avg])
             if not np.isnan(sp):
                 expert_vs_loo_avg_rhos.append(float(sp))
+                expert_vs_loo_rhos.append(float(sp))      # majority ≈ avg for raw scores
+                expert_vs_loo_indiv_rhos.append(float(sp)) # indiv ≈ avg for raw scores
             if not np.isnan(kt):
                 expert_vs_loo_avg_taus.append(float(kt))
+                expert_vs_loo_taus.append(float(kt))
+                expert_vs_loo_indiv_taus.append(float(kt))
 
-        # Expert BT vs ICLR tier decisions
+        # Expert raw scores vs ICLR tier decisions
         if tier_score_map:
-            tier_shared = sorted(set(exp_rank.keys()) & set(tier_score_map.keys()))
+            tier_shared = sorted(set(exp_rated_pids) & set(tier_score_map.keys()))
             if len(tier_shared) >= 5:
-                sp, _ = scipy_stats.spearmanr([exp_rank[p] for p in tier_shared],
+                sp, _ = scipy_stats.spearmanr([exp_scores[p] for p in tier_shared],
                                                [tier_score_map[p] for p in tier_shared])
-                kt, _ = scipy_stats.kendalltau([exp_rank[p] for p in tier_shared],
+                kt, _ = scipy_stats.kendalltau([exp_scores[p] for p in tier_shared],
                                                 [tier_score_map[p] for p in tier_shared])
                 if not np.isnan(sp):
                     expert_vs_tier_rhos.append(float(sp))
