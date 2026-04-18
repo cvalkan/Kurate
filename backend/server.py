@@ -156,7 +156,10 @@ _cors_allow_all = _cors_raw.strip() == "*"
 
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=not _cors_allow_all,  # Never send credentials with wildcard origins
+    allow_credentials=True,
+    # When CORS_ORIGINS="*", use allow_origin_regex to echo the request origin
+    # (allow_origins=["*"] + allow_credentials=True is invalid per CORS spec,
+    #  but allow_origin_regex echoes the actual origin, which is valid)
     allow_origins=[] if _cors_allow_all else _cors_raw.split(","),
     allow_origin_regex=".*" if _cors_allow_all else None,
     allow_methods=["*"],
