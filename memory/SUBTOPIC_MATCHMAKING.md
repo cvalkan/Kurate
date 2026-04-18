@@ -1,41 +1,41 @@
 # Sub-topic-aware Matchmaking — Design Doc
 
 ## Goal
-Per arxiv category, bias live-leaderboard matchmaking toward same-sub-topic
-pairs to improve ranking precision, while keeping a coherent global scale.
+Per arxiv category, bias matchmaking toward topically-related pairs to
+improve ranking precision, while keeping a coherent global scale.
 
-## Sub-topic assignment (one-time per paper)
-- Admin-editable taxonomy of ~20-30 labels per arxiv category.
-- Classifier runs inside the existing summarization LLM call — add a JSON
-  field `{primary_label, secondary_labels[]}` to the prompt; no extra call.
-- Cache `primary_label`, `secondary_labels[]`, `embedding` on paper doc.
-- Fallback: cosine similarity on cached embedding when a label pool is <10.
+## Option A (preferred, simplest): use arxiv secondary categories
+Arxiv papers already carry primary + secondary categories (cs.LG primary
+with cs.CL, stat.ML secondaries). No classifier, no taxonomy admin.
 
-## Matchmaking budget split (per paper, per fetch cycle)
-- 70% intra-label  — opponents sharing `primary_label`
-- 20% adjacent    — opponents in `secondary_labels` (either direction)
-- 10% cross-label — random same-category anchors (global calibration)
+Matchmaking budget per paper:
+- 60% shared-secondary — opponents sharing >=1 secondary category
+- 30% primary-only    — same primary category, no secondary overlap
+- 10% cross-primary   — global anchors for scale calibration
 
-The 10% anchor prevents TrueSkill scale divergence across sub-topics —
-intra-label tournaments alone produce incomparable ratings.
+Implementation:
+- Already stored on paper doc (`categories[]`).
+- Compound index `(primary, secondaries, comparisons)` enables bucket sampling.
+- No new LLM calls, no shadow-mode rollout needed — ship behind a flag.
 
-## Implementation notes
-- Compound index: `(category, primary_label, comparisons)` → O(log n) selection.
-- Weighted reservoir sampling via three `$sample` buckets per paper.
-- In-memory "underplayed-per-label" pool refreshed every 5 min.
-- Shadow mode first: classify + store labels without changing matchmaking.
+Tradeoffs: coarser granularity than custom sub-topics (20-30 buckets vs
+arxiv's ~200), but free and requires zero extra infra.
 
-## Expected wins
-- Per-sub-topic ρ jumps (Fixed benchmark precedent: 0.55 → 0.65).
-- Global ranking stays coherent via 10% anchor.
-- Enables sub-topic filter chips on the leaderboard UI.
+## Option B (later, if A insufficient): LLM sub-topic classifier
+Custom ~20-30 label taxonomy per arxiv category, assigned via an extra
+JSON field in the existing summarization prompt. Same 70/20/10 split.
+Use if per-label ρ on Option A plateaus below the Fixed benchmark ceiling.
+
+## Expected wins (both options)
+- Per-sub-topic ρ increases (Fixed precedent: 0.55 → 0.65).
+- Global ranking stays coherent via anchor bucket.
+- Enables sub-topic / secondary-category filters on the leaderboard UI.
 
 ## Rollout
-1. Phase 1: classifier + storage, shadow mode, validate labels.
-2. Phase 2: 70/20/10 matchmaking on cs.AI behind feature flag, 2-week A/B.
-3. Phase 3: roll to all categories, add UI filter chips.
+1. Ship Option A behind a feature flag on cs.AI. Compare 2-week A/B.
+2. If gains are small, add Option B classifier for categories that
+   lack granular secondaries.
 
 ## Risks
-- Taxonomy drift (straddling papers) → secondary_labels + embedding fallback.
-- Cold-start for new labels → 10% anchor keeps them ranked until pool fills.
-- Small sub-topics (<10 papers) → embedding-nearest fallback.
+- Secondary categories are author-assigned and sometimes sparse/noisy.
+- Small secondary overlaps → fall back to primary-only bucket automatically.
