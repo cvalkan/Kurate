@@ -493,6 +493,34 @@ export default function PaperPage() {
 
         return (
           <div className="mb-8 border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden" data-testid="paper-score-card">
+            {/* Frozen-version indicator: this paper is a superseded arXiv version */}
+            {(() => {
+              if (paper.is_latest_version !== false) return null;
+              const latest = (paper.sibling_versions || []).find(s => s.is_latest);
+              return (
+                <div
+                  className="px-4 py-2 bg-amber-50/70 border-b border-amber-200 flex items-center justify-between gap-3 text-xs text-amber-900"
+                  data-testid="paper-frozen-note"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      <strong>Frozen v{paper.current_version || "—"}</strong> —
+                      this version was superseded on arXiv. Stats below reflect the state at freeze time and will not change.
+                    </span>
+                  </span>
+                  {latest && latest.paper_id && (
+                    <Link
+                      to={`/paper/${latest.paper_id}`}
+                      className="shrink-0 font-semibold underline hover:no-underline"
+                      data-testid="paper-frozen-latest-link"
+                    >
+                      View latest (v{latest.version}) →
+                    </Link>
+                  )}
+                </div>
+              );
+            })()}
             {/* Header bar — rank left, badge/share right */}
             {paperBadges.length > 0 ? paperBadges.map((b, i) => {
               const tc = TIER_COLORS[b.tier] || { color: b.tier_color, bg: "#F9FAFB" };
