@@ -990,7 +990,22 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
                 "api_key": _ANTHROPIC_DIRECT_KEY,
                 "timeout": 120,
             }
-            params.update(extra_params)
+            # Pass through LLM-relevant extra_params, translating proxy format
+            # to native Anthropic format (extra_body.thinking → thinking)
+            _PROXY_ONLY_KEYS = {"api_base", "custom_llm_provider"}
+            for k, v in extra_params.items():
+                if k in _PROXY_ONLY_KEYS:
+                    continue
+                if k == "extra_body" and isinstance(v, dict):
+                    # Unwrap extra_body: move nested params to top level
+                    for bk, bv in v.items():
+                        params[bk] = bv
+                    # Anthropic thinking requires max_tokens to exceed budget
+                    if "thinking" in v and "max_tokens" not in params:
+                        budget = v["thinking"].get("budget_tokens", 10000)
+                        params["max_tokens"] = budget + 8000
+                else:
+                    params[k] = v
             loop = asyncio.get_event_loop()
             raw_response = await loop.run_in_executor(
                 _llm_executor,
