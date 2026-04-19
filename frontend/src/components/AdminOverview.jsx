@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
   RefreshCw, Swords, FileText, CheckCircle2, XCircle, Search,
-  Clock, Download, Activity,
+  Clock, Download, Activity, Plus,
 } from "lucide-react";
 import { ModelBadge } from "@/components/ModelBadge";
 import { toast } from "sonner";
@@ -293,6 +293,9 @@ export function AdminOverview({
             </Button>
           )}
         </div>
+
+        {/* Add paper by arXiv link */}
+        <AddPaperInput adminCat={adminCat} />
       </div>
 
       {/* Section 2: Tournament Progress */}
@@ -504,6 +507,72 @@ export function AdminOverview({
               </div>
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function AddPaperInput({ adminCat }) {
+  const [arxivUrl, setArxivUrl] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const handleAdd = async () => {
+    if (!arxivUrl.trim()) return;
+    setAdding(true);
+    setResult(null);
+    try {
+      const res = await axios.post(`${API}/api/admin/add-paper`, {
+        arxiv_url: arxivUrl.trim(),
+        category: adminCat,
+      }, { headers: getAdminHeaders() });
+      setResult(res.data);
+      if (res.data.status === "added") {
+        toast.success(`Paper added: ${res.data.title?.substring(0, 50)}...`);
+        setArxivUrl("");
+      } else if (res.data.status === "already_exists") {
+        toast.info("Paper already exists in the database");
+      }
+    } catch (e) {
+      const detail = e.response?.data?.detail || e.message;
+      toast.error(`Failed: ${detail}`);
+      setResult({ status: "error", message: detail });
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border/50">
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={arxivUrl}
+          onChange={e => setArxivUrl(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && handleAdd()}
+          placeholder="Add paper by arXiv ID or URL (e.g. 2401.06104)"
+          className="flex-1 h-8 px-2.5 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-accent"
+          data-testid="add-paper-input"
+        />
+        <Button
+          onClick={handleAdd}
+          disabled={adding || !arxivUrl.trim()}
+          size="sm"
+          variant="outline"
+          className="gap-1.5 text-xs h-8"
+          data-testid="add-paper-btn"
+        >
+          <Plus className={`h-3.5 w-3.5 ${adding ? "animate-spin" : ""}`} />
+          {adding ? "Adding..." : "Add Paper"}
+        </Button>
+      </div>
+      {result && (
+        <div className={`mt-1.5 text-[10px] ${result.status === "added" ? "text-green-600" : result.status === "error" ? "text-red-500" : "text-muted-foreground"}`}>
+          {result.status === "added" && `Added: ${result.title} (${result.arxiv_id}). Pipeline running...`}
+          {result.status === "already_exists" && `Already exists: ${result.title} (${result.arxiv_id}) — text: ${result.has_full_text ? "✓" : "✗"}, summary: ${result.has_summary ? "✓" : "✗"}, ranked: ${result.has_ranking ? "✓" : "✗"}`}
+          {result.status === "error" && result.message}
         </div>
       )}
     </div>
