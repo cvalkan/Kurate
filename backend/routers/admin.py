@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import asyncio
 import hmac
 import uuid
+import httpx
 import random
 import time as _time
 import secrets as _secrets
@@ -203,6 +204,200 @@ async def get_fetch_status(category: str):
     if not task:
         return {"status": "no_task", "message": "No fetch task has been run for this category."}
     return task
+
+
+
+class AddPaperRequest(BaseModel):
+    arxiv_url: str  # e.g. "https://arxiv.org/abs/2401.12345" or just "2401.12345" or "2401.12345v3"
+    category: str   # target category, e.g. "cs.RO"
+
+
+@router.post("/add-paper", dependencies=[Depends(verify_admin)])
+async def add_paper_by_arxiv(body: AddPaperRequest):
+    """Add a specific arXiv paper to a category's pipeline (fetch → PDF → summary → ranking → tournament).
+    
+    The paper is treated as any other — no extra privileges in the tournament.
+    If the paper already exists, it returns its current status.
+    """
+    import re as _re
+    from services.arxiv import strip_arxiv_version
+
+    # Parse arxiv ID from URL or raw ID
+    raw = body.arxiv_url.strip()
+    # Handle full URLs: https://arxiv.org/abs/2401.12345v2, https://arxiv.org/pdf/2401.12345
+    m = _re.search(r'(\d{4}\.\d{4,5}(?:v\d+)?)', raw)
+    if not m:
+        raise HTTPException(400, f"Could not parse arXiv ID from: {raw}")
+    arxiv_id = m.group(1)
+    base, version = strip_arxiv_version(arxiv_id)
+
+    # Check if paper already exists
+    existing = await db.papers.find_one(
+        {"$or": [{"arxiv_id": arxiv_id}, {"arxiv_id_base": base}]},
+        {"_id": 0, "id": 1, "title": 1, "arxiv_id": 1, "full_text": {"$type": "string"},
+         "summaries": 1, "categories": 1}
+    )
+    if existing:
+        has_text = bool(existing.get("full_text"))
+        has_summary = bool(existing.get("summaries"))
+        has_ranking = bool(await db.rankings.find_one({"paper_id": existing["id"]}, {"_id": 0, "paper_id": 1}))
+        return {
+            "status": "already_exists",
+            "paper_id": existing["id"],
+            "title": existing.get("title"),
+            "arxiv_id": existing.get("arxiv_id"),
+            "has_full_text": has_text,
+            "has_summary": has_summary,
+            "has_ranking": has_ranking,
+            "message": "Paper already in database. Use 'Fetch & generate summaries' to complete any missing steps."
+        }
+
+    # Fetch metadata from arXiv API
+    import xml.etree.ElementTree as ET
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"https://export.arxiv.org/api/query?id_list={base}",
+            timeout=15,
+        )
+        resp.raise_for_status()
+
+    root = ET.fromstring(resp.text)
+    ns = {"atom": "http://www.w3.org/2005/Atom"}
+    entry = root.find("atom:entry", ns)
+    if entry is None or entry.find("atom:title", ns) is None:
+        raise HTTPException(404, f"Paper {arxiv_id} not found on arXiv")
+
+    title = entry.find("atom:title", ns).text.strip().replace("\n", " ")
+    abstract = entry.find("atom:summary", ns).text.strip().replace("\n", " ")
+    published = entry.find("atom:published", ns).text
+    authors = [a.find("atom:name", ns).text for a in entry.findall("atom:author", ns)][:8]
+    categories = [c.get("term") for c in entry.findall("atom:category", ns)]
+    pdf_link = None
+    for link in entry.findall("atom:link", ns):
+        if link.get("title") == "pdf":
+            pdf_link = link.get("href")
+
+    # Ensure target category is in the categories list
+    if body.category not in categories:
+        categories.insert(0, body.category)
+
+    # Fetch the actual versioned arxiv_id from the response
+    entry_id = entry.find("atom:id", ns).text.split("/abs/")[-1]
+    actual_base, actual_version = strip_arxiv_version(entry_id)
+
+    paper_doc = {
+        "id": str(uuid.uuid4()),
+        "title": title,
+        "authors": authors,
+        "abstract": abstract[:2000],
+        "categories": categories,
+        "published": published,
+        "link": f"https://arxiv.org/abs/{entry_id}",
+        "pdf_link": pdf_link,
+        "full_text": None,
+        "added_at": datetime.now(timezone.utc).isoformat(),
+        "needs_pdf": True,
+        "arxiv_id": entry_id,
+        "arxiv_id_base": actual_base,
+        "current_version": actual_version,
+        "is_latest_version": True,
+    }
+
+    import hashlib
+    title_norm = title.strip().lower()
+    first_author = (authors[0] if authors else "").strip().lower()
+    paper_doc["dedup_hash"] = hashlib.sha256(f"{title_norm}|{first_author}".encode()).hexdigest()[:16]
+
+    try:
+        await db.papers.insert_one(paper_doc)
+    except Exception as e:
+        raise HTTPException(409, f"Failed to insert paper (possible duplicate): {e}")
+
+    # Kick off the pipeline for this category (PDF download → summary → ranking)
+    asyncio.create_task(_run_single_paper_pipeline(paper_doc["id"], body.category))
+
+    return {
+        "status": "added",
+        "paper_id": paper_doc["id"],
+        "title": title,
+        "arxiv_id": entry_id,
+        "category": body.category,
+        "message": f"Paper added. PDF download, summary generation, and ranking insertion running in background."
+    }
+
+
+async def _run_single_paper_pipeline(paper_id: str, category: str):
+    """Background task: download PDF → generate summary → insert ranking for a single paper."""
+    from services.llm import download_and_extract_pdf, generate_precomparison_impact_summary
+    from services.ranking import insert_ranking_for_paper
+
+    try:
+        paper = await db.papers.find_one({"id": paper_id}, {"_id": 0})
+        if not paper:
+            logger.error(f"[add-paper] Paper {paper_id} not found")
+            return
+
+        # Step 1: Download PDF
+        if paper.get("pdf_link") and not paper.get("full_text"):
+            try:
+                full_text = await download_and_extract_pdf(paper["pdf_link"], doi=paper.get("doi"))
+                if full_text:
+                    await db.papers.update_one(
+                        {"id": paper_id},
+                        {"$set": {"full_text": full_text, "needs_pdf": False}}
+                    )
+                    paper["full_text"] = full_text
+                    logger.info(f"[add-paper] PDF downloaded for '{paper['title'][:40]}'")
+                else:
+                    await db.papers.update_one({"id": paper_id}, {"$set": {"needs_pdf": False, "pdf_failed": True}})
+                    logger.warning(f"[add-paper] PDF extraction failed for '{paper['title'][:40]}'")
+            except Exception as e:
+                logger.warning(f"[add-paper] PDF download error: {e}")
+                await db.papers.update_one({"id": paper_id}, {"$set": {"needs_pdf": False, "pdf_failed": True}})
+
+        # Step 2: Generate summaries (all 3 models)
+        if paper.get("full_text"):
+            from services.scheduler import _SUMMARY_GENERATION_MODELS, _summary_model_key
+            for model_info in _SUMMARY_GENERATION_MODELS:
+                mk = _summary_model_key(model_info)
+                existing_summary = (paper.get("summaries") or {}).get(mk)
+                if existing_summary:
+                    continue
+                try:
+                    result = await generate_precomparison_impact_summary(paper, model_override=model_info)
+                    if result and result.get("summary"):
+                        await db.papers.update_one(
+                            {"id": paper_id},
+                            {"$set": {f"summaries.{mk}": result["summary"]}}
+                        )
+                        logger.info(f"[add-paper] Summary generated ({mk}) for '{paper['title'][:40]}'")
+                except Exception as e:
+                    logger.warning(f"[add-paper] Summary gen failed ({mk}): {e}")
+
+        # Step 3: Insert ranking
+        paper_fresh = await db.papers.find_one(
+            {"id": paper_id},
+            {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
+             "link": 1, "published": 1, "added_at": 1, "categories": 1,
+             "ai_rating": 1, "summaries": 1}
+        )
+        if paper_fresh and paper_fresh.get("summaries"):
+            existing_rank = await db.rankings.find_one({"paper_id": paper_id}, {"_id": 0})
+            if not existing_rank:
+                await insert_ranking_for_paper(db, paper_fresh)
+                logger.info(f"[add-paper] Ranking inserted for '{paper_fresh['title'][:40]}'")
+
+                # Notify leaderboard to refresh
+                from routers.leaderboard import notify_data_changed
+                from services.scheduler import invalidate_goals_cache, wake_scheduler
+                notify_data_changed()
+                invalidate_goals_cache(category)
+                wake_scheduler()
+
+        logger.info(f"[add-paper] Pipeline complete for '{paper.get('title', '')[:40]}'")
+
+    except Exception as e:
+        logger.error(f"[add-paper] Pipeline failed for {paper_id}: {e}")
 
 
 
