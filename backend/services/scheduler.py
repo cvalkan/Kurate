@@ -1132,10 +1132,9 @@ def _summary_model_key(model_info: dict) -> str:
 # This lets old papers (generated before the thinking upgrade) still participate in tournaments.
 _SUMMARY_KEY_FALLBACKS = {
     "anthropic:claude-opus-4-6:thinking": [
-        "anthropic:claude-opus-4-6",            # non-thinking Opus 4.6 (same model, just no thinking)
-        "anthropic:claude-opus-4-5-20251101",    # legacy Opus 4.5
-        # GPT/Gemini intentionally excluded — non-Claude summaries must NOT substitute
-        # for Claude thinking in tournament matchmaking or rating extraction.
+        # No fallbacks — all papers must have Claude Opus 4.6 thinking summary.
+        # Non-thinking and legacy models produce different quality assessments,
+        # breaking comparability and fairness in the tournament.
     ],
     "anthropic:claude-opus-4-6": [
         "anthropic:claude-opus-4-5-20251101",

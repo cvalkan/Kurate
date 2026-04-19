@@ -1227,10 +1227,7 @@ async def insert_ranking_for_paper(db, paper_doc: dict):
     CLAUDE_KEY = "anthropic:claude-opus-4-6:thinking"
     summaries = paper_doc.get("summaries") or {}
     if not summaries.get(CLAUDE_KEY):
-        # Check legacy fallback keys
-        legacy_keys = ["anthropic:claude-opus-4-6", "anthropic:claude-opus-4-5-20251101"]
-        if not any(summaries.get(k) for k in legacy_keys):
-            return  # No Claude summary → don't insert
+        return  # No Claude thinking summary → don't insert
 
     cat = paper_doc.get("categories", ["unknown"])[0] if paper_doc.get("categories") else "unknown"
 
