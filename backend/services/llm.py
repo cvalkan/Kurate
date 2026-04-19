@@ -720,7 +720,11 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
             is_budget = any(kw in err_str for kw in ("budget", "balance", "insufficient", "credit", "quota"))
             is_overloaded = "overloaded" in err_str or "rate" in err_str
             is_token_limit = any(kw in err_str for kw in _TOKEN_LIMIT_KEYWORDS)
-            if is_budget:
+            is_auth = any(kw in err_str for kw in ("authentication", "invalid x-api-key", "invalid api key", "not allowed"))
+            if is_auth and provider == "anthropic" and _ANTHROPIC_DIRECT_KEY:
+                logger.warning(f"Auth error on Emergent proxy ({provider}/{model}), skipping to direct fallback")
+                break  # Skip remaining retries, go straight to fallback
+            elif is_budget:
                 logger.warning(f"LLM budget/credit error ({provider}/{model}): {e}. Waiting 15s for auto-topup...")
                 await asyncio.sleep(15)
             elif is_token_limit and content_mode == "full_pdf":
@@ -929,8 +933,12 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
             err_str = str(e).lower()
             is_budget = any(kw in err_str for kw in ("budget", "balance", "insufficient", "credit", "quota"))
             is_token_limit = any(kw in err_str for kw in _TOKEN_LIMIT_KEYWORDS)
+            is_auth = any(kw in err_str for kw in ("authentication", "invalid x-api-key", "invalid api key", "not allowed"))
 
-            if is_budget:
+            if is_auth and provider == "anthropic" and _ANTHROPIC_DIRECT_KEY:
+                logger.warning(f"Auth error on Emergent proxy ({provider}/{model}), skipping to direct fallback")
+                break  # Skip remaining retries, go straight to fallback
+            elif is_budget:
                 logger.warning(f"Budget/credit error during impact assessment ({provider}/{model}): {e}. Waiting 15s...")
                 await asyncio.sleep(15)
             elif is_token_limit:
