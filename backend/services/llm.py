@@ -679,104 +679,102 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
     skip_proxy = (provider == "anthropic" and _ANTHROPIC_DIRECT_KEY
                   and _PROXY_FAIL_COUNTS.get(provider, 0) >= _PROXY_CIRCUIT_THRESHOLD)
 
-    chat = LlmChat(
-        api_key=EMERGENT_LLM_KEY,
-        session_id=f"compare-{uuid.uuid4()}",
-        system_message=system_msg,
-    ).with_model(provider, model)
-
     max_retries = 3
     last_error = None
 
-    for attempt in range(max_retries):
-        if skip_proxy:
-            break
-        try:
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                _llm_executor,
-                lambda: asyncio.run(chat.send_message(UserMessage(text=prompt))),
-            )
+    if not skip_proxy:
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"compare-{uuid.uuid4()}",
+            system_message=system_msg,
+        ).with_model(provider, model)
 
-            if not response or not response.strip():
-                raise ValueError("Empty response from LLM")
+        for attempt in range(max_retries):
+            try:
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    _llm_executor,
+                    lambda: asyncio.run(chat.send_message(UserMessage(text=prompt))),
+                )
 
-            output_tokens_est = len(response) // 4
+                if not response or not response.strip():
+                    raise ValueError("Empty response from LLM")
 
-            response_text = response.strip()
-            if response_text.startswith("```"):
-                parts = response_text.split("```")
-                if len(parts) >= 2:
-                    response_text = parts[1]
-                    if response_text.startswith("json"):
-                        response_text = response_text[4:]
-                    response_text = response_text.strip()
+                output_tokens_est = len(response) // 4
 
-            if not response_text.startswith("{"):
-                json_match = re.search(r'\{[^{}]*"winner"[^{}]*\}', response_text, re.DOTALL)
-                if json_match:
-                    response_text = json_match.group()
+                response_text = response.strip()
+                if response_text.startswith("```"):
+                    parts = response_text.split("```")
+                    if len(parts) >= 2:
+                        response_text = parts[1]
+                        if response_text.startswith("json"):
+                            response_text = response_text[4:]
+                        response_text = response_text.strip()
+
+                if not response_text.startswith("{"):
+                    json_match = re.search(r'\{[^{}]*"winner"[^{}]*\}', response_text, re.DOTALL)
+                    if json_match:
+                        response_text = json_match.group()
+                    else:
+                        raise ValueError(f"No JSON found in response: {response_text[:200]}")
+
+                result = json.loads(response_text)
+                if multi_aspect:
+                    from core.config import MULTI_ASPECT_DIMENSIONS
+                    missing = [d for d in MULTI_ASPECT_DIMENSIONS if d not in result or result[d] not in ["paper1", "paper2"]]
+                    if missing:
+                        raise ValueError(f"Multi-aspect response missing dimensions: {missing}")
+                    from collections import Counter as _Counter
+                    votes = [result[d] for d in MULTI_ASPECT_DIMENSIONS]
+                    vc = _Counter(votes)
+                    result["winner"] = vc.most_common(1)[0][0]
                 else:
-                    raise ValueError(f"No JSON found in response: {response_text[:200]}")
+                    valid_winners = ["paper1", "paper2", "tie"] if allow_tie else ["paper1", "paper2"]
+                    if "winner" not in result or result["winner"] not in valid_winners:
+                        raise ValueError(f"Invalid response format: {result}")
 
-            result = json.loads(response_text)
-            if multi_aspect:
-                from core.config import MULTI_ASPECT_DIMENSIONS
-                missing = [d for d in MULTI_ASPECT_DIMENSIONS if d not in result or result[d] not in ["paper1", "paper2"]]
-                if missing:
-                    raise ValueError(f"Multi-aspect response missing dimensions: {missing}")
-                # Derive aggregate winner from majority of dimensions
-                from collections import Counter as _Counter
-                votes = [result[d] for d in MULTI_ASPECT_DIMENSIONS]
-                vc = _Counter(votes)
-                result["winner"] = vc.most_common(1)[0][0]
-            else:
-                valid_winners = ["paper1", "paper2", "tie"] if allow_tie else ["paper1", "paper2"]
-                if "winner" not in result or result["winner"] not in valid_winners:
-                    raise ValueError(f"Invalid response format: {result}")
+                result["model_used"] = model_info
+                result["tokens"] = {
+                    "input_est": input_tokens_est,
+                    "output_est": output_tokens_est,
+                }
+                _PROXY_FAIL_COUNTS[provider] = 0  # Reset circuit breaker on success
+                return result
 
-            result["model_used"] = model_info
-            result["tokens"] = {
-                "input_est": input_tokens_est,
-                "output_est": output_tokens_est,
-            }
-            _PROXY_FAIL_COUNTS[provider] = 0  # Reset circuit breaker on success
-            return result
+            except Exception as e:
+                last_error = e
+                err_str = str(e).lower()
+                await _log_llm_error(provider, model, e, context="compare_papers")
+                is_budget = any(kw in err_str for kw in ("budget", "balance", "insufficient", "credit", "quota"))
+                is_overloaded = "overloaded" in err_str or "rate" in err_str
+                is_token_limit = any(kw in err_str for kw in _TOKEN_LIMIT_KEYWORDS)
+                is_proxy_broken = any(kw in err_str for kw in ("authentication", "invalid x-api-key", "invalid api key", "not allowed", "timeout", "timed out", "502", "bad gateway"))
+                if is_proxy_broken and provider == "anthropic" and _ANTHROPIC_DIRECT_KEY:
+                    _PROXY_FAIL_COUNTS[provider] = _PROXY_FAIL_COUNTS.get(provider, 0) + 1
+                    logger.warning(f"Emergent proxy error ({provider}/{model}), skipping to direct fallback (circuit: {_PROXY_FAIL_COUNTS[provider]})")
+                    break
+                elif is_budget:
+                    logger.warning(f"LLM budget/credit error ({provider}/{model}): {e}. Waiting 15s for auto-topup...")
+                    await asyncio.sleep(15)
+                elif is_token_limit and content_mode == "full_pdf":
+                    cur_len = max(len(paper1.get("full_text", "")), len(paper2.get("full_text", "")))
+                    new_limit = max(cur_len // 2, 40_000)
+                    p1_content = _build_full_pdf_content(paper1, char_limit=new_limit)
+                    p2_content = _build_full_pdf_content(paper2, char_limit=new_limit)
+                    prompt = user_template.format(paper1_title=paper1["title"], paper1_content=p1_content, paper2_title=paper2["title"], paper2_content=p2_content)
+                    input_chars = len(system_msg) + len(prompt)
+                    input_tokens_est = input_chars // 4
+                    logger.warning(f"Token limit hit in comparison ({provider}/{model}), retrying with {new_limit:,} chars per paper")
+                elif is_overloaded:
+                    logger.warning(f"LLM overloaded ({provider}/{model}), attempt {attempt+1}/{max_retries}")
+                    await asyncio.sleep(5 * (attempt + 1))
+                else:
+                    logger.warning(f"LLM comparison attempt {attempt+1}/{max_retries} failed ({provider}/{model}): {e}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(2 ** attempt)
 
-        except Exception as e:
-            last_error = e
-            err_str = str(e).lower()
-            await _log_llm_error(provider, model, e, context="compare_papers")
-            is_budget = any(kw in err_str for kw in ("budget", "balance", "insufficient", "credit", "quota"))
-            is_overloaded = "overloaded" in err_str or "rate" in err_str
-            is_token_limit = any(kw in err_str for kw in _TOKEN_LIMIT_KEYWORDS)
-            is_proxy_broken = any(kw in err_str for kw in ("authentication", "invalid x-api-key", "invalid api key", "not allowed", "timeout", "timed out", "502", "bad gateway"))
-            if is_proxy_broken and provider == "anthropic" and _ANTHROPIC_DIRECT_KEY:
-                _PROXY_FAIL_COUNTS[provider] = _PROXY_FAIL_COUNTS.get(provider, 0) + 1
-                logger.warning(f"Emergent proxy error ({provider}/{model}), skipping to direct fallback (circuit: {_PROXY_FAIL_COUNTS[provider]})")
-                break  # Skip remaining retries, go straight to fallback
-            elif is_budget:
-                logger.warning(f"LLM budget/credit error ({provider}/{model}): {e}. Waiting 15s for auto-topup...")
-                await asyncio.sleep(15)
-            elif is_token_limit and content_mode == "full_pdf":
-                # Rebuild with halved content
-                cur_len = max(len(paper1.get("full_text", "")), len(paper2.get("full_text", "")))
-                new_limit = max(cur_len // 2, 40_000)
-                p1_content = _build_full_pdf_content(paper1, char_limit=new_limit)
-                p2_content = _build_full_pdf_content(paper2, char_limit=new_limit)
-                prompt = user_template.format(paper1_title=paper1["title"], paper1_content=p1_content, paper2_title=paper2["title"], paper2_content=p2_content)
-                input_chars = len(system_msg) + len(prompt)
-                input_tokens_est = input_chars // 4
-                logger.warning(f"Token limit hit in comparison ({provider}/{model}), retrying with {new_limit:,} chars per paper")
-            elif is_overloaded:
-                logger.warning(f"LLM overloaded ({provider}/{model}), attempt {attempt+1}/{max_retries}")
-                await asyncio.sleep(5 * (attempt + 1))
-            else:
-                logger.warning(f"LLM comparison attempt {attempt+1}/{max_retries} failed ({provider}/{model}): {e}")
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(2 ** attempt)
-
-    logger.error(f"Comparison failed after {max_retries} attempts via Emergent proxy: {last_error}")
+    if not skip_proxy:
+        logger.error(f"Comparison failed after {max_retries} attempts via Emergent proxy: {last_error}")
 
     # Fallback: if Anthropic failed through Emergent proxy, retry with direct API key
     if provider == "anthropic" and _ANTHROPIC_DIRECT_KEY:
@@ -795,8 +793,6 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
                         {"role": "user", "content": prompt},
                     ],
                     api_key=_ANTHROPIC_DIRECT_KEY,
-                    max_tokens=800,
-                    temperature=0.3,
                     timeout=60,
                 ),
             )
@@ -819,9 +815,18 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
                     raise ValueError(f"No JSON in fallback response: {response_text[:200]}")
 
             result = json.loads(response_text)
-            valid_winners = ["paper1", "paper2", "tie"] if allow_tie else ["paper1", "paper2"]
-            if "winner" not in result or result["winner"] not in valid_winners:
-                raise ValueError(f"Invalid fallback response: {result}")
+            if multi_aspect:
+                from core.config import MULTI_ASPECT_DIMENSIONS
+                from collections import Counter as _Counter
+                missing = [d for d in MULTI_ASPECT_DIMENSIONS if d not in result or result[d] not in ["paper1", "paper2"]]
+                if missing:
+                    raise ValueError(f"Multi-aspect fallback response missing dimensions: {missing}")
+                votes = [result[d] for d in MULTI_ASPECT_DIMENSIONS]
+                result["winner"] = _Counter(votes).most_common(1)[0][0]
+            else:
+                valid_winners = ["paper1", "paper2", "tie"] if allow_tie else ["paper1", "paper2"]
+                if "winner" not in result or result["winner"] not in valid_winners:
+                    raise ValueError(f"Invalid fallback response: {result}")
 
             result["model_used"] = model_info
             result["tokens"] = {"input_est": input_tokens_est, "output_est": output_tokens_est}
