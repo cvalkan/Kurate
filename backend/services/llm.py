@@ -814,6 +814,7 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
             logger.info(f"Direct Anthropic fallback succeeded for {model}")
             return result
         except Exception as fallback_err:
+            await _log_llm_error(provider, model, fallback_err, context="compare_papers_FALLBACK")
             logger.error(f"Direct Anthropic fallback also failed: {fallback_err}")
 
     raise Exception(f"Comparison failed after {max_retries} retries: {last_error}")
@@ -1013,7 +1014,11 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
                     "truncated_pct": round(100 * char_limit / original_char_limit) if was_truncated else 100,
                 }
         except Exception as fallback_err:
+            await _log_llm_error(provider, model, fallback_err, context="generate_summary_FALLBACK")
             logger.error(f"Direct Anthropic fallback also failed for summary: {fallback_err}")
+    else:
+        if provider == "anthropic" and not _ANTHROPIC_DIRECT_KEY:
+            await _log_llm_error(provider, model, "ANTHROPIC_API_KEY not set — fallback unavailable", context="generate_summary_NO_FALLBACK")
 
     return None
 
