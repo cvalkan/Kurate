@@ -40,6 +40,7 @@ _TOKEN_LIMIT_KEYWORDS = ("token", "context_length", "context length", "too long"
 
 # Circuit breaker: after N consecutive Emergent proxy failures for a provider,
 # skip the proxy entirely and go straight to the direct key fallback.
+# Resets on backend restart (in-memory only).
 _PROXY_FAIL_COUNTS = {}  # {provider: consecutive_failure_count}
 _PROXY_CIRCUIT_THRESHOLD = 2  # skip proxy after this many consecutive failures
 
