@@ -16,7 +16,7 @@ from core.config import EMERGENT_LLM_KEY, TOURNAMENT_MODELS, DEFAULT_EVALUATION_
 # Dedicated thread pool for LLM calls — default pool (8 threads) bottlenecks parallel evals
 _llm_executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="llm")
 
-# Direct Anthropic API key — fallback when Emergent proxy fails for Claude
+# Direct API keys — fallback when Emergent proxy fails for Claude
 _ANTHROPIC_DIRECT_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
 
