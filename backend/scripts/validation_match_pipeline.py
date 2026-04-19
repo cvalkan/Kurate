@@ -44,8 +44,38 @@ from emergentintegrations.llm.utils import get_integration_proxy_url
 
 PROXY_URL = get_integration_proxy_url() + "/llm"
 OPENAI_KEY_DIRECT = os.environ.get("OPENAI_API_KEY_DIRECT")
+ANTHROPIC_DIRECT_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
 # ── paths ──
+MODELS = [
+    {
+        "name": "gpt-5.4",
+        "provider": "openai",
+        "model": "gpt-5.4",
+        "litellm_model": "gpt-5.4",
+        "api_key": OPENAI_KEY_DIRECT,
+        "api_base": None,
+        "custom_llm_provider": None,
+    },
+    {
+        "name": "claude-opus-4-6",
+        "provider": "anthropic",
+        "model": "claude-opus-4-6",
+        "litellm_model": "anthropic/claude-opus-4-6",
+        "api_key": ANTHROPIC_DIRECT_KEY,
+        "api_base": None,
+        "custom_llm_provider": None,
+    },
+    {
+        "name": "gemini-3-pro-preview",
+        "provider": "gemini",
+        "model": "gemini-3-pro-preview",
+        "litellm_model": "gemini/gemini-3-pro-preview",
+        "api_key": EMERGENT_LLM_KEY,
+        "api_base": PROXY_URL,
+        "custom_llm_provider": "openai",
+    },
+]
 CSV_PATH = Path("/app/memory/sampled_matches.csv")
 SUMMARIES_PATH = ROOT.parent / "memory" / "iclr_2026_summaries.jsonl"
 ABSTRACTS_CACHE = ROOT.parent / "memory" / "iclr_2026_abstracts.jsonl"

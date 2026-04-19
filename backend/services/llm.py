@@ -15,6 +15,9 @@ from core.config import EMERGENT_LLM_KEY, TOURNAMENT_MODELS, DEFAULT_EVALUATION_
 # Dedicated thread pool for LLM calls — default pool (8 threads) bottlenecks parallel evals
 _llm_executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="llm")
 
+# Direct Anthropic API key — fallback when Emergent proxy fails for Claude
+_ANTHROPIC_DIRECT_KEY = os.environ.get("ANTHROPIC_API_KEY")
+
 _TOKEN_LIMIT_KEYWORDS = ("token", "context_length", "context length", "too long", "too many tokens",
                          "maximum context", "max_tokens", "content_too_large", "request too large",
                          "input too long", "payload too large")
@@ -738,7 +741,60 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
                 if attempt < max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
 
-    logger.error(f"Comparison failed after {max_retries} attempts: {last_error}")
+    logger.error(f"Comparison failed after {max_retries} attempts via Emergent proxy: {last_error}")
+
+    # Fallback: if Anthropic failed through Emergent proxy, retry with direct API key
+    if provider == "anthropic" and _ANTHROPIC_DIRECT_KEY:
+        try:
+            import litellm
+            litellm.suppress_debug_info = True
+            litellm.set_verbose = False
+            logger.info(f"Falling back to direct Anthropic key for {model}")
+            loop = asyncio.get_event_loop()
+            resp = await loop.run_in_executor(
+                _llm_executor,
+                lambda: litellm.completion(
+                    model=f"anthropic/{model}",
+                    messages=[
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": prompt},
+                    ],
+                    api_key=_ANTHROPIC_DIRECT_KEY,
+                    max_tokens=800,
+                    temperature=0.3,
+                    timeout=60,
+                ),
+            )
+            response_text = resp.choices[0].message.content.strip()
+            output_tokens_est = resp.usage.completion_tokens if resp.usage else len(response_text) // 4
+            input_tokens_est = resp.usage.prompt_tokens if resp.usage else input_tokens_est
+
+            if response_text.startswith("```"):
+                parts = response_text.split("```")
+                if len(parts) >= 2:
+                    response_text = parts[1]
+                    if response_text.startswith("json"):
+                        response_text = response_text[4:]
+                    response_text = response_text.strip()
+            if not response_text.startswith("{"):
+                json_match = re.search(r'\{[^{}]*"winner"[^{}]*\}', response_text, re.DOTALL)
+                if json_match:
+                    response_text = json_match.group()
+                else:
+                    raise ValueError(f"No JSON in fallback response: {response_text[:200]}")
+
+            result = json.loads(response_text)
+            valid_winners = ["paper1", "paper2", "tie"] if allow_tie else ["paper1", "paper2"]
+            if "winner" not in result or result["winner"] not in valid_winners:
+                raise ValueError(f"Invalid fallback response: {result}")
+
+            result["model_used"] = model_info
+            result["tokens"] = {"input_est": input_tokens_est, "output_est": output_tokens_est}
+            logger.info(f"Direct Anthropic fallback succeeded for {model}")
+            return result
+        except Exception as fallback_err:
+            logger.error(f"Direct Anthropic fallback also failed: {fallback_err}")
+
     raise Exception(f"Comparison failed after {max_retries} retries: {last_error}")
 
 
@@ -888,7 +944,51 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
                 if attempt < max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
 
-    logger.error(f"Impact assessment failed for {paper.get('title', '')[:50]}")
+    logger.error(f"Impact assessment failed for {paper.get('title', '')[:50]} via Emergent proxy")
+
+    # Fallback: if Anthropic failed through Emergent proxy, retry with direct API key
+    if provider == "anthropic" and _ANTHROPIC_DIRECT_KEY:
+        try:
+            logger.info(f"Falling back to direct Anthropic key for summary ({model})")
+            prompt = IMPACT_ASSESSMENT_PROMPT["user_prompt"].format(
+                title=paper.get("title", "Untitled"),
+                content=_build_content(char_limit),
+            )
+            params = {
+                "model": f"anthropic/{model}",
+                "messages": [
+                    {"role": "system", "content": IMPACT_ASSESSMENT_PROMPT["system_prompt"]},
+                    {"role": "user", "content": prompt},
+                ],
+                "api_key": _ANTHROPIC_DIRECT_KEY,
+                "timeout": 120,
+            }
+            params.update(extra_params)
+            loop = asyncio.get_event_loop()
+            raw_response = await loop.run_in_executor(
+                _llm_executor,
+                lambda: litellm.completion(**params),
+            )
+            response_text = raw_response.choices[0].message.content if raw_response.choices else ""
+            if response_text and response_text.strip():
+                usage = raw_response.usage
+                tokens = {}
+                if usage:
+                    tokens["input"] = getattr(usage, "prompt_tokens", 0) or 0
+                    tokens["output"] = getattr(usage, "completion_tokens", 0) or 0
+                logger.info(f"Direct Anthropic fallback succeeded for summary ({model})")
+                return {
+                    "summary": response_text.strip(),
+                    "model_used": model_info,
+                    "char_count": len(response_text.strip()),
+                    "word_count": len(response_text.strip().split()),
+                    "tokens": tokens,
+                    "truncated": was_truncated,
+                    "truncated_pct": round(100 * char_limit / original_char_limit) if was_truncated else 100,
+                }
+        except Exception as fallback_err:
+            logger.error(f"Direct Anthropic fallback also failed for summary: {fallback_err}")
+
     return None
 
 

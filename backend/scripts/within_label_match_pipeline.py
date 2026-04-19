@@ -52,6 +52,8 @@ DATASET_ID = "iclr-2026-within-label"
 # Papers are already seeded under the cross-label dataset — reuse them.
 SOURCE_DATASET_ID = "iclr-2026-validation"
 
+ANTHROPIC_DIRECT_KEY = os.environ.get("ANTHROPIC_API_KEY")
+
 MODELS = [
     {
         "name": "gpt-5.4",
@@ -62,11 +64,15 @@ MODELS = [
         "api_base": None,
         "custom_llm_provider": None,
     },
-    # Claude temporarily disabled — 502 Bad Gateway with 230s timeouts
-    # {
-    #     "name": "claude-opus-4-6",
-    #     ...
-    # },
+    {
+        "name": "claude-opus-4-6",
+        "provider": "anthropic",
+        "model": "claude-opus-4-6",
+        "litellm_model": "anthropic/claude-opus-4-6",
+        "api_key": ANTHROPIC_DIRECT_KEY,
+        "api_base": None,
+        "custom_llm_provider": None,
+    },
     {
         "name": "gemini-3-pro-preview",
         "provider": "gemini",
