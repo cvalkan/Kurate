@@ -360,7 +360,9 @@ async def _run_single_paper_pipeline(paper_id: str, category: str):
             from services.scheduler import _SUMMARY_GENERATION_MODELS, _summary_model_key
             for model_info in _SUMMARY_GENERATION_MODELS:
                 mk = _summary_model_key(model_info)
-                existing_summary = (paper.get("summaries") or {}).get(mk)
+                # Re-read paper to check for summaries added by previous iteration
+                paper_check = await db.papers.find_one({"id": paper_id}, {"_id": 0, "summaries": 1})
+                existing_summary = (paper_check.get("summaries") or {}).get(mk) if paper_check else None
                 if existing_summary:
                     continue
                 try:
@@ -392,25 +394,31 @@ async def _run_single_paper_pipeline(paper_id: str, category: str):
                 except Exception as e:
                     logger.warning(f"[add-paper] Summary gen failed ({mk}): {e}")
 
-        # Step 3: Insert ranking
-        paper_fresh = await db.papers.find_one(
-            {"id": paper_id},
-            {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
-             "link": 1, "published": 1, "added_at": 1, "categories": 1,
-             "ai_rating": 1, "summaries": 1}
-        )
-        if paper_fresh and paper_fresh.get("summaries"):
-            existing_rank = await db.rankings.find_one({"paper_id": paper_id}, {"_id": 0})
-            if not existing_rank:
-                await insert_ranking_for_paper(db, paper_fresh)
-                logger.info(f"[add-paper] Ranking inserted for '{paper_fresh['title'][:40]}'")
+        # Step 3: Insert ranking — always attempt, even if some summaries failed.
+        # Only requires at least 1 summary (the thinking one is most important).
+        try:
+            paper_fresh = await db.papers.find_one(
+                {"id": paper_id},
+                {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
+                 "link": 1, "published": 1, "added_at": 1, "categories": 1,
+                 "ai_rating": 1, "summaries": 1}
+            )
+            if paper_fresh and paper_fresh.get("summaries"):
+                existing_rank = await db.rankings.find_one({"paper_id": paper_id}, {"_id": 0})
+                if not existing_rank:
+                    await insert_ranking_for_paper(db, paper_fresh)
+                    logger.info(f"[add-paper] Ranking inserted for '{paper_fresh['title'][:40]}'")
 
-                # Notify leaderboard to refresh
-                from routers.leaderboard import notify_data_changed
-                from services.scheduler import invalidate_goals_cache, wake_scheduler
-                notify_data_changed()
-                invalidate_goals_cache(category)
-                wake_scheduler()
+                    # Notify leaderboard to refresh
+                    from routers.leaderboard import notify_data_changed
+                    from services.scheduler import invalidate_goals_cache, wake_scheduler
+                    notify_data_changed()
+                    invalidate_goals_cache(category)
+                    wake_scheduler()
+            else:
+                logger.warning(f"[add-paper] No summaries generated for '{paper.get('title', '')[:40]}' — ranking not inserted")
+        except Exception as e:
+            logger.error(f"[add-paper] Ranking insertion failed: {e}")
 
         logger.info(f"[add-paper] Pipeline complete for '{paper.get('title', '')[:40]}'")
 
