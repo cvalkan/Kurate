@@ -2468,9 +2468,16 @@ async def process_repair_queue_endpoint():
 
 @router.post("/normalize-ai-ratings", dependencies=[Depends(verify_admin)])
 async def normalize_ai_ratings():
-    """One-time fix: convert any dict-typed ai_rating to a numeric score in both collections."""
+    """Fix ai_rating on papers and rankings:
+    1. Convert any dict-typed ai_rating to a numeric score
+    2. Parse ai_rating from existing Claude thinking summaries where it's missing
+    3. Copy ai_rating from papers to their ranking docs
+    """
     from pymongo import UpdateOne
+    from services.llm import parse_ratings_from_summary
     total = 0
+
+    # Phase 1: dict → float conversion
     for coll in (db.rankings, db.papers):
         ops = []
         async for doc in coll.find(
@@ -2483,7 +2490,47 @@ async def normalize_ai_ratings():
         if ops:
             result = await coll.bulk_write(ops, ordered=False)
             total += result.modified_count
-    return {"status": "ok", "modified": total}
+
+    # Phase 2: parse from existing summaries where ai_rating is missing
+    parsed = 0
+    async for paper in db.papers.find(
+        {"ai_rating": {"$in": [None]}, "summaries": {"$exists": True}},
+        {"_id": 0, "id": 1, "summaries": 1},
+    ):
+        summaries = paper.get("summaries", {})
+        # Try Claude thinking summary first, then any summary
+        for mk in sorted(summaries.keys(), key=lambda k: (0 if "thinking" in k else 1)):
+            ratings = parse_ratings_from_summary(summaries[mk])
+            if ratings:
+                update = {"ai_rating": ratings["score"]}
+                model_short = "claude" if "anthropic" in mk else "gpt" if "openai" in mk else "gemini" if "gemini" in mk else None
+                if model_short:
+                    update[f"ai_ratings_by_model.{model_short}"] = ratings
+                await db.papers.update_one({"id": paper["id"]}, {"$set": update})
+                # Also update ranking
+                await db.rankings.update_one({"paper_id": paper["id"]}, {"$set": {"ai_rating": ratings["score"]}})
+                parsed += 1
+                break
+
+    # Also catch papers where ai_rating field doesn't exist at all
+    async for paper in db.papers.find(
+        {"ai_rating": {"$exists": False}, "summaries": {"$exists": True}},
+        {"_id": 0, "id": 1, "summaries": 1},
+    ):
+        summaries = paper.get("summaries", {})
+        for mk in sorted(summaries.keys(), key=lambda k: (0 if "thinking" in k else 1)):
+            ratings = parse_ratings_from_summary(summaries[mk])
+            if ratings:
+                update = {"ai_rating": ratings["score"]}
+                model_short = "claude" if "anthropic" in mk else "gpt" if "openai" in mk else "gemini" if "gemini" in mk else None
+                if model_short:
+                    update[f"ai_ratings_by_model.{model_short}"] = ratings
+                await db.papers.update_one({"id": paper["id"]}, {"$set": update})
+                await db.rankings.update_one({"paper_id": paper["id"]}, {"$set": {"ai_rating": ratings["score"]}})
+                parsed += 1
+                break
+
+    return {"status": "ok", "dict_to_float": total, "parsed_from_summary": parsed}
 
 
 
