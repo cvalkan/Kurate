@@ -448,19 +448,18 @@ export default function PaperPage() {
           "Bronze": { color: "#CD7F32", bg: "#FFF7ED" },
         };
 
-        // Extract ratings
+        // Extract ratings — ONLY from Claude thinking summary.
+        // Papers without Claude thinking ratings should show no scorecard.
         let ratings = null;
-        if (paper.ai_rating && typeof paper.ai_rating === "object" && paper.ai_rating.score) ratings = paper.ai_rating;
-        if (!ratings && paper.ai_ratings_by_model) {
-          const byModel = paper.ai_ratings_by_model;
-          const preferred = byModel.claude || byModel.anthropic || byModel.gpt || byModel.gemini;
-          if (preferred && typeof preferred === "object" && preferred.score) ratings = preferred;
+        if (paper.ai_ratings_by_model) {
+          const claude = paper.ai_ratings_by_model.claude || paper.ai_ratings_by_model.anthropic;
+          if (claude && typeof claude === "object" && claude.score) ratings = claude;
         }
         if (!ratings && summaryEntries.length > 0) {
-          const primaryEntry = summaryEntries.find(e => e.provider === "anthropic") || summaryEntries[0];
-          if (primaryEntry) { const [, ir] = extractRatingsFromSummary(primaryEntry.text); if (ir) ratings = ir; }
+          const claudeEntry = summaryEntries.find(e => e.provider === "anthropic");
+          if (claudeEntry) { const [, ir] = extractRatingsFromSummary(claudeEntry.text); if (ir) ratings = ir; }
         }
-        if (!ratings && paper.ai_rating) ratings = { score: typeof paper.ai_rating === "number" ? paper.ai_rating : parseFloat(paper.ai_rating) || null };
+        if (!ratings && paper.ai_rating && typeof paper.ai_rating === "object" && paper.ai_rating.score) ratings = paper.ai_rating;
 
         const dims = [
           { key: "significance", label: "Significance", color: "text-blue-700 bg-blue-50 border-blue-200" },
