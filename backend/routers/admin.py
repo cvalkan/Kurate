@@ -2274,6 +2274,18 @@ async def normalize_ai_ratings():
 
 
 
+
+@router.get("/llm-errors", dependencies=[Depends(verify_admin)])
+async def get_llm_errors(hours: int = 24, limit: int = 100, provider: str = None):
+    """Recent LLM errors persisted by services/llm.py for production debugging."""
+    from datetime import timedelta
+    query = {"ts": {"$gte": datetime.now(timezone.utc) - timedelta(hours=hours)}}
+    if provider:
+        query["provider"] = provider
+    logs = await db.llm_error_logs.find(query, {"_id": 0}).sort("ts", -1).to_list(length=limit)
+    return {"logs": logs, "count": len(logs)}
+
+
 @router.get("/system-logs", dependencies=[Depends(verify_admin)])
 async def get_system_logs(
     level: str = None, label: str = None, hours: int = 24, limit: int = 2000,

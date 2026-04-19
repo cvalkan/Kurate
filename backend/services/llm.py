@@ -6,17 +6,33 @@ import uuid
 import random
 import httpx
 import io
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Optional
 from PyPDF2 import PdfReader
 from emergentintegrations.llm.chat import LlmChat, UserMessage
-from core.config import EMERGENT_LLM_KEY, TOURNAMENT_MODELS, DEFAULT_EVALUATION_PROMPT, logger
+from core.config import EMERGENT_LLM_KEY, TOURNAMENT_MODELS, DEFAULT_EVALUATION_PROMPT, logger, db
 
 # Dedicated thread pool for LLM calls — default pool (8 threads) bottlenecks parallel evals
 _llm_executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="llm")
 
 # Direct Anthropic API key — fallback when Emergent proxy fails for Claude
 _ANTHROPIC_DIRECT_KEY = os.environ.get("ANTHROPIC_API_KEY")
+
+
+async def _log_llm_error(provider: str, model: str, error: str, context: str = ""):
+    """Persist LLM errors to MongoDB for production debugging."""
+    try:
+        await db.llm_error_logs.insert_one({
+            "ts": datetime.now(timezone.utc),
+            "provider": provider,
+            "model": model,
+            "error_type": type(error).__name__ if not isinstance(error, str) else "str",
+            "error": str(error)[:1000],
+            "context": context,
+        })
+    except Exception:
+        pass  # never let logging break the caller
 
 _TOKEN_LIMIT_KEYWORDS = ("token", "context_length", "context length", "too long", "too many tokens",
                          "maximum context", "max_tokens", "content_too_large", "request too large",
@@ -717,6 +733,7 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
         except Exception as e:
             last_error = e
             err_str = str(e).lower()
+            await _log_llm_error(provider, model, e, context="compare_papers")
             is_budget = any(kw in err_str for kw in ("budget", "balance", "insufficient", "credit", "quota"))
             is_overloaded = "overloaded" in err_str or "rate" in err_str
             is_token_limit = any(kw in err_str for kw in _TOKEN_LIMIT_KEYWORDS)
@@ -931,6 +948,7 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
                 }
         except Exception as e:
             err_str = str(e).lower()
+            await _log_llm_error(provider, model, e, context="generate_summary")
             is_budget = any(kw in err_str for kw in ("budget", "balance", "insufficient", "credit", "quota"))
             is_token_limit = any(kw in err_str for kw in _TOKEN_LIMIT_KEYWORDS)
             is_auth = any(kw in err_str for kw in ("authentication", "invalid x-api-key", "invalid api key", "not allowed", "timeout", "timed out", "502", "bad gateway"))
