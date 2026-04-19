@@ -23,9 +23,8 @@ litellm.suppress_debug_info = True
 litellm.set_verbose = False
 
 from core.config import DEFAULT_EVALUATION_PROMPT, EMERGENT_LLM_KEY, db
-from emergentintegrations.llm.utils import get_integration_proxy_url
 
-PROXY_URL = get_integration_proxy_url() + "/llm"
+ANTHROPIC_DIRECT_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
 DATASET_ID = "iclr-2026-within-label"
 SOURCE_DATASET_ID = "iclr-2026-validation"
@@ -37,10 +36,10 @@ MODEL = {
     "name": "claude-opus-4-6",
     "provider": "anthropic",
     "model": "claude-opus-4-6",
-    "litellm_model": "claude-opus-4-6",
-    "api_key": EMERGENT_LLM_KEY,
-    "api_base": PROXY_URL,
-    "custom_llm_provider": "openai",
+    "litellm_model": "anthropic/claude-opus-4-6",
+    "api_key": ANTHROPIC_DIRECT_KEY,
+    "api_base": None,
+    "custom_llm_provider": None,
 }
 
 
@@ -112,8 +111,6 @@ async def run_one(pair_uuid, label, paper1, paper2, uuid_1, uuid_2, oid_1, oid_2
             "model": MODEL["litellm_model"],
             "messages": [{"role": "system", "content": system_msg}, {"role": "user", "content": prompt}],
             "api_key": MODEL["api_key"],
-            "api_base": MODEL["api_base"],
-            "custom_llm_provider": MODEL["custom_llm_provider"],
             "max_tokens": 800,
             "temperature": 0.3,
             "timeout": 60,
