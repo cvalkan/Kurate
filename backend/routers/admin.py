@@ -366,9 +366,27 @@ async def _run_single_paper_pipeline(paper_id: str, category: str):
                 try:
                     result = await generate_precomparison_impact_summary(paper, model_override=model_info)
                     if result and result.get("summary"):
+                        summary_val = result["summary"]
+                        update_fields = {
+                            f"summaries.{mk}": summary_val,
+                            f"summary_dates.{mk}": datetime.now(timezone.utc).isoformat(),
+                        }
+                        if result.get("tokens"):
+                            update_fields[f"summary_tokens.{mk}"] = result["tokens"]
+                        # Parse ratings from summary (same as scheduler)
+                        from services.llm import parse_ratings_from_summary
+                        if "thinking" in mk:
+                            ratings = parse_ratings_from_summary(summary_val)
+                            if ratings:
+                                update_fields["ai_rating"] = ratings["score"]
+                        model_ratings = parse_ratings_from_summary(summary_val)
+                        if model_ratings:
+                            model_short = "claude" if "anthropic" in mk else "gpt" if "openai" in mk else "gemini" if "gemini" in mk else None
+                            if model_short:
+                                update_fields[f"ai_ratings_by_model.{model_short}"] = model_ratings
                         await db.papers.update_one(
                             {"id": paper_id},
-                            {"$set": {f"summaries.{mk}": result["summary"]}}
+                            {"$set": update_fields}
                         )
                         logger.info(f"[add-paper] Summary generated ({mk}) for '{paper['title'][:40]}'")
                 except Exception as e:
