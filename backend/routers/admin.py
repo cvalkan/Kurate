@@ -2502,12 +2502,12 @@ async def normalize_ai_ratings():
 
     # Phase 2: parse from existing summaries where ai_rating is missing
     parsed = 0
+    CLAUDE_KEY = "anthropic:claude-opus-4-6:thinking"
     async for paper in db.papers.find(
         {"ai_rating": {"$in": [None]}, "summaries": {"$exists": True}},
         {"_id": 0, "id": 1, "summaries": 1},
     ):
         summaries = paper.get("summaries", {})
-        # Try Claude thinking summary first, then any summary
         for mk in sorted(summaries.keys(), key=lambda k: (0 if "thinking" in k else 1)):
             ratings = parse_ratings_from_summary(summaries[mk])
             if ratings:
@@ -2516,7 +2516,6 @@ async def normalize_ai_ratings():
                 if model_short:
                     update[f"ai_ratings_by_model.{model_short}"] = ratings
                 await db.papers.update_one({"id": paper["id"]}, {"$set": update})
-                # Also update ranking
                 await db.rankings.update_one({"paper_id": paper["id"]}, {"$set": {"ai_rating": ratings["score"]}})
                 parsed += 1
                 break
@@ -2539,7 +2538,27 @@ async def normalize_ai_ratings():
                 parsed += 1
                 break
 
-    return {"status": "ok", "dict_to_float": total, "parsed_from_summary": parsed}
+    # Phase 3: fix papers where ai_rating was set by Gemini/GPT instead of Claude.
+    # Re-parse from Claude thinking summary and correct if different.
+    corrected = 0
+    async for paper in db.papers.find(
+        {f"summaries.{CLAUDE_KEY}": {"$exists": True}, "ai_rating": {"$exists": True, "$ne": None}},
+        {"_id": 0, "id": 1, "ai_rating": 1, f"summaries.{CLAUDE_KEY}": 1},
+    ):
+        claude_text = paper.get("summaries", {}).get(CLAUDE_KEY, "")
+        ratings = parse_ratings_from_summary(claude_text)
+        if ratings and abs(paper["ai_rating"] - ratings["score"]) > 0.01:
+            await db.papers.update_one(
+                {"id": paper["id"]},
+                {"$set": {"ai_rating": ratings["score"], "ai_ratings_by_model.claude": ratings}}
+            )
+            await db.rankings.update_one(
+                {"paper_id": paper["id"]},
+                {"$set": {"ai_rating": ratings["score"]}}
+            )
+            corrected += 1
+
+    return {"status": "ok", "dict_to_float": total, "parsed_from_summary": parsed, "corrected_wrong_model": corrected}
 
 
 
