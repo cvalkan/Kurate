@@ -2476,15 +2476,15 @@ async def dedup_archives():
                     pid = entry.get("id")
                     pub = (entry.get("published") or "")[:10]
                     
-                    # Skip prior medalists
-                    if pid in prior_medalists:
+                    # Skip prior medalists (monthly only — weekly uses calendar boundaries instead)
+                    if period_type == "monthly" and pid in prior_medalists:
                         continue
-                    
-                # For monthly: enforce calendar boundaries (papers must be published in that month)
-                # For weekly: skip calendar filtering (too strict with timezone edge cases)
-                if period_type == "monthly" and month_start and period_end and pub:
-                    if pub < month_start or pub >= period_end:
-                        continue
+                        
+                    # For monthly: enforce calendar boundaries (papers must be published in that month)
+                    # For weekly: skip calendar filtering (too strict with timezone edge cases)
+                    if period_type == "monthly" and month_start and period_end and pub:
+                        if pub < month_start or pub >= period_end:
+                            continue
                     
                     cleaned.append(entry)
                 
