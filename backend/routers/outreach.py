@@ -88,7 +88,8 @@ async def get_medalists(period: str = "current", top_n: int = 3):
                 "error": "Use weekly:YYYY-WW or monthly:YYYY-MM"}
 
     # Get archive_frequency setting to filter categories
-    settings = await db.settings.find_one({"key": "settings"}, {"_id": 0}) or {}
+    from core.auth import get_settings
+    settings = await get_settings() or {}
     freq_config = settings.get("archive_frequency") or {}
     # If no frequency config exists, show all categories in both views (no filtering)
     has_freq_config = bool(freq_config)
@@ -150,7 +151,8 @@ async def get_medalists(period: str = "current", top_n: int = 3):
 @router.get("/archive-periods", dependencies=[Depends(verify_admin)])
 async def get_archive_periods():
     """List available weekly and monthly archive periods."""
-    settings = await db.settings.find_one({"key": "settings"}, {"_id": 0}) or {}
+    from core.auth import get_settings
+    settings = await get_settings() or {}
     freq_config = settings.get("archive_frequency") or {}
     default_freq = freq_config.get("default", "weekly")
     weekly = []

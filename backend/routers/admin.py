@@ -2434,7 +2434,8 @@ async def rebuild_archives():
     cats = await db.rankings.distinct("category")
     
     # Get archive_frequency setting per category
-    settings_doc = await db.settings.find_one({"key": "settings"}, {"_id": 0}) or {}
+    from core.auth import get_settings
+    settings_doc = await get_settings() or {}
     freq_config = settings_doc.get("archive_frequency") or {}
     default_freq = freq_config.get("default", "weekly")
     
