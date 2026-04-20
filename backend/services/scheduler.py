@@ -954,7 +954,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             async for p in db.papers.find(
                 {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}},
                 {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
-                 "link": 1, "published": 1, "added_at": 1, "categories": 1, "ai_rating": 1}
+                 "link": 1, "published": 1, "added_at": 1, "categories": 1, "ai_rating": 1, "summaries": 1}
             ):
                 existing = await db.rankings.find_one({"paper_id": p["id"]}, {"_id": 0, "paper_id": 1})
                 if not existing:
