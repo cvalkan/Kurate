@@ -27,6 +27,7 @@ const SUMMARY_LABELS = {
 function getSummaryEntries(summaries, summaryDates) {
   if (!summaries || typeof summaries !== "object") return [];
   const dates = summaryDates || {};
+  const KNOWN_PROVIDERS = new Set(["anthropic", "openai", "gemini"]);
   const entries = Object.entries(summaries)
     .map(([key, val]) => {
       const provider = key.split(":")[0];
@@ -38,7 +39,7 @@ function getSummaryEntries(summaries, summaryDates) {
       }
       return { key, tabId: provider, provider, text, date: dates[key] || null, ...meta };
     })
-    .filter(e => typeof e.text === "string" && e.text.length > 50);
+    .filter(e => typeof e.text === "string" && e.text.length > 50 && KNOWN_PROVIDERS.has(e.provider));
   // Deduplicate by provider — prefer newer model keys (4.6 over 4.5)
   const byProvider = {};
   for (const e of entries) {
