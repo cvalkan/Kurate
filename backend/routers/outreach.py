@@ -288,13 +288,9 @@ def _build_congrats_text(paper: dict, handle: str, rank: int, category: str, per
     return text
 
 
-def _build_share_url(paper_id: str, category: str, year: int = None, week: int = None, month: int = None) -> str:
+def _build_share_url(paper_id: str, category: str = None, year: int = None, week: int = None, month: int = None) -> str:
     """Build the badge share URL that has OG meta tags for unfurling."""
-    if week:
-        return f"https://kurate.org/api/badge/{category}/{year}/w{week}/{paper_id}/share"
-    elif month:
-        return f"https://kurate.org/api/badge/{category}/{year}/m{month}/{paper_id}/share"
-    return f"https://kurate.org/paper/{paper_id}"
+    return f"https://kurate.org/api/badge/paper/{paper_id}/share/page"
 
 
 @router.post("/draft-tweet", dependencies=[Depends(verify_admin)])
@@ -383,18 +379,40 @@ async def post_tweet(body: PostTweetRequest):
     client = TweetAPI(api_key=TWEETAPI_KEY)
 
     try:
-        # Extract tweet ID from URL
-        tweet_id = draft["tweet_url"].rstrip("/").split("/")[-1]
+        # Step 1: Post quote tweet with congrats text (no share URL — it conflicts with unfurl)
+        congrats_text = draft["draft_text"].split("\n\nhttps://")[0]  # Strip share URL from text
+        tweet_id_to_quote = draft["tweet_url"].rstrip("/").split("/")[-1]
 
-        # Post as reply to the original author's tweet (badge URL unfurls in reply)
-        kwargs = {
-            "auth_token": auth_token,
-            "text": draft["draft_text"],
-            "tweet_id": tweet_id,
-            "proxy": proxy,
-        }
+        quote_result = client.post.create_post_quote(
+            auth_token=auth_token,
+            text=congrats_text,
+            attachment_url=draft["tweet_url"],
+            proxy=proxy,
+        )
 
-        result = client.post.reply_post(**kwargs)
+        quote_tweet_id = quote_result.data.get("metadata", {}).get("tweet_id") if hasattr(quote_result, "data") else None
+        if not quote_tweet_id:
+            # Try parsing from result dict
+            rd = quote_result if isinstance(quote_result, dict) else (quote_result.data if hasattr(quote_result, "data") else {})
+            quote_tweet_id = rd.get("data", rd).get("metadata", {}).get("tweet_id", "")
+
+        logger.info(f"[outreach] Quote tweet posted: {quote_tweet_id}")
+
+        # Step 2: Reply to our own quote tweet with the badge share URL (unfurls)
+        reply_result = None
+        if quote_tweet_id and draft.get("share_url"):
+            import asyncio as _aio
+            await _aio.sleep(2)  # Brief pause between posts
+            try:
+                reply_result = client.post.reply_post(
+                    auth_token=auth_token,
+                    text=draft["share_url"],
+                    tweet_id=str(quote_tweet_id),
+                    proxy=proxy,
+                )
+                logger.info(f"[outreach] Badge reply posted under {quote_tweet_id}")
+            except Exception as re:
+                logger.warning(f"[outreach] Badge reply failed (quote succeeded): {re}")
 
         # Update draft status
         await db.tweet_drafts.update_one(
@@ -402,11 +420,12 @@ async def post_tweet(body: PostTweetRequest):
             {"$set": {
                 "status": "posted",
                 "posted_at": datetime.now(timezone.utc).isoformat(),
-                "tweet_result": str(result)[:500],
+                "quote_tweet_id": str(quote_tweet_id),
+                "reply_result": str(reply_result)[:300] if reply_result else None,
             }},
         )
-        logger.info(f"[outreach] Posted quote tweet for {body.paper_id} quoting @{body.handle}")
-        return {"status": "posted", "result": str(result)[:300]}
+        quote_url = f"https://x.com/KurateOrg/status/{quote_tweet_id}" if quote_tweet_id else ""
+        return {"status": "posted", "quote_tweet_id": quote_tweet_id, "url": quote_url}
 
     except Exception as e:
         logger.error(f"[outreach] Failed to post tweet: {e}")
