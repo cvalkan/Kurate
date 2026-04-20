@@ -374,56 +374,62 @@ export default function OutreachPage() {
 const MEDAL = ["🥇", "🥈", "🥉"];
 
 function MedalistsView({ medalists, loading, discovering, onDiscover, onRefresh, period, setPeriod }) {
-  const [weeklyArchives, setWeeklyArchives] = useState([]);
+  const [archivePeriods, setArchivePeriods] = useState({ weekly: [], monthly: [] });
+  const [archiveType, setArchiveType] = useState("weekly"); // "weekly" | "monthly"
 
-  // Load available weekly archives
+  // Load available archive periods
   useEffect(() => {
-    axios.get(`${API}/api/leaderboard/archives?category=cs.RO`, { headers: getAdminHeaders() })
+    axios.get(`${API}/api/admin/outreach/archive-periods`, { headers: getAdminHeaders() })
       .then(r => {
-        const arcs = (r.data.archives || []).filter(a => a.period_type === "weekly");
-        // Dedupe by year-week
-        const seen = new Set();
-        const unique = arcs.filter(a => {
-          const key = `${a.year}-${a.week}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-        setWeeklyArchives(unique.slice(0, 20));
+        setArchivePeriods(r.data);
+        // Auto-select the latest weekly archive if no period set
+        if (!period && r.data.weekly?.length > 0) {
+          setPeriod(`weekly:${r.data.weekly[0].value}`);
+        }
       })
       .catch(() => {});
-  }, []);
+  }, []); // eslint-disable-line
 
-  if (loading || !medalists) {
+  if (loading && !medalists) {
     return <div className="text-center py-12 text-muted-foreground">Loading medalists...</div>;
   }
 
-  const cats = medalists.categories || [];
-  const totalPapers = medalists.total_papers || 0;
-  const totalDiscovered = medalists.total_discovered || 0;
+  const cats = medalists?.categories || [];
+  const totalPapers = medalists?.total_papers || 0;
+  const totalDiscovered = medalists?.total_discovered || 0;
+  const archives = archiveType === "weekly" ? archivePeriods.weekly : archivePeriods.monthly;
 
   return (
     <div>
       <div className="flex items-center gap-3 mb-5 flex-wrap">
-        {/* Period selector */}
-        <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md">
-          <button onClick={() => setPeriod("current")}
+        {/* Weekly / Monthly toggle */}
+        <div className="flex items-center gap-0.5 p-0.5 bg-secondary/50 rounded-md">
+          <button onClick={() => { setArchiveType("weekly"); if (archivePeriods.weekly?.[0]) setPeriod(`weekly:${archivePeriods.weekly[0].value}`); }}
             className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
-              period === "current" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              archiveType === "weekly" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             }`}
-          >Current</button>
+          >
+            <Calendar className="h-3 w-3 inline mr-1" />Weekly
+          </button>
+          <button onClick={() => { setArchiveType("monthly"); if (archivePeriods.monthly?.[0]) setPeriod(`monthly:${archivePeriods.monthly[0].value}`); }}
+            className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
+              archiveType === "monthly" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Calendar className="h-3 w-3 inline mr-1" />Monthly
+          </button>
         </div>
 
-        {weeklyArchives.length > 0 && (
+        {/* Period dropdown */}
+        {archives.length > 0 && (
           <select
-            value={period.startsWith("archive:") ? period.split(":")[1] : ""}
-            onChange={e => setPeriod(e.target.value ? `archive:${e.target.value}` : "current")}
-            className="h-8 px-2 text-xs border rounded-md bg-background"
+            value={period.split(":")[1] || ""}
+            onChange={e => e.target.value && setPeriod(`${archiveType}:${e.target.value}`)}
+            className="h-8 px-2 text-xs border rounded-md bg-background min-w-[200px]"
           >
-            <option value="">Weekly Archive...</option>
-            {weeklyArchives.map(a => (
-              <option key={`${a.year}-${a.week}`} value={`${a.year}-${a.week}`}>
-                {a.label || `Week ${a.week}, ${a.year}`}
+            {archives.map(a => (
+              <option key={a.value} value={a.value}>
+                {a.label} — {a.categories} categories, {a.total_papers} papers
               </option>
             ))}
           </select>
@@ -443,6 +449,10 @@ function MedalistsView({ medalists, loading, discovering, onDiscover, onRefresh,
         </div>
       </div>
 
+      {loading ? (
+        <div className="text-center py-8 text-muted-foreground">Loading...</div>
+      ) : (
+
       <div className="space-y-4">
         {cats.map(cat => (
           <div key={cat.category} className="border rounded-lg overflow-hidden">
@@ -459,10 +469,11 @@ function MedalistsView({ medalists, loading, discovering, onDiscover, onRefresh,
             </table>
           </div>
         ))}
-        {cats.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground">No medalists found. Rankings may still be loading.</div>
+        {cats.length === 0 && !loading && (
+          <div className="text-center py-12 text-muted-foreground">No medalists found for this period.</div>
         )}
       </div>
+      )}
     </div>
   );
 }

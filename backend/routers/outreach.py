@@ -65,95 +65,55 @@ async def discover_status():
 async def get_medalists(period: str = "current", top_n: int = 3):
     """Get top-N medalists across all categories.
     
-    period: "current" (live leaderboard) or "archive:YYYY-WW" (weekly archive)
+    period: "weekly:YYYY-WW" or "monthly:YYYY-MM"
     Returns: {categories: [{category, name, papers: [{rank, title, authors, ...}]}]}
     """
     from core.config import CATEGORIES
 
-    # Get all active categories
-    all_cats = list(CATEGORIES.keys())
-    # Also include categories from rankings that might not be in CATEGORIES
-    extra_cats = await db.rankings.distinct("category")
-    for c in extra_cats:
-        if c not in all_cats:
-            all_cats.append(c)
-
-    # Category name lookup
     cat_names = dict(CATEGORIES)
-    cats_from_api = await db.papers.aggregate([
-        {"$unwind": "$categories"},
-        {"$group": {"_id": "$categories"}},
-    ]).to_list(100)
-
     result_cats = []
 
-    if period.startswith("archive:"):
+    # Parse period
+    if period.startswith("weekly:"):
         parts = period.split(":")[1].split("-")
-        if len(parts) == 2:
-            year, week = int(parts[0]), int(parts[1])
-            async for archive in db.leaderboard_archives.find(
-                {"period_type": "weekly", "year": year, "week": week},
-                {"_id": 0, "category": 1, "leaderboard": {"$slice": top_n}, "label": 1},
-            ):
-                cat = archive["category"]
-                papers = []
-                for p in archive.get("leaderboard", [])[:top_n]:
-                    # Check if we have discovery data
-                    disc = await db.x_handle_discoveries.find_one(
-                        {"paper_id": p.get("id")}, {"_id": 0, "candidates": 1, "total_tweets": 1}
-                    )
-                    papers.append({
-                        "id": p.get("id"),
-                        "rank": p.get("rank"),
-                        "title": p.get("title"),
-                        "authors": p.get("authors", []),
-                        "arxiv_id": p.get("arxiv_id"),
-                        "ts_score": p.get("ts_score") or p.get("score"),
-                        "ai_rating": p.get("ai_rating"),
-                        "link": p.get("link"),
-                        "candidates": disc.get("candidates", []) if disc else [],
-                        "total_tweets": disc.get("total_tweets", 0) if disc else 0,
-                        "discovered": disc is not None,
-                    })
-                if papers:
-                    result_cats.append({
-                        "category": cat,
-                        "name": cat_names.get(cat, cat),
-                        "label": archive.get("label", ""),
-                        "papers": papers,
-                    })
+        period_type, query_filter = "weekly", {"year": int(parts[0]), "week": int(parts[1])}
+    elif period.startswith("monthly:"):
+        parts = period.split(":")[1].split("-")
+        period_type, query_filter = "monthly", {"year": int(parts[0]), "month": int(parts[1])}
     else:
-        # Current live leaderboard
-        for cat in sorted(all_cats):
-            papers = []
-            async for doc in db.rankings.find(
-                {"category": cat},
-                {"_id": 0, "paper_id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
-                 "rank": 1, "ts_score": 1, "ai_rating": 1, "link": 1},
-            ).sort("ts_score", -1).limit(top_n):
-                pid = doc.get("paper_id")
-                disc = await db.x_handle_discoveries.find_one(
-                    {"paper_id": pid}, {"_id": 0, "candidates": 1, "total_tweets": 1}
-                )
-                papers.append({
-                    "id": pid,
-                    "rank": doc.get("rank"),
-                    "title": doc.get("title"),
-                    "authors": doc.get("authors", []),
-                    "arxiv_id": doc.get("arxiv_id"),
-                    "ts_score": doc.get("ts_score"),
-                    "ai_rating": doc.get("ai_rating"),
-                    "link": doc.get("link"),
-                    "candidates": disc.get("candidates", []) if disc else [],
-                    "total_tweets": disc.get("total_tweets", 0) if disc else 0,
-                    "discovered": disc is not None,
-                })
-            if papers:
-                result_cats.append({
-                    "category": cat,
-                    "name": cat_names.get(cat, cat),
-                    "papers": papers,
-                })
+        return {"period": period, "categories": [], "total_papers": 0, "total_discovered": 0,
+                "error": "Use weekly:YYYY-WW or monthly:YYYY-MM"}
+
+    async for archive in db.leaderboard_archives.find(
+        {"period_type": period_type, **query_filter},
+        {"_id": 0, "category": 1, "leaderboard": {"$slice": top_n}, "label": 1},
+    ):
+        cat = archive["category"]
+        papers = []
+        for p in archive.get("leaderboard", [])[:top_n]:
+            disc = await db.x_handle_discoveries.find_one(
+                {"paper_id": p.get("id")}, {"_id": 0, "candidates": 1, "total_tweets": 1}
+            )
+            papers.append({
+                "id": p.get("id"),
+                "rank": p.get("rank"),
+                "title": p.get("title"),
+                "authors": p.get("authors", []),
+                "arxiv_id": p.get("arxiv_id"),
+                "ts_score": p.get("ts_score") or p.get("score"),
+                "ai_rating": p.get("ai_rating"),
+                "link": p.get("link"),
+                "candidates": disc.get("candidates", []) if disc else [],
+                "total_tweets": disc.get("total_tweets", 0) if disc else 0,
+                "discovered": disc is not None,
+            })
+        if papers:
+            result_cats.append({
+                "category": cat,
+                "name": cat_names.get(cat, cat),
+                "label": archive.get("label", ""),
+                "papers": papers,
+            })
 
     result_cats.sort(key=lambda c: c["category"])
 
@@ -163,6 +123,44 @@ async def get_medalists(period: str = "current", top_n: int = 3):
         "total_papers": sum(len(c["papers"]) for c in result_cats),
         "total_discovered": sum(1 for c in result_cats for p in c["papers"] if p["discovered"]),
     }
+
+
+@router.get("/archive-periods", dependencies=[Depends(verify_admin)])
+async def get_archive_periods():
+    """List available weekly and monthly archive periods."""
+    weekly = []
+    monthly = []
+    
+    async for doc in db.leaderboard_archives.aggregate([
+        {"$match": {"period_type": "weekly"}},
+        {"$group": {"_id": {"year": "$year", "week": "$week"}, "label": {"$first": "$label"},
+                     "categories": {"$sum": 1}, "total_papers": {"$sum": "$paper_count"}}},
+        {"$sort": {"_id.year": -1, "_id.week": -1}},
+        {"$limit": 30},
+    ]):
+        weekly.append({
+            "value": f"{doc['_id']['year']}-{doc['_id']['week']}",
+            "label": doc.get("label") or f"Week {doc['_id']['week']}, {doc['_id']['year']}",
+            "categories": doc["categories"],
+            "total_papers": doc["total_papers"],
+        })
+    
+    async for doc in db.leaderboard_archives.aggregate([
+        {"$match": {"period_type": "monthly"}},
+        {"$group": {"_id": {"year": "$year", "month": "$month"}, "label": {"$first": "$label"},
+                     "categories": {"$sum": 1}, "total_papers": {"$sum": "$paper_count"}}},
+        {"$sort": {"_id.year": -1, "_id.month": -1}},
+        {"$limit": 24},
+    ]):
+        monthly.append({
+            "value": f"{doc['_id']['year']}-{doc['_id']['month']}",
+            "label": doc.get("label") or f"{doc['_id']['year']}-{doc['_id']['month']:02d}",
+            "categories": doc["categories"],
+            "total_papers": doc["total_papers"],
+        })
+    
+    return {"weekly": weekly, "monthly": monthly}
+
 
 
 @router.post("/discover-medalists", dependencies=[Depends(verify_admin)])
