@@ -2420,109 +2420,26 @@ async def reconcile_rankings_endpoint(category: str = None):
 
 
 
-@router.post("/dedup-archives", dependencies=[Depends(verify_admin)])
-async def dedup_archives():
-    """Fix archives: remove papers outside their calendar period, exclude prior medalists,
-    and delete empty archives. Processes all existing archives."""
-    from collections import defaultdict
-    from calendar import monthrange
-    
-    fixed_papers = 0
-    deleted_archives = 0
-    
-    for period_type in ["weekly", "monthly"]:
-        sort_key = "week" if period_type == "weekly" else "month"
-        archives = await db.leaderboard_archives.find(
-            {"period_type": period_type},
-            {"_id": 1, "category": 1, "year": 1, sort_key: 1, "leaderboard": 1, "label": 1},
-        ).sort([("category", 1), ("year", 1), (sort_key, 1)]).to_list(10000)
-        
-        by_cat = defaultdict(list)
-        for a in archives:
-            by_cat[a["category"]].append(a)
-        
-        for category, cat_archives in by_cat.items():
-            prior_medalists = set()
-            for archive in cat_archives:
-                lb = archive.get("leaderboard", [])
-                if not lb:
-                    continue
-                
-                year = archive["year"]
-                period_val = archive.get(sort_key)
-                
-                # Build calendar boundaries for this period
-                if period_type == "monthly" and period_val:
-                    month_start = f"{year}-{period_val:02d}-01"
-                    _, last_day = monthrange(year, period_val)
-                    next_m = period_val + 1 if period_val < 12 else 1
-                    next_y = year if period_val < 12 else year + 1
-                    period_end = f"{next_y}-{next_m:02d}-01"
-                elif period_type == "weekly" and period_val:
-                    from datetime import date
-                    try:
-                        week_start = date.fromisocalendar(year, period_val, 1).isoformat()
-                        week_end = (date.fromisocalendar(year, period_val, 1) + timedelta(days=7)).isoformat()
-                        month_start = week_start
-                        period_end = week_end
-                    except ValueError:
-                        month_start, period_end = None, None
-                else:
-                    month_start, period_end = None, None
-                
-                original_len = len(lb)
-                cleaned = []
-                for entry in lb:
-                    pid = entry.get("id")
-                    pub = (entry.get("published") or "")[:10]
-                    
-                    # Skip prior medalists (monthly only — weekly uses calendar boundaries instead)
-                    if period_type == "monthly" and pid in prior_medalists:
-                        continue
-                        
-                    # For monthly: enforce calendar boundaries (papers must be published in that month)
-                    # For weekly: skip calendar filtering (too strict with timezone edge cases)
-                    if period_type == "monthly" and month_start and period_end and pub:
-                        if pub < month_start or pub >= period_end:
-                            continue
-                    
-                    cleaned.append(entry)
-                
-                # Re-rank
-                for i, entry in enumerate(cleaned, 1):
-                    entry["rank"] = i
-                
-                if len(cleaned) == 0:
-                    await db.leaderboard_archives.delete_one({"_id": archive["_id"]})
-                    deleted_archives += 1
-                elif len(cleaned) < original_len:
-                    await db.leaderboard_archives.update_one(
-                        {"_id": archive["_id"]},
-                        {"$set": {"leaderboard": cleaned, "paper_count": len(cleaned)}},
-                    )
-                    fixed_papers += original_len - len(cleaned)
-                
-                # Track medalists for subsequent periods
-                for entry in cleaned[:3]:
-                    if entry.get("id"):
-                        prior_medalists.add(entry["id"])
-    
-    return {"status": "ok", "papers_removed": fixed_papers, "archives_deleted": deleted_archives}
 
-@router.post("/regenerate-archives", dependencies=[Depends(verify_admin)])
-async def regenerate_archives():
-    """Regenerate all missing weekly and monthly archives using calendar boundaries.
-    Does not touch existing archives — only creates missing ones.
-    Run dedup-archives afterwards to clean up."""
+@router.post("/rebuild-archives", dependencies=[Depends(verify_admin)])
+async def rebuild_archives():
+    """Delete all archives and regenerate with correct calendar boundaries + medalist exclusion.
+    Archives are derived data from rankings — no data loss risk."""
+    from calendar import monthrange
     from datetime import date
-    from calendar import monthrange
 
+    # Step 1: Delete all existing archives
+    deleted = await db.leaderboard_archives.delete_many({})
+    
     cats = await db.rankings.distinct("category")
     
-    # Collect all (year, week) and (year, month) that have papers
+    # Collect all (year, week) and (year, month) from published dates
     weeks_seen = set()
     months_seen = set()
-    async for r in db.rankings.find({}, {"_id": 0, "published": 1}):
+    async for r in db.rankings.find(
+        {"is_latest_version": {"$ne": False}},
+        {"_id": 0, "published": 1}
+    ):
         pub = (r.get("published") or "")[:10]
         if not pub:
             continue
@@ -2536,20 +2453,29 @@ async def regenerate_archives():
     _RANK_FIELDS = {"_id": 0, "paper_id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
                     "score": 1, "ts_score": 1, "ai_rating": 1, "wins": 1, "losses": 1,
                     "comparisons": 1, "win_rate": 1, "ci": 1, "published": 1, "link": 1,
-                    "gap_score": 1, "gap_score_ts": 1, "ts_sigma": 1}
+                    "gap_score": 1, "gap_score_ts": 1, "ts_sigma": 1,
+                    "os_score": 1, "os_sigma": 1, "rank_ts": 1, "rank_os": 1}
+    month_names = ["", "January", "February", "March", "April", "May", "June",
+                   "July", "August", "September", "October", "November", "December"]
+
+    def _freeze(entries):
+        return [
+            {**{k: e.get(k) for k in ["title", "authors", "score", "ts_score", "ai_rating",
+                "wins", "losses", "comparisons", "win_rate", "ci", "published", "link",
+                "arxiv_id", "gap_score", "gap_score_ts", "ts_sigma",
+                "os_score", "os_sigma", "rank_ts", "rank_os"]},
+             "rank": i, "id": e.get("paper_id")}
+            for i, e in enumerate(entries, 1)
+        ]
 
     weekly_created = 0
     monthly_created = 0
 
-    # Weekly archives
+    # Step 2: Weekly archives (calendar boundaries, no medalist exclusion)
     for year, week in sorted(weeks_seen):
         week_start = date.fromisocalendar(year, week, 1)
         week_end = week_start + timedelta(days=7)
         for cat in cats:
-            existing = await db.leaderboard_archives.find_one(
-                {"category": cat, "period_type": "weekly", "year": year, "week": week})
-            if existing:
-                continue
             entries = await db.rankings.find(
                 {"category": cat, "is_latest_version": {"$ne": False},
                  "published": {"$gte": f"{week_start.isoformat()}T00:00:00",
@@ -2558,13 +2484,7 @@ async def regenerate_archives():
             ).sort("ts_score", -1).to_list(10000)
             if not entries:
                 continue
-            frozen = [
-                {**{k: e.get(k) for k in ["title", "authors", "score", "ts_score", "ai_rating",
-                    "wins", "losses", "comparisons", "win_rate", "ci", "published", "link",
-                    "arxiv_id", "gap_score", "gap_score_ts", "ts_sigma"]},
-                 "rank": i, "id": e.get("paper_id")}
-                for i, e in enumerate(entries, 1)
-            ]
+            frozen = _freeze(entries)
             await db.leaderboard_archives.insert_one({
                 "category": cat, "period_type": "weekly",
                 "year": year, "week": week, "month": None,
@@ -2576,33 +2496,27 @@ async def regenerate_archives():
             })
             weekly_created += 1
 
-    # Monthly archives
-    month_names = ["", "January", "February", "March", "April", "May", "June",
-                   "July", "August", "September", "October", "November", "December"]
-    for year, month in sorted(months_seen):
-        month_start = f"{year}-{month:02d}-01"
-        next_m = month + 1 if month < 12 else 1
-        next_y = year if month < 12 else year + 1
-        month_end = f"{next_y}-{next_m:02d}-01"
-        for cat in cats:
-            existing = await db.leaderboard_archives.find_one(
-                {"category": cat, "period_type": "monthly", "year": year, "month": month})
-            if existing:
-                continue
+    # Step 3: Monthly archives (calendar boundaries + medalist exclusion per category)
+    for cat in cats:
+        prior_medalists = set()
+        for year, month in sorted(months_seen):
+            month_start = f"{year}-{month:02d}-01T00:00:00"
+            next_m = month + 1 if month < 12 else 1
+            next_y = year if month < 12 else year + 1
+            month_end = f"{next_y}-{next_m:02d}-01T00:00:00"
+
             entries = await db.rankings.find(
                 {"category": cat, "is_latest_version": {"$ne": False},
-                 "published": {"$gte": f"{month_start}T00:00:00", "$lt": f"{month_end}T00:00:00"}},
+                 "published": {"$gte": month_start, "$lt": month_end}},
                 _RANK_FIELDS,
             ).sort("ts_score", -1).to_list(10000)
+
+            # Exclude prior medalists
+            entries = [e for e in entries if e.get("paper_id") not in prior_medalists]
             if not entries:
                 continue
-            frozen = [
-                {**{k: e.get(k) for k in ["title", "authors", "score", "ts_score", "ai_rating",
-                    "wins", "losses", "comparisons", "win_rate", "ci", "published", "link",
-                    "arxiv_id", "gap_score", "gap_score_ts", "ts_sigma"]},
-                 "rank": i, "id": e.get("paper_id")}
-                for i, e in enumerate(entries, 1)
-            ]
+
+            frozen = _freeze(entries)
             await db.leaderboard_archives.insert_one({
                 "category": cat, "period_type": "monthly",
                 "year": year, "week": None, "month": month,
@@ -2614,14 +2528,17 @@ async def regenerate_archives():
             })
             monthly_created += 1
 
+            # Track this month's top 3 as medalists
+            for entry in frozen[:3]:
+                if entry.get("id"):
+                    prior_medalists.add(entry["id"])
+
     return {
         "status": "ok",
+        "deleted": deleted.deleted_count,
         "weekly_created": weekly_created,
         "monthly_created": monthly_created,
     }
-
-
-
 
 @router.post("/rerank-all", dependencies=[Depends(verify_admin)])
 async def rerank_all_endpoint():
