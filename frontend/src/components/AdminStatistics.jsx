@@ -370,7 +370,7 @@ export function AdminStatistics({ categories }) {
               <Cpu className="h-4 w-4 text-muted-foreground" />
               <h3 className="text-sm font-medium">Memory Usage (RSS)</h3>
               <span className="text-xs text-muted-foreground">
-                Current: {Math.round(memoryData[memoryData.length - 1]?.rss)}MB / 2048MB
+                Current: {Math.round(memoryData[memoryData.length - 1]?.rss)}MB / 4096MB
               </span>
             </div>
             <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md">
@@ -415,7 +415,7 @@ export function AdminStatistics({ categories }) {
                   tickCount={memHours <= 12 ? 6 : memHours <= 24 ? 8 : 6}
                   minTickGap={60}
                 />
-                <YAxis domain={[0, 2048]} ticks={[0, 512, 1024, 1536, 2048]} tickFormatter={v => `${v}MB`} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={55} />
+                <YAxis domain={[0, 4096]} ticks={[0, 1024, 2048, 3072, 4096]} tickFormatter={v => `${v}MB`} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={55} />
                 <RechartsTooltip
                   content={({ active, payload }) => {
                     if (!active || !payload?.length) return null;
@@ -436,7 +436,7 @@ export function AdminStatistics({ categories }) {
                   <ReferenceLine key={`restart-${i}`} x={d.epoch} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1} opacity={0.7} />
                 ))}
                 {/* Danger zone */}
-                <Area type="monotone" dataKey={() => 2048} stroke="none" fill="#ef4444" fillOpacity={0.05} />
+                <Area type="monotone" dataKey={() => 4096} stroke="none" fill="#ef4444" fillOpacity={0.05} />
                 <Area type="stepAfter" dataKey="rss" stroke="#ef4444" fill="url(#memGrad)" strokeWidth={1.5} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
