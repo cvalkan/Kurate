@@ -7,7 +7,7 @@ import { Button } from "../components/ui/button";
 const API = process.env.REACT_APP_BACKEND_URL;
 
 function getAdminHeaders() {
-  const token = localStorage.getItem("admin_token");
+  const token = sessionStorage.getItem("admin_token");
   return token ? { "X-Admin-Token": token } : {};
 }
 
@@ -44,6 +44,7 @@ export default function OutreachPage() {
       const res = await axios.post(`${API}/api/admin/login`, { password });
       if (res.data.token) {
         localStorage.setItem("admin_token", res.data.token);
+        sessionStorage.setItem("admin_token", res.data.token);
         setAuthed(true);
       }
     } catch {
@@ -52,7 +53,7 @@ export default function OutreachPage() {
   };
 
   useEffect(() => {
-    const token = localStorage.getItem("admin_token");
+    const token = sessionStorage.getItem("admin_token") || localStorage.getItem("admin_token");
     if (token) setAuthed(true);
   }, []);
 

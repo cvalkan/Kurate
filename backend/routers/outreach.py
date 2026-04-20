@@ -7,7 +7,7 @@ from typing import Optional
 from core.config import db, logger
 from routers.admin import verify_admin
 
-router = APIRouter(prefix="/admin/outreach", tags=["admin-outreach"])
+router = APIRouter(prefix="/api/admin/outreach", tags=["admin-outreach"])
 
 
 class DiscoverRequest(BaseModel):
