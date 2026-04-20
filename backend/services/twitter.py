@@ -61,10 +61,14 @@ async def discover_handles_for_paper(paper: dict) -> dict:
 
     # Build search queries in priority order
     queries = []
-    # 1. Quoted title + arxiv (most precise)
+    # 1. Arxiv ID (most precise — finds anyone who shared the paper link)
+    if arxiv_id:
+        bare_id = arxiv_id.replace("v1", "").replace("v2", "").replace("v3", "").replace("v4", "")
+        queries.append(bare_id)
+    # 2. Quoted title + arxiv
     short_title = title[:60].rsplit(" ", 1)[0] if len(title) > 60 else title
     queries.append(f'"{short_title}" arxiv')
-    # 2. First author + title keywords
+    # 3. First author + title keywords
     if authors:
         title_words = " ".join(title.split()[:4])
         queries.append(f'"{authors[0]}" {title_words}')

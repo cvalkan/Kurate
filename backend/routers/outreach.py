@@ -255,6 +255,125 @@ async def get_discoveries(
     }
 
 
+
+class DraftTweetRequest(BaseModel):
+    paper_id: str
+    tweet_url: str  # The original tweet to quote
+    handle: str  # Author's X handle
+    category: str
+    rank: int  # 1=gold, 2=silver, 3=bronze
+    period_label: str = ""  # e.g. "Week 17, 2026"
+
+
+@router.post("/draft-tweet", dependencies=[Depends(verify_admin)])
+async def draft_tweet(body: DraftTweetRequest):
+    """Generate a draft quote tweet congratulating a paper medalist."""
+    paper = await db.papers.find_one(
+        {"id": body.paper_id},
+        {"_id": 0, "title": 1, "authors": 1, "arxiv_id": 1, "abstract": 1,
+         "ai_rating": 1, "categories": 1}
+    )
+    if not paper:
+        raise HTTPException(404, "Paper not found")
+
+    medal = {1: "gold", 2: "silver", 3: "bronze"}.get(body.rank, f"#{body.rank}")
+    medal_emoji = {1: "🥇", 2: "🥈", 3: "🥉"}.get(body.rank, "🏅")
+
+    # Build the badge URL
+    # Find the archive entry to get year/week
+    badge_url = f"https://kurate.org/paper/{body.paper_id}"
+
+    # Generate draft text with Claude
+    from services.llm import _ANTHROPIC_DIRECT_KEY
+    import litellm
+    prompt = f"""Write a short congratulatory quote tweet (max 240 chars, leave room for the link) for an academic paper that won {medal} medal {medal_emoji} in the {body.category} category on kurate.org's AI paper rankings{' for ' + body.period_label if body.period_label else ''}.
+
+Paper: "{paper['title']}"
+Authors: {', '.join(paper.get('authors', [])[:3])}
+Author X handle: @{body.handle}
+Rating: {paper.get('ai_rating', 'N/A')}/10
+
+Rules:
+- Tag @{body.handle}
+- Include {medal_emoji}
+- Mention the category naturally
+- Be genuine and specific about what makes the paper notable (use the title)
+- Don't use hashtags
+- Don't say "Congratulations" — be more creative
+- End with the kurate.org link
+- Keep it under 240 chars total (excluding the quoted tweet)
+
+Output ONLY the tweet text, nothing else."""
+
+    try:
+        litellm.suppress_debug_info = True
+        resp = litellm.completion(
+            model="anthropic/claude-sonnet-4-5",
+            messages=[{"role": "user", "content": prompt}],
+            api_key=_ANTHROPIC_DIRECT_KEY,
+            max_tokens=150,
+            temperature=0.8,
+        )
+        draft = resp.choices[0].message.content.strip().strip('"')
+    except Exception as e:
+        # Fallback template
+        logger.warning(f"Draft generation failed: {e}")
+        short_title = paper["title"][:60] + ("..." if len(paper["title"]) > 60 else "")
+        draft = f"{medal_emoji} @{body.handle}'s \"{short_title}\" takes {medal} in {body.category} on kurate.org!\n\n{badge_url}"
+
+    if badge_url not in draft:
+        draft = draft.rstrip() + f"\n\n{badge_url}"
+
+    # Store draft
+    draft_doc = {
+        "paper_id": body.paper_id,
+        "handle": body.handle,
+        "tweet_url": body.tweet_url,
+        "category": body.category,
+        "rank": body.rank,
+        "period_label": body.period_label,
+        "draft_text": draft,
+        "badge_url": badge_url,
+        "status": "draft",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.tweet_drafts.update_one(
+        {"paper_id": body.paper_id, "handle": body.handle},
+        {"$set": draft_doc},
+        upsert=True,
+    )
+
+    return {
+        "draft_text": draft,
+        "badge_url": badge_url,
+        "tweet_url": body.tweet_url,
+        "handle": body.handle,
+        "paper_id": body.paper_id,
+    }
+
+
+@router.post("/save-draft", dependencies=[Depends(verify_admin)])
+async def save_draft(paper_id: str, handle: str, text: str):
+    """Save an edited draft tweet."""
+    await db.tweet_drafts.update_one(
+        {"paper_id": paper_id, "handle": handle},
+        {"$set": {"draft_text": text, "status": "edited", "edited_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {"status": "ok"}
+
+
+@router.get("/drafts", dependencies=[Depends(verify_admin)])
+async def get_drafts(status: str = None):
+    """List tweet drafts."""
+    query = {}
+    if status:
+        query["status"] = status
+    drafts = []
+    async for doc in db.tweet_drafts.find(query, {"_id": 0}).sort("created_at", -1).limit(100):
+        drafts.append(doc)
+    return {"drafts": drafts, "count": len(drafts)}
+
+
 @router.get("/handle-stats", dependencies=[Depends(verify_admin)])
 async def get_handle_stats():
     """Summary stats for all discovered handles across the platform."""

@@ -463,7 +463,7 @@ function MedalistsView({ medalists, loading, discovering, onDiscover, onRefresh,
             <table className="w-full text-sm">
               <tbody>
                 {cat.papers.map((p, i) => (
-                  <MedalistRow key={p.id} paper={p} medal={MEDAL[i] || `#${i+1}`} />
+                  <MedalistRow key={p.id} paper={p} medal={MEDAL[i] || `#${i+1}`} category={cat.category} periodLabel={cat.label || ""} />
                 ))}
               </tbody>
             </table>
@@ -478,56 +478,143 @@ function MedalistsView({ medalists, loading, discovering, onDiscover, onRefresh,
   );
 }
 
-function MedalistRow({ paper, medal }) {
+function MedalistRow({ paper, medal, category, periodLabel }) {
   const candidates = paper.candidates || [];
   const best = candidates[0];
+  const [drafting, setDrafting] = useState(false);
+  const [draft, setDraft] = useState(null);
+  const [editText, setEditText] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleDraft = async (candidate) => {
+    setDrafting(true);
+    try {
+      const res = await axios.post(`${API}/api/admin/outreach/draft-tweet`, {
+        paper_id: paper.id,
+        tweet_url: candidate.tweet_url,
+        handle: candidate.handle,
+        category: category,
+        rank: parseInt(medal === "🥇" ? 1 : medal === "🥈" ? 2 : medal === "🥉" ? 3 : 0),
+        period_label: periodLabel || "",
+      }, { headers: getAdminHeaders() });
+      setDraft(res.data);
+      setEditText(res.data.draft_text);
+    } catch (e) {
+      toast.error("Failed to generate draft");
+    } finally {
+      setDrafting(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await axios.post(`${API}/api/admin/outreach/save-draft`, null, {
+        headers: getAdminHeaders(),
+        params: { paper_id: paper.id, handle: draft.handle, text: editText },
+      });
+      toast.success("Draft saved");
+      setDraft(prev => ({ ...prev, draft_text: editText }));
+    } catch {
+      toast.error("Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <tr className="border-b last:border-0 hover:bg-muted/10">
-      <td className="px-3 py-2 w-8 text-center text-lg align-top pt-2.5">{medal}</td>
-      <td className="px-3 py-2 align-top" style={{width: "45%"}}>
-        <div className="font-medium text-[13px] leading-snug">{paper.title}</div>
-        <div className="text-[11px] text-muted-foreground mt-0.5">
-          {(paper.authors || []).slice(0, 3).join(", ")}
-          {paper.arxiv_id && (
-            <a href={`https://arxiv.org/abs/${paper.arxiv_id}`} target="_blank" rel="noopener noreferrer"
-              className="ml-2 text-accent hover:underline"
-            >{paper.arxiv_id}</a>
-          )}
-        </div>
-      </td>
-      <td className="px-2 py-2 text-xs font-mono text-center align-top pt-3 w-14">{paper.ai_rating || "—"}</td>
-      <td className="px-3 py-2 align-top">
-        {candidates.length > 0 ? (
-          <div className="space-y-1">
-            {candidates.slice(0, 2).map(c => (
-              <div key={c.handle} className="flex items-center gap-2 text-[11px]">
-                <a href={`https://x.com/${c.handle}`} target="_blank" rel="noopener noreferrer"
-                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border font-medium shrink-0 ${CONFIDENCE_COLORS[c.confidence]} hover:opacity-80`}
-                >
-                  <Twitter className="h-2.5 w-2.5" />@{c.handle}
-                </a>
-                {c.tweet_url && (
-                  <a href={c.tweet_url} target="_blank" rel="noopener noreferrer"
-                    className={`truncate flex items-center gap-1 ${
-                      (c.tweet_likes > 0 || c.tweet_retweets > 0) ? "text-blue-600" : "text-muted-foreground"
-                    } hover:text-foreground`}
-                    title={c.tweet_text}
-                  >
-                    <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-                    <span className="truncate">{c.tweet_text?.slice(0, 50)}{c.tweet_text?.length > 50 ? "..." : ""}</span>
-                  </a>
-                )}
-              </div>
-            ))}
+    <>
+      <tr className="border-b last:border-0 hover:bg-muted/10">
+        <td className="px-3 py-2 w-8 text-center text-lg align-top pt-2.5">{medal}</td>
+        <td className="px-3 py-2 align-top" style={{width: "40%"}}>
+          <div className="font-medium text-[13px] leading-snug">{paper.title}</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">
+            {(paper.authors || []).slice(0, 3).join(", ")}
+            {paper.arxiv_id && (
+              <a href={`https://arxiv.org/abs/${paper.arxiv_id}`} target="_blank" rel="noopener noreferrer"
+                className="ml-2 text-accent hover:underline"
+              >{paper.arxiv_id}</a>
+            )}
           </div>
-        ) : paper.discovered ? (
-          <span className="text-[10px] text-muted-foreground italic">No tweets found</span>
-        ) : (
-          <span className="text-[10px] text-gray-400">—</span>
-        )}
-      </td>
-    </tr>
+        </td>
+        <td className="px-2 py-2 text-xs font-mono text-center align-top pt-3 w-14">{paper.ai_rating || "—"}</td>
+        <td className="px-3 py-2 align-top">
+          {candidates.length > 0 ? (
+            <div className="space-y-1">
+              {candidates.slice(0, 2).map(c => (
+                <div key={c.handle} className="flex items-center gap-2 text-[11px]">
+                  <a href={`https://x.com/${c.handle}`} target="_blank" rel="noopener noreferrer"
+                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border font-medium shrink-0 ${CONFIDENCE_COLORS[c.confidence]} hover:opacity-80`}
+                  >
+                    <Twitter className="h-2.5 w-2.5" />@{c.handle}
+                  </a>
+                  {c.tweet_url && (
+                    <a href={c.tweet_url} target="_blank" rel="noopener noreferrer"
+                      className={`truncate flex items-center gap-1 ${
+                        (c.tweet_likes > 0 || c.tweet_retweets > 0) ? "text-blue-600" : "text-muted-foreground"
+                      } hover:text-foreground`}
+                      title={c.tweet_text}
+                    >
+                      <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                      <span className="truncate">{c.tweet_text?.slice(0, 50)}{c.tweet_text?.length > 50 ? "..." : ""}</span>
+                    </a>
+                  )}
+                  {c.tweet_url && (
+                    <button onClick={() => handleDraft(c)} disabled={drafting}
+                      className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-accent text-accent hover:bg-accent hover:text-background transition-colors disabled:opacity-50"
+                    >
+                      {drafting ? "..." : "Draft Quote"}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : paper.discovered ? (
+            <span className="text-[10px] text-muted-foreground italic">No tweets found</span>
+          ) : (
+            <span className="text-[10px] text-gray-400">—</span>
+          )}
+        </td>
+      </tr>
+      {draft && (
+        <tr className="bg-accent/5">
+          <td colSpan={4} className="px-6 py-3">
+            <div className="max-w-2xl">
+              <div className="flex items-center gap-2 mb-2">
+                <Twitter className="h-4 w-4 text-accent" />
+                <span className="text-xs font-semibold">Quote Tweet Draft</span>
+                <span className="text-[10px] text-muted-foreground">quoting @{draft.handle}</span>
+                <a href={draft.tweet_url} target="_blank" rel="noopener noreferrer"
+                  className="text-[10px] text-accent hover:underline flex items-center gap-0.5 ml-auto"
+                >
+                  Original tweet <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+              </div>
+              <textarea
+                value={editText}
+                onChange={e => setEditText(e.target.value)}
+                rows={4}
+                className="w-full text-sm border rounded-md p-2.5 bg-background resize-none focus:outline-none focus:ring-1 focus:ring-accent"
+                data-testid="draft-textarea"
+              />
+              <div className="flex items-center justify-between mt-2">
+                <span className={`text-[10px] ${editText.length > 280 ? "text-red-500 font-semibold" : "text-muted-foreground"}`}>
+                  {editText.length} / 280 chars
+                </span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setDraft(null)}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >Dismiss</button>
+                  <Button onClick={handleSave} disabled={saving || editText.length > 280} size="sm" variant="outline" className="text-xs h-7">
+                    {saving ? "Saving..." : "Save Draft"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
