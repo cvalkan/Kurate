@@ -84,15 +84,34 @@ async def discover_handles_for_paper(paper: dict) -> dict:
             logger.warning(f"Tweet search failed for '{title[:40]}': {e}")
 
     # Extract candidate handles
-    candidates = []
-    seen_handles = set()
+    # Group tweets by author, prefer the first tweet in a thread (1/N) or earliest
+    tweets_by_author = {}
     for t in all_tweets:
         author = t.get("author", {})
         username = author.get("username", "")
-        if not username or username.lower() in seen_handles or _is_bot(username):
+        if not username or _is_bot(username):
             continue
-        seen_handles.add(username.lower())
+        key = username.lower()
+        if key not in tweets_by_author:
+            tweets_by_author[key] = []
+        tweets_by_author[key].append(t)
 
+    candidates = []
+    for username_lower, author_tweets in tweets_by_author.items():
+        # Pick the best tweet: prefer thread starters (1/N), then earliest by ID
+        def _tweet_sort_key(t):
+            text = t.get("text", "")
+            # Thread starters: "1/", "(1/", "[1/"
+            is_start = any(text.lstrip().startswith(p) for p in ["1/", "(1/", "[1/", "🧵"])
+            # Conversation root (not a reply)
+            is_root = not t.get("inReplyToId") and t.get("id") == t.get("conversationId", t.get("id"))
+            return (0 if is_start else (1 if is_root else 2), t.get("id", ""))
+        
+        author_tweets.sort(key=_tweet_sort_key)
+        t = author_tweets[0]  # Best tweet for this author
+        
+        author = t.get("author", {})
+        username = author.get("username", "")
         name = author.get("name", "")
         bio = author.get("bio", "")
         followers = author.get("followers", 0)
