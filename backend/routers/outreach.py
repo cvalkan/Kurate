@@ -1,6 +1,7 @@
 """Admin routes for X/Twitter outreach handle discovery."""
 
 import asyncio
+import os
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
@@ -9,6 +10,8 @@ from core.config import db, logger
 from routers.admin import verify_admin
 
 router = APIRouter(prefix="/api/admin/outreach", tags=["admin-outreach"])
+
+TWEETAPI_KEY = os.environ.get("TWEETAPI_KEY", "")
 
 
 class DiscoverRequest(BaseModel):
@@ -265,64 +268,58 @@ class DraftTweetRequest(BaseModel):
     period_label: str = ""  # e.g. "Week 17, 2026"
 
 
+def _build_congrats_text(paper: dict, handle: str, rank: int, category: str, period_label: str, share_url: str) -> str:
+    """Build standard badge congratulations text, matching BadgePage format."""
+    authors = paper.get("authors", [])
+    author_text = authors[0] if len(authors) == 1 else (
+        f"{authors[0]} & {authors[1]}" + (f" et al." if len(authors) > 2 else "")
+    ) if authors else "the authors"
+
+    tier = {1: "Gold ", 2: "Silver ", 3: "Bronze "}.get(rank, "")
+    medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(rank, "🏅")
+    arxiv_id = paper.get("arxiv_id", "")
+
+    text = f"{medal} Congrats to @{handle} for ranking #{rank} {tier}in {category} Preprints"
+    if period_label:
+        text += f" ({period_label})"
+    text += f" on Kurate.org!"
+    text += f"\n\n{share_url}"
+
+    return text
+
+
+def _build_share_url(paper_id: str, category: str, year: int = None, week: int = None, month: int = None) -> str:
+    """Build the badge share URL that has OG meta tags for unfurling."""
+    if week:
+        return f"https://kurate.org/api/badge/{category}/{year}/w{week}/{paper_id}/share"
+    elif month:
+        return f"https://kurate.org/api/badge/{category}/{year}/m{month}/{paper_id}/share"
+    return f"https://kurate.org/paper/{paper_id}"
+
+
 @router.post("/draft-tweet", dependencies=[Depends(verify_admin)])
 async def draft_tweet(body: DraftTweetRequest):
-    """Generate a draft quote tweet congratulating a paper medalist."""
+    """Generate a draft quote tweet using standard badge congratulations text."""
     paper = await db.papers.find_one(
         {"id": body.paper_id},
-        {"_id": 0, "title": 1, "authors": 1, "arxiv_id": 1, "abstract": 1,
-         "ai_rating": 1, "categories": 1}
+        {"_id": 0, "title": 1, "authors": 1, "arxiv_id": 1, "categories": 1}
     )
     if not paper:
         raise HTTPException(404, "Paper not found")
 
-    medal = {1: "gold", 2: "silver", 3: "bronze"}.get(body.rank, f"#{body.rank}")
-    medal_emoji = {1: "🥇", 2: "🥈", 3: "🥉"}.get(body.rank, "🏅")
+    # Parse period to get year/week/month for badge URL
+    year, week, month = None, None, None
+    if body.period_label:
+        import re
+        wm = re.search(r'Week (\d+),?\s*(\d{4})', body.period_label)
+        mm = re.search(r'(\w+)\s+(\d{4})', body.period_label)
+        if wm:
+            week, year = int(wm.group(1)), int(wm.group(2))
+        elif mm:
+            year = int(mm.group(2))
 
-    # Build the badge URL
-    # Find the archive entry to get year/week
-    badge_url = f"https://kurate.org/paper/{body.paper_id}"
-
-    # Generate draft text with Claude
-    from services.llm import _ANTHROPIC_DIRECT_KEY
-    import litellm
-    prompt = f"""Write a short congratulatory quote tweet (max 240 chars, leave room for the link) for an academic paper that won {medal} medal {medal_emoji} in the {body.category} category on kurate.org's AI paper rankings{' for ' + body.period_label if body.period_label else ''}.
-
-Paper: "{paper['title']}"
-Authors: {', '.join(paper.get('authors', [])[:3])}
-Author X handle: @{body.handle}
-Rating: {paper.get('ai_rating', 'N/A')}/10
-
-Rules:
-- Tag @{body.handle}
-- Include {medal_emoji}
-- Mention the category naturally
-- Be genuine and specific about what makes the paper notable (use the title)
-- Don't use hashtags
-- Don't say "Congratulations" — be more creative
-- End with the kurate.org link
-- Keep it under 240 chars total (excluding the quoted tweet)
-
-Output ONLY the tweet text, nothing else."""
-
-    try:
-        litellm.suppress_debug_info = True
-        resp = litellm.completion(
-            model="anthropic/claude-sonnet-4-5",
-            messages=[{"role": "user", "content": prompt}],
-            api_key=_ANTHROPIC_DIRECT_KEY,
-            max_tokens=150,
-            temperature=0.8,
-        )
-        draft = resp.choices[0].message.content.strip().strip('"')
-    except Exception as e:
-        # Fallback template
-        logger.warning(f"Draft generation failed: {e}")
-        short_title = paper["title"][:60] + ("..." if len(paper["title"]) > 60 else "")
-        draft = f"{medal_emoji} @{body.handle}'s \"{short_title}\" takes {medal} in {body.category} on kurate.org!\n\n{badge_url}"
-
-    if badge_url not in draft:
-        draft = draft.rstrip() + f"\n\n{badge_url}"
+    share_url = _build_share_url(body.paper_id, body.category, year, week, month)
+    draft_text = _build_congrats_text(paper, body.handle, body.rank, body.category, body.period_label, share_url)
 
     # Store draft
     draft_doc = {
@@ -332,8 +329,8 @@ Output ONLY the tweet text, nothing else."""
         "category": body.category,
         "rank": body.rank,
         "period_label": body.period_label,
-        "draft_text": draft,
-        "badge_url": badge_url,
+        "draft_text": draft_text,
+        "share_url": share_url,
         "status": "draft",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -344,8 +341,8 @@ Output ONLY the tweet text, nothing else."""
     )
 
     return {
-        "draft_text": draft,
-        "badge_url": badge_url,
+        "draft_text": draft_text,
+        "share_url": share_url,
         "tweet_url": body.tweet_url,
         "handle": body.handle,
         "paper_id": body.paper_id,
@@ -360,6 +357,64 @@ async def save_draft(paper_id: str, handle: str, text: str):
         {"$set": {"draft_text": text, "status": "edited", "edited_at": datetime.now(timezone.utc).isoformat()}},
     )
     return {"status": "ok"}
+
+
+class PostTweetRequest(BaseModel):
+    paper_id: str
+    handle: str
+
+
+@router.post("/post-tweet", dependencies=[Depends(verify_admin)])
+async def post_tweet(body: PostTweetRequest):
+    """Post a draft tweet as a quote tweet from @kurateorg via TweetAPI."""
+    draft = await db.tweet_drafts.find_one(
+        {"paper_id": body.paper_id, "handle": body.handle},
+        {"_id": 0},
+    )
+    if not draft:
+        raise HTTPException(404, "No draft found for this paper/handle")
+
+    auth_token = os.environ.get("TWITTER_AUTH_TOKEN")
+    proxy = os.environ.get("TWITTER_PROXY", "")
+    if not auth_token:
+        raise HTTPException(500, "TWITTER_AUTH_TOKEN not configured")
+
+    from tweetapi import TweetAPI
+    client = TweetAPI(api_key=TWEETAPI_KEY)
+
+    try:
+        # Post as quote tweet of the original author's tweet
+        kwargs = {
+            "auth_token": auth_token,
+            "text": draft["draft_text"],
+            "attachment_url": draft["tweet_url"],
+        }
+        if proxy:
+            kwargs["proxy"] = proxy
+        else:
+            kwargs["proxy"] = ""
+
+        result = client.post.create_post_quote(**kwargs)
+
+        # Update draft status
+        await db.tweet_drafts.update_one(
+            {"paper_id": body.paper_id, "handle": body.handle},
+            {"$set": {
+                "status": "posted",
+                "posted_at": datetime.now(timezone.utc).isoformat(),
+                "tweet_result": str(result)[:500],
+            }},
+        )
+        logger.info(f"[outreach] Posted quote tweet for {body.paper_id} quoting @{body.handle}")
+        return {"status": "posted", "result": str(result)[:300]}
+
+    except Exception as e:
+        logger.error(f"[outreach] Failed to post tweet: {e}")
+        await db.tweet_drafts.update_one(
+            {"paper_id": body.paper_id, "handle": body.handle},
+            {"$set": {"status": "post_failed", "post_error": str(e)[:500]}},
+        )
+        raise HTTPException(500, f"Failed to post: {str(e)[:200]}")
 
 
 @router.get("/drafts", dependencies=[Depends(verify_admin)])
