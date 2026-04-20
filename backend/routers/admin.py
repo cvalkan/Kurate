@@ -2419,6 +2419,61 @@ async def reconcile_rankings_endpoint(category: str = None):
     return {"status": "ok", "results": results}
 
 
+
+@router.post("/dedup-archives", dependencies=[Depends(verify_admin)])
+async def dedup_archives():
+    """Remove duplicate medalists from archives. A paper that won a medal (rank 1-3)
+    in an earlier archive shouldn't appear in subsequent archives of the same period type.
+    Re-ranks remaining papers after removing duplicates."""
+    from collections import defaultdict
+    
+    fixed = 0
+    for period_type in ["weekly", "monthly"]:
+        # Get all archives sorted chronologically
+        sort_key = "week" if period_type == "weekly" else "month"
+        archives = await db.leaderboard_archives.find(
+            {"period_type": period_type},
+            {"_id": 1, "category": 1, "year": 1, sort_key: 1, "leaderboard": 1},
+        ).sort([("category", 1), ("year", 1), (sort_key, 1)]).to_list(10000)
+        
+        # Group by category
+        by_cat = defaultdict(list)
+        for a in archives:
+            by_cat[a["category"]].append(a)
+        
+        for category, cat_archives in by_cat.items():
+            prior_medalists = set()  # IDs that already won medals
+            for archive in cat_archives:
+                lb = archive.get("leaderboard", [])
+                if not lb:
+                    continue
+                
+                # Remove prior medalists from this archive's leaderboard
+                original_len = len(lb)
+                cleaned = [e for e in lb if e.get("id") not in prior_medalists]
+                
+                if len(cleaned) < original_len:
+                    # Re-rank
+                    for i, entry in enumerate(cleaned, 1):
+                        entry["rank"] = i
+                    
+                    await db.leaderboard_archives.update_one(
+                        {"_id": archive["_id"]},
+                        {"$set": {
+                            "leaderboard": cleaned,
+                            "paper_count": len(cleaned),
+                        }},
+                    )
+                    fixed += original_len - len(cleaned)
+                
+                # Add this archive's top-3 to prior medalists
+                for entry in cleaned[:3]:
+                    if entry.get("id"):
+                        prior_medalists.add(entry["id"])
+    
+    return {"status": "ok", "duplicates_removed": fixed}
+
+
 @router.post("/rerank-all", dependencies=[Depends(verify_admin)])
 async def rerank_all_endpoint():
     """Trigger an immediate rerank of all categories.

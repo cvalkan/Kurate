@@ -1663,12 +1663,46 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
         return None  # Already archived
 
     # Get papers for this period from rankings DB
-    period_filter = _build_period_filter("month" if period_type == "monthly" else "week")
+    # Use calendar boundaries (not rolling window) to prevent cross-period overlap
+    if period_type == "monthly":
+        from calendar import monthrange
+        month_start = f"{year}-{month:02d}-01T00:00:00+00:00"
+        _, last_day = monthrange(year, month)
+        next_month = month + 1 if month < 12 else 1
+        next_year = year if month < 12 else year + 1
+        month_end = f"{next_year}-{next_month:02d}-01T00:00:00+00:00"
+        period_filter = {"published": {"$gte": month_start, "$lt": month_end}}
+    else:
+        # Weekly: use ISO week boundaries
+        from datetime import date
+        # Monday of this ISO week
+        week_start_date = date.fromisocalendar(year, week, 1)
+        week_end_date = week_start_date + timedelta(days=7)
+        period_filter = {"published": {
+            "$gte": f"{week_start_date.isoformat()}T00:00:00+00:00",
+            "$lt": f"{week_end_date.isoformat()}T00:00:00+00:00",
+        }}
+
     rank_query = {"category": category, "is_latest_version": {"$ne": False}}
     rank_query.update(period_filter)
     source_entries = await db.rankings.find(rank_query, _RANK_PROJ).sort("ts_score", -1).to_list(10000)
     if not source_entries:
         return None
+
+    # Exclude papers that already won medals (rank 1-3) in previous archives of the same type
+    prior_medalist_ids = set()
+    async for prior_archive in db.leaderboard_archives.find(
+        {"category": category, "period_type": period_type,
+         "$or": [{"year": {"$lt": year}},
+                 {"year": year, "week" if period_type == "weekly" else "month": {"$lt": week if period_type == "weekly" else month}}]},
+        {"_id": 0, "leaderboard": {"$slice": 3}},
+    ):
+        for entry in prior_archive.get("leaderboard", []):
+            if entry.get("rank", 99) <= 3:
+                prior_medalist_ids.add(entry.get("id"))
+
+    if prior_medalist_ids:
+        source_entries = [e for e in source_entries if e.get("paper_id") not in prior_medalist_ids]
 
     # Freeze the leaderboard: store essential fields only
     frozen_entries = []
