@@ -383,18 +383,18 @@ async def post_tweet(body: PostTweetRequest):
     client = TweetAPI(api_key=TWEETAPI_KEY)
 
     try:
-        # Post as quote tweet of the original author's tweet
+        # Extract tweet ID from URL
+        tweet_id = draft["tweet_url"].rstrip("/").split("/")[-1]
+
+        # Post as reply to the original author's tweet (badge URL unfurls in reply)
         kwargs = {
             "auth_token": auth_token,
             "text": draft["draft_text"],
-            "attachment_url": draft["tweet_url"],
+            "tweet_id": tweet_id,
+            "proxy": proxy,
         }
-        if proxy:
-            kwargs["proxy"] = proxy
-        else:
-            kwargs["proxy"] = ""
 
-        result = client.post.create_post_quote(**kwargs)
+        result = client.post.reply_post(**kwargs)
 
         # Update draft status
         await db.tweet_drafts.update_one(

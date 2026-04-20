@@ -489,7 +489,7 @@ function MedalistRow({ paper, medal, category, periodLabel }) {
   const [posted, setPosted] = useState(false);
 
   const handlePost = async () => {
-    if (!window.confirm("Post this quote tweet from @kurateorg?")) return;
+    if (!window.confirm("Reply to this tweet from @kurateorg with the badge?")) return;
     setPosting(true);
     try {
       await axios.post(`${API}/api/admin/outreach/post-tweet`, {
@@ -630,7 +630,7 @@ function MedalistRow({ paper, medal, category, periodLabel }) {
                   </Button>
                   <Button onClick={handlePost} disabled={posting || posted || editText.length > 280} size="sm" className="text-xs h-7 gap-1">
                     <Twitter className="h-3 w-3" />
-                    {posted ? "Posted!" : posting ? "Posting..." : "Post from @kurateorg"}
+                    {posted ? "Replied!" : posting ? "Replying..." : "Reply from @kurateorg"}
                   </Button>
                 </div>
               </div>
