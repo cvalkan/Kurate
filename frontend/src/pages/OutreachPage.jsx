@@ -41,6 +41,7 @@ export default function OutreachPage() {
   const [medalists, setMedalists] = useState(null);
   const [medalistsLoading, setMedalistsLoading] = useState(false);
   const [discoveringMedalists, setDiscoveringMedalists] = useState(false);
+  const [medalistPeriod, setMedalistPeriod] = useState("current");
 
   // Auth
   const handleLogin = async () => {
@@ -91,12 +92,12 @@ export default function OutreachPage() {
     setMedalistsLoading(true);
     try {
       const res = await axios.get(`${API}/api/admin/outreach/medalists`, {
-        headers: getAdminHeaders(), params: { period: "current", top_n: 3 },
+        headers: getAdminHeaders(), params: { period: medalistPeriod, top_n: 3 },
       });
       setMedalists(res.data);
     } catch { }
     finally { setMedalistsLoading(false); }
-  }, [authed]);
+  }, [authed, medalistPeriod]);
 
   useEffect(() => { if (viewMode === "medalists") loadMedalists(); }, [viewMode, loadMedalists]);
 
@@ -105,7 +106,7 @@ export default function OutreachPage() {
     setDiscoveringMedalists(true);
     try {
       const res = await axios.post(`${API}/api/admin/outreach/discover-medalists`, null, {
-        headers: getAdminHeaders(), params: { period: "current", top_n: 3 },
+        headers: getAdminHeaders(), params: { period: medalistPeriod, top_n: 3 },
       });
       if (res.data.status === "started") {
         toast.success(res.data.message);
@@ -252,6 +253,8 @@ export default function OutreachPage() {
             discovering={discoveringMedalists}
             onDiscover={handleDiscoverMedalists}
             onRefresh={loadMedalists}
+            period={medalistPeriod}
+            setPeriod={setMedalistPeriod}
           />
         ) : (
         <>
@@ -370,7 +373,27 @@ export default function OutreachPage() {
 
 const MEDAL = ["🥇", "🥈", "🥉"];
 
-function MedalistsView({ medalists, loading, discovering, onDiscover, onRefresh }) {
+function MedalistsView({ medalists, loading, discovering, onDiscover, onRefresh, period, setPeriod }) {
+  const [weeklyArchives, setWeeklyArchives] = useState([]);
+
+  // Load available weekly archives
+  useEffect(() => {
+    axios.get(`${API}/api/leaderboard/archives?category=cs.RO`, { headers: getAdminHeaders() })
+      .then(r => {
+        const arcs = (r.data.archives || []).filter(a => a.period_type === "weekly");
+        // Dedupe by year-week
+        const seen = new Set();
+        const unique = arcs.filter(a => {
+          const key = `${a.year}-${a.week}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        setWeeklyArchives(unique.slice(0, 20));
+      })
+      .catch(() => {});
+  }, []);
+
   if (loading || !medalists) {
     return <div className="text-center py-12 text-muted-foreground">Loading medalists...</div>;
   }
@@ -381,7 +404,31 @@ function MedalistsView({ medalists, loading, discovering, onDiscover, onRefresh 
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-5">
+      <div className="flex items-center gap-3 mb-5 flex-wrap">
+        {/* Period selector */}
+        <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md">
+          <button onClick={() => setPeriod("current")}
+            className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
+              period === "current" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >Current</button>
+        </div>
+
+        {weeklyArchives.length > 0 && (
+          <select
+            value={period.startsWith("archive:") ? period.split(":")[1] : ""}
+            onChange={e => setPeriod(e.target.value ? `archive:${e.target.value}` : "current")}
+            className="h-8 px-2 text-xs border rounded-md bg-background"
+          >
+            <option value="">Weekly Archive...</option>
+            {weeklyArchives.map(a => (
+              <option key={`${a.year}-${a.week}`} value={`${a.year}-${a.week}`}>
+                {a.label || `Week ${a.week}, ${a.year}`}
+              </option>
+            ))}
+          </select>
+        )}
+
         <Button onClick={onDiscover} disabled={discovering} size="sm" className="gap-1.5">
           {discovering ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
           {discovering ? "Searching..." : "Find All Tweets"}
