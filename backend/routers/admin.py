@@ -2439,8 +2439,13 @@ async def rebuild_archives():
     default_freq = freq_config.get("default", "weekly")
     
     # Split categories by their archive type
-    weekly_cats = [c for c in cats if freq_config.get(c, default_freq) == "weekly"]
-    monthly_cats = [c for c in cats if freq_config.get(c, default_freq) == "monthly"]
+    # If no config exists, create both weekly AND monthly for all categories
+    if freq_config:
+        weekly_cats = [c for c in cats if freq_config.get(c, default_freq) == "weekly"]
+        monthly_cats = [c for c in cats if freq_config.get(c, default_freq) == "monthly"]
+    else:
+        weekly_cats = list(cats)
+        monthly_cats = list(cats)
     
     # Collect all (year, week) and (year, month) from published dates
     weeks_seen = set()

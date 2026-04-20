@@ -90,7 +90,8 @@ async def get_medalists(period: str = "current", top_n: int = 3):
     # Get archive_frequency setting to filter categories
     settings = await db.settings.find_one({"key": "settings"}, {"_id": 0}) or {}
     freq_config = settings.get("archive_frequency") or {}
-    default_freq = freq_config.get("default", "weekly")
+    # If no frequency config exists, show all categories in both views (no filtering)
+    has_freq_config = bool(freq_config)
 
     async for archive in db.leaderboard_archives.find(
         {"period_type": period_type, **query_filter},
@@ -98,10 +99,12 @@ async def get_medalists(period: str = "current", top_n: int = 3):
     ):
         cat = archive["category"]
         
-        # Only include categories whose configured frequency matches
-        cat_freq = freq_config.get(cat, default_freq)
-        if cat_freq != period_type:
-            continue
+        # Only filter by frequency if the setting exists
+        if has_freq_config:
+            default_freq = freq_config.get("default", "weekly")
+            cat_freq = freq_config.get(cat, default_freq)
+            if cat_freq != period_type:
+                continue
         papers = []
         for p in archive.get("leaderboard", [])[:top_n]:
             disc = await db.x_handle_discoveries.find_one(
@@ -181,7 +184,7 @@ async def get_archive_periods():
             "total_papers": doc["total_papers"],
         })
     
-    return {"weekly": weekly, "monthly": monthly, "archive_frequency": freq_config, "default_frequency": default_freq}
+    return {"weekly": weekly, "monthly": monthly, "archive_frequency": freq_config, "default_frequency": default_freq if freq_config else None}
 
 
 
