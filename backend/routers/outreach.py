@@ -283,7 +283,6 @@ def _build_congrats_text(paper: dict, handle: str, rank: int, category: str, per
     if period_label:
         text += f" ({period_label})"
     text += f" on Kurate.org!"
-    text += f"\n\n{share_url}"
 
     return text
 
