@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Settings, Activity, LogOut, FileText, Save, HelpCircle, FlaskConical, MessageSquare, Users,
-  Sliders,
+  Sliders, Twitter,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminOverview } from "@/components/AdminOverview";
@@ -288,6 +288,10 @@ export default function AdminPage() {
             </Button>
           );
         })}
+        <a href="/admin/outreach" className="inline-flex items-center gap-1.5 text-xs h-8 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors">
+          <Twitter className="h-3.5 w-3.5" />
+          X Outreach
+        </a>
       </div>
 
       {activeTab === "statistics" && (
