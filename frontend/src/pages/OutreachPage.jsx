@@ -240,11 +240,11 @@ export default function OutreachPage() {
             <thead>
               <tr className="bg-muted/30 border-b">
                 <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-8">#</th>
-                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Paper</th>
-                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-20">Score</th>
-                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-20">Rating</th>
-                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-20">Status</th>
-                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">X Handles Found</th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground" style={{width: "40%"}}>Paper</th>
+                <th className="text-center px-2 py-2 text-xs font-medium text-muted-foreground w-14">Score</th>
+                <th className="text-center px-2 py-2 text-xs font-medium text-muted-foreground w-14">Rating</th>
+                <th className="text-center px-2 py-2 text-xs font-medium text-muted-foreground w-16">Tweets</th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">X Handles & Tweets</th>
               </tr>
             </thead>
             <tbody>
@@ -270,15 +270,16 @@ function PaperRow({ paper, index }) {
   const candidates = paper.candidates || [];
   const highConf = candidates.filter(c => c.confidence === "high");
   const medConf = candidates.filter(c => c.confidence === "medium");
+  const allVisible = [...highConf, ...medConf.slice(0, 2)];
 
   return (
     <>
       <tr className="border-b hover:bg-muted/10 cursor-pointer" onClick={() => candidates.length > 0 && setExpanded(!expanded)}
         data-testid={`outreach-paper-${paper.id?.slice(0, 8)}`}
       >
-        <td className="px-3 py-2.5 text-xs text-muted-foreground">{index + 1}</td>
-        <td className="px-3 py-2.5">
-          <div className="font-medium text-sm leading-snug">{paper.title}</div>
+        <td className="px-3 py-2 text-xs text-muted-foreground align-top pt-3">{index + 1}</td>
+        <td className="px-3 py-2 align-top" style={{width: "40%"}}>
+          <div className="font-medium text-[13px] leading-snug">{paper.title}</div>
           <div className="text-[11px] text-muted-foreground mt-0.5">
             {(paper.authors || []).slice(0, 3).join(", ")}
             {paper.arxiv_id && (
@@ -290,37 +291,50 @@ function PaperRow({ paper, index }) {
             )}
           </div>
         </td>
-        <td className="px-3 py-2.5 text-xs font-mono">{paper.ts_score || "—"}</td>
-        <td className="px-3 py-2.5 text-xs font-mono">{paper.ai_rating || "—"}</td>
-        <td className="px-3 py-2.5">
+        <td className="px-2 py-2 text-xs font-mono text-center align-top pt-3">{paper.ts_score || "—"}</td>
+        <td className="px-2 py-2 text-xs font-mono text-center align-top pt-3">{paper.ai_rating || "—"}</td>
+        <td className="px-2 py-2 text-center align-top pt-3">
           {paper.discovered ? (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200">
-              {paper.total_tweets} tweets
+              {paper.total_tweets}
             </span>
           ) : (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-50 text-gray-500 border border-gray-200">
-              Not searched
-            </span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-50 text-gray-400 border border-gray-200">—</span>
           )}
         </td>
-        <td className="px-3 py-2.5">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {highConf.map(c => (
-              <HandleBadge key={c.handle} candidate={c} />
-            ))}
-            {medConf.slice(0, 2).map(c => (
-              <HandleBadge key={c.handle} candidate={c} />
-            ))}
-            {candidates.length > highConf.length + 2 && (
-              <span className="text-[10px] text-muted-foreground">+{candidates.length - highConf.length - 2} more</span>
-            )}
-            {paper.discovered && candidates.length === 0 && (
-              <span className="text-[10px] text-muted-foreground italic">No handles found</span>
-            )}
-            {candidates.length > 0 && (
-              <ChevronDown className={`h-3 w-3 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
-            )}
-          </div>
+        <td className="px-3 py-2 align-top">
+          {allVisible.length > 0 ? (
+            <div className="space-y-1">
+              {allVisible.map(c => (
+                <div key={c.handle} className="flex items-center gap-2 text-[11px]">
+                  <a href={`https://x.com/${c.handle}`} target="_blank" rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border font-medium shrink-0 ${CONFIDENCE_COLORS[c.confidence]} hover:opacity-80`}
+                  >
+                    <Twitter className="h-2.5 w-2.5" />@{c.handle}
+                  </a>
+                  {c.tweet_url && (
+                    <a href={c.tweet_url} target="_blank" rel="noopener noreferrer"
+                      onClick={e => e.stopPropagation()}
+                      className="text-muted-foreground hover:text-foreground truncate flex items-center gap-1"
+                      title={c.tweet_text}
+                    >
+                      <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                      <span className="truncate">{c.tweet_text?.slice(0, 60)}{c.tweet_text?.length > 60 ? "..." : ""}</span>
+                    </a>
+                  )}
+                </div>
+              ))}
+              {candidates.length > allVisible.length && (
+                <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
+                  +{candidates.length - allVisible.length} more
+                </div>
+              )}
+            </div>
+          ) : paper.discovered ? (
+            <span className="text-[10px] text-muted-foreground italic">No handles found</span>
+          ) : null}
         </td>
       </tr>
       {expanded && candidates.length > 0 && (
