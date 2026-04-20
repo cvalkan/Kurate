@@ -342,7 +342,9 @@ function PaperRow({ paper, index }) {
                   {c.tweet_url && (
                     <a href={c.tweet_url} target="_blank" rel="noopener noreferrer"
                       onClick={e => e.stopPropagation()}
-                      className="text-muted-foreground hover:text-foreground truncate flex items-center gap-1"
+                      className={`hover:text-foreground truncate flex items-center gap-1 ${
+                        (c.tweet_likes > 0 || c.tweet_retweets > 0) ? "text-blue-600" : "text-muted-foreground"
+                      }`}
                       title={c.tweet_text}
                     >
                       <ExternalLink className="h-2.5 w-2.5 shrink-0" />
