@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 from pathlib import Path
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import asyncio
 import hmac
 import uuid
@@ -2422,56 +2422,91 @@ async def reconcile_rankings_endpoint(category: str = None):
 
 @router.post("/dedup-archives", dependencies=[Depends(verify_admin)])
 async def dedup_archives():
-    """Remove duplicate medalists from archives. A paper that won a medal (rank 1-3)
-    in an earlier archive shouldn't appear in subsequent archives of the same period type.
-    Re-ranks remaining papers after removing duplicates."""
+    """Fix archives: remove papers outside their calendar period, exclude prior medalists,
+    and delete empty archives. Processes all existing archives."""
     from collections import defaultdict
+    from calendar import monthrange
     
-    fixed = 0
+    fixed_papers = 0
+    deleted_archives = 0
+    
     for period_type in ["weekly", "monthly"]:
-        # Get all archives sorted chronologically
         sort_key = "week" if period_type == "weekly" else "month"
         archives = await db.leaderboard_archives.find(
             {"period_type": period_type},
-            {"_id": 1, "category": 1, "year": 1, sort_key: 1, "leaderboard": 1},
+            {"_id": 1, "category": 1, "year": 1, sort_key: 1, "leaderboard": 1, "label": 1},
         ).sort([("category", 1), ("year", 1), (sort_key, 1)]).to_list(10000)
         
-        # Group by category
         by_cat = defaultdict(list)
         for a in archives:
             by_cat[a["category"]].append(a)
         
         for category, cat_archives in by_cat.items():
-            prior_medalists = set()  # IDs that already won medals
+            prior_medalists = set()
             for archive in cat_archives:
                 lb = archive.get("leaderboard", [])
                 if not lb:
                     continue
                 
-                # Remove prior medalists from this archive's leaderboard
-                original_len = len(lb)
-                cleaned = [e for e in lb if e.get("id") not in prior_medalists]
+                year = archive["year"]
+                period_val = archive.get(sort_key)
                 
-                if len(cleaned) < original_len:
-                    # Re-rank
-                    for i, entry in enumerate(cleaned, 1):
-                        entry["rank"] = i
+                # Build calendar boundaries for this period
+                if period_type == "monthly" and period_val:
+                    month_start = f"{year}-{period_val:02d}-01"
+                    _, last_day = monthrange(year, period_val)
+                    next_m = period_val + 1 if period_val < 12 else 1
+                    next_y = year if period_val < 12 else year + 1
+                    period_end = f"{next_y}-{next_m:02d}-01"
+                elif period_type == "weekly" and period_val:
+                    from datetime import date
+                    try:
+                        week_start = date.fromisocalendar(year, period_val, 1).isoformat()
+                        week_end = (date.fromisocalendar(year, period_val, 1) + timedelta(days=7)).isoformat()
+                        month_start = week_start
+                        period_end = week_end
+                    except ValueError:
+                        month_start, period_end = None, None
+                else:
+                    month_start, period_end = None, None
+                
+                original_len = len(lb)
+                cleaned = []
+                for entry in lb:
+                    pid = entry.get("id")
+                    pub = (entry.get("published") or "")[:10]
                     
+                    # Skip prior medalists
+                    if pid in prior_medalists:
+                        continue
+                    
+                    # Skip papers outside calendar boundaries
+                    if month_start and period_end and pub:
+                        if pub < month_start or pub >= period_end:
+                            continue
+                    
+                    cleaned.append(entry)
+                
+                # Re-rank
+                for i, entry in enumerate(cleaned, 1):
+                    entry["rank"] = i
+                
+                if len(cleaned) == 0:
+                    await db.leaderboard_archives.delete_one({"_id": archive["_id"]})
+                    deleted_archives += 1
+                elif len(cleaned) < original_len:
                     await db.leaderboard_archives.update_one(
                         {"_id": archive["_id"]},
-                        {"$set": {
-                            "leaderboard": cleaned,
-                            "paper_count": len(cleaned),
-                        }},
+                        {"$set": {"leaderboard": cleaned, "paper_count": len(cleaned)}},
                     )
-                    fixed += original_len - len(cleaned)
+                    fixed_papers += original_len - len(cleaned)
                 
-                # Add this archive's top-3 to prior medalists
+                # Track medalists for subsequent periods
                 for entry in cleaned[:3]:
                     if entry.get("id"):
                         prior_medalists.add(entry["id"])
     
-    return {"status": "ok", "duplicates_removed": fixed}
+    return {"status": "ok", "papers_removed": fixed_papers, "archives_deleted": deleted_archives}
 
 
 @router.post("/rerank-all", dependencies=[Depends(verify_admin)])
