@@ -2558,7 +2558,28 @@ async def normalize_ai_ratings():
             )
             corrected += 1
 
-    return {"status": "ok", "dict_to_float": total, "parsed_from_summary": parsed, "corrected_wrong_model": corrected}
+    # Phase 4: sync paper.ai_rating → ranking.ai_rating for ALL papers
+    # Catches cases where the paper doc was fixed but the ranking doc wasn't updated.
+    synced = 0
+    from pymongo import UpdateOne
+    ops = []
+    async for paper in db.papers.find(
+        {"ai_rating": {"$exists": True, "$ne": None, "$type": ["double", "int"]}},
+        {"_id": 0, "id": 1, "ai_rating": 1},
+    ):
+        ops.append(UpdateOne(
+            {"paper_id": paper["id"], "ai_rating": {"$ne": round(paper["ai_rating"], 1)}},
+            {"$set": {"ai_rating": round(paper["ai_rating"], 1)}},
+        ))
+        if len(ops) >= 500:
+            result = await db.rankings.bulk_write(ops, ordered=False)
+            synced += result.modified_count
+            ops = []
+    if ops:
+        result = await db.rankings.bulk_write(ops, ordered=False)
+        synced += result.modified_count
+
+    return {"status": "ok", "dict_to_float": total, "parsed_from_summary": parsed, "corrected_wrong_model": corrected, "synced_to_rankings": synced}
 
 
 
