@@ -110,16 +110,33 @@ export default function OutreachPage() {
       const body = { period: p, top_n: topN };
       if (selectedCat) body.category = selectedCat;
       const res = await axios.post(`${API}/api/admin/outreach/discover`, body, {
-        headers: getAdminHeaders(), timeout: 300000,
+        headers: getAdminHeaders(),
       });
-      toast.success(`Discovered handles for ${res.data.total_discovered} papers`);
-      loadDiscoveries();
-      // Refresh stats
-      axios.get(`${API}/api/admin/outreach/handle-stats`, { headers: getAdminHeaders() })
-        .then(r => setStats(r.data)).catch(() => {});
+      if (res.data.status === "started") {
+        toast.success(res.data.message);
+        // Poll for completion
+        const poll = setInterval(async () => {
+          try {
+            const status = await axios.get(`${API}/api/admin/outreach/discover-status`, { headers: getAdminHeaders() });
+            if (!status.data.running) {
+              clearInterval(poll);
+              setDiscovering(false);
+              loadDiscoveries();
+              axios.get(`${API}/api/admin/outreach/handle-stats`, { headers: getAdminHeaders() })
+                .then(r => setStats(r.data)).catch(() => {});
+              toast.success("Discovery complete!");
+            }
+          } catch { clearInterval(poll); setDiscovering(false); }
+        }, 3000);
+      } else if (res.data.status === "already_running") {
+        toast.info(`Already running (${res.data.progress}/${res.data.total})`);
+        setDiscovering(false);
+      } else {
+        toast.info(res.data.message || "No papers found");
+        setDiscovering(false);
+      }
     } catch (e) {
       toast.error(`Discovery failed: ${e.response?.data?.detail || e.message}`);
-    } finally {
       setDiscovering(false);
     }
   };

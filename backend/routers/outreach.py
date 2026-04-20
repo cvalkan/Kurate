@@ -1,6 +1,7 @@
 """Admin routes for X/Twitter outreach handle discovery."""
 
 import asyncio
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -16,29 +17,48 @@ class DiscoverRequest(BaseModel):
     top_n: int = 10
 
 
+_discover_status = {"running": False, "category": None, "progress": 0, "total": 0}
+
+
 @router.post("/discover", dependencies=[Depends(verify_admin)])
 async def discover_handles(body: DiscoverRequest):
-    """Discover X handles for top-N papers in a category/period.
-    
-    Skips papers already discovered. Returns cached + new results.
-    """
+    """Discover X handles for top-N papers. Runs in background, returns immediately."""
     from services.twitter import discover_handles_batch
 
-    # Get leaderboard papers
+    if _discover_status["running"]:
+        return {"status": "already_running", "progress": _discover_status["progress"], "total": _discover_status["total"]}
+
     papers = await _get_papers_for_period(body.category, body.period, body.top_n)
     if not papers:
-        return {"status": "no_papers", "papers": [], "message": "No papers found for this selection."}
+        return {"status": "no_papers", "message": "No papers found for this selection."}
 
-    # Run discovery (skips already-discovered papers)
-    results = await discover_handles_batch(papers)
+    _discover_status["running"] = True
+    _discover_status["category"] = body.category
+    _discover_status["progress"] = 0
+    _discover_status["total"] = len(papers)
+
+    async def _run():
+        try:
+            results = await discover_handles_batch(papers)
+            _discover_status["progress"] = len(results)
+        except Exception as e:
+            logger.error(f"Discovery failed: {e}")
+        finally:
+            _discover_status["running"] = False
+
+    asyncio.create_task(_run())
 
     return {
-        "status": "ok",
+        "status": "started",
         "total_requested": len(papers),
-        "total_discovered": len(results),
-        "new_discovered": sum(1 for r in results if r.get("discovered_at", "").startswith("20")),
-        "results": results,
+        "message": f"Searching X for {len(papers)} papers in background. Refresh to see results.",
     }
+
+
+@router.get("/discover-status", dependencies=[Depends(verify_admin)])
+async def discover_status():
+    """Check discovery progress."""
+    return _discover_status
 
 
 @router.get("/discoveries", dependencies=[Depends(verify_admin)])
@@ -147,17 +167,13 @@ async def _get_papers_for_period(category: str, period: str, top_n: int) -> list
     query = {"category": category} if category else {}
     
     if period == "recent":
-        # Most recent papers (last 3 days)
-        from datetime import timedelta
         cutoff = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
         query["added_at"] = {"$gte": cutoff}
     elif period == "7d":
-        from datetime import datetime as dt, timedelta, timezone
-        cutoff = (dt.now(timezone.utc) - timedelta(days=7)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
         query["added_at"] = {"$gte": cutoff}
     elif period == "30d":
-        from datetime import datetime as dt, timedelta, timezone
-        cutoff = (dt.now(timezone.utc) - timedelta(days=30)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
         query["added_at"] = {"$gte": cutoff}
 
     papers = []
