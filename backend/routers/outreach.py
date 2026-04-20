@@ -272,14 +272,13 @@ def _build_congrats_text(paper: dict, handle: str, all_candidates: list, rank: i
     """Build congrats text tagging all discovered handles, naming others."""
     authors = paper.get("authors", [])
 
-    # Map author names to discovered handles
+    # Map author names to discovered handles (only high-confidence matches)
     handle_map = {}
     for c in all_candidates:
-        ma = (c.get("matched_author") or "").lower()
-        if ma and c.get("handle"):
-            handle_map[ma] = c["handle"]
+        if c.get("confidence") == "high" and c.get("matched_author"):
+            handle_map[c["matched_author"].lower()] = c["handle"]
 
-    # Build author parts: @handle if discovered, plain name otherwise
+    # Build author parts: @handle if matched, plain name otherwise
     author_parts = []
     tagged = set()
     for a in authors[:3]:
@@ -289,9 +288,8 @@ def _build_congrats_text(paper: dict, handle: str, all_candidates: list, rank: i
             tagged.add(h)
         else:
             author_parts.append(a)
-    # Ensure primary handle is included even if not matched to an author name
-    if handle not in tagged:
-        author_parts.insert(0, f"@{handle}")
+    
+    # Don't add unmatched handles — they're not authors
 
     if len(authors) > 3:
         author_text = ", ".join(author_parts) + " et al."
