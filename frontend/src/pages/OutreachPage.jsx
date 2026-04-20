@@ -37,6 +37,10 @@ export default function OutreachPage() {
   const [stats, setStats] = useState(null);
   const [archives, setArchives] = useState([]);
   const [selectedArchive, setSelectedArchive] = useState("");
+  const [viewMode, setViewMode] = useState("medalists"); // "medalists" | "explorer"
+  const [medalists, setMedalists] = useState(null);
+  const [medalistsLoading, setMedalistsLoading] = useState(false);
+  const [discoveringMedalists, setDiscoveringMedalists] = useState(false);
 
   // Auth
   const handleLogin = async () => {
@@ -80,6 +84,53 @@ export default function OutreachPage() {
       })
       .catch(() => setArchives([]));
   }, [authed, selectedCat]);
+
+  // Load medalists
+  const loadMedalists = useCallback(async () => {
+    if (!authed) return;
+    setMedalistsLoading(true);
+    try {
+      const res = await axios.get(`${API}/api/admin/outreach/medalists`, {
+        headers: getAdminHeaders(), params: { period: "current", top_n: 3 },
+      });
+      setMedalists(res.data);
+    } catch { }
+    finally { setMedalistsLoading(false); }
+  }, [authed]);
+
+  useEffect(() => { if (viewMode === "medalists") loadMedalists(); }, [viewMode, loadMedalists]);
+
+  // Discover all medalist handles
+  const handleDiscoverMedalists = async () => {
+    setDiscoveringMedalists(true);
+    try {
+      const res = await axios.post(`${API}/api/admin/outreach/discover-medalists`, null, {
+        headers: getAdminHeaders(), params: { period: "current", top_n: 3 },
+      });
+      if (res.data.status === "started") {
+        toast.success(res.data.message);
+        const poll = setInterval(async () => {
+          try {
+            const status = await axios.get(`${API}/api/admin/outreach/discover-status`, { headers: getAdminHeaders() });
+            if (!status.data.running) {
+              clearInterval(poll);
+              setDiscoveringMedalists(false);
+              loadMedalists();
+              toast.success("Medalist discovery complete!");
+            } else {
+              loadMedalists(); // Refresh incrementally
+            }
+          } catch { clearInterval(poll); setDiscoveringMedalists(false); }
+        }, 4000);
+      } else {
+        toast.info(res.data.message || "Already running");
+        setDiscoveringMedalists(false);
+      }
+    } catch (e) {
+      toast.error(`Failed: ${e.response?.data?.detail || e.message}`);
+      setDiscoveringMedalists(false);
+    }
+  };
 
   // Load cached discoveries
   const loadDiscoveries = useCallback(async () => {
@@ -180,6 +231,30 @@ export default function OutreachPage() {
           )}
         </div>
 
+        {/* View toggle */}
+        <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md w-fit mb-5">
+          <button onClick={() => setViewMode("medalists")}
+            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${viewMode === "medalists" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            <Trophy className="h-3.5 w-3.5 inline mr-1" />Medalists
+          </button>
+          <button onClick={() => setViewMode("explorer")}
+            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${viewMode === "explorer" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            <Search className="h-3.5 w-3.5 inline mr-1" />Category Explorer
+          </button>
+        </div>
+
+        {viewMode === "medalists" ? (
+          <MedalistsView
+            medalists={medalists}
+            loading={medalistsLoading}
+            discovering={discoveringMedalists}
+            onDiscover={handleDiscoverMedalists}
+            onRefresh={loadMedalists}
+          />
+        ) : (
+        <>
         {/* Category tabs */}
         <div className="flex flex-wrap gap-1.5 mb-4" data-testid="outreach-category-tabs">
           <button
@@ -286,8 +361,115 @@ export default function OutreachPage() {
             </tbody>
           </table>
         </div>
+        </>
+        )}
       </div>
     </div>
+  );
+}
+
+const MEDAL = ["🥇", "🥈", "🥉"];
+
+function MedalistsView({ medalists, loading, discovering, onDiscover, onRefresh }) {
+  if (loading || !medalists) {
+    return <div className="text-center py-12 text-muted-foreground">Loading medalists...</div>;
+  }
+
+  const cats = medalists.categories || [];
+  const totalPapers = medalists.total_papers || 0;
+  const totalDiscovered = medalists.total_discovered || 0;
+
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-5">
+        <Button onClick={onDiscover} disabled={discovering} size="sm" className="gap-1.5">
+          {discovering ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+          {discovering ? "Searching..." : "Find All Tweets"}
+        </Button>
+        {discovering && (
+          <span className="text-xs text-muted-foreground animate-pulse">
+            Scanning medalists for tweets...
+          </span>
+        )}
+        <div className="ml-auto text-xs text-muted-foreground">
+          {totalPapers} medalists across {cats.length} categories · {totalDiscovered} searched
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {cats.map(cat => (
+          <div key={cat.category} className="border rounded-lg overflow-hidden">
+            <div className="bg-muted/30 px-4 py-2 border-b">
+              <span className="font-semibold text-sm">{cat.name || cat.category}</span>
+              <span className="text-xs text-muted-foreground ml-2">{cat.category}</span>
+            </div>
+            <table className="w-full text-sm">
+              <tbody>
+                {cat.papers.map((p, i) => (
+                  <MedalistRow key={p.id} paper={p} medal={MEDAL[i] || `#${i+1}`} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+        {cats.length === 0 && (
+          <div className="text-center py-12 text-muted-foreground">No medalists found. Rankings may still be loading.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MedalistRow({ paper, medal }) {
+  const candidates = paper.candidates || [];
+  const best = candidates[0];
+
+  return (
+    <tr className="border-b last:border-0 hover:bg-muted/10">
+      <td className="px-3 py-2 w-8 text-center text-lg align-top pt-2.5">{medal}</td>
+      <td className="px-3 py-2 align-top" style={{width: "45%"}}>
+        <div className="font-medium text-[13px] leading-snug">{paper.title}</div>
+        <div className="text-[11px] text-muted-foreground mt-0.5">
+          {(paper.authors || []).slice(0, 3).join(", ")}
+          {paper.arxiv_id && (
+            <a href={`https://arxiv.org/abs/${paper.arxiv_id}`} target="_blank" rel="noopener noreferrer"
+              className="ml-2 text-accent hover:underline"
+            >{paper.arxiv_id}</a>
+          )}
+        </div>
+      </td>
+      <td className="px-2 py-2 text-xs font-mono text-center align-top pt-3 w-14">{paper.ai_rating || "—"}</td>
+      <td className="px-3 py-2 align-top">
+        {candidates.length > 0 ? (
+          <div className="space-y-1">
+            {candidates.slice(0, 2).map(c => (
+              <div key={c.handle} className="flex items-center gap-2 text-[11px]">
+                <a href={`https://x.com/${c.handle}`} target="_blank" rel="noopener noreferrer"
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border font-medium shrink-0 ${CONFIDENCE_COLORS[c.confidence]} hover:opacity-80`}
+                >
+                  <Twitter className="h-2.5 w-2.5" />@{c.handle}
+                </a>
+                {c.tweet_url && (
+                  <a href={c.tweet_url} target="_blank" rel="noopener noreferrer"
+                    className={`truncate flex items-center gap-1 ${
+                      (c.tweet_likes > 0 || c.tweet_retweets > 0) ? "text-blue-600" : "text-muted-foreground"
+                    } hover:text-foreground`}
+                    title={c.tweet_text}
+                  >
+                    <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                    <span className="truncate">{c.tweet_text?.slice(0, 50)}{c.tweet_text?.length > 50 ? "..." : ""}</span>
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : paper.discovered ? (
+          <span className="text-[10px] text-muted-foreground italic">No tweets found</span>
+        ) : (
+          <span className="text-[10px] text-gray-400">—</span>
+        )}
+      </td>
+    </tr>
   );
 }
 
