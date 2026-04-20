@@ -114,7 +114,7 @@ export default function OutreachPage() {
       });
       if (res.data.status === "started") {
         toast.success(res.data.message);
-        // Poll for completion
+        // Poll for completion and refresh results incrementally
         const poll = setInterval(async () => {
           try {
             const status = await axios.get(`${API}/api/admin/outreach/discover-status`, { headers: getAdminHeaders() });
@@ -125,9 +125,12 @@ export default function OutreachPage() {
               axios.get(`${API}/api/admin/outreach/handle-stats`, { headers: getAdminHeaders() })
                 .then(r => setStats(r.data)).catch(() => {});
               toast.success("Discovery complete!");
+            } else {
+              // Refresh results while still running
+              loadDiscoveries();
             }
           } catch { clearInterval(poll); setDiscovering(false); }
-        }, 3000);
+        }, 4000);
       } else if (res.data.status === "already_running") {
         toast.info(`Already running (${res.data.progress}/${res.data.total})`);
         setDiscovering(false);
@@ -237,13 +240,19 @@ export default function OutreachPage() {
             <span className="text-xs text-muted-foreground">papers</span>
           </div>
 
-          {/* Discover button */}
+          {/* Discover button + progress */}
           <Button onClick={handleDiscover} disabled={discovering} size="sm" className="gap-1.5"
             data-testid="outreach-discover-btn"
           >
             {discovering ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-            {discovering ? "Searching X..." : `Find Handles (top ${topN})`}
+            {discovering ? `Searching X...` : `Find Handles (top ${topN})`}
           </Button>
+
+          {discovering && (
+            <span className="text-xs text-muted-foreground animate-pulse">
+              Scanning papers for tweets — results appear as they're found...
+            </span>
+          )}
 
           {/* Summary */}
           <div className="ml-auto text-xs text-muted-foreground">
@@ -285,9 +294,9 @@ export default function OutreachPage() {
 function PaperRow({ paper, index }) {
   const [expanded, setExpanded] = useState(false);
   const candidates = paper.candidates || [];
-  const highConf = candidates.filter(c => c.confidence === "high");
-  const medConf = candidates.filter(c => c.confidence === "medium");
-  const allVisible = [...highConf, ...medConf.slice(0, 2)];
+  // Show up to 3 handles inline, sorted by confidence
+  const shown = candidates.slice(0, 3);
+  const hasMore = candidates.length > 3;
 
   return (
     <>
@@ -320,9 +329,9 @@ function PaperRow({ paper, index }) {
           )}
         </td>
         <td className="px-3 py-2 align-top">
-          {allVisible.length > 0 ? (
+          {shown.length > 0 ? (
             <div className="space-y-1">
-              {allVisible.map(c => (
+              {shown.map(c => (
                 <div key={c.handle} className="flex items-center gap-2 text-[11px]">
                   <a href={`https://x.com/${c.handle}`} target="_blank" rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
@@ -342,10 +351,10 @@ function PaperRow({ paper, index }) {
                   )}
                 </div>
               ))}
-              {candidates.length > allVisible.length && (
+              {hasMore && (
                 <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                   <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
-                  +{candidates.length - allVisible.length} more
+                  +{candidates.length - 3} more
                 </div>
               )}
             </div>
