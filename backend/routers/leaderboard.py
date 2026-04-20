@@ -1689,21 +1689,6 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
     if not source_entries:
         return None
 
-    # Exclude papers that already won medals (rank 1-3) in previous archives of the same type
-    prior_medalist_ids = set()
-    async for prior_archive in db.leaderboard_archives.find(
-        {"category": category, "period_type": period_type,
-         "$or": [{"year": {"$lt": year}},
-                 {"year": year, "week" if period_type == "weekly" else "month": {"$lt": week if period_type == "weekly" else month}}]},
-        {"_id": 0, "leaderboard": {"$slice": 3}},
-    ):
-        for entry in prior_archive.get("leaderboard", []):
-            if entry.get("rank", 99) <= 3:
-                prior_medalist_ids.add(entry.get("id"))
-
-    if prior_medalist_ids:
-        source_entries = [e for e in source_entries if e.get("paper_id") not in prior_medalist_ids]
-
     # Freeze the leaderboard: store essential fields only
     frozen_entries = []
     for i, r in enumerate(source_entries, 1):

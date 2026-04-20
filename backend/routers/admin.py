@@ -2496,9 +2496,8 @@ async def rebuild_archives():
             })
             weekly_created += 1
 
-    # Step 3: Monthly archives (calendar boundaries + medalist exclusion per category)
+    # Step 3: Monthly archives (calendar boundaries — same as weekly, no extra filtering needed)
     for cat in cats:
-        prior_medalists = set()
         for year, month in sorted(months_seen):
             month_start = f"{year}-{month:02d}-01T00:00:00"
             next_m = month + 1 if month < 12 else 1
@@ -2510,9 +2509,6 @@ async def rebuild_archives():
                  "published": {"$gte": month_start, "$lt": month_end}},
                 _RANK_FIELDS,
             ).sort("ts_score", -1).to_list(10000)
-
-            # Exclude prior medalists
-            entries = [e for e in entries if e.get("paper_id") not in prior_medalists]
             if not entries:
                 continue
 
@@ -2527,11 +2523,6 @@ async def rebuild_archives():
                 "created_at": datetime.now(timezone.utc).isoformat(),
             })
             monthly_created += 1
-
-            # Track this month's top 3 as medalists
-            for entry in frozen[:3]:
-                if entry.get("id"):
-                    prior_medalists.add(entry["id"])
 
     return {
         "status": "ok",
