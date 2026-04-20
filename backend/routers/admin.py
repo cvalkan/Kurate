@@ -2509,6 +2509,119 @@ async def dedup_archives():
     
     return {"status": "ok", "papers_removed": fixed_papers, "archives_deleted": deleted_archives}
 
+@router.post("/regenerate-archives", dependencies=[Depends(verify_admin)])
+async def regenerate_archives():
+    """Regenerate all missing weekly and monthly archives using calendar boundaries.
+    Does not touch existing archives — only creates missing ones.
+    Run dedup-archives afterwards to clean up."""
+    from datetime import date
+    from calendar import monthrange
+
+    cats = await db.rankings.distinct("category")
+    
+    # Collect all (year, week) and (year, month) that have papers
+    weeks_seen = set()
+    months_seen = set()
+    async for r in db.rankings.find({}, {"_id": 0, "published": 1}):
+        pub = (r.get("published") or "")[:10]
+        if not pub:
+            continue
+        try:
+            d = date.fromisoformat(pub)
+            weeks_seen.add((d.isocalendar()[0], d.isocalendar()[1]))
+            months_seen.add((d.year, d.month))
+        except (ValueError, TypeError):
+            continue
+
+    _RANK_FIELDS = {"_id": 0, "paper_id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
+                    "score": 1, "ts_score": 1, "ai_rating": 1, "wins": 1, "losses": 1,
+                    "comparisons": 1, "win_rate": 1, "ci": 1, "published": 1, "link": 1,
+                    "gap_score": 1, "gap_score_ts": 1, "ts_sigma": 1}
+
+    weekly_created = 0
+    monthly_created = 0
+
+    # Weekly archives
+    for year, week in sorted(weeks_seen):
+        week_start = date.fromisocalendar(year, week, 1)
+        week_end = week_start + timedelta(days=7)
+        for cat in cats:
+            existing = await db.leaderboard_archives.find_one(
+                {"category": cat, "period_type": "weekly", "year": year, "week": week})
+            if existing:
+                continue
+            entries = await db.rankings.find(
+                {"category": cat, "is_latest_version": {"$ne": False},
+                 "published": {"$gte": f"{week_start.isoformat()}T00:00:00",
+                              "$lt": f"{week_end.isoformat()}T00:00:00"}},
+                _RANK_FIELDS,
+            ).sort("ts_score", -1).to_list(10000)
+            if not entries:
+                continue
+            frozen = [
+                {**{k: e.get(k) for k in ["title", "authors", "score", "ts_score", "ai_rating",
+                    "wins", "losses", "comparisons", "win_rate", "ci", "published", "link",
+                    "arxiv_id", "gap_score", "gap_score_ts", "ts_sigma"]},
+                 "rank": i, "id": e.get("paper_id")}
+                for i, e in enumerate(entries, 1)
+            ]
+            await db.leaderboard_archives.insert_one({
+                "category": cat, "period_type": "weekly",
+                "year": year, "week": week, "month": None,
+                "label": f"Week {week}, {year}",
+                "paper_count": len(frozen),
+                "match_count": sum(e.get("comparisons") or 0 for e in frozen) // 2,
+                "leaderboard": frozen,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+            weekly_created += 1
+
+    # Monthly archives
+    month_names = ["", "January", "February", "March", "April", "May", "June",
+                   "July", "August", "September", "October", "November", "December"]
+    for year, month in sorted(months_seen):
+        month_start = f"{year}-{month:02d}-01"
+        next_m = month + 1 if month < 12 else 1
+        next_y = year if month < 12 else year + 1
+        month_end = f"{next_y}-{next_m:02d}-01"
+        for cat in cats:
+            existing = await db.leaderboard_archives.find_one(
+                {"category": cat, "period_type": "monthly", "year": year, "month": month})
+            if existing:
+                continue
+            entries = await db.rankings.find(
+                {"category": cat, "is_latest_version": {"$ne": False},
+                 "published": {"$gte": f"{month_start}T00:00:00", "$lt": f"{month_end}T00:00:00"}},
+                _RANK_FIELDS,
+            ).sort("ts_score", -1).to_list(10000)
+            if not entries:
+                continue
+            frozen = [
+                {**{k: e.get(k) for k in ["title", "authors", "score", "ts_score", "ai_rating",
+                    "wins", "losses", "comparisons", "win_rate", "ci", "published", "link",
+                    "arxiv_id", "gap_score", "gap_score_ts", "ts_sigma"]},
+                 "rank": i, "id": e.get("paper_id")}
+                for i, e in enumerate(entries, 1)
+            ]
+            await db.leaderboard_archives.insert_one({
+                "category": cat, "period_type": "monthly",
+                "year": year, "week": None, "month": month,
+                "label": f"{month_names[month]} {year}",
+                "paper_count": len(frozen),
+                "match_count": sum(e.get("comparisons") or 0 for e in frozen) // 2,
+                "leaderboard": frozen,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+            monthly_created += 1
+
+    return {
+        "status": "ok",
+        "weekly_created": weekly_created,
+        "monthly_created": monthly_created,
+    }
+
+
+
 
 @router.post("/rerank-all", dependencies=[Depends(verify_admin)])
 async def rerank_all_endpoint():
