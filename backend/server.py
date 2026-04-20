@@ -12,6 +12,7 @@ from core.config import db, logger
 SITE_URL = os.environ.get("SITE_URL", "")
 from routers.leaderboard import router as leaderboard_router
 from routers.admin import router as admin_router
+from routers.outreach import router as outreach_router
 from routers.auth import router as auth_router
 from routers.suggestions import router as suggestions_router
 from routers.validation import router as validation_router
@@ -133,6 +134,7 @@ async def logo_compare():
 
 app.include_router(leaderboard_router)
 app.include_router(admin_router)
+app.include_router(outreach_router)
 app.include_router(auth_router)
 app.include_router(suggestions_router)
 app.include_router(validation_router)
