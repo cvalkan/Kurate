@@ -311,7 +311,11 @@ def _build_congrats_text(paper: dict, handle: str, all_candidates: list, rank: i
 
 
 def _build_share_url(paper_id: str, category: str = None, year: int = None, week: int = None, month: int = None) -> str:
-    """Build the badge share URL that has OG meta tags for unfurling."""
+    """Build the badge share URL with correct period type for unfurling."""
+    if category and year and month:
+        return f"https://kurate.org/api/badge/{category}/{year}/m{month}/{paper_id}/share"
+    elif category and year and week:
+        return f"https://kurate.org/api/badge/{category}/{year}/w{week}/{paper_id}/share"
     return f"https://kurate.org/api/badge/paper/{paper_id}/share/page"
 
 
@@ -329,12 +333,16 @@ async def draft_tweet(body: DraftTweetRequest):
     year, week, month = None, None, None
     if body.period_label:
         import re
+        _MONTH_MAP = {"january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+                      "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12}
         wm = re.search(r'Week (\d+),?\s*(\d{4})', body.period_label)
         mm = re.search(r'(\w+)\s+(\d{4})', body.period_label)
         if wm:
             week, year = int(wm.group(1)), int(wm.group(2))
         elif mm:
+            month_name = mm.group(1).lower()
             year = int(mm.group(2))
+            month = _MONTH_MAP.get(month_name)
 
     share_url = _build_share_url(body.paper_id, body.category, year, week, month)
 
