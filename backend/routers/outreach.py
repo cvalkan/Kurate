@@ -69,7 +69,7 @@ async def get_medalists(period: str = "current", top_n: int = 3):
     """Get top-N medalists across all categories.
     
     period: "weekly:YYYY-WW" or "monthly:YYYY-MM"
-    Returns: {categories: [{category, name, papers: [{rank, title, authors, ...}]}]}
+    Only shows categories whose archive_frequency matches the period type.
     """
     from core.config import CATEGORIES
 
@@ -87,11 +87,21 @@ async def get_medalists(period: str = "current", top_n: int = 3):
         return {"period": period, "categories": [], "total_papers": 0, "total_discovered": 0,
                 "error": "Use weekly:YYYY-WW or monthly:YYYY-MM"}
 
+    # Get archive_frequency setting to filter categories
+    settings = await db.settings.find_one({"key": "settings"}, {"_id": 0}) or {}
+    freq_config = settings.get("archive_frequency") or {}
+    default_freq = freq_config.get("default", "weekly")
+
     async for archive in db.leaderboard_archives.find(
         {"period_type": period_type, **query_filter},
         {"_id": 0, "category": 1, "leaderboard": {"$slice": top_n}, "label": 1},
     ):
         cat = archive["category"]
+        
+        # Only include categories whose configured frequency matches
+        cat_freq = freq_config.get(cat, default_freq)
+        if cat_freq != period_type:
+            continue
         papers = []
         for p in archive.get("leaderboard", [])[:top_n]:
             disc = await db.x_handle_discoveries.find_one(
@@ -137,6 +147,9 @@ async def get_medalists(period: str = "current", top_n: int = 3):
 @router.get("/archive-periods", dependencies=[Depends(verify_admin)])
 async def get_archive_periods():
     """List available weekly and monthly archive periods."""
+    settings = await db.settings.find_one({"key": "settings"}, {"_id": 0}) or {}
+    freq_config = settings.get("archive_frequency") or {}
+    default_freq = freq_config.get("default", "weekly")
     weekly = []
     monthly = []
     
@@ -168,7 +181,7 @@ async def get_archive_periods():
             "total_papers": doc["total_papers"],
         })
     
-    return {"weekly": weekly, "monthly": monthly}
+    return {"weekly": weekly, "monthly": monthly, "archive_frequency": freq_config, "default_frequency": default_freq}
 
 
 

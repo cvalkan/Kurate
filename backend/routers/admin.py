@@ -2433,6 +2433,15 @@ async def rebuild_archives():
     
     cats = await db.rankings.distinct("category")
     
+    # Get archive_frequency setting per category
+    settings_doc = await db.settings.find_one({"key": "settings"}, {"_id": 0}) or {}
+    freq_config = settings_doc.get("archive_frequency") or {}
+    default_freq = freq_config.get("default", "weekly")
+    
+    # Split categories by their archive type
+    weekly_cats = [c for c in cats if freq_config.get(c, default_freq) == "weekly"]
+    monthly_cats = [c for c in cats if freq_config.get(c, default_freq) == "monthly"]
+    
     # Collect all (year, week) and (year, month) from published dates
     weeks_seen = set()
     months_seen = set()
@@ -2471,11 +2480,11 @@ async def rebuild_archives():
     weekly_created = 0
     monthly_created = 0
 
-    # Step 2: Weekly archives (calendar boundaries, no medalist exclusion)
+    # Step 2: Weekly archives — only for categories configured as weekly
     for year, week in sorted(weeks_seen):
         week_start = date.fromisocalendar(year, week, 1)
         week_end = week_start + timedelta(days=7)
-        for cat in cats:
+        for cat in weekly_cats:
             entries = await db.rankings.find(
                 {"category": cat, "is_latest_version": {"$ne": False},
                  "published": {"$gte": f"{week_start.isoformat()}T00:00:00",
@@ -2496,8 +2505,8 @@ async def rebuild_archives():
             })
             weekly_created += 1
 
-    # Step 3: Monthly archives (calendar boundaries — same as weekly, no extra filtering needed)
-    for cat in cats:
+    # Step 3: Monthly archives — only for categories configured as monthly
+    for cat in monthly_cats:
         for year, month in sorted(months_seen):
             month_start = f"{year}-{month:02d}-01T00:00:00"
             next_m = month + 1 if month < 12 else 1
