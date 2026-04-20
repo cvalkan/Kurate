@@ -97,6 +97,10 @@ async def get_medalists(period: str = "current", top_n: int = 3):
             disc = await db.x_handle_discoveries.find_one(
                 {"paper_id": p.get("id")}, {"_id": 0, "candidates": 1, "total_tweets": 1}
             )
+            # Check tweet draft status
+            tweet_draft = await db.tweet_drafts.find_one(
+                {"paper_id": p.get("id")}, {"_id": 0, "status": 1, "period_label": 1}
+            )
             papers.append({
                 "id": p.get("id"),
                 "rank": p.get("rank"),
@@ -109,6 +113,8 @@ async def get_medalists(period: str = "current", top_n: int = 3):
                 "candidates": disc.get("candidates", []) if disc else [],
                 "total_tweets": disc.get("total_tweets", 0) if disc else 0,
                 "discovered": disc is not None,
+                "tweet_status": tweet_draft.get("status") if tweet_draft else None,
+                "tweet_period": tweet_draft.get("period_label") if tweet_draft else None,
             })
         if papers:
             result_cats.append({
