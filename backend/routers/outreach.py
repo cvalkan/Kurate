@@ -262,28 +262,53 @@ async def get_discoveries(
 class DraftTweetRequest(BaseModel):
     paper_id: str
     tweet_url: str  # The original tweet to quote
-    handle: str  # Author's X handle
+    handle: str  # Primary handle (the one whose tweet we're quoting)
     category: str
     rank: int  # 1=gold, 2=silver, 3=bronze
-    period_label: str = ""  # e.g. "Week 17, 2026"
+    period_label: str = ""
 
 
-def _build_congrats_text(paper: dict, handle: str, rank: int, category: str, period_label: str, share_url: str) -> str:
-    """Build standard badge congratulations text, matching BadgePage format."""
+def _build_congrats_text(paper: dict, handle: str, all_candidates: list, rank: int, category: str, period_label: str) -> str:
+    """Build congrats text tagging all discovered handles, naming others."""
     authors = paper.get("authors", [])
-    author_text = authors[0] if len(authors) == 1 else (
-        f"{authors[0]} & {authors[1]}" + (f" et al." if len(authors) > 2 else "")
-    ) if authors else "the authors"
+
+    # Map author names to discovered handles
+    handle_map = {}
+    for c in all_candidates:
+        ma = (c.get("matched_author") or "").lower()
+        if ma and c.get("handle"):
+            handle_map[ma] = c["handle"]
+
+    # Build author parts: @handle if discovered, plain name otherwise
+    author_parts = []
+    tagged = set()
+    for a in authors[:3]:
+        h = handle_map.get(a.lower())
+        if h and h not in tagged:
+            author_parts.append(f"@{h}")
+            tagged.add(h)
+        else:
+            author_parts.append(a)
+    # Ensure primary handle is included even if not matched to an author name
+    if handle not in tagged:
+        author_parts.insert(0, f"@{handle}")
+
+    if len(authors) > 3:
+        author_text = ", ".join(author_parts) + " et al."
+    elif len(author_parts) == 3:
+        author_text = f"{author_parts[0]}, {author_parts[1]} & {author_parts[2]}"
+    elif len(author_parts) == 2:
+        author_text = f"{author_parts[0]} & {author_parts[1]}"
+    else:
+        author_text = author_parts[0] if author_parts else "the authors"
 
     tier = {1: "Gold ", 2: "Silver ", 3: "Bronze "}.get(rank, "")
     medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(rank, "🏅")
-    arxiv_id = paper.get("arxiv_id", "")
 
-    text = f"{medal} Congrats to @{handle} for ranking #{rank} {tier}in {category} Preprints"
+    text = f"{medal} Congrats to {author_text} for ranking #{rank} {tier}in {category} Preprints"
     if period_label:
         text += f" ({period_label})"
-    text += f" on Kurate.org!"
-
+    text += " on Kurate.org!"
     return text
 
 
@@ -314,7 +339,14 @@ async def draft_tweet(body: DraftTweetRequest):
             year = int(mm.group(2))
 
     share_url = _build_share_url(body.paper_id, body.category, year, week, month)
-    draft_text = _build_congrats_text(paper, body.handle, body.rank, body.category, body.period_label, share_url)
+
+    # Get all discovered candidates for this paper
+    disc = await db.x_handle_discoveries.find_one(
+        {"paper_id": body.paper_id}, {"_id": 0, "candidates": 1}
+    )
+    all_candidates = disc.get("candidates", []) if disc else []
+
+    draft_text = _build_congrats_text(paper, body.handle, all_candidates, body.rank, body.category, body.period_label)
 
     # Store draft
     draft_doc = {
