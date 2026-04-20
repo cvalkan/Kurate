@@ -1229,6 +1229,10 @@ async def insert_ranking_for_paper(db, paper_doc: dict):
     if not summaries.get(CLAUDE_KEY):
         return  # No Claude thinking summary → don't insert
 
+    # Don't rank frozen older versions
+    if paper_doc.get("is_latest_version") is False:
+        return
+
     cat = paper_doc.get("categories", ["unknown"])[0] if paper_doc.get("categories") else "unknown"
 
     # Get current max rank for this category

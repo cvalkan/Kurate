@@ -40,9 +40,22 @@ _TOKEN_LIMIT_KEYWORDS = ("token", "context_length", "context length", "too long"
 
 # Circuit breaker: after N consecutive Emergent proxy failures for a provider,
 # skip the proxy entirely and go straight to the direct key fallback.
-# Resets on backend restart (in-memory only).
+# Resets on proxy success or after PROBE_INTERVAL seconds (periodic recovery check).
 _PROXY_FAIL_COUNTS = {}  # {provider: consecutive_failure_count}
+_PROXY_LAST_FAIL_TIME = {}  # {provider: timestamp of last failure}
 _PROXY_CIRCUIT_THRESHOLD = 2  # skip proxy after this many consecutive failures
+_PROXY_PROBE_INTERVAL = 300  # try proxy again every 5 min to detect recovery
+
+
+def _should_skip_proxy(provider: str) -> bool:
+    """Check if Emergent proxy should be skipped. Allows periodic probe."""
+    if _PROXY_FAIL_COUNTS.get(provider, 0) < _PROXY_CIRCUIT_THRESHOLD:
+        return False
+    import time
+    last_fail = _PROXY_LAST_FAIL_TIME.get(provider, 0)
+    if time.time() - last_fail > _PROXY_PROBE_INTERVAL:
+        return False  # Allow one probe attempt
+    return True
 
 
 async def download_and_extract_pdf(pdf_url: str, doi: str = None) -> Optional[str]:
@@ -677,7 +690,7 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
 
     # Circuit breaker: if proxy has failed repeatedly, skip straight to fallback
     skip_proxy = (provider == "anthropic" and _ANTHROPIC_DIRECT_KEY
-                  and _PROXY_FAIL_COUNTS.get(provider, 0) >= _PROXY_CIRCUIT_THRESHOLD)
+                  and _should_skip_proxy(provider))
 
     max_retries = 3
     last_error = None
@@ -750,12 +763,16 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
                 is_token_limit = any(kw in err_str for kw in _TOKEN_LIMIT_KEYWORDS)
                 is_proxy_broken = any(kw in err_str for kw in ("authentication", "invalid x-api-key", "invalid api key", "not allowed", "timeout", "timed out", "502", "bad gateway"))
                 if is_proxy_broken and provider == "anthropic" and _ANTHROPIC_DIRECT_KEY:
-                    _PROXY_FAIL_COUNTS[provider] = _PROXY_FAIL_COUNTS.get(provider, 0) + 1
+                    _PROXY_FAIL_COUNTS[provider] = _PROXY_FAIL_COUNTS.get(provider, 0) + 1; import time as _t; _PROXY_LAST_FAIL_TIME[provider] = _t.time()
                     logger.warning(f"Emergent proxy error ({provider}/{model}), skipping to direct fallback (circuit: {_PROXY_FAIL_COUNTS[provider]})")
                     break
                 elif is_budget:
-                    logger.warning(f"LLM budget/credit error ({provider}/{model}): {e}. Waiting 15s for auto-topup...")
-                    await asyncio.sleep(15)
+                    logger.warning(f"LLM budget/credit error ({provider}/{model}): {e}. Failing fast (no retry).")
+                    if provider == "anthropic" and _ANTHROPIC_DIRECT_KEY:
+                        _PROXY_FAIL_COUNTS[provider] = _PROXY_FAIL_COUNTS.get(provider, 0) + 1; import time as _t; _PROXY_LAST_FAIL_TIME[provider] = _t.time()
+                        break  # fall through to direct key fallback
+                    else:
+                        break  # no fallback available, stop retrying
                 elif is_token_limit and content_mode == "full_pdf":
                     cur_len = max(len(paper1.get("full_text", "")), len(paper2.get("full_text", "")))
                     new_limit = max(cur_len // 2, 40_000)
@@ -927,7 +944,7 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
 
     # Circuit breaker: skip proxy if it's been failing
     skip_proxy = (provider == "anthropic" and _ANTHROPIC_DIRECT_KEY
-                  and _PROXY_FAIL_COUNTS.get(provider, 0) >= _PROXY_CIRCUIT_THRESHOLD)
+                  and _should_skip_proxy(provider))
 
     for attempt in range(max_retries):
         if skip_proxy:
@@ -982,12 +999,16 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
             is_auth = any(kw in err_str for kw in ("authentication", "invalid x-api-key", "invalid api key", "not allowed", "timeout", "timed out", "502", "bad gateway"))
 
             if is_auth and provider == "anthropic" and _ANTHROPIC_DIRECT_KEY:
-                _PROXY_FAIL_COUNTS[provider] = _PROXY_FAIL_COUNTS.get(provider, 0) + 1
+                _PROXY_FAIL_COUNTS[provider] = _PROXY_FAIL_COUNTS.get(provider, 0) + 1; import time as _t; _PROXY_LAST_FAIL_TIME[provider] = _t.time()
                 logger.warning(f"Emergent proxy error ({provider}/{model}), skipping to direct fallback (circuit: {_PROXY_FAIL_COUNTS[provider]})")
-                break  # Skip remaining retries, go straight to fallback
+                break
             elif is_budget:
-                logger.warning(f"Budget/credit error during impact assessment ({provider}/{model}): {e}. Waiting 15s...")
-                await asyncio.sleep(15)
+                logger.warning(f"Budget/credit error during impact assessment ({provider}/{model}): {e}. Failing fast.")
+                if provider == "anthropic" and _ANTHROPIC_DIRECT_KEY:
+                    _PROXY_FAIL_COUNTS[provider] = _PROXY_FAIL_COUNTS.get(provider, 0) + 1; import time as _t; _PROXY_LAST_FAIL_TIME[provider] = _t.time()
+                    break
+                else:
+                    break
             elif is_token_limit:
                 # Halve the content and retry
                 char_limit = max(char_limit // 2, 20_000)

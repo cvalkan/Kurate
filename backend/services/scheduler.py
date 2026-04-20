@@ -82,9 +82,18 @@ def stop_summary_generation():
 
 
 def get_summary_gen_progress(category: str = None) -> dict:
-    """Get the current summary generation progress for a category."""
+    """Get the current summary generation progress for a category.
+    Detects stale locks (running > 30 min) and auto-clears them."""
+    import time
     key = category or "__all__"
-    return _summary_gen_progress.get(key, {"running": False})
+    progress = _summary_gen_progress.get(key, {"running": False})
+    if progress.get("running"):
+        started = progress.get("started_at_ts", 0)
+        if started and time.time() - started > 1800:  # 30 min
+            logger.warning(f"Summary gen stale lock detected for {key} (started {int(time.time() - started)}s ago). Clearing.")
+            progress["running"] = False
+            progress["stale_cleared"] = True
+    return progress
 
 
 def _get_cat_status(category: str) -> dict:
@@ -422,6 +431,7 @@ async def _compare_loop_inner():
                     _compare_loop_diag["last_cycle_unmet"] = list(unmet_cats)
                     log_mem(f"Compare loop: {len(unmet_cats)} unmet categories: {unmet_cats}")
                     batch_size = min(max(settings.get("parallel_categories", 2), 1), 10)
+                    all_failed = True  # Track if entire cycle produced 0 matches
                     for i in range(0, len(unmet_cats), batch_size):
                         batch = unmet_cats[i:i+batch_size]
                         tasks = [run_comparison_round(category=cat, skip_rerank=True) for cat in batch]
@@ -432,6 +442,8 @@ async def _compare_loop_inner():
                                 _cycle_results[cat] = {"status": "error", "error": str(res)[:100]}
                             elif isinstance(res, dict):
                                 _cycle_results[cat] = res
+                                if res.get("completed", 0) > 0:
+                                    all_failed = False
                             else:
                                 _cycle_results[cat] = {"status": "unknown"}
                         # GC between batches to release match/paper data from completed rounds
@@ -456,6 +468,11 @@ async def _compare_loop_inner():
                         log_event("repair_queue", "repair_queue_size", {"size": queue_size, "repaired": repaired})
                         await asyncio.sleep(2)
                     _compare_loop_diag["last_cycle_results"] = _cycle_results
+                    if all_failed:
+                        # All categories produced 0 matches — likely budget/proxy outage.
+                        # Back off to avoid spinning CPU on futile retries.
+                        log_mem(f"Compare loop: all categories failed (0 matches). Backing off 120s.")
+                        await asyncio.sleep(120)
                     # After a round completes, loop immediately to check if more work needed
                     continue
                 else:
@@ -526,10 +543,13 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
             cat_status = _get_cat_status(category)
             current_papers = cat_status.get("papers_count", -1)
             current_matches = cat_status.get("matches_count", -1)
-            if current_papers == snap.get("papers", -1) and current_matches == snap.get("matches", -1):
+            current_rankings = await db.rankings.count_documents({"category": category})
+            if (current_papers == snap.get("papers", -1)
+                    and current_matches == snap.get("matches", -1)
+                    and current_rankings == snap.get("rankings", -1)):
                 return True
             # Data changed without invalidation — recompute
-            logger.info(f"Goals cache stale for {category}: papers {snap.get('papers')}→{current_papers}, matches {snap.get('matches')}→{current_matches}")
+            logger.info(f"Goals cache stale for {category}: papers {snap.get('papers')}→{current_papers}, matches {snap.get('matches')}→{current_matches}, rankings {snap.get('rankings')}→{current_rankings}")
         elif (_time.time() - cached["ts"]) < _GOALS_CACHE_TTL_UNMET:
             # Goals not met — respect TTL
             return False
@@ -537,12 +557,14 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
 
     result = await _check_goals_met_impl(category)
     cat_status = _get_cat_status(category)
+    current_rankings = await db.rankings.count_documents({"category": category})
     _goals_met_cache[category] = {
         "result": result,
         "ts": _time.time(),
         "snapshot": {
             "papers": cat_status.get("papers_count", 0),
             "matches": cat_status.get("matches_count", 0),
+            "rankings": current_rankings,
         },
     }
     return result
@@ -952,9 +974,9 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             from services.ranking import insert_ranking_for_paper
             inserted = 0
             async for p in db.papers.find(
-                {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}},
+                {"categories.0": category, "summaries": {"$exists": True, "$ne": {}}, "is_latest_version": {"$ne": False}},
                 {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
-                 "link": 1, "published": 1, "added_at": 1, "categories": 1, "ai_rating": 1, "summaries": 1}
+                 "link": 1, "published": 1, "added_at": 1, "categories": 1, "ai_rating": 1, "summaries": 1, "is_latest_version": 1}
             ):
                 existing = await db.rankings.find_one({"paper_id": p["id"]}, {"_id": 0, "paper_id": 1})
                 if not existing:
@@ -1213,6 +1235,7 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
     _summary_gen_progress[prog_key] = {
         "running": True, "generated": 0, "failed": 0, "skipped": 0,
         "scanned": 0, "total": total_papers, "started_at": datetime.now(timezone.utc).isoformat(),
+        "started_at_ts": time.time(),
     }
 
     def _sync_progress():
