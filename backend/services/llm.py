@@ -635,11 +635,16 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
         p1_content = f"AI Impact Assessment:\n{paper1.get('ai_impact_summary', paper1.get('abstract', ''))}"
         p2_content = f"AI Impact Assessment:\n{paper2.get('ai_impact_summary', paper2.get('abstract', ''))}"
     elif content_mode == "abstract_plus_summary":
+        # Callers are responsible for injecting the desired summary into the
+        # ai_impact_summary field on the paper dict. The scheduler always
+        # populates it with the Claude Opus 4.6 thinking summary via
+        # _get_paper_summary(). Do NOT add key fallbacks here — that silently
+        # breaks caller intent and mixes summary models across matches.
         p1_abs = paper1.get('abstract', '')
-        p1_sum = paper1.get('ai_impact_summary_thinking', '') or paper1.get('ai_impact_summary_opus46', '') or paper1.get('ai_impact_summary', '')
+        p1_sum = paper1.get('ai_impact_summary', '')
         p1_content = f"Abstract: {p1_abs}\n\nAI Impact Assessment:\n{p1_sum}" if p1_sum else f"Abstract: {p1_abs}"
         p2_abs = paper2.get('abstract', '')
-        p2_sum = paper2.get('ai_impact_summary_thinking', '') or paper2.get('ai_impact_summary_opus46', '') or paper2.get('ai_impact_summary', '')
+        p2_sum = paper2.get('ai_impact_summary', '')
         p2_content = f"Abstract: {p2_abs}\n\nAI Impact Assessment:\n{p2_sum}" if p2_sum else f"Abstract: {p2_abs}"
     elif content_mode == "abstract_plus_3summaries":
         def _build_multi_summary(paper):
@@ -675,13 +680,14 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
         p1_content = _build_paper_content(paper1, char_limit)
         p2_content = _build_paper_content(paper2, char_limit)
     else:
-        # Unknown mode — fall back to abstract_plus_summary
+        # Unknown mode — fall back to abstract_plus_summary.
+        # Caller is responsible for populating ai_impact_summary on the paper dict.
         logger.warning(f"Unknown content_mode '{content_mode}', falling back to abstract_plus_summary")
         p1_abs = paper1.get('abstract', '')
-        p1_sum = paper1.get('ai_impact_summary_thinking', '') or paper1.get('ai_impact_summary', '')
+        p1_sum = paper1.get('ai_impact_summary', '')
         p1_content = f"Abstract: {p1_abs}\n\nAI Impact Assessment:\n{p1_sum}" if p1_sum else f"Abstract: {p1_abs}"
         p2_abs = paper2.get('abstract', '')
-        p2_sum = paper2.get('ai_impact_summary_thinking', '') or paper2.get('ai_impact_summary', '')
+        p2_sum = paper2.get('ai_impact_summary', '')
         p2_content = f"Abstract: {p2_abs}\n\nAI Impact Assessment:\n{p2_sum}" if p2_sum else f"Abstract: {p2_abs}"
 
     prompt = user_template.format(
