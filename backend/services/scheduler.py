@@ -1235,7 +1235,7 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
     _summary_gen_progress[prog_key] = {
         "running": True, "generated": 0, "failed": 0, "skipped": 0,
         "scanned": 0, "total": total_papers, "started_at": datetime.now(timezone.utc).isoformat(),
-        "started_at_ts": time.time(),
+        "started_at_ts": __import__('time').time(),
     }
 
     def _sync_progress():
