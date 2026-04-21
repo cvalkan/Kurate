@@ -252,11 +252,34 @@ async def get_discoveries(
     ):
         discoveries[doc["paper_id"]] = doc
 
+    # Index liked tweet_ids per paper so we can mark candidates liked.
+    liked_by_paper: dict = {}
+    async for doc in db.tweet_likes.find(
+        {"paper_id": {"$in": paper_ids}, "status": "liked"},
+        {"_id": 0, "paper_id": 1, "tweet_id": 1, "liked_at": 1},
+    ):
+        liked_by_paper.setdefault(doc["paper_id"], {})[doc["tweet_id"]] = doc.get("liked_at")
+
+    def _tweet_id_from_url(u: str) -> str:
+        if not u:
+            return ""
+        return u.rstrip("/").split("/")[-1].split("?")[0]
+
     # Build response: papers with their discovery status
     result_papers = []
     for p in papers:
         pid = p["id"]
         disc = discoveries.get(pid)
+        liked_map = liked_by_paper.get(pid, {})
+        candidates = disc.get("candidates", []) if disc else []
+        # Annotate each candidate with our like state
+        for c in candidates:
+            tid = _tweet_id_from_url(c.get("tweet_url", ""))
+            if tid and tid in liked_map:
+                c["liked"] = True
+                c["liked_at"] = liked_map[tid]
+            else:
+                c["liked"] = False
         entry = {
             "id": pid,
             "title": p.get("title", ""),
@@ -268,7 +291,7 @@ async def get_discoveries(
             "comparisons": p.get("comparisons", 0),
             "discovered": disc is not None,
             "total_tweets": disc.get("total_tweets", 0) if disc else 0,
-            "candidates": disc.get("candidates", []) if disc else [],
+            "candidates": candidates,
             "discovered_at": disc.get("discovered_at") if disc else None,
         }
         if confidence and disc:
@@ -544,6 +567,118 @@ async def delete_discovery(paper_id: str):
     """Delete a cached discovery to force re-search."""
     result = await db.x_handle_discoveries.delete_one({"paper_id": paper_id})
     return {"deleted": result.deleted_count > 0}
+
+
+class LikeTweetRequest(BaseModel):
+    paper_id: str
+    tweet_url: str  # Original candidate tweet to like
+    handle: str     # For tracking/display
+
+
+def _extract_tweet_id(tweet_url: str) -> str:
+    """Parse the numeric tweet ID from an x.com / twitter.com status URL."""
+    return tweet_url.rstrip("/").split("/")[-1].split("?")[0]
+
+
+@router.post("/like-tweet", dependencies=[Depends(verify_admin)])
+async def like_tweet(body: LikeTweetRequest):
+    """Like a candidate tweet as @kurateorg — softer alternative to quote-tweeting."""
+    tweet_id = _extract_tweet_id(body.tweet_url)
+    if not tweet_id.isdigit():
+        raise HTTPException(400, f"Could not parse tweet_id from URL: {body.tweet_url}")
+
+    # Idempotency: if we already liked this, return cached state
+    existing = await db.tweet_likes.find_one(
+        {"paper_id": body.paper_id, "tweet_id": tweet_id, "status": "liked"},
+        {"_id": 0},
+    )
+    if existing:
+        return {"status": "already_liked", "tweet_id": tweet_id, "liked_at": existing.get("liked_at")}
+
+    auth_token = os.environ.get("TWITTER_AUTH_TOKEN")
+    proxy = os.environ.get("TWITTER_PROXY", "")
+    if not auth_token:
+        raise HTTPException(500, "TWITTER_AUTH_TOKEN not configured")
+    if not TWEETAPI_KEY:
+        raise HTTPException(500, "TWEETAPI_KEY not configured")
+
+    from tweetapi import TweetAPI
+    client = TweetAPI(api_key=TWEETAPI_KEY)
+
+    try:
+        result = client.interaction.favorite_post(
+            auth_token=auth_token,
+            tweet_id=tweet_id,
+            proxy=proxy or None,
+        )
+        now = datetime.now(timezone.utc).isoformat()
+        await db.tweet_likes.update_one(
+            {"paper_id": body.paper_id, "tweet_id": tweet_id},
+            {"$set": {
+                "paper_id": body.paper_id,
+                "handle": body.handle,
+                "tweet_url": body.tweet_url,
+                "tweet_id": tweet_id,
+                "status": "liked",
+                "liked_at": now,
+                "result_repr": str(result)[:300],
+            }},
+            upsert=True,
+        )
+        logger.info(f"[outreach] Liked tweet {tweet_id} (paper={body.paper_id}, @{body.handle})")
+        return {"status": "liked", "tweet_id": tweet_id, "liked_at": now}
+
+    except Exception as e:
+        err = str(e)[:500]
+        logger.error(f"[outreach] Failed to like tweet {tweet_id}: {err}")
+        await db.tweet_likes.update_one(
+            {"paper_id": body.paper_id, "tweet_id": tweet_id},
+            {"$set": {
+                "paper_id": body.paper_id,
+                "handle": body.handle,
+                "tweet_url": body.tweet_url,
+                "tweet_id": tweet_id,
+                "status": "like_failed",
+                "like_error": err,
+                "failed_at": datetime.now(timezone.utc).isoformat(),
+            }},
+            upsert=True,
+        )
+        raise HTTPException(500, f"Failed to like tweet: {err[:200]}")
+
+
+@router.post("/unlike-tweet", dependencies=[Depends(verify_admin)])
+async def unlike_tweet(body: LikeTweetRequest):
+    """Unlike a previously-liked tweet (for corrections)."""
+    tweet_id = _extract_tweet_id(body.tweet_url)
+    if not tweet_id.isdigit():
+        raise HTTPException(400, f"Could not parse tweet_id from URL: {body.tweet_url}")
+
+    auth_token = os.environ.get("TWITTER_AUTH_TOKEN")
+    proxy = os.environ.get("TWITTER_PROXY", "")
+    if not auth_token:
+        raise HTTPException(500, "TWITTER_AUTH_TOKEN not configured")
+
+    from tweetapi import TweetAPI
+    client = TweetAPI(api_key=TWEETAPI_KEY)
+    try:
+        client.interaction.unfavorite_post(
+            auth_token=auth_token,
+            tweet_id=tweet_id,
+            proxy=proxy or None,
+        )
+        await db.tweet_likes.update_one(
+            {"paper_id": body.paper_id, "tweet_id": tweet_id},
+            {"$set": {
+                "status": "unliked",
+                "unliked_at": datetime.now(timezone.utc).isoformat(),
+            }},
+        )
+        return {"status": "unliked", "tweet_id": tweet_id}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to unlike: {str(e)[:200]}")
+
+
 
 
 async def _get_papers_for_period(category: str, period: str, top_n: int) -> list:

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { toast } from "sonner";
-import { Search, ExternalLink, Twitter, RefreshCw, ChevronDown, Users, Trophy, Clock, Calendar } from "lucide-react";
+import { Search, ExternalLink, Twitter, RefreshCw, ChevronDown, Users, Trophy, Clock, Calendar, Heart } from "lucide-react";
 import { Button } from "../components/ui/button";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -23,6 +23,57 @@ const CONFIDENCE_COLORS = {
   medium: "bg-amber-100 text-amber-800 border-amber-200",
   low: "bg-gray-100 text-gray-600 border-gray-200",
 };
+
+function LikeButton({ paperId, candidate, size = "sm" }) {
+  const [liked, setLiked] = useState(Boolean(candidate?.liked));
+  const [busy, setBusy] = useState(false);
+  const tweetUrl = candidate?.tweet_url;
+
+  const handleLike = async (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!tweetUrl || busy || liked) return;
+    if (!window.confirm(`Like @${candidate.handle}'s tweet as @kurateorg?`)) return;
+    setBusy(true);
+    try {
+      const res = await axios.post(
+        `${API}/api/admin/outreach/like-tweet`,
+        { paper_id: paperId, tweet_url: tweetUrl, handle: candidate.handle },
+        { headers: getAdminHeaders() }
+      );
+      setLiked(true);
+      if (res.data?.status === "already_liked") {
+        toast.message("Already liked earlier");
+      } else {
+        toast.success(`Liked @${candidate.handle}'s tweet`);
+      }
+    } catch (err) {
+      toast.error(`Like failed: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!tweetUrl) return null;
+  const iconSize = size === "xs" ? "h-2.5 w-2.5" : "h-3 w-3";
+  const textSize = size === "xs" ? "text-[10px] px-1.5 py-0.5" : "text-[11px] px-2 py-0.5";
+  return (
+    <button
+      onClick={handleLike}
+      disabled={busy || liked}
+      data-testid={`like-btn-${candidate.handle}`}
+      title={liked ? "Already liked" : "Like this tweet as @kurateorg"}
+      className={`shrink-0 ${textSize} rounded border inline-flex items-center gap-1 transition-colors disabled:opacity-60 ${
+        liked
+          ? "border-pink-500 bg-pink-50 text-pink-600 cursor-default"
+          : "border-pink-500 text-pink-600 hover:bg-pink-500 hover:text-white"
+      }`}
+    >
+      <Heart className={`${iconSize} ${liked ? "fill-pink-500" : ""}`} />
+      {busy ? "…" : liked ? "Liked" : "Like"}
+    </button>
+  );
+}
 
 export default function OutreachPage() {
   const [authed, setAuthed] = useState(false);
@@ -580,11 +631,14 @@ function MedalistRow({ paper, medal, category, periodLabel }) {
                     </a>
                   )}
                   {c.tweet_url && (
-                    <button onClick={() => handleDraft(c)} disabled={drafting}
-                      className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-accent text-accent hover:bg-accent hover:text-background transition-colors disabled:opacity-50"
-                    >
-                      {drafting ? "..." : "Draft Quote"}
-                    </button>
+                    <>
+                      <LikeButton paperId={paper.id} candidate={c} size="xs" />
+                      <button onClick={() => handleDraft(c)} disabled={drafting}
+                        className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-accent text-accent hover:bg-accent hover:text-background transition-colors disabled:opacity-50"
+                      >
+                        {drafting ? "..." : "Draft Quote"}
+                      </button>
+                    </>
                   )}
                 </div>
               ))}
@@ -721,7 +775,7 @@ function PaperRow({ paper, index }) {
           <td colSpan={6} className="px-6 py-3">
             <div className="space-y-2">
               {candidates.map(c => (
-                <CandidateDetail key={c.handle} candidate={c} />
+                <CandidateDetail key={c.handle} candidate={c} paperId={paper.id} />
               ))}
             </div>
           </td>
@@ -744,7 +798,7 @@ function HandleBadge({ candidate }) {
   );
 }
 
-function CandidateDetail({ candidate: c }) {
+function CandidateDetail({ candidate: c, paperId }) {
   return (
     <div className={`flex items-start gap-3 p-2.5 rounded-md border ${CONFIDENCE_COLORS[c.confidence]}`}>
       <div className="flex-1 min-w-0">
@@ -766,6 +820,11 @@ function CandidateDetail({ candidate: c }) {
             <span className="text-[10px] text-muted-foreground">
               matches "{c.matched_author}" ({Math.round(c.name_similarity * 100)}%)
             </span>
+          )}
+          {c.tweet_url && (
+            <div className="ml-auto">
+              <LikeButton paperId={paperId} candidate={c} size="sm" />
+            </div>
           )}
         </div>
         {c.bio && <div className="text-[11px] text-muted-foreground mt-1 truncate">{c.bio}</div>}
