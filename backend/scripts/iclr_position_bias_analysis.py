@@ -58,6 +58,114 @@ TIER_RANK = {
 }
 
 
+def load_dataset_from_jsonl(matches_path: Path, summaries_path: Path, dataset_id: str) -> pd.DataFrame:
+    """Build the same dataframe shape from local ICLR JSONL files (no MongoDB).
+
+    matches_path rows:
+      {id_1, id_2, winner, model, flipped, reasoning, tokens_*, elapsed_s}
+    summaries_path rows:
+      {openreview_id, title, status, reviewer_scores, ai_rating, ...}
+    """
+    import json as _json
+    import re as _re
+
+    # Load paper metadata keyed by openreview_id
+    papers: dict = {}
+    with summaries_path.open() as f:
+        for line in f:
+            try:
+                p = _json.loads(line)
+            except Exception:
+                continue
+            oid = p.get("openreview_id")
+            if not oid:
+                continue
+            scores_raw = p.get("reviewer_scores", "")
+            scores: list = []
+            if isinstance(scores_raw, str) and scores_raw:
+                try:
+                    scores = [float(x) for x in _json.loads(scores_raw)]
+                except Exception:
+                    # Fallback: extract numbers
+                    scores = [float(x) for x in _re.findall(r"[0-9.]+", scores_raw)]
+            elif isinstance(scores_raw, list):
+                scores = [float(x) for x in scores_raw if isinstance(x, (int, float))]
+            papers[oid] = {
+                "decision": p.get("status"),
+                "reviewer_scores": scores,
+                "h1_avg_rating": (sum(scores) / len(scores)) if scores else None,
+                "h1_rating_count": len(scores),
+            }
+
+    def _panel_sd(info):
+        scores = info.get("reviewer_scores") or []
+        if len(scores) < 2:
+            return None
+        return pystats.stdev(scores)
+
+    records = []
+    with matches_path.open() as f:
+        for line in f:
+            try:
+                m = _json.loads(line)
+            except Exception:
+                continue
+            id1, id2 = m.get("id_1"), m.get("id_2")
+            if not id1 or not id2:
+                continue
+            flipped = bool(m.get("flipped", False))
+            # Reconstruct prompt-position ordering:
+            #   when flipped=True, the prompt presented id_2 first, id_1 second
+            if flipped:
+                paper1_id, paper2_id = id2, id1
+            else:
+                paper1_id, paper2_id = id1, id2
+            p1 = papers.get(paper1_id) or {}
+            p2 = papers.get(paper2_id) or {}
+            records.append({
+                "dataset_id": dataset_id,
+                "created_at": None,  # not present in JSONL
+                "model": (m.get("model") or "unknown").lower(),
+                "paper1_id": paper1_id,
+                "paper2_id": paper2_id,
+                "winner_id": m.get("winner"),
+                "flipped": flipped,
+                "tier_1": p1.get("decision"),
+                "tier_2": p2.get("decision"),
+                "tier_rank_1": TIER_RANK.get(p1.get("decision"), None),
+                "tier_rank_2": TIER_RANK.get(p2.get("decision"), None),
+                "h1_avg_1": p1.get("h1_avg_rating"),
+                "h1_avg_2": p2.get("h1_avg_rating"),
+                "h1_n_1": p1.get("h1_rating_count", 0) or 0,
+                "h1_n_2": p2.get("h1_rating_count", 0) or 0,
+                "panel_sd_1": _panel_sd(p1),
+                "panel_sd_2": _panel_sd(p2),
+            })
+
+    df = pd.DataFrame(records)
+    if df.empty:
+        return df
+    df["pos1_wins"] = (df["winner_id"] == df["paper1_id"])
+    df["unordered_key"] = df.apply(
+        lambda r: "|".join(sorted([str(r.paper1_id), str(r.paper2_id)])), axis=1
+    )
+    df["score_gap"] = (df["h1_avg_1"] - df["h1_avg_2"]).abs()
+    df["tier_gap"] = (df["tier_rank_1"] - df["tier_rank_2"]).abs()
+
+    def _ai_correct(row):
+        if pd.notnull(row.tier_rank_1) and pd.notnull(row.tier_rank_2) and row.tier_rank_1 != row.tier_rank_2:
+            human_winner = row.paper1_id if row.tier_rank_1 < row.tier_rank_2 else row.paper2_id
+            return row.winner_id == human_winner
+        if (row.h1_n_1 >= 2 and row.h1_n_2 >= 2 and pd.notnull(row.h1_avg_1)
+                and pd.notnull(row.h1_avg_2) and abs(row.h1_avg_1 - row.h1_avg_2) >= 0.5):
+            human_winner = row.paper1_id if row.h1_avg_1 > row.h1_avg_2 else row.paper2_id
+            return row.winner_id == human_winner
+        return None
+    df["ai_correct"] = df.apply(_ai_correct, axis=1)
+    return df
+
+
+
 def wilson_ci(successes: int, n: int, z: float = 1.96) -> tuple[float, float]:
     if n == 0:
         return (0.0, 0.0)
@@ -403,23 +511,42 @@ async def main():
     ap.add_argument("--out", default="/app/memory/ICLR_POSITION_BIAS_REPORT.md")
     ap.add_argument("--mongo-url", default=os.environ.get("MONGO_URL"))
     ap.add_argument("--db-name", default=os.environ.get("DB_NAME"))
+    ap.add_argument("--jsonl-dir", default=None,
+                    help="If given, load from JSONL files in this dir instead of MongoDB. "
+                         "Expects validation_match_results.jsonl, within_label_match_results.jsonl, "
+                         "and iclr_2026_summaries.jsonl.")
     args = ap.parse_args()
 
-    if not args.mongo_url or not args.db_name:
-        print("Missing MONGO_URL or DB_NAME (set env vars or pass --mongo-url / --db-name).", file=sys.stderr)
-        sys.exit(2)
+    use_jsonl = bool(args.jsonl_dir)
 
-    client = AsyncIOMotorClient(args.mongo_url)
-    db = client[args.db_name]
+    if not use_jsonl and (not args.mongo_url or not args.db_name):
+        print("Missing MONGO_URL or DB_NAME (or pass --jsonl-dir).", file=sys.stderr)
+        sys.exit(2)
 
     lines: list = []
     lines.append("# ICLR 2026 Positional-Bias Analysis\n")
-    lines.append(f"_Generated: {datetime.now(timezone.utc).isoformat()} — DB: `{args.db_name}`_\n")
+    if use_jsonl:
+        lines.append(f"_Generated: {datetime.now(timezone.utc).isoformat()} — source: JSONL `{args.jsonl_dir}`_\n")
+    else:
+        lines.append(f"_Generated: {datetime.now(timezone.utc).isoformat()} — DB: `{args.db_name}`_\n")
 
-    # Load both datasets
     lines.append("## Dataset summary\n")
-    df_val = await load_dataset(db, VALIDATION_DS)
-    df_wl = await load_dataset(db, WITHIN_LABEL_DS)
+    if use_jsonl:
+        base = Path(args.jsonl_dir)
+        sums = base / "iclr_2026_summaries.jsonl"
+        df_val = load_dataset_from_jsonl(
+            base / "validation_match_results.jsonl", sums, VALIDATION_DS,
+        )
+        df_wl = load_dataset_from_jsonl(
+            base / "within_label_match_results.jsonl", sums, WITHIN_LABEL_DS,
+        )
+        client = None
+    else:
+        client = AsyncIOMotorClient(args.mongo_url)
+        db = client[args.db_name]
+        df_val = await load_dataset(db, VALIDATION_DS)
+        df_wl = await load_dataset(db, WITHIN_LABEL_DS)
+
     lines.append(f"- **{VALIDATION_DS}**: {len(df_val):,} completed matches")
     if not df_val.empty:
         lines.append(f"  - models: {df_val['model'].value_counts().to_dict()}")
@@ -462,7 +589,8 @@ async def main():
     out_path.write_text("\n".join(lines))
     print(f"Wrote report: {out_path}")
     print(f"  {len(lines)} lines, {sum(len(ln) for ln in lines)/1024:.1f} KB")
-    client.close()
+    if client is not None:
+        client.close()
 
 
 if __name__ == "__main__":
