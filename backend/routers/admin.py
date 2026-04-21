@@ -3982,3 +3982,271 @@ async def get_revision_feed(admin=Depends(verify_admin), limit: int = Query(50, 
         "families": families,
         "legacy_in_place": legacy,
     }
+
+
+# =====================================================================
+# Positional-Bias Controlled A/B Test (GPT-5.2 infra vs model hypothesis)
+# =====================================================================
+#
+# Goal: distinguish whether GPT-5.2's ~35% pos1 rate on the live tournament
+# (W14+) is caused by (a) the LLM proxy degrading under scheduler queue
+# pressure, or (b) genuine GPT-5.2 second-paper preference.
+#
+# Design: sample N already-judged pairs from recent production matches.
+# For each pair, call compare_papers twice with model_override=GPT-5.2 —
+# once as (A, B), once as (B, A). Use low concurrency so no queueing.
+# Report:
+#   - pos1_rate: fraction of the 2N calls where winner was shown first
+#   - consistency_rate: fraction of pairs where the same paper wins in
+#     both orderings (position-invariant)
+#   - directional_flip_rate: fraction of pairs where the first-position
+#     paper wins BOTH orderings (pure positional bias)
+#
+# If pos1_rate ≈ 48-50% and consistency_rate is high → live tournament's
+# 35% is infra-induced (queue pressure on the proxy).
+# If pos1_rate ≈ 35% and directional_flip_rate is high → genuine GPT-5.2
+# positional bias.
+
+from threading import Lock as _ThLock
+
+_POSITIONAL_AB_JOBS: dict = {}
+_POSITIONAL_AB_LOCK = _ThLock()
+
+
+class PositionalABRequest(BaseModel):
+    n_pairs: int = 500
+    model_provider: str = "openai"
+    model_name: str = "gpt-5.2"
+    concurrency: int = 5
+    since: str = "2026-04-01"  # sample production matches after this date
+
+
+@router.post("/positional-ab-test/start", dependencies=[Depends(verify_admin)])
+async def start_positional_ab_test(body: PositionalABRequest):
+    """Kick off a background controlled A/B test. Returns job_id for polling."""
+    if body.n_pairs < 10 or body.n_pairs > 2000:
+        raise HTTPException(400, "n_pairs must be 10..2000")
+    if body.concurrency < 1 or body.concurrency > 20:
+        raise HTTPException(400, "concurrency must be 1..20")
+
+    job_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+
+    with _POSITIONAL_AB_LOCK:
+        _POSITIONAL_AB_JOBS[job_id] = {
+            "job_id": job_id,
+            "state": "starting",
+            "n_pairs_requested": body.n_pairs,
+            "model": f"{body.model_provider}:{body.model_name}",
+            "concurrency": body.concurrency,
+            "since": body.since,
+            "started_at": now,
+            "pairs_completed": 0,
+            "calls_completed": 0,
+            "calls_failed": 0,
+            "per_pair": [],
+            "summary": None,
+        }
+
+    asyncio.create_task(_run_positional_ab(job_id, body))
+    return {"job_id": job_id, "state": "starting"}
+
+
+@router.get("/positional-ab-test/status")
+async def status_positional_ab_test(job_id: str):
+    """Poll A/B test progress. Returns summary when done."""
+    with _POSITIONAL_AB_LOCK:
+        job = _POSITIONAL_AB_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "job not found")
+    # Shallow copy, omit per_pair detail unless finished
+    out = {k: v for k, v in job.items() if k != "per_pair"}
+    if job["state"] == "done":
+        out["per_pair_sample"] = job["per_pair"][:20]
+    return out
+
+
+@router.get("/positional-ab-test/list")
+async def list_positional_ab_tests():
+    """List recent A/B runs (in-memory only, cleared on restart)."""
+    with _POSITIONAL_AB_LOCK:
+        jobs = [
+            {k: v for k, v in j.items() if k not in ("per_pair",)}
+            for j in _POSITIONAL_AB_JOBS.values()
+        ]
+    return {"jobs": sorted(jobs, key=lambda x: x.get("started_at", ""), reverse=True)}
+
+
+async def _run_positional_ab(job_id: str, body: PositionalABRequest):
+    """Background worker: sample pairs, run dual-order comparisons."""
+    from services.llm import compare_papers
+
+    def _update(**patch):
+        with _POSITIONAL_AB_LOCK:
+            _POSITIONAL_AB_JOBS[job_id].update(patch)
+
+    try:
+        _update(state="sampling")
+
+        # 1) Sample N completed matches for this model, after `since`.
+        model_full = f"{body.model_provider}:{body.model_name}"
+        match_filter = {
+            "completed": True,
+            "failed": {"$ne": True},
+            "winner_id": {"$exists": True},
+            "model_used.model": body.model_name,
+            "content_mode": "abstract_plus_summary",
+            "created_at": {"$gte": body.since},
+            "mode": {"$exists": False},  # live tournament only
+        }
+        pipeline = [
+            {"$match": match_filter},
+            {"$sample": {"size": body.n_pairs}},
+            {"$project": {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1}},
+        ]
+        sampled = await db.matches.aggregate(pipeline).to_list(length=body.n_pairs)
+        if not sampled:
+            _update(state="error", error="no matches sampled")
+            return
+
+        # 2) Load paper docs with Claude thinking summaries.
+        needed_ids = list({m["paper1_id"] for m in sampled} | {m["paper2_id"] for m in sampled})
+        papers = await collect_all(db.papers.find(
+            {"id": {"$in": needed_ids}},
+            {"_id": 0, "id": 1, "title": 1, "abstract": 1, "summaries": 1},
+        ))
+        paper_lookup = {p["id"]: p for p in papers}
+
+        SUM_KEY = "anthropic:claude-opus-4-6:thinking"
+
+        def _prep(paper_id):
+            p = paper_lookup.get(paper_id)
+            if not p:
+                return None
+            summary = (p.get("summaries") or {}).get(SUM_KEY, "")
+            if not summary or len(summary) < 50:
+                return None
+            return {
+                "id": p["id"],
+                "title": p.get("title", ""),
+                "abstract": p.get("abstract", ""),
+                "ai_impact_summary": summary,
+            }
+
+        # Keep only pairs where both papers have valid Claude summaries
+        usable_pairs = []
+        for m in sampled:
+            a = _prep(m["paper1_id"])
+            b = _prep(m["paper2_id"])
+            if a and b:
+                usable_pairs.append((a, b, m["winner_id"]))
+
+        _update(state="running", n_pairs_usable=len(usable_pairs))
+        if not usable_pairs:
+            _update(state="error", error="no usable pairs (missing Claude summaries)")
+            return
+
+        model_override = {"provider": body.model_provider, "model": body.model_name}
+        sem = asyncio.Semaphore(body.concurrency)
+
+        pair_results = []
+
+        async def _judge_once(p_first, p_second):
+            """Run compare_papers with p_first as position 1. Return winner paper_id or None."""
+            async with sem:
+                try:
+                    res = await asyncio.wait_for(
+                        compare_papers(
+                            p_first, p_second,
+                            content_mode="abstract_plus_summary",
+                            model_override=model_override,
+                        ),
+                        timeout=90,
+                    )
+                    return p_first["id"] if res.get("winner") == "paper1" else p_second["id"]
+                except Exception as e:
+                    logger.warning(f"positional_ab judge failed: {e}")
+                    return None
+
+        async def _run_pair(pair_idx, a, b, prod_winner):
+            # Order AB: a in pos1, b in pos2
+            win_ab = await _judge_once(a, b)
+            # Order BA: b in pos1, a in pos2
+            win_ba = await _judge_once(b, a)
+
+            # Collect per-pair outcome
+            pair_out = {
+                "idx": pair_idx,
+                "paper_a_id": a["id"],
+                "paper_b_id": b["id"],
+                "prod_winner_id": prod_winner,
+                "ab_winner_id": win_ab,
+                "ba_winner_id": win_ba,
+                "ab_pos1_win": (win_ab == a["id"]) if win_ab else None,
+                "ba_pos1_win": (win_ba == b["id"]) if win_ba else None,
+                "consistent": (win_ab == win_ba) if (win_ab and win_ba) else None,
+            }
+            with _POSITIONAL_AB_LOCK:
+                job = _POSITIONAL_AB_JOBS[job_id]
+                job["per_pair"].append(pair_out)
+                job["pairs_completed"] += 1
+                for w in (win_ab, win_ba):
+                    if w is None:
+                        job["calls_failed"] += 1
+                    else:
+                        job["calls_completed"] += 1
+
+        await asyncio.gather(*[
+            _run_pair(i, a, b, w) for i, (a, b, w) in enumerate(usable_pairs)
+        ])
+
+        # 3) Aggregate
+        with _POSITIONAL_AB_LOCK:
+            per_pair = list(_POSITIONAL_AB_JOBS[job_id]["per_pair"])
+
+        pos1_wins = 0
+        pos1_total = 0
+        consistent = 0
+        consistent_total = 0
+        directional_first_bias = 0  # pos1 wins in BOTH orderings = position-driven toward first
+        directional_second_bias = 0  # pos2 wins in BOTH orderings = position-driven toward second
+
+        for p in per_pair:
+            for k in ("ab_pos1_win", "ba_pos1_win"):
+                v = p.get(k)
+                if v is None:
+                    continue
+                pos1_total += 1
+                if v:
+                    pos1_wins += 1
+
+            c = p.get("consistent")
+            if c is not None:
+                consistent_total += 1
+                if c:
+                    consistent += 1
+                else:
+                    # Inconsistent: same pair voted differently by order.
+                    # Classify direction of inconsistency.
+                    ab_pos1 = p.get("ab_pos1_win")
+                    ba_pos1 = p.get("ba_pos1_win")
+                    if ab_pos1 and ba_pos1:
+                        directional_first_bias += 1
+                    elif (ab_pos1 is False) and (ba_pos1 is False):
+                        directional_second_bias += 1
+
+        summary = {
+            "n_pairs_usable": len(usable_pairs),
+            "calls_total": pos1_total,
+            "pos1_rate_pct": round(pos1_wins / pos1_total * 100, 2) if pos1_total else None,
+            "consistency_rate_pct": round(consistent / consistent_total * 100, 2) if consistent_total else None,
+            "inconsistent_pairs": consistent_total - consistent,
+            "inconsistent_toward_first_pct": round(directional_first_bias / consistent_total * 100, 2) if consistent_total else None,
+            "inconsistent_toward_second_pct": round(directional_second_bias / consistent_total * 100, 2) if consistent_total else None,
+            "production_baseline_pos1_rate_note": "GPT-5.2 on live tournament W14+ is ~35%",
+        }
+
+        _update(state="done", finished_at=datetime.now(timezone.utc).isoformat(), summary=summary)
+    except Exception as e:
+        logger.exception("positional_ab run failed")
+        _update(state="error", error=str(e)[:500])

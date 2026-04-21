@@ -190,3 +190,94 @@ Production's `abstract_plus_summary` matches show the same Claude/Gemini ~49% pa
 ---
 
 *End of report*
+
+
+
+---
+
+# Follow-up: April 21, 2026 — GPT-5.2 Controlled A/B Test
+
+## Motivation
+The original report (above) left the GPT-5.2 drift on production unresolved
+and suggested "OpenAI silent server-side update" as the most likely cause.
+A pairwise controlled experiment was run to falsify that hypothesis.
+
+## Step-change analysis (diagnostic from production DB)
+
+Per-week GPT-5.2 pos1 rate from `/api/positional-bias-diagnostic?group=week`,
+analyzed as discrete step-changes (not drift):
+
+| Transition | Δ pos1 | z-score | Correlates with |
+|------------|--------|---------|-----------------|
+| W08→W09 (Feb 22/23) | **+6.4 pp** | +6.48 | commit `bfad1aa5` — TOURNAMENT_MODELS swap: Opus 4.5 → Opus 4.6 as judge |
+| W09→W12 | flat (±1.5pp) | |z|<2 | — (stable at ~45%) |
+| W12→W13 (Mar 22/23) | **−5.7 pp** | −5.46 | match volume +41%, no matching-path code change |
+| W13→W14 (Mar 29/30) | **−4.5 pp** | −5.33 | commit `6cad4113` — `_llm_executor` max_workers 100 → **10** + volume +51% |
+| W14→W17 | flat (|z|<1) | | stable new equilibrium at ~35.5% |
+
+Claude Opus 4.6 and Gemini 3 Pro are rock-stable at ~48–49% across every
+transition above. The three GPT-5.2-specific step-changes argue against
+a gradual OpenAI model drift.
+
+## Controlled A/B test (definitive)
+
+**Design:** 200 recently-judged GPT-5.2 pairs harvested from production.
+Each pair judged **twice** with `model_override={"openai","gpt-5.2"}`:
+once (A in pos1, B in pos2), once (B in pos1, A in pos2). Calls made
+from a low-pressure preview pod at concurrency=5 (no scheduler queue).
+Same prompt_config as production (custom_prompt from `db.settings`).
+
+**Result (n=199 pairs, 398 calls, 0 failures):**
+
+| Metric | Value | Interpretation |
+|--------|-------|----------------|
+| pos1 rate | **49.75%** | ~unbiased |
+| 95% CI | 44.9 – 54.6 | straddles 50%, clearly excludes 35.5% |
+| p-value (H0: p=50%) | 0.96 | cannot reject null → no bias |
+| p-value (H0: p=35.5%) | 6.6 × 10⁻⁹ | rejects production rate |
+| Consistency (same winner both orderings) | **97.49%** | highly reproducible |
+| Inconsistent pairs | 5 / 199 | symmetric: 2 flip-to-first, 3 flip-to-second |
+
+Two-proportion z-test vs production W16 (n=13,243 at 35.2%): **z=5.97**.
+
+## Conclusion
+
+GPT-5.2 has **no intrinsic positional bias** when called outside the
+scheduler. The production 35.5% pos1 rate is **not a model property** —
+it is an emergent artifact of the production pipeline, almost certainly
+triggered by the Mar 28 `max_workers=100→10` change combined with the
+W14+ match-volume surge. The two transitions that produced the drop
+(Breaks 2 & 3) both correlate with infrastructure/capacity pressure,
+not model or prompt changes.
+
+## Additional cleanup applied
+
+`compare_papers` (llm.py) previously read summary via a legacy fallback
+chain `ai_impact_summary_thinking → ai_impact_summary_opus46 →
+ai_impact_summary`. That chain was migration residue from the Opus 4.5
+→ 4.6 → 4.6-thinking rollout, and no longer matched any scheduler-written
+field. Removed in favor of a single `ai_impact_summary` read, with a
+docstring pinning the contract. Regression test added at
+`backend/tests/test_compare_papers_summary_contract.py`.
+
+## Actionable recommendations
+
+1. **Raise `_llm_executor` max_workers back toward 30–40** (from 10).
+   The Mar 28 reduction was made under memory pressure that has since
+   been relieved by the `_generate_paper_summaries` and `_select_pairs`
+   memory optimizations (commits `65da3ce0`, `d45cb681`, Mar 23–24).
+   Predict: GPT-5.2 pos1 rate will recover toward ~48% within 2 weeks.
+
+2. **Re-run this A/B after the change** to verify recovery. Script at
+   `backend/scripts/positional_ab_gpt52.py` is reusable as-is.
+
+3. **Consider a lightweight latency/error dashboard per-model** so the
+   next infra-driven bias shift is visible immediately.
+
+4. The **preview anomaly (60% pos1, all models, W08+)** from §4.2 of
+   the original report remains unexplained and is worth one more look
+   — the pattern (all models moving together by the same magnitude)
+   strongly suggests a metric-read bug in the preview snapshot, not a
+   model behavior. Out of scope here.
+
+*End of April 21 follow-up*
