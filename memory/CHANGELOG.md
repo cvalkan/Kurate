@@ -1,5 +1,31 @@
 # Changelog
 
+## April 21, 2026
+### Investigation: GPT-5.2 positional bias anomaly (resolved)
+- Mapped the W08–W17 positional bias per model via `/api/positional-bias-diagnostic?group=week`.
+- Found GPT-5.2's drop to 35% is **three discrete step-changes**, not gradual drift:
+  - W08→W09 (+6.4pp): commit `bfad1aa5` — Opus 4.5→4.6 judge swap
+  - W12→W13 (−5.7pp): match volume +41%, no code change
+  - W13→W14 (−4.5pp): commit `6cad4113` — `_llm_executor max_workers 100→10` + volume +51%
+- Ran controlled A/B (n=199 pairs, 398 calls, production prompt_config, concurrency=5):
+  - **pos1 rate = 49.75% (95% CI 44.9–54.6), consistency = 97.5%**
+  - Rejects H0: p=35.5% (p = 6.6 × 10⁻⁹)
+  - Proves GPT-5.2 itself has no positional bias; production rate is **infra-induced**.
+- Findings appended to `/app/memory/POSITIONAL_BIAS_INVESTIGATION.md` as "April 21 follow-up".
+- Per-pair results at `/app/backend/data/positional_ab_gpt52_prod_prompt.jsonl`.
+
+### Code cleanup: summary fallback chain in compare_papers
+- Removed migration-era legacy fallback `ai_impact_summary_thinking → ai_impact_summary_opus46 → ai_impact_summary` from `llm.py` (lines 637-645, 677-685).
+- Live tournament was already using only the single `ai_impact_summary` field (Claude Opus 4.6 thinking summary injected by `scheduler._get_paper_summary`), so zero production behavior change.
+- The chain was silently overriding the summary for non-scheduler callers (e.g. `pairwise.py`) — contract now pinned.
+- Regression test added: `backend/tests/test_compare_papers_summary_contract.py` (2 tests passing).
+
+### New tooling (reusable)
+- `backend/scripts/positional_ab_gpt52.py` — controlled A/B harness (harvests prod pairs via public API, calls compare_papers locally).
+- `POST /api/admin/positional-ab-test/start` + `GET /status` + `GET /list` — on-production equivalent for future runs with direct DB access.
+
+
+
 ## March 14, 2026
 ### Bug Fix: Mobile Twitter Unfurling (Investigation ongoing)
 - **Attempted Fix 1**: Replaced `<meta http-equiv="refresh" content="0;url=...">` with `<script>window.location.replace()</script>` — DID NOT FIX mobile issue
