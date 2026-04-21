@@ -176,7 +176,7 @@ export default function CorrelationPage() {
       </SectionBoundary>
 
       <SectionBoundary>
-        <PositionalBiasSection />
+        {/* PositionalBiasSection hidden pending bias investigation — see POSITIONAL_BIAS_INVESTIGATION.md */}
       </SectionBoundary>
 
     </div>
