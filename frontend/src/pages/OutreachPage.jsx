@@ -32,8 +32,9 @@ function LikeButton({ paperId, candidate, size = "sm" }) {
   const handleLike = async (e) => {
     e.stopPropagation();
     e.preventDefault();
-    if (!tweetUrl || busy || liked) return;
-    if (!window.confirm(`Like @${candidate.handle}'s tweet as @kurateorg?`)) return;
+    if (!tweetUrl || busy) return;
+    const verb = liked ? "Re-like" : "Like";
+    if (!window.confirm(`${verb} @${candidate.handle}'s tweet as @kurateorg?`)) return;
     setBusy(true);
     try {
       const res = await axios.post(
@@ -60,18 +61,39 @@ function LikeButton({ paperId, candidate, size = "sm" }) {
   return (
     <button
       onClick={handleLike}
-      disabled={busy || liked}
+      disabled={busy}
       data-testid={`like-btn-${candidate.handle}`}
-      title={liked ? "Already liked" : "Like this tweet as @kurateorg"}
+      title={liked ? "Already liked — click to like again" : "Like this tweet as @kurateorg"}
       className={`shrink-0 ${textSize} rounded border inline-flex items-center gap-1 transition-colors disabled:opacity-60 ${
         liked
-          ? "border-pink-500 bg-pink-50 text-pink-600 cursor-default"
+          ? "border-pink-500 bg-pink-50 text-pink-600 hover:bg-pink-100"
           : "border-pink-500 text-pink-600 hover:bg-pink-500 hover:text-white"
       }`}
     >
       <Heart className={`${iconSize} ${liked ? "fill-pink-500" : ""}`} />
       {busy ? "…" : liked ? "Liked" : "Like"}
     </button>
+  );
+}
+
+function QTBadge({ candidate }) {
+  if (!candidate?.quote_tweeted) return null;
+  const url = candidate.quote_tweet_url || (candidate.quote_tweet_id
+    ? `https://x.com/KurateOrg/status/${candidate.quote_tweet_id}` : null);
+  const when = candidate.quote_tweeted_at?.slice(0, 10) || "";
+  return (
+    <a
+      href={url || "#"}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      data-testid={`qt-badge-${candidate.handle}`}
+      title={`Quote-tweeted ${when}${url ? "" : " (url unknown)"}`}
+      className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-blue-500 bg-blue-50 text-blue-700 inline-flex items-center gap-1 hover:bg-blue-100"
+    >
+      <Twitter className="h-2.5 w-2.5" />
+      QT'd
+    </a>
   );
 }
 
@@ -535,20 +557,37 @@ function MedalistRow({ paper, medal, category, periodLabel }) {
   const [drafting, setDrafting] = useState(false);
   const [draft, setDraft] = useState(null);
   const [editText, setEditText] = useState("");
-  const [saving, setSaving] = useState(false);
   const [posting, setPosting] = useState(false);
-  const [posted, setPosted] = useState(false);
+  // Persist last-posted URL so even after closing/reopening the draft we keep the badge visible
+  const [lastPost, setLastPost] = useState(null);
 
   const handlePost = async () => {
-    if (!window.confirm("Reply to this tweet from @kurateorg with the badge?")) return;
+    const existing = draft?.handle
+      ? candidates.find((c) => c.handle === draft.handle && c.quote_tweeted)
+      : null;
+    const verb = existing || lastPost ? "Post ANOTHER quote tweet" : "Post quote tweet";
+    if (!window.confirm(`${verb} from @kurateorg with your current edits?`)) return;
     setPosting(true);
     try {
-      await axios.post(`${API}/api/admin/outreach/post-tweet`, {
+      const res = await axios.post(`${API}/api/admin/outreach/post-tweet`, {
         paper_id: paper.id,
         handle: draft.handle,
+        text: editText,
       }, { headers: getAdminHeaders() });
       toast.success("Tweet posted from @kurateorg!");
-      setPosted(true);
+      setLastPost({
+        url: res.data?.url || null,
+        posted_at: res.data?.posted_at || new Date().toISOString(),
+        quote_tweet_id: res.data?.quote_tweet_id || null,
+      });
+      // Reflect posted state on the candidate so sibling UI (QTBadge) updates immediately
+      const c = candidates.find((x) => x.handle === draft.handle);
+      if (c) {
+        c.quote_tweeted = true;
+        c.quote_tweet_id = res.data?.quote_tweet_id || c.quote_tweet_id;
+        c.quote_tweet_url = res.data?.url || c.quote_tweet_url;
+        c.quote_tweeted_at = res.data?.posted_at || new Date().toISOString();
+      }
     } catch (e) {
       toast.error(`Post failed: ${e.response?.data?.detail || e.message}`);
     } finally {
@@ -570,26 +609,20 @@ function MedalistRow({ paper, medal, category, periodLabel }) {
       }, { headers: getAdminHeaders() });
       setDraft(res.data);
       setEditText(res.data.draft_text);
+      // Carry forward any already-known QT state for this candidate
+      if (candidate.quote_tweeted) {
+        setLastPost({
+          url: candidate.quote_tweet_url,
+          posted_at: candidate.quote_tweeted_at,
+          quote_tweet_id: candidate.quote_tweet_id,
+        });
+      } else {
+        setLastPost(null);
+      }
     } catch (e) {
       toast.error("Failed to generate draft");
     } finally {
       setDrafting(false);
-    }
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await axios.post(`${API}/api/admin/outreach/save-draft`, null, {
-        headers: getAdminHeaders(),
-        params: { paper_id: paper.id, handle: draft.handle, text: editText },
-      });
-      toast.success("Draft saved");
-      setDraft(prev => ({ ...prev, draft_text: editText }));
-    } catch {
-      toast.error("Failed to save");
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -633,10 +666,11 @@ function MedalistRow({ paper, medal, category, periodLabel }) {
                   {c.tweet_url && (
                     <>
                       <LikeButton paperId={paper.id} candidate={c} size="xs" />
+                      <QTBadge candidate={c} />
                       <button onClick={() => handleDraft(c)} disabled={drafting}
                         className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-accent text-accent hover:bg-accent hover:text-background transition-colors disabled:opacity-50"
                       >
-                        {drafting ? "..." : "Draft Quote"}
+                        {drafting ? "..." : c.quote_tweeted ? "Draft again" : "Draft Quote"}
                       </button>
                     </>
                   )}
@@ -676,15 +710,31 @@ function MedalistRow({ paper, medal, category, periodLabel }) {
                   {editText.length} / 280 chars
                 </span>
                 <div className="flex items-center gap-2">
+                  {lastPost && (
+                    <a
+                      href={lastPost.url || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-blue-700 hover:underline flex items-center gap-1"
+                      data-testid="last-post-link"
+                      title={`Posted ${lastPost.posted_at}`}
+                    >
+                      <Twitter className="h-3 w-3" />
+                      Posted — open quote tweet
+                    </a>
+                  )}
                   <button onClick={() => setDraft(null)}
                     className="text-xs text-muted-foreground hover:text-foreground"
-                  >Dismiss</button>
-                  <Button onClick={handleSave} disabled={saving || editText.length > 280} size="sm" variant="outline" className="text-xs h-7">
-                    {saving ? "Saving..." : "Save Draft"}
-                  </Button>
-                  <Button onClick={handlePost} disabled={posting || posted || editText.length > 280} size="sm" className="text-xs h-7 gap-1">
+                  >Close</button>
+                  <Button
+                    onClick={handlePost}
+                    disabled={posting || editText.length > 280}
+                    size="sm"
+                    className="text-xs h-7 gap-1"
+                    data-testid="post-tweet-btn"
+                  >
                     <Twitter className="h-3 w-3" />
-                    {posted ? "Replied!" : posting ? "Replying..." : "Reply from @kurateorg"}
+                    {posting ? "Posting..." : lastPost ? "Post again" : "Reply from @kurateorg"}
                   </Button>
                 </div>
               </div>
@@ -756,6 +806,15 @@ function PaperRow({ paper, index }) {
                       <span className="truncate">{c.tweet_text?.slice(0, 60)}{c.tweet_text?.length > 60 ? "..." : ""}</span>
                     </a>
                   )}
+                  {c.liked && (
+                    <span className="shrink-0 text-[10px] px-1 py-0.5 rounded border border-pink-500 bg-pink-50 text-pink-600 inline-flex items-center gap-0.5"
+                      data-testid={`liked-indicator-${c.handle}`}
+                      title={`Liked ${c.liked_at?.slice(0, 10) || ""}`}
+                    >
+                      <Heart className="h-2 w-2 fill-pink-500" />Liked
+                    </span>
+                  )}
+                  <QTBadge candidate={c} />
                 </div>
               ))}
               {hasMore && (
@@ -821,11 +880,10 @@ function CandidateDetail({ candidate: c, paperId }) {
               matches "{c.matched_author}" ({Math.round(c.name_similarity * 100)}%)
             </span>
           )}
-          {c.tweet_url && (
-            <div className="ml-auto">
-              <LikeButton paperId={paperId} candidate={c} size="sm" />
-            </div>
-          )}
+          <div className="ml-auto flex items-center gap-1">
+            <QTBadge candidate={c} />
+            {c.tweet_url && <LikeButton paperId={paperId} candidate={c} size="sm" />}
+          </div>
         </div>
         {c.bio && <div className="text-[11px] text-muted-foreground mt-1 truncate">{c.bio}</div>}
         {c.tweet_text && (

@@ -260,6 +260,23 @@ async def get_discoveries(
     ):
         liked_by_paper.setdefault(doc["paper_id"], {})[doc["tweet_id"]] = doc.get("liked_at")
 
+    # Index quote-tweeted handles per paper (posted drafts). Keyed by handle since
+    # drafts are uniquely identified by (paper_id, handle).
+    qt_by_paper: dict = {}
+    async for doc in db.tweet_drafts.find(
+        {"paper_id": {"$in": paper_ids}, "status": "posted"},
+        {"_id": 0, "paper_id": 1, "handle": 1, "quote_tweet_id": 1,
+         "quote_tweet_url": 1, "posted_at": 1},
+    ):
+        qt_by_paper.setdefault(doc["paper_id"], {})[doc["handle"]] = {
+            "quote_tweet_id": doc.get("quote_tweet_id"),
+            "quote_tweet_url": doc.get("quote_tweet_url") or (
+                f"https://x.com/KurateOrg/status/{doc['quote_tweet_id']}"
+                if doc.get("quote_tweet_id") else None
+            ),
+            "quote_tweeted_at": doc.get("posted_at"),
+        }
+
     def _tweet_id_from_url(u: str) -> str:
         if not u:
             return ""
@@ -271,8 +288,9 @@ async def get_discoveries(
         pid = p["id"]
         disc = discoveries.get(pid)
         liked_map = liked_by_paper.get(pid, {})
+        qt_map = qt_by_paper.get(pid, {})
         candidates = disc.get("candidates", []) if disc else []
-        # Annotate each candidate with our like state
+        # Annotate each candidate with our like + quote-tweet state
         for c in candidates:
             tid = _tweet_id_from_url(c.get("tweet_url", ""))
             if tid and tid in liked_map:
@@ -280,6 +298,14 @@ async def get_discoveries(
                 c["liked_at"] = liked_map[tid]
             else:
                 c["liked"] = False
+            qt = qt_map.get(c.get("handle", ""))
+            if qt and qt.get("quote_tweet_id"):
+                c["quote_tweeted"] = True
+                c["quote_tweet_id"] = qt["quote_tweet_id"]
+                c["quote_tweet_url"] = qt["quote_tweet_url"]
+                c["quote_tweeted_at"] = qt["quote_tweeted_at"]
+            else:
+                c["quote_tweeted"] = False
         entry = {
             "id": pid,
             "title": p.get("title", ""),
@@ -442,17 +468,38 @@ async def save_draft(paper_id: str, handle: str, text: str):
 class PostTweetRequest(BaseModel):
     paper_id: str
     handle: str
+    text: Optional[str] = None  # if provided, saves + uses this edited text instead of the stored draft
 
 
 @router.post("/post-tweet", dependencies=[Depends(verify_admin)])
 async def post_tweet(body: PostTweetRequest):
-    """Post a draft tweet as a quote tweet from @kurateorg via TweetAPI."""
+    """Post a draft tweet as a quote tweet from @kurateorg via TweetAPI.
+
+    If `text` is provided, it replaces the stored draft before posting (atomically
+    save-and-post). Clicking "Reply" a second time re-posts a new quote tweet
+    using the latest text — drafts are not consumed on post.
+    """
     draft = await db.tweet_drafts.find_one(
         {"paper_id": body.paper_id, "handle": body.handle},
         {"_id": 0},
     )
     if not draft:
         raise HTTPException(404, "No draft found for this paper/handle")
+
+    # If the client sent edited text, save it to the draft before posting so
+    # the stored record always reflects what was actually tweeted.
+    if body.text is not None and body.text.strip():
+        edited = body.text.strip()
+        if len(edited) > 280:
+            raise HTTPException(400, f"Tweet text is {len(edited)} chars (max 280)")
+        await db.tweet_drafts.update_one(
+            {"paper_id": body.paper_id, "handle": body.handle},
+            {"$set": {
+                "draft_text": edited,
+                "edited_at": datetime.now(timezone.utc).isoformat(),
+            }},
+        )
+        draft["draft_text"] = edited
 
     auth_token = os.environ.get("TWITTER_AUTH_TOKEN")
     proxy = os.environ.get("TWITTER_PROXY", "")
@@ -498,18 +545,30 @@ async def post_tweet(body: PostTweetRequest):
             except Exception as re:
                 logger.warning(f"[outreach] Badge reply failed (quote succeeded): {re}")
 
-        # Update draft status
+        # Update draft status. Push to history list so repeated posts are tracked.
+        now = datetime.now(timezone.utc).isoformat()
+        quote_url = f"https://x.com/KurateOrg/status/{quote_tweet_id}" if quote_tweet_id else ""
         await db.tweet_drafts.update_one(
             {"paper_id": body.paper_id, "handle": body.handle},
-            {"$set": {
-                "status": "posted",
-                "posted_at": datetime.now(timezone.utc).isoformat(),
-                "quote_tweet_id": str(quote_tweet_id),
-                "reply_result": str(reply_result)[:300] if reply_result else None,
-            }},
+            {
+                "$set": {
+                    "status": "posted",
+                    "posted_at": now,
+                    "quote_tweet_id": str(quote_tweet_id),
+                    "quote_tweet_url": quote_url,
+                    "reply_result": str(reply_result)[:300] if reply_result else None,
+                },
+                "$push": {
+                    "post_history": {
+                        "quote_tweet_id": str(quote_tweet_id),
+                        "quote_tweet_url": quote_url,
+                        "posted_at": now,
+                        "text": draft["draft_text"],
+                    }
+                },
+            },
         )
-        quote_url = f"https://x.com/KurateOrg/status/{quote_tweet_id}" if quote_tweet_id else ""
-        return {"status": "posted", "quote_tweet_id": quote_tweet_id, "url": quote_url}
+        return {"status": "posted", "quote_tweet_id": quote_tweet_id, "url": quote_url, "posted_at": now}
 
     except Exception as e:
         logger.error(f"[outreach] Failed to post tweet: {e}")
