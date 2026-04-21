@@ -3643,9 +3643,10 @@ async def match_mode_stats():
 
 
 @router.get("/positional-bias-diagnostic")
-async def positional_bias_diagnostic():
-    """Detailed positional bias breakdown by month, model, and mode for debugging."""
+async def positional_bias_diagnostic(group: str = "month"):
+    """Detailed positional bias breakdown by month or week, model, and mode for debugging."""
     from collections import defaultdict
+    from datetime import date as _date
     
     stats = defaultdict(lambda: defaultdict(lambda: {"pos1": 0, "pos2": 0, "total": 0}))
     
@@ -3654,7 +3655,15 @@ async def positional_bias_diagnostic():
         {"_id": 0, "paper1_id": 1, "winner_id": 1, "model_used": 1, "created_at": 1, "mode": 1,
          "content_mode": 1},
     ):
-        created = str(m.get("created_at", ""))[:7]  # YYYY-MM
+        created = str(m.get("created_at", ""))[:10]
+        if group == "week" and len(created) >= 10:
+            try:
+                d = _date.fromisoformat(created)
+                period = f"{d.isocalendar()[0]}-W{d.isocalendar()[1]:02d}"
+            except (ValueError, TypeError):
+                period = created[:7]
+        else:
+            period = created[:7]  # YYYY-MM
         model = m.get("model_used", {}).get("model", "unknown") if isinstance(m.get("model_used"), dict) else str(m.get("model_used", "unknown"))
         mode = m.get("mode") or m.get("content_mode") or "standard"
         is_pos1 = m["winner_id"] == m["paper1_id"]
