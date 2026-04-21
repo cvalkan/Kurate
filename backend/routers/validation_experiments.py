@@ -3607,6 +3607,46 @@ async def iclr2026_tournament():
 
 # ── Positional Bias Analysis (live tournament matches) ──
 
+
+@router.get("/positional-bias-diagnostic")
+async def positional_bias_diagnostic():
+    """Detailed positional bias breakdown by month, model, and mode for debugging."""
+    from collections import defaultdict
+    
+    stats = defaultdict(lambda: defaultdict(lambda: {"pos1": 0, "pos2": 0, "total": 0}))
+    
+    async for m in db.matches.find(
+        {"completed": True, "failed": {"$ne": True}, "winner_id": {"$exists": True}},
+        {"_id": 0, "paper1_id": 1, "winner_id": 1, "model_used": 1, "created_at": 1, "mode": 1,
+         "content_mode": 1},
+    ):
+        created = str(m.get("created_at", ""))[:7]  # YYYY-MM
+        model = m.get("model_used", {}).get("model", "unknown") if isinstance(m.get("model_used"), dict) else str(m.get("model_used", "unknown"))
+        mode = m.get("mode") or m.get("content_mode") or "standard"
+        is_pos1 = m["winner_id"] == m["paper1_id"]
+        
+        stats[created][f"{model}|{mode}"]["pos1" if is_pos1 else "pos2"] += 1
+        stats[created][f"{model}|{mode}"]["total"] += 1
+    
+    result = []
+    for period in sorted(stats.keys()):
+        for model_mode, s in sorted(stats[period].items()):
+            model, mode = model_mode.split("|", 1)
+            t = s["total"]
+            if t < 10:
+                continue
+            result.append({
+                "period": period,
+                "model": model,
+                "mode": mode,
+                "total": t,
+                "pos1": s["pos1"],
+                "pos1_pct": round(s["pos1"] / t * 100, 1),
+            })
+    
+    return {"breakdown": result}
+
+
 @router.get("/positional-bias")
 async def positional_bias(since: str = None):
     """Compute positional bias from the live tournament matches collection.
@@ -3620,6 +3660,7 @@ async def positional_bias(since: str = None):
     match_filter = {
         "completed": True, "failed": {"$ne": True}, "winner_id": {"$exists": True},
         "mode": {"$exists": False},
+        "content_mode": {"$ne": "legacy_abstract_only"},
     }
     if since:
         match_filter["created_at"] = {"$gte": since}
