@@ -276,19 +276,19 @@ export default function AdminPage() {
         </Button>
       </div>
 
-      <div className="flex items-center gap-1 mb-6 p-1 bg-secondary/50 rounded-lg w-fit" data-testid="admin-tabs">
+      <div className="flex items-center gap-1 mb-6 p-1 bg-secondary/50 rounded-lg w-fit max-w-full overflow-x-auto flex-nowrap" data-testid="admin-tabs">
         {tabs.map((t) => {
           const Icon = t.icon;
           return (
             <Button key={t.key} variant={activeTab === t.key ? "default" : "ghost"} size="sm"
-              onClick={() => setActiveTab(t.key)} className="gap-1.5 text-xs h-8" data-testid={`tab-${t.key}`}
+              onClick={() => setActiveTab(t.key)} className="gap-1.5 text-xs h-8 shrink-0" data-testid={`tab-${t.key}`}
             >
               <Icon className="h-3.5 w-3.5" />
               {t.label}
             </Button>
           );
         })}
-        <a href="/admin/outreach" className="inline-flex items-center gap-1.5 text-xs h-8 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors">
+        <a href="/admin/outreach" className="inline-flex items-center gap-1.5 text-xs h-8 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors shrink-0" data-testid="tab-outreach">
           <Twitter className="h-3.5 w-3.5" />
           X Outreach
         </a>
