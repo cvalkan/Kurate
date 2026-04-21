@@ -732,7 +732,8 @@ async def compute_openskill_cache(category: Optional[str] = None):
     all_matches = []
 
     for cat in cats:
-        cat_q = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False},
+        cat_q = {"completed": True, "failed": {"$ne": True},
+                 "content_mode": "abstract_plus_summary",
                  "primary_category": cat}
         async for m in db.matches.find(cat_q, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1}):
             all_matches.append(m)
@@ -1359,7 +1360,8 @@ async def _compute_score_pairwise_coherence(category=None):
     # 2. Load completed matches
     match_query = {
         "completed": True, "failed": {"$ne": True},
-        "mode": {"$exists": False}, "winner_id": {"$exists": True},
+        "content_mode": "abstract_plus_summary",
+        "winner_id": {"$exists": True},
     }
     if category:
         match_query["primary_category"] = category

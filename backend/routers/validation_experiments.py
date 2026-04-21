@@ -3702,7 +3702,7 @@ async def positional_bias(since: str = None):
     """
     match_filter = {
         "completed": True, "failed": {"$ne": True}, "winner_id": {"$exists": True},
-        "mode": {"$exists": False},
+        "content_mode": "abstract_plus_summary",
     }
     if since:
         match_filter["created_at"] = {"$gte": since}
