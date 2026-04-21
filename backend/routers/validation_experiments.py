@@ -3608,6 +3608,40 @@ async def iclr2026_tournament():
 # ── Positional Bias Analysis (live tournament matches) ──
 
 
+
+@router.get("/match-mode-stats")
+async def match_mode_stats():
+    """Breakdown of matches by content_mode, mode, and model — for diagnosing data quality."""
+    pipeline = [
+        {"$match": {"completed": True, "failed": {"$ne": True}, "winner_id": {"$exists": True}}},
+        {"$group": {
+            "_id": {
+                "content_mode": {"$ifNull": ["$content_mode", "NO_CONTENT_MODE"]},
+                "mode": {"$ifNull": ["$mode", "NO_MODE"]},
+                "model": {"$ifNull": [
+                    {"$cond": [{"$eq": [{"$type": "$model_used"}, "object"]}, "$model_used.model", "$model_used"]},
+                    "unknown"
+                ]},
+            },
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"count": -1}},
+    ]
+    results = await db.matches.aggregate(pipeline).to_list(100)
+    
+    rows = []
+    for r in results:
+        rows.append({
+            "content_mode": r["_id"]["content_mode"],
+            "mode": r["_id"]["mode"],
+            "model": r["_id"]["model"],
+            "count": r["count"],
+        })
+    
+    total = sum(r["count"] for r in rows)
+    return {"rows": rows, "total_matches": total}
+
+
 @router.get("/positional-bias-diagnostic")
 async def positional_bias_diagnostic():
     """Detailed positional bias breakdown by month, model, and mode for debugging."""

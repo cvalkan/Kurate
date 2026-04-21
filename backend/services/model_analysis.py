@@ -213,7 +213,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
         total = sum(s.get("total", 0) for s in model_paper_stats[mk].values())
         model_summaries.append({
             "key": mk, "label": _short(mk), "short": _short(mk),
-            "total_matches": total, "papers_judged": len(model_paper_stats[mk]),
+            "total_matches": total // 2, "papers_judged": len(model_paper_stats[mk]),  # total//2: each match involves 2 papers
         })
 
     # --- PW Inter-Model (WR + TS only, OS columns filled by merge) ---
@@ -733,6 +733,7 @@ async def compute_openskill_cache(category: Optional[str] = None):
 
     for cat in cats:
         cat_q = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False},
+                 "content_mode": {"$ne": "legacy_abstract_only"},
                  "primary_category": cat}
         async for m in db.matches.find(cat_q, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1}):
             all_matches.append(m)
@@ -1360,6 +1361,7 @@ async def _compute_score_pairwise_coherence(category=None):
     match_query = {
         "completed": True, "failed": {"$ne": True},
         "mode": {"$exists": False}, "winner_id": {"$exists": True},
+        "content_mode": {"$ne": "legacy_abstract_only"},
     }
     if category:
         match_query["primary_category"] = category
