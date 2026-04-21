@@ -3608,17 +3608,24 @@ async def iclr2026_tournament():
 # ── Positional Bias Analysis (live tournament matches) ──
 
 @router.get("/positional-bias")
-async def positional_bias():
+async def positional_bias(since: str = None):
     """Compute positional bias from the live tournament matches collection.
 
     In the scheduler, papers are randomly flipped before being sent to the LLM,
     and stored as paper1_id (shown first) and paper2_id (shown second).
     So winner_id == paper1_id means the model picked the first-position paper.
+    
+    Optional `since` param (ISO date) to exclude old matches with potentially incorrect flip.
     """
+    match_filter = {
+        "completed": True, "failed": {"$ne": True}, "winner_id": {"$exists": True},
+        "mode": {"$exists": False},
+    }
+    if since:
+        match_filter["created_at"] = {"$gte": since}
     matches = await collect_all(
         db.matches.find(
-            {"completed": True, "failed": {"$ne": True}, "winner_id": {"$exists": True},
-             "mode": {"$exists": False}},
+            match_filter,
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
         )
     )
