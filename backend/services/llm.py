@@ -16,8 +16,15 @@ from core.config import EMERGENT_LLM_KEY, TOURNAMENT_MODELS, DEFAULT_EVALUATION_
 # Dedicated thread pool for LLM calls — default pool (8 threads) bottlenecks parallel evals
 _llm_executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="llm")
 
-# Direct API keys — fallback when Emergent proxy fails for Claude
+# Direct API keys — fallback when Emergent proxy fails
 _ANTHROPIC_DIRECT_KEY = os.environ.get("ANTHROPIC_API_KEY")
+_OPENAI_DIRECT_KEY = os.environ.get("OPENAI_API_KEY_DIRECT")
+
+def _get_direct_key(provider: str):
+    """Get direct API key for a provider, if available."""
+    if provider == "anthropic": return _ANTHROPIC_DIRECT_KEY
+    if provider == "openai": return _OPENAI_DIRECT_KEY
+    return None
 
 
 async def _log_llm_error(provider: str, model: str, error: str, context: str = ""):
@@ -689,7 +696,8 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
     input_tokens_est = input_chars // 4
 
     # Circuit breaker: if proxy has failed repeatedly, skip straight to fallback
-    skip_proxy = (provider == "anthropic" and _ANTHROPIC_DIRECT_KEY
+    _direct_key = _get_direct_key(provider)
+    skip_proxy = (bool(_direct_key)
                   and _should_skip_proxy(provider))
 
     max_retries = 3
@@ -762,13 +770,13 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
                 is_overloaded = "overloaded" in err_str or "rate" in err_str
                 is_token_limit = any(kw in err_str for kw in _TOKEN_LIMIT_KEYWORDS)
                 is_proxy_broken = any(kw in err_str for kw in ("authentication", "invalid x-api-key", "invalid api key", "not allowed", "timeout", "timed out", "502", "bad gateway"))
-                if is_proxy_broken and provider == "anthropic" and _ANTHROPIC_DIRECT_KEY:
+                if is_proxy_broken and _direct_key:
                     _PROXY_FAIL_COUNTS[provider] = _PROXY_FAIL_COUNTS.get(provider, 0) + 1; import time as _t; _PROXY_LAST_FAIL_TIME[provider] = _t.time()
                     logger.warning(f"Emergent proxy error ({provider}/{model}), skipping to direct fallback (circuit: {_PROXY_FAIL_COUNTS[provider]})")
                     break
                 elif is_budget:
-                    logger.warning(f"LLM budget/credit error ({provider}/{model}): {e}. Failing fast (no retry).")
-                    if provider == "anthropic" and _ANTHROPIC_DIRECT_KEY:
+                    logger.warning(f"LLM budget/credit error ({provider}/{model}): {e}. Failing fast.")
+                    if _direct_key:
                         _PROXY_FAIL_COUNTS[provider] = _PROXY_FAIL_COUNTS.get(provider, 0) + 1; import time as _t; _PROXY_LAST_FAIL_TIME[provider] = _t.time()
                         break  # fall through to direct key fallback
                     else:
@@ -793,23 +801,30 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
     if not skip_proxy:
         logger.error(f"Comparison failed after {max_retries} attempts via Emergent proxy: {last_error}")
 
-    # Fallback: if Anthropic failed through Emergent proxy, retry with direct API key
-    if provider == "anthropic" and _ANTHROPIC_DIRECT_KEY:
+    # Fallback: if proxy failed, retry with direct API key
+    if _direct_key:
         try:
             import litellm
             litellm.suppress_debug_info = True
             litellm.set_verbose = False
-            logger.info(f"Falling back to direct Anthropic key for {model}")
+            # Build the litellm model string
+            if provider == "anthropic":
+                litellm_model = f"anthropic/{model}"
+            elif provider == "openai":
+                litellm_model = model  # OpenAI models don't need prefix
+            else:
+                litellm_model = f"{provider}/{model}"
+            logger.info(f"Falling back to direct {provider} key for {model}")
             loop = asyncio.get_event_loop()
             resp = await loop.run_in_executor(
                 _llm_executor,
                 lambda: litellm.completion(
-                    model=f"anthropic/{model}",
+                    model=litellm_model,
                     messages=[
                         {"role": "system", "content": system_msg},
                         {"role": "user", "content": prompt},
                     ],
-                    api_key=_ANTHROPIC_DIRECT_KEY,
+                    api_key=_direct_key,
                     timeout=60,
                 ),
             )
@@ -847,11 +862,11 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
 
             result["model_used"] = model_info
             result["tokens"] = {"input_est": input_tokens_est, "output_est": output_tokens_est}
-            logger.info(f"Direct Anthropic fallback succeeded for {model}")
+            logger.info(f"Direct {provider} fallback succeeded for {model}")
             return result
         except Exception as fallback_err:
             await _log_llm_error(provider, model, fallback_err, context="compare_papers_FALLBACK")
-            logger.error(f"Direct Anthropic fallback also failed: {fallback_err}")
+            logger.error(f"Direct {provider} fallback also failed: {fallback_err}")
 
     raise Exception(f"Comparison failed after {max_retries} retries: {last_error}")
 
