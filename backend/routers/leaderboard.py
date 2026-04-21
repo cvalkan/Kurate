@@ -1790,3 +1790,170 @@ async def run_archive_snapshots():
     if created:
         logger.info(f"Archive snapshots: {created} new snapshots created")
     return created
+
+
+# ─── Live Tournament Positional Bias Analysis ────────────────────────────────
+# These endpoints analyze ONLY db.matches (live tournament), never db.validation_matches.
+
+from scipy import stats as scipy_stats
+from collections import defaultdict
+
+
+@router.get("/positional-bias")
+async def positional_bias(since: str = None):
+    """Compute positional bias from the live tournament matches collection.
+
+    In the scheduler, papers are randomly flipped before being sent to the LLM,
+    and stored as paper1_id (shown first) and paper2_id (shown second).
+    So winner_id == paper1_id means the model picked the first-position paper.
+    
+    Optional `since` param (ISO date) to exclude old matches.
+    """
+    match_filter = {
+        "completed": True, "failed": {"$ne": True}, "winner_id": {"$exists": True},
+        "mode": {"$exists": False},
+    }
+    if since:
+        match_filter["created_at"] = {"$gte": since}
+    matches = await collect_all(
+        db.matches.find(
+            match_filter,
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1},
+        )
+    )
+
+    if not matches:
+        return {"models": [], "total": 0, "message": "No completed matches yet"}
+
+    by_model = defaultdict(lambda: {"pos1": 0, "pos2": 0, "total": 0})
+    overall = {"pos1": 0, "pos2": 0, "total": 0}
+
+    for m in matches:
+        model_name = m.get("model_used", {}).get("model")
+        if not model_name:
+            continue
+        winner = m.get("winner_id")
+        p1 = m.get("paper1_id")
+        if not winner or not p1:
+            continue
+
+        picked_first = (winner == p1)
+        bucket = by_model[model_name]
+        if picked_first:
+            bucket["pos1"] += 1
+            overall["pos1"] += 1
+        else:
+            bucket["pos2"] += 1
+            overall["pos2"] += 1
+        bucket["total"] += 1
+        overall["total"] += 1
+
+    results = []
+    for model_name, stats in sorted(by_model.items(), key=lambda x: -x[1]["total"]):
+        n = stats["total"]
+        if n == 0:
+            continue
+        pos1_rate = stats["pos1"] / n
+        p_value = float(scipy_stats.binomtest(stats["pos1"], n, 0.5).pvalue)
+        results.append({
+            "model": model_name,
+            "pos1_wins": stats["pos1"],
+            "pos2_wins": stats["pos2"],
+            "total": n,
+            "pos1_rate": round(pos1_rate * 100, 2),
+            "pos2_rate": round((1 - pos1_rate) * 100, 2),
+            "bias_direction": "first" if pos1_rate > 0.5 else "second",
+            "bias_magnitude": round(abs(pos1_rate - 0.5) * 100, 2),
+            "p_value": round(p_value, 6),
+            "significant": p_value < 0.05,
+        })
+
+    n_all = overall["total"]
+    pos1_rate_all = overall["pos1"] / n_all if n_all else 0
+    p_all = float(scipy_stats.binomtest(overall["pos1"], n_all, 0.5).pvalue) if n_all else 1.0
+
+    return {
+        "models": results,
+        "overall": {
+            "pos1_wins": overall["pos1"],
+            "pos2_wins": overall["pos2"],
+            "total": n_all,
+            "pos1_rate": round(pos1_rate_all * 100, 2),
+            "p_value": round(p_all, 6),
+            "significant": p_all < 0.05,
+        },
+        "note": "Position 1 = paper presented first in the prompt. The scheduler randomly flips presentation order for each match. A 50/50 split indicates no positional bias. P-values from exact binomial test (H0: p=0.5).",
+    }
+
+
+@router.get("/positional-bias-diagnostic")
+async def positional_bias_diagnostic(group: str = "month"):
+    """Detailed positional bias breakdown by period, model, and mode."""
+    from datetime import date as _date
+
+    stats = defaultdict(lambda: defaultdict(lambda: {"pos1": 0, "pos2": 0, "total": 0}))
+
+    async for m in db.matches.find(
+        {"completed": True, "failed": {"$ne": True}, "winner_id": {"$exists": True}},
+        {"_id": 0, "paper1_id": 1, "winner_id": 1, "model_used": 1, "created_at": 1, "mode": 1,
+         "content_mode": 1},
+    ):
+        created = str(m.get("created_at", ""))[:10]
+        if group == "week" and len(created) >= 10:
+            try:
+                d = _date.fromisoformat(created)
+                period = f"{d.isocalendar()[0]}-W{d.isocalendar()[1]:02d}"
+            except (ValueError, TypeError):
+                period = created[:7]
+        else:
+            period = created[:7]
+        model = m.get("model_used", {}).get("model", "unknown") if isinstance(m.get("model_used"), dict) else str(m.get("model_used", "unknown"))
+        mode = m.get("mode") or m.get("content_mode") or "standard"
+        is_pos1 = m["winner_id"] == m["paper1_id"]
+
+        stats[period][f"{model}|{mode}"]["pos1" if is_pos1 else "pos2"] += 1
+        stats[period][f"{model}|{mode}"]["total"] += 1
+
+    result = []
+    for period in sorted(stats.keys()):
+        for model_mode, s in sorted(stats[period].items()):
+            model, mode = model_mode.split("|", 1)
+            t = s["total"]
+            if t < 10:
+                continue
+            result.append({
+                "period": period,
+                "model": model,
+                "mode": mode,
+                "total": t,
+                "pos1": s["pos1"],
+                "pos1_pct": round(s["pos1"] / t * 100, 1),
+            })
+
+    return {"breakdown": result}
+
+
+@router.get("/match-mode-stats")
+async def match_mode_stats():
+    """Breakdown of live tournament matches by content_mode, mode, and model."""
+    pipeline = [
+        {"$match": {"completed": True, "failed": {"$ne": True}, "winner_id": {"$exists": True}}},
+        {"$group": {
+            "_id": {
+                "content_mode": {"$ifNull": ["$content_mode", "NO_CONTENT_MODE"]},
+                "mode": {"$ifNull": ["$mode", "NO_MODE"]},
+                "model": {"$ifNull": [
+                    {"$cond": [{"$eq": [{"$type": "$model_used"}, "object"]}, "$model_used.model", "$model_used"]},
+                    "unknown"
+                ]},
+            },
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"count": -1}},
+    ]
+    results = await db.matches.aggregate(pipeline).to_list(100)
+
+    rows = [{"content_mode": r["_id"]["content_mode"], "mode": r["_id"]["mode"],
+             "model": r["_id"]["model"], "count": r["count"]} for r in results]
+
+    return {"rows": rows, "total_matches": sum(r["count"] for r in rows)}

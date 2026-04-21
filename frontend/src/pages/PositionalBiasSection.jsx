@@ -75,7 +75,7 @@ export default function PositionalBiasSection() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    axios.get(`${API}/api/validation/positional-bias`)
+    axios.get(`${API}/api/positional-bias`)
       .then(r => setData(r.data))
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
