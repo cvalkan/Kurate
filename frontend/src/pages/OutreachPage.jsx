@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { toast } from "sonner";
-import { Search, ExternalLink, Twitter, RefreshCw, ChevronDown, Users, Trophy, Clock, Calendar, Heart, List } from "lucide-react";
+import { Search, ExternalLink, Twitter, RefreshCw, ChevronDown, Users, Trophy, Clock, Calendar, Heart, List, UserPlus, UserCheck } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Link } from "react-router-dom";
 
@@ -73,6 +73,56 @@ function LikeButton({ paperId, candidate, size = "sm" }) {
     >
       <Heart className={`${iconSize} ${liked ? "fill-pink-500" : ""}`} />
       {busy ? "…" : liked ? "Liked" : "Like"}
+    </button>
+  );
+}
+
+function FollowButton({ paperId, candidate, size = "sm" }) {
+  const [followed, setFollowed] = useState(Boolean(candidate?.followed));
+  const [busy, setBusy] = useState(false);
+
+  const handleFollow = async (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (busy || followed) return;
+    if (!window.confirm(`Follow @${candidate.handle} as @kurateorg?`)) return;
+    setBusy(true);
+    try {
+      const res = await axios.post(
+        `${API}/api/admin/outreach/follow-handle`,
+        { paper_id: paperId, handle: candidate.handle },
+        { headers: getAdminHeaders() }
+      );
+      setFollowed(true);
+      if (res.data?.status === "already_followed") {
+        toast.message(`Already following @${candidate.handle}`);
+      } else {
+        toast.success(`Now following @${candidate.handle}`);
+      }
+    } catch (err) {
+      toast.error(`Follow failed: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const iconSize = size === "xs" ? "h-2.5 w-2.5" : "h-3 w-3";
+  const textSize = size === "xs" ? "text-[10px] px-1.5 py-0.5" : "text-[11px] px-2 py-0.5";
+  const Icon = followed ? UserCheck : UserPlus;
+  return (
+    <button
+      onClick={handleFollow}
+      disabled={busy || followed}
+      data-testid={`follow-btn-${candidate.handle}`}
+      title={followed ? `Following @${candidate.handle}` : `Follow @${candidate.handle} as @kurateorg`}
+      className={`shrink-0 ${textSize} rounded border inline-flex items-center gap-1 transition-colors disabled:opacity-60 ${
+        followed
+          ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+          : "border-indigo-500 text-indigo-600 hover:bg-indigo-500 hover:text-white"
+      }`}
+    >
+      <Icon className={iconSize} />
+      {busy ? "…" : followed ? "Following" : "Follow"}
     </button>
   );
 }
@@ -844,6 +894,7 @@ function MedalistRow({ paper, medal, category, periodLabel, onRefresh }) {
                   {c.tweet_url && (
                     <>
                       <LikeButton paperId={paper.id} candidate={c} size="xs" />
+                      <FollowButton paperId={paper.id} candidate={c} size="xs" />
                       <QTBadge candidate={c} />
                       <button onClick={() => handleDraft(c)} disabled={drafting}
                         className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-accent text-accent hover:bg-accent hover:text-background transition-colors disabled:opacity-50"
@@ -997,6 +1048,14 @@ function PaperRow({ paper, index }) {
                       <Heart className="h-2 w-2 fill-pink-500" />Liked
                     </span>
                   )}
+                  {c.followed && (
+                    <span className="shrink-0 text-[10px] px-1 py-0.5 rounded border border-indigo-500 bg-indigo-50 text-indigo-700 inline-flex items-center gap-0.5"
+                      data-testid={`followed-indicator-${c.handle}`}
+                      title={`Following since ${c.followed_at?.slice(0, 10) || ""}`}
+                    >
+                      <UserCheck className="h-2 w-2" />Following
+                    </span>
+                  )}
                   <QTBadge candidate={c} />
                 </div>
               ))}
@@ -1066,6 +1125,7 @@ function CandidateDetail({ candidate: c, paperId }) {
           <div className="ml-auto flex items-center gap-1">
             <QTBadge candidate={c} />
             {c.tweet_url && <LikeButton paperId={paperId} candidate={c} size="sm" />}
+            {c.tweet_url && <FollowButton paperId={paperId} candidate={c} size="sm" />}
           </div>
         </div>
         {c.bio && <div className="text-[11px] text-muted-foreground mt-1 truncate">{c.bio}</div>}

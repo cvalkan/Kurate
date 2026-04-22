@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
-import { ArrowLeft, ExternalLink, Heart, Twitter, RefreshCw, Search } from "lucide-react";
+import { ArrowLeft, ExternalLink, Heart, Twitter, RefreshCw, Search, UserCheck } from "lucide-react";
 import { Button } from "../components/ui/button";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -34,11 +34,12 @@ function useBreakpoints() {
 }
 
 function HandleBadge({ handle, tone = "blue" }) {
-  const cls =
-    tone === "pink"
-      ? "border-pink-400 bg-pink-50 text-pink-700"
-      : "border-blue-400 bg-blue-50 text-blue-700";
-  const Icon = tone === "pink" ? Heart : Twitter;
+  const toneMap = {
+    blue: { cls: "border-blue-400 bg-blue-50 text-blue-700", Icon: Twitter, fill: "" },
+    pink: { cls: "border-pink-400 bg-pink-50 text-pink-700", Icon: Heart, fill: "fill-pink-500" },
+    indigo: { cls: "border-indigo-400 bg-indigo-50 text-indigo-700", Icon: UserCheck, fill: "" },
+  };
+  const { cls, Icon, fill } = toneMap[tone] || toneMap.blue;
   return (
     <a
       href={`https://x.com/${handle}`}
@@ -48,7 +49,7 @@ function HandleBadge({ handle, tone = "blue" }) {
       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[11px] font-medium hover:opacity-80 transition-opacity truncate max-w-full ${cls}`}
       title={`@${handle}`}
     >
-      <Icon className={`h-2.5 w-2.5 shrink-0 ${tone === "pink" ? "fill-pink-500" : ""}`} />
+      <Icon className={`h-2.5 w-2.5 shrink-0 ${fill}`} />
       <span className="truncate">@{handle}</span>
     </a>
   );
@@ -76,6 +77,7 @@ export default function OutreachActivityPage() {
 
   const quotes = data?.quotes || [];
   const likes = data?.likes || [];
+  const follows = data?.follows || [];
 
   const filterFn = (row) => {
     if (!query.trim()) return true;
@@ -89,6 +91,7 @@ export default function OutreachActivityPage() {
   };
   const filteredQuotes = useMemo(() => quotes.filter(filterFn), [quotes, query]);
   const filteredLikes = useMemo(() => likes.filter(filterFn), [likes, query]);
+  const filteredFollows = useMemo(() => follows.filter(filterFn), [follows, query]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -146,6 +149,16 @@ export default function OutreachActivityPage() {
               <Heart className="h-3.5 w-3.5" />
               Likes <span className="opacity-60">({filteredLikes.length})</span>
             </button>
+            <button
+              onClick={() => setTab("follows")}
+              data-testid="activity-tab-follows"
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors inline-flex items-center gap-1.5 ${
+                tab === "follows" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <UserCheck className="h-3.5 w-3.5" />
+              Follows <span className="opacity-60">({filteredFollows.length})</span>
+            </button>
           </div>
           <div className="relative sm:ml-auto w-full sm:w-64">
             <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
@@ -168,8 +181,10 @@ export default function OutreachActivityPage() {
           </div>
         ) : tab === "quotes" ? (
           <QuotesTable rows={filteredQuotes} query={query} />
-        ) : (
+        ) : tab === "likes" ? (
           <LikesTable rows={filteredLikes} query={query} />
+        ) : (
+          <FollowsTable rows={filteredFollows} query={query} />
         )}
       </div>
     </div>
@@ -313,6 +328,74 @@ function LikesTable({ rows, query }) {
           </div>
           {!isMobile && (
             <div className="text-right text-[11px] text-muted-foreground">{fmtDate(l.liked_at)}</div>
+          )}
+          <div className="flex items-center justify-end">
+            <ExternalLink className="h-3.5 w-3.5 text-accent" />
+          </div>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function FollowsTable({ rows, query }) {
+  const { isMobile } = useBreakpoints();
+  const cols = ["2rem", "1fr", isMobile ? "6rem" : "8rem"];
+  if (!isMobile) cols.push("5.5rem");
+  cols.push("2.5rem");
+  const gridStyle = { gridTemplateColumns: cols.join(" ") };
+
+  if (rows.length === 0) {
+    return (
+      <div
+        className="text-center py-16 text-muted-foreground text-sm border border-border rounded-lg"
+        data-testid="activity-follows-empty"
+      >
+        {query ? "No matches for your search." : "No follows yet. Follow a handle from the Outreach page to see it here."}
+      </div>
+    );
+  }
+
+  return (
+    <div className="border border-border rounded-lg overflow-x-auto" data-testid="activity-follows-table">
+      <div
+        className={`${GRID_BASE} py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border select-none`}
+        style={gridStyle}
+      >
+        <div>#</div>
+        <div>Paper</div>
+        <div>Followed</div>
+        {!isMobile && <div className="text-right">Followed at</div>}
+        <div className="text-right">Profile</div>
+      </div>
+      {rows.map((f, i) => (
+        <a
+          key={`${f.handle}-${f.user_id}`}
+          href={`https://x.com/${f.handle}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${GRID_BASE} py-2 sm:py-3 items-center border-b border-border/50 last:border-0 hover:bg-secondary/30 transition-colors cursor-pointer`}
+          style={gridStyle}
+          data-testid={`activity-follow-${f.handle}`}
+        >
+          <div className="text-xs text-muted-foreground font-mono">{i + 1}</div>
+          <div className="min-w-0">
+            <p className="text-xs sm:text-sm font-medium truncate leading-tight" title={f.paper_title || "—"}>
+              {f.paper_title || <span className="text-muted-foreground italic">(no paper context)</span>}
+            </p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">
+              {(f.paper_authors || []).slice(0, 2).join(", ")}
+              {(f.paper_authors || []).length > 2 && ` +${f.paper_authors.length - 2}`}
+              {f.paper_arxiv_id && (
+                <span className="ml-2 text-accent">{f.paper_arxiv_id}</span>
+              )}
+            </p>
+          </div>
+          <div className="min-w-0">
+            <HandleBadge handle={f.handle} tone="indigo" />
+          </div>
+          {!isMobile && (
+            <div className="text-right text-[11px] text-muted-foreground">{fmtDate(f.followed_at)}</div>
           )}
           <div className="flex items-center justify-end">
             <ExternalLink className="h-3.5 w-3.5 text-accent" />

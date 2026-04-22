@@ -72,9 +72,9 @@ def _tweet_id_from_url(u: str) -> str:
 
 async def _annotate_candidates(paper_ids: list, candidates_by_paper: dict) -> None:
     """Mutates the per-paper candidate lists in place, attaching
-    liked / quote_tweeted state from the tweet_likes and tweet_drafts
-    collections. Used by both /discoveries and /medalists so the UI
-    stays consistent across views."""
+    liked / quote_tweeted / followed state from the tweet_likes,
+    tweet_drafts and tweet_follows collections. Used by both
+    /discoveries and /medalists so the UI stays consistent across views."""
     if not paper_ids:
         return
 
@@ -100,6 +100,19 @@ async def _annotate_candidates(paper_ids: list, candidates_by_paper: dict) -> No
             "quote_tweeted_at": doc.get("posted_at"),
         }
 
+    # Follows are tracked globally by handle (not per paper) since you follow
+    # a person once, then that persists across every paper they appear in.
+    handles = {c.get("handle") for cands in candidates_by_paper.values() for c in cands}
+    handles.discard(None)
+    handles.discard("")
+    follows: dict = {}
+    if handles:
+        async for doc in db.tweet_follows.find(
+            {"handle": {"$in": list(handles)}, "status": "followed"},
+            {"_id": 0, "handle": 1, "followed_at": 1},
+        ):
+            follows[doc["handle"]] = doc.get("followed_at")
+
     for pid, cands in candidates_by_paper.items():
         liked_map = liked_by_paper.get(pid, {})
         qt_map = qt_by_paper.get(pid, {})
@@ -118,6 +131,12 @@ async def _annotate_candidates(paper_ids: list, candidates_by_paper: dict) -> No
                 c["quote_tweeted_at"] = qt["quote_tweeted_at"]
             else:
                 c["quote_tweeted"] = False
+            h = c.get("handle")
+            if h and h in follows:
+                c["followed"] = True
+                c["followed_at"] = follows[h]
+            else:
+                c["followed"] = False
 
 
 @router.get("/medalists", dependencies=[Depends(verify_admin)])
@@ -868,12 +887,148 @@ async def unlike_tweet(body: LikeTweetRequest):
         raise HTTPException(500, f"Failed to unlike: {str(e)[:200]}")
 
 
+class FollowHandleRequest(BaseModel):
+    handle: str
+    paper_id: Optional[str] = None  # optional, for activity-log context
+
+
+async def _resolve_user_id(handle: str) -> str:
+    """Return the numeric X user_id for a handle, consulting a small on-DB
+    cache before hitting TweetAPI so we don't burn API calls on repeats."""
+    doc = await db.twitter_user_cache.find_one({"handle": handle}, {"_id": 0, "user_id": 1})
+    if doc and doc.get("user_id"):
+        return str(doc["user_id"])
+    if not TWEETAPI_KEY:
+        raise HTTPException(500, "TWEETAPI_KEY not configured — cannot resolve user_id")
+    from tweetapi import TweetAPI
+    client = TweetAPI(api_key=TWEETAPI_KEY)
+    try:
+        resp = client.user.get_by_username(username=handle)
+        data = resp.data if hasattr(resp, "data") else resp
+        if isinstance(data, dict):
+            user_id = str(data.get("data", data).get("user_id", "") or data.get("id_str", "") or data.get("id", ""))
+        else:
+            user_id = str(getattr(data, "user_id", "") or getattr(data, "id", ""))
+        if not user_id or not user_id.isdigit():
+            raise HTTPException(400, f"Could not resolve @{handle} to a numeric user_id (raw={str(data)[:200]})")
+        await db.twitter_user_cache.update_one(
+            {"handle": handle},
+            {"$set": {"handle": handle, "user_id": user_id,
+                      "cached_at": datetime.now(timezone.utc).isoformat()}},
+            upsert=True,
+        )
+        return user_id
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to look up @{handle}: {str(e)[:200]}")
+
+
+@router.post("/follow-handle", dependencies=[Depends(verify_admin)])
+async def follow_handle(body: FollowHandleRequest):
+    """Follow an X handle as @kurateorg. Idempotent — returns already_followed
+    if we already have an active follow record."""
+    handle = (body.handle or "").strip().lstrip("@")
+    if not handle:
+        raise HTTPException(400, "handle is required")
+
+    existing = await db.tweet_follows.find_one(
+        {"handle": handle, "status": "followed"},
+        {"_id": 0},
+    )
+    if existing:
+        return {"status": "already_followed", "handle": handle,
+                "followed_at": existing.get("followed_at")}
+
+    auth_token, _src = await _get_twitter_auth_token()
+    proxy = os.environ.get("TWITTER_PROXY", "")
+    if not auth_token:
+        raise HTTPException(500, "No X auth token configured")
+    if not TWEETAPI_KEY:
+        raise HTTPException(500, "TWEETAPI_KEY not configured")
+
+    user_id = await _resolve_user_id(handle)
+
+    from tweetapi import TweetAPI
+    client = TweetAPI(api_key=TWEETAPI_KEY)
+    try:
+        result = client.interaction.follow(
+            auth_token=auth_token,
+            user_id=user_id,
+            proxy=proxy or None,
+        )
+        now = datetime.now(timezone.utc).isoformat()
+        await db.tweet_follows.update_one(
+            {"handle": handle},
+            {"$set": {
+                "handle": handle,
+                "user_id": user_id,
+                "paper_id": body.paper_id,
+                "status": "followed",
+                "followed_at": now,
+                "result_repr": str(result)[:300],
+            }},
+            upsert=True,
+        )
+        logger.info(f"[outreach] Followed @{handle} (user_id={user_id})")
+        return {"status": "followed", "handle": handle, "user_id": user_id, "followed_at": now}
+    except Exception as e:
+        err = str(e)[:500]
+        logger.error(f"[outreach] Failed to follow @{handle}: {err}")
+        await db.tweet_follows.update_one(
+            {"handle": handle},
+            {"$set": {
+                "handle": handle,
+                "user_id": user_id,
+                "paper_id": body.paper_id,
+                "status": "follow_failed",
+                "follow_error": err,
+                "failed_at": datetime.now(timezone.utc).isoformat(),
+            }},
+            upsert=True,
+        )
+        raise HTTPException(500, f"Failed to follow: {err[:200]}")
+
+
+@router.post("/unfollow-handle", dependencies=[Depends(verify_admin)])
+async def unfollow_handle(body: FollowHandleRequest):
+    """Unfollow an X handle (for corrections)."""
+    handle = (body.handle or "").strip().lstrip("@")
+    if not handle:
+        raise HTTPException(400, "handle is required")
+
+    auth_token, _src = await _get_twitter_auth_token()
+    proxy = os.environ.get("TWITTER_PROXY", "")
+    if not auth_token:
+        raise HTTPException(500, "No X auth token configured")
+
+    user_id = await _resolve_user_id(handle)
+    from tweetapi import TweetAPI
+    client = TweetAPI(api_key=TWEETAPI_KEY)
+    try:
+        client.interaction.unfollow(
+            auth_token=auth_token,
+            user_id=user_id,
+            proxy=proxy or None,
+        )
+        await db.tweet_follows.update_one(
+            {"handle": handle},
+            {"$set": {
+                "status": "unfollowed",
+                "unfollowed_at": datetime.now(timezone.utc).isoformat(),
+            }},
+        )
+        return {"status": "unfollowed", "handle": handle}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to unfollow: {str(e)[:200]}")
+
+
 
 
 @router.get("/activity", dependencies=[Depends(verify_admin)])
 async def get_activity(limit: int = 200):
-    """Return all quote tweets and likes posted from @KurateOrg, joined
-    with paper title/authors, sorted by time. Used by the Activity page."""
+    """Return all quote tweets, likes and follows cast from @KurateOrg,
+    joined with paper title/authors, sorted by time. Used by the Activity page."""
     # Quote tweets (successful posts only)
     quotes = []
     async for d in db.tweet_drafts.find(
@@ -890,8 +1045,18 @@ async def get_activity(limit: int = 200):
     ).sort("liked_at", -1).limit(limit):
         likes.append(d)
 
+    # Follows
+    follows = []
+    async for d in db.tweet_follows.find(
+        {"status": "followed"},
+        {"_id": 0},
+    ).sort("followed_at", -1).limit(limit):
+        follows.append(d)
+
     # Batch-load papers for titles/authors
-    paper_ids = {q["paper_id"] for q in quotes} | {li["paper_id"] for li in likes}
+    paper_ids = ({q["paper_id"] for q in quotes}
+                 | {li["paper_id"] for li in likes}
+                 | {f["paper_id"] for f in follows if f.get("paper_id")})
     papers = {}
     if paper_ids:
         async for p in db.papers.find(
@@ -900,8 +1065,8 @@ async def get_activity(limit: int = 200):
         ):
             papers[p["id"]] = p
 
-    def _enrich(d, paper_key):
-        p = papers.get(d.get("paper_id"), {})
+    def _enrich(d):
+        p = papers.get(d.get("paper_id"), {}) if d.get("paper_id") else {}
         return {
             **d,
             "paper_title": p.get("title", ""),
@@ -910,9 +1075,10 @@ async def get_activity(limit: int = 200):
         }
 
     return {
-        "quotes": [_enrich(q, "paper_id") for q in quotes],
-        "likes": [_enrich(li, "paper_id") for li in likes],
-        "counts": {"quotes": len(quotes), "likes": len(likes)},
+        "quotes": [_enrich(q) for q in quotes],
+        "likes": [_enrich(li) for li in likes],
+        "follows": [_enrich(f) for f in follows],
+        "counts": {"quotes": len(quotes), "likes": len(likes), "follows": len(follows)},
     }
 
 

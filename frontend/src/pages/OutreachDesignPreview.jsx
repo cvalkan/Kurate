@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Twitter, Heart, Repeat2, MessageSquare, Quote, ExternalLink } from "lucide-react";
+import { ArrowLeft, Twitter, Heart, Repeat2, MessageSquare, Quote, ExternalLink, UserPlus, UserCheck } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL || "";
 
@@ -141,7 +141,7 @@ export default function OutreachDesignPreview() {
             <h2 className="text-lg font-semibold">Variant 1 — Compact Stacked <span className="text-xs font-normal text-green-700 ml-2">(Your pick)</span></h2>
             <p className="text-xs text-muted-foreground">Clean vertical flow. Stats on top right, text in middle, actions bottom right.</p>
           </div>
-          <div className="w-[45%] border border-dashed border-gray-300 p-2 bg-white">
+          <div className="w-full sm:w-[45%] border border-dashed border-gray-300 p-2 bg-white">
             <div className="space-y-3">
               {candidates.map((c, i) => <Variant1 key={i} candidate={c} />)}
             </div>
@@ -154,7 +154,7 @@ export default function OutreachDesignPreview() {
             <h2 className="text-lg font-semibold">Variant 2 — Inline Split</h2>
             <p className="text-xs text-muted-foreground">Handle on the left, creating an indentation for the tweet text.</p>
           </div>
-          <div className="w-[45%] border border-dashed border-gray-300 p-2 bg-white">
+          <div className="w-full sm:w-[45%] border border-dashed border-gray-300 p-2 bg-white">
             <div className="space-y-3">
               {candidates.map((c, i) => <Variant2 key={i} candidate={c} />)}
             </div>
@@ -167,7 +167,7 @@ export default function OutreachDesignPreview() {
             <h2 className="text-lg font-semibold">Variant 3 — The Grid Density</h2>
             <p className="text-xs text-muted-foreground">Ultra-compact. Handle, stats, and actions share the top line.</p>
           </div>
-          <div className="w-[45%] border border-dashed border-gray-300 p-2 bg-white">
+          <div className="w-full sm:w-[45%] border border-dashed border-gray-300 p-2 bg-white">
             <div className="space-y-3">
               {candidates.map((c, i) => <Variant3 key={i} candidate={c} />)}
             </div>
@@ -180,7 +180,7 @@ export default function OutreachDesignPreview() {
             <h2 className="text-lg font-semibold">Variant 4 — Editorial Quote Block</h2>
             <p className="text-xs text-muted-foreground">Uses the confidence color as a left-border. Message-like feel.</p>
           </div>
-          <div className="w-[45%] border border-dashed border-gray-300 p-2 bg-white">
+          <div className="w-full sm:w-[45%] border border-dashed border-gray-300 p-2 bg-white">
             <div className="space-y-3">
               {candidates.map((c, i) => <Variant4 key={i} candidate={c} />)}
             </div>
@@ -261,10 +261,12 @@ function ActionIcons({ candidate: c }) {
   if (!c.tweet_url) return null;
   const isLiked = c.liked;
   const isQT = c.quote_tweeted;
-  
+  const isFollowed = c.followed;
+  const FollowIcon = isFollowed ? UserCheck : UserPlus;
+
   return (
     <div className="flex items-center gap-1.5 shrink-0">
-      <button 
+      <button
         className={`h-6 w-6 rounded border flex items-center justify-center transition-colors
         ${isLiked ? 'border-pink-500 bg-pink-50 text-pink-600' : 'border-border text-muted-foreground hover:text-pink-600 hover:border-pink-200'}
         `}
@@ -275,7 +277,18 @@ function ActionIcons({ candidate: c }) {
         <Heart className={`h-3 w-3 ${isLiked ? 'fill-pink-500' : ''}`} />
       </button>
 
-      <button 
+      <button
+        className={`h-6 w-6 rounded border flex items-center justify-center transition-colors
+        ${isFollowed ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-border text-muted-foreground hover:text-indigo-600 hover:border-indigo-200'}
+        `}
+        title={isFollowed ? "Following" : "Follow"}
+        onClick={() => console.log('Mock Follow')}
+        data-testid={`mock-follow-${c.handle}`}
+      >
+        <FollowIcon className="h-3 w-3" />
+      </button>
+
+      <button
         className={`h-6 w-6 rounded border flex items-center justify-center transition-colors
         ${isQT ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-border text-muted-foreground hover:text-blue-600 hover:border-blue-200'}
         `}
@@ -286,7 +299,7 @@ function ActionIcons({ candidate: c }) {
         <Twitter className={`h-3 w-3 ${isQT ? 'fill-blue-500' : ''}`} />
       </button>
 
-      <button 
+      <button
         className="h-6 w-6 rounded border border-border text-accent hover:bg-accent hover:text-background flex items-center justify-center transition-colors"
         title="Draft Quote"
         onClick={() => console.log('Mock Draft')}
