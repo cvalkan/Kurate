@@ -1,0 +1,53 @@
+{
+  "summary": "Frontend-only regression test of /admin/outreach/activity card-based layout on desktop (1920x900) and mobile (390x844). All scenarios from the review request pass — no horizontal overflow on mobile, cards render fully within viewport, tab switching, search filter, refresh button and back link all work as expected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor: QuoteCard key uses `${q.paper_id}-${q.handle}-${q.quote_tweet_id}` which may collide if quote_tweet_id is null for duplicates — fine for current data but worth noting.",
+    "Minor: fmtDate slices first 16 chars and replaces T with space — assumes ISO format; non-ISO strings will render oddly. Low priority."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100%"},
+  "test_credentials": "admin password: papersumo2025 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None — used existing backend data (4 quotes, 1 like)",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "OutreachActivityPage.jsx uses card-based responsive layout (flex-col sm:flex-row, min-w-0, flex-wrap). Verified: desktop shows 4 quote cards with handles [testuser, zhenjun_zhao, rainozhang, gregorschub] and 1 like card (@QFinancePapers / 'A Random Rule Model' by Avner Seror / 2603.04105v1). Mobile@390px: document.documentElement.scrollWidth == clientWidth == 390 (no overflow), first card bbox x=16 width=358 (fits inside 390). Search 'rainoz' → 1 card on both viewports. Tab badges show (4)/(1) correctly. Refresh spin and back-link nav to /admin/outreach both work. Console errors present are unrelated CSP-blocked analytics (gtag, cloudflareinsights) and an initial 401 before admin_token gets set on first load — these are pre-existing app-level behavior, not related to this page.",
+  "observed_test_results": {
+    "desktop": {
+      "title": "Outreach Activity",
+      "tabs_present": true,
+      "quotes_tab_badge": "Quotes (4)",
+      "likes_tab_badge": "Likes (1)",
+      "quote_cards": 4,
+      "quote_handles": ["testuser", "zhenjun_zhao", "rainozhang", "gregorschub"],
+      "search_rainoz_filtered_count": 1,
+      "search_cleared_count": 4,
+      "like_cards": 1,
+      "like_card_content_contains": ["A Random Rule Model", "Avner Seror", "2603.04105v1", "@QFinancePapers", "View tweet"]
+    },
+    "mobile": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "no_horizontal_overflow": true,
+      "first_quote_card_bbox": {"x": 16, "width": 358, "within_viewport": true},
+      "title_bbox": {"x": 16, "width": 358},
+      "quote_cards": 4,
+      "search_rainoz_filtered_count": 1,
+      "like_cards_after_tab_switch": 1,
+      "no_overflow_on_likes_tab": true,
+      "refresh_button_works": true,
+      "back_link_navigated_to": "/admin/outreach"
+    }
+  },
+  "rca_of_the_issue": "N/A — original bug (table-based layout causing horizontal overflow on mobile) was fixed by main agent via conversion to div/flex card layout. Regression test confirms fix holds: mobile scrollWidth equals clientWidth at 390px, and card content wraps instead of clipping."
+}
