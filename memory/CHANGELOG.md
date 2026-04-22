@@ -1,7 +1,18 @@
 # Changelog
 
-## April 22, 2026
-### Outreach: Quote & Like persistence + Activity page
+## April 22, 2026 (later) — Variant 1 rollout + deployment prep
+- Applied Variant 1 (stacked card layout) to both Medalists view and Category Explorer via new shared `<CandidateCardV1>` component: handle + engagement counts on top, color-coded tweet text in the middle (blue when engaged, muted gray when not), and four 24×24 icon-only action buttons (Like, Follow, QT, Draft) on the bottom.
+- Added `size="icon"` mode to `LikeButton` and `FollowButton`; new `QTIconButton` (link when quote-tweeted, muted otherwise) and `DraftIconButton` (Medalists only).
+- Deleted `/app/frontend/src/pages/OutreachDesignPreview.jsx` and its `/admin/outreach/design-preview` route.
+- Testing agent: 9/9 backend + 10/10 frontend pass (iteration_58).
+
+## April 22, 2026 — Follow button
+- New backend endpoints: `/api/admin/outreach/follow-handle` and `/unfollow-handle` (TweetAPI `interaction.follow(user_id)`). Handle→user_id cached in new `twitter_user_cache`. Follow state tracked in new `tweet_follows` collection.
+- `_annotate_candidates` now also sets `followed` + `followed_at` on every candidate.
+- `/activity` endpoint now returns `follows[]` plus counts.
+- Frontend: new `FollowButton` (indigo theme); new **Follows** tab on `/admin/outreach/activity`.
+
+## April 22, 2026 — Outreach: Quote & Like persistence + Activity page
 - Fixed `/api/admin/outreach/medalists` to hydrate candidates with `liked` and `quote_tweeted` state (shared `_annotate_candidates` helper with `/discoveries`). Previously the Medalists view would drop the QT'd / Liked badges after any reload since the backend never returned those fields.
 - Fixed race condition where Medalists view occasionally rendered empty until the user switched tabs: the parent's "current" sentinel period was truthy, so MedalistsView never swapped it for a real `weekly:YYYY-WW`, and stale empty responses could overwrite real ones.
 - `handlePost` (quote tweet) now triggers a parent `onRefresh()` so DB-persisted QT state replaces optimistic in-place mutation, surviving view switches and period changes.
