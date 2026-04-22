@@ -22,6 +22,7 @@ import ReadingListPage from "@/pages/ReadingListPage";
 import ScoreCardTest from "@/pages/ScoreCardTest";
 import PrivacyPage from "@/pages/PrivacyPage";
 import ImpressumPage from "@/pages/ImpressumPage";
+import StartRedirect from "@/pages/StartRedirect";
 import Navbar from "@/components/Navbar";
 import { BookmarkProvider } from "@/contexts/BookmarkContext";
 
@@ -38,6 +39,7 @@ function AppRouter() {
       <main className="pb-12">
         <Routes>
           <Route path="/" element={<LeaderboardPage />} />
+          <Route path="/start" element={<StartRedirect />} />
           <Route path="/leaderboard/:category/:year/:weekOrMonth" element={<ArchivePage />} />
           <Route path="/correlation" element={<CorrelationPage />} />
           <Route path="/methodology" element={<MethodologyPage />} />

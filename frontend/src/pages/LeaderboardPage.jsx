@@ -78,6 +78,19 @@ export default function LeaderboardPage() {
     }
   };
 
+  // Capture UTM / ad-tracking params on first mount, then preserve them across
+  // URL syncs below. Without this, LeaderboardPage would overwrite ?utm_source=…
+  // / ?gclid=… with only its own params, breaking Google Ads & GA4 attribution.
+  const preservedAdParams = useMemo(() => {
+    const src = new URLSearchParams(window.location.search);
+    const keep = new URLSearchParams();
+    const AD_KEY = /^(utm_[a-z_]+|gclid|gbraid|wbraid|fbclid|msclkid|ttclid|yclid|twclid|li_fat_id|mc_eid|mc_cid|dclid|scid)$/i;
+    for (const k of Array.from(src.keys())) {
+      if (AD_KEY.test(k)) keep.set(k, src.get(k));
+    }
+    return keep;
+  }, []);
+
   // Capture archive slug from URL on mount (before URL sync overwrites it)
   const archiveSlugRef = useRef(new URLSearchParams(window.location.search).get("archive"));
 
@@ -97,9 +110,11 @@ export default function LeaderboardPage() {
     if (sortKey && sortKey !== "rank") p.set("sort", sortKey);
     if (sortKey && sortKey !== "rank" && sortDir !== "asc") p.set("dir", sortDir);
     if (activeArchive && archiveSlugRef.current) p.set("archive", archiveSlugRef.current);
+    // Re-apply UTM / gclid / etc. so Ads attribution survives every URL rewrite
+    for (const [k, v] of preservedAdParams.entries()) p.set(k, v);
     const qs = p.toString();
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-  }, [category, period, scoringMethod, selectedTags, tagMode, tagFilterOpen, debouncedKeyword, globalStats, isTagMode, sortKey, sortDir, activeArchive]);
+  }, [category, period, scoringMethod, selectedTags, tagMode, tagFilterOpen, debouncedKeyword, globalStats, isTagMode, sortKey, sortDir, activeArchive, preservedAdParams]);
 
   // Notify navbar
   useEffect(() => {
