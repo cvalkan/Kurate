@@ -657,6 +657,15 @@ export default function OutreachPage() {
               <List className="h-3.5 w-3.5" />
               Activity
             </Link>
+            <Link
+              to="/admin/outreach/list-preview"
+              data-testid="outreach-list-preview-link"
+              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors shrink-0"
+              title="Leaderboard-style list view with V1→V2 confidence comparison"
+            >
+              <List className="h-3.5 w-3.5" />
+              List preview
+            </Link>
           </div>
         </div>
 

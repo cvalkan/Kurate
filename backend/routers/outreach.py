@@ -906,7 +906,13 @@ async def _resolve_user_id(handle: str) -> str:
         resp = client.user.get_by_username(username=handle)
         data = resp.data if hasattr(resp, "data") else resp
         if isinstance(data, dict):
-            user_id = str(data.get("data", data).get("user_id", "") or data.get("id_str", "") or data.get("id", ""))
+            # TweetAPI wraps the user under {'data': {'id', 'username', ...}} —
+            # unwrap that nesting before pulling the id, otherwise we'd read
+            # from the outer envelope which has no id field.
+            inner = data.get("data") if isinstance(data.get("data"), dict) else data
+            user_id = str(
+                inner.get("user_id") or inner.get("id_str") or inner.get("id") or ""
+            )
         else:
             user_id = str(getattr(data, "user_id", "") or getattr(data, "id", ""))
         if not user_id or not user_id.isdigit():
@@ -1080,6 +1086,75 @@ async def get_activity(limit: int = 200):
         "follows": [_enrich(f) for f in follows],
         "counts": {"quotes": len(quotes), "likes": len(likes), "follows": len(follows)},
     }
+
+
+@router.get("/confidence-preview", dependencies=[Depends(verify_admin)])
+async def confidence_preview(period: str = "monthly:2026-3", top_n: int = 3):
+    """Re-score every medalist candidate with the new V2 algorithm so admins
+    can compare V1 (current stored) vs V2 (strict + signal-rich) side-by-side
+    WITHOUT hitting the Twitter API again."""
+    from services.twitter import score_candidate_v2
+
+    result = await get_medalists(period=period, top_n=top_n)
+    for cat in result.get("categories", []):
+        for p in cat.get("papers", []):
+            authors = p.get("authors", [])
+            for c in p.get("candidates", []):
+                c["confidence_v1"] = c.get("confidence", "low")
+                # Pass through the richest view the scorer wants
+                raw_candidate = {
+                    "handle": c.get("handle", ""),
+                    "name": c.get("name", ""),
+                    "bio": c.get("bio", ""),
+                    "followers": c.get("followers", 0),
+                    "tweet_text": c.get("tweet_text", ""),
+                    "verified": bool(c.get("verified") or c.get("is_blue_verified")),
+                }
+                v2_conf, v2_signals = score_candidate_v2(authors, raw_candidate)
+                c["confidence_v2"] = v2_conf
+                c["signals_v2"] = v2_signals
+    return result
+
+
+@router.post("/recompute-confidence", dependencies=[Depends(verify_admin)])
+async def recompute_confidence(dry_run: bool = False):
+    """Apply the V2 algorithm to every stored discovery, updating the
+    candidate.confidence field in-place. Set dry_run=true to preview changes
+    without persisting. Returns a summary of confidence transitions."""
+    from services.twitter import score_candidate_v2
+
+    transitions = {"high→low": 0, "high→medium": 0, "medium→low": 0,
+                   "medium→high": 0, "low→medium": 0, "low→high": 0,
+                   "unchanged": 0}
+    total = 0
+    async for doc in db.x_handle_discoveries.find({}, {"_id": 0}):
+        authors = doc.get("authors", [])
+        changed = False
+        for c in doc.get("candidates", []):
+            total += 1
+            old = c.get("confidence", "low")
+            raw_candidate = {
+                "handle": c.get("handle", ""),
+                "name": c.get("name", ""),
+                "bio": c.get("bio", ""),
+                "followers": c.get("followers", 0),
+                "tweet_text": c.get("tweet_text", ""),
+                "verified": bool(c.get("verified")),
+            }
+            new, signals = score_candidate_v2(authors, raw_candidate)
+            if new != old:
+                transitions[f"{old}→{new}"] = transitions.get(f"{old}→{new}", 0) + 1
+                c["confidence"] = new
+                c["scoring_signals"] = signals
+                changed = True
+            else:
+                transitions["unchanged"] += 1
+        if changed and not dry_run:
+            await db.x_handle_discoveries.update_one(
+                {"paper_id": doc["paper_id"]},
+                {"$set": {"candidates": doc["candidates"]}},
+            )
+    return {"total_candidates": total, "transitions": transitions, "dry_run": dry_run}
 
 
 async def _get_papers_for_period(category: str, period: str, top_n: int) -> list:
