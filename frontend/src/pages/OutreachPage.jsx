@@ -88,7 +88,17 @@ function XAuthCard() {
       const r = await axios.get(`${API}/api/admin/outreach/twitter-auth/status`, { headers: getAdminHeaders() });
       setStatus(r.data);
     } catch (e) {
-      /* ignore — shown as not-configured below */
+      // Surface the error state so UI doesn't hang on "loading…".
+      // On production this can happen when the new endpoints haven't deployed yet.
+      setStatus({
+        configured: false,
+        source: "error",
+        masked: "",
+        length: 0,
+        error: e.response?.status === 404
+          ? "endpoint not deployed"
+          : (e.response?.data?.detail || e.message || "unreachable"),
+      });
     }
   }, []);
 
