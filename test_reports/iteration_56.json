@@ -1,0 +1,45 @@
+{
+  "summary": "Frontend-only responsive testing of /admin/outreach Medalists and Category Explorer views on desktop (1920x900) and mobile (390x844). All responsive layout changes verified working. Page-level overflow is clean on both viewports; tables scroll internally via their overflow-x-auto wrapper as intended.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_results": {
+    "desktop_1920x900": {
+      "login": "PASS - admin password 'papersumo2025' authenticated",
+      "page_overflow": "PASS - scrollWidth=1920 == clientWidth=1920",
+      "activity_link_visible": "PASS",
+      "stats_visible": "PASS - shows '156 searched / 125 w/ handles / 6 high-conf.'",
+      "medalists_view": "PASS - Gold/Silver medal rows rendered; 'Tweet · N' compact badges, @handle pills, Like and Draft Quote buttons on one row; NO duplicated tweet preview text",
+      "category_explorer_controls": "PASS - period/find button on one row"
+    },
+    "mobile_390x844": {
+      "page_overflow": "PASS - scrollWidth=390 == clientWidth=390 (NO horizontal body scroll) across Medalists view, Category Explorer view, and after period switch",
+      "header_stats_activity_wrap": "PASS - title top, stats + Activity link wrap to next row (Activity at x=277, y=139.5)",
+      "medalists_tweet_badges": "PASS - 'Tweet · N' badges detected in DOM",
+      "category_explorer_controls_wrap": "PASS - period buttons / archive dropdown / Find button wrap cleanly",
+      "activity_navigation": "PASS - click navigates to /admin/outreach/activity"
+    }
+  },
+  "notes": [
+    "Unrelated CSP warnings present for external scripts (gtag, cloudflare beacon, posthog worker blob). Pre-existing, not caused by this change.",
+    "Bronze medal data not present in the currently loaded Weekly dataset (Week 16, 2026 — 3 cats, 5 papers showed Gold and Silver only). This is data-dependent, not a UI bug.",
+    "Attempted Monthly -> March 2026 switch; the archive select was available. Overflow check stayed clean at 390px."
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "OutreachPage.jsx is 1090 lines — consider splitting MedalistsView, CategoryExplorer, MedalistRow, PaperRow, and XAuthCard into separate files for maintainability (>700 line guideline).",
+    "Some medalist rows show dash '—' for score — cosmetic only.",
+    "Password stored in localStorage/sessionStorage as admin_token (hardcoded string compare on frontend) — acceptable for internal admin but flagged for awareness."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100%"},
+  "test_credentials": "admin password 'papersumo2025' via /admin/outreach",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Responsive layout of /admin/outreach is verified on desktop and mobile. No page-level horizontal overflow on 390px viewport. Tables have intentional min-w-[640px]/[720px] inside overflow-x-auto wrappers — that is scoped horizontal scroll within the table only. Activity link -> /admin/outreach/activity works."
+}

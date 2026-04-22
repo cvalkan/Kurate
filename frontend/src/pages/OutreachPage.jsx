@@ -447,23 +447,23 @@ export default function OutreachPage() {
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5 sm:mb-6">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight" data-testid="outreach-title">X Outreach</h1>
-            <p className="text-sm text-muted-foreground mt-1">Discover author handles from top-ranked papers</p>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight" data-testid="outreach-title">X Outreach</h1>
+            <p className="text-[11px] sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">Discover author handles from top-ranked papers</p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
             {stats && (
-              <div className="flex gap-4 text-xs text-muted-foreground">
-                <span>{stats.total_papers_searched} papers searched</span>
-                <span>{stats.papers_with_candidates} with handles</span>
-                <span className="text-green-600">{stats.by_confidence?.high?.unique || 0} high-confidence</span>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] sm:text-xs text-muted-foreground">
+                <span>{stats.total_papers_searched} searched</span>
+                <span>{stats.papers_with_candidates} w/ handles</span>
+                <span className="text-green-600">{stats.by_confidence?.high?.unique || 0} high-conf.</span>
               </div>
             )}
             <Link
               to="/admin/outreach/activity"
               data-testid="outreach-activity-link"
-              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-accent text-accent hover:bg-accent hover:text-background transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-accent text-accent hover:bg-accent hover:text-background transition-colors shrink-0"
             >
               <List className="h-3.5 w-3.5" />
               Activity
@@ -520,7 +520,7 @@ export default function OutreachPage() {
         </div>
 
         {/* Period + controls */}
-        <div className="flex items-center gap-3 mb-6 flex-wrap">
+        <div className="flex items-center gap-2 sm:gap-3 mb-5 sm:mb-6 flex-wrap">
           <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md">
             {PERIODS.map(p => (
               <button key={p.id} onClick={() => { setPeriod(p.id); setSelectedArchive(""); }}
@@ -536,9 +536,9 @@ export default function OutreachPage() {
           {/* Archive selector */}
           {selectedCat && archives.length > 0 && (
             <select value={selectedArchive} onChange={e => { setSelectedArchive(e.target.value); if (e.target.value) setPeriod(""); }}
-              className="h-8 px-2 text-xs border rounded-md bg-background" data-testid="outreach-archive-select"
+              className="h-8 px-2 text-xs border rounded-md bg-background flex-1 sm:flex-none sm:min-w-[160px] max-w-full" data-testid="outreach-archive-select"
             >
-              <option value="">Weekly Archives...</option>
+              <option value="">Weekly Archives…</option>
               {archives.map(a => (
                 <option key={`${a.year}-${a.week}`} value={`${a.year}-${a.week}`}>
                   {a.label || `Week ${a.week}, ${a.year}`}
@@ -548,47 +548,47 @@ export default function OutreachPage() {
           )}
 
           {/* Top N */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Top</span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[11px] text-muted-foreground">Top</span>
             <select value={topN} onChange={e => setTopN(Number(e.target.value))}
               className="h-8 px-2 text-xs border rounded-md bg-background" data-testid="outreach-topn"
             >
               {[3, 5, 10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
             </select>
-            <span className="text-xs text-muted-foreground">papers</span>
+            <span className="text-[11px] text-muted-foreground">papers</span>
           </div>
 
           {/* Discover button + progress */}
-          <Button onClick={handleDiscover} disabled={discovering} size="sm" className="gap-1.5"
+          <Button onClick={handleDiscover} disabled={discovering} size="sm" className="gap-1.5 shrink-0"
             data-testid="outreach-discover-btn"
           >
             {discovering ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-            {discovering ? `Searching X...` : `Find Handles (top ${topN})`}
+            {discovering ? "Searching X…" : `Find Handles`}
           </Button>
 
           {discovering && (
-            <span className="text-xs text-muted-foreground animate-pulse">
-              Scanning papers for tweets — results appear as they're found...
+            <span className="text-[11px] text-muted-foreground animate-pulse w-full sm:w-auto">
+              Scanning papers for tweets — results appear as they're found…
             </span>
           )}
 
           {/* Summary */}
-          <div className="ml-auto text-xs text-muted-foreground">
+          <div className="w-full sm:w-auto sm:ml-auto text-[11px] sm:text-xs text-muted-foreground">
             {papers.length} papers · {discoveredCount} searched · {totalCandidates} handles ({highConfidence} high)
           </div>
         </div>
 
         {/* Results table */}
-        <div className="border rounded-lg overflow-hidden" data-testid="outreach-results">
-          <table className="w-full text-sm">
+        <div className="border rounded-lg overflow-x-auto" data-testid="outreach-results">
+          <table className="w-full text-sm min-w-[720px]">
             <thead>
               <tr className="bg-muted/30 border-b">
-                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-8">#</th>
-                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground" style={{width: "40%"}}>Paper</th>
+                <th className="text-left px-2 sm:px-3 py-2 text-xs font-medium text-muted-foreground w-8">#</th>
+                <th className="text-left px-2 sm:px-3 py-2 text-xs font-medium text-muted-foreground" style={{width: "40%"}}>Paper</th>
                 <th className="text-center px-2 py-2 text-xs font-medium text-muted-foreground w-14">Score</th>
                 <th className="text-center px-2 py-2 text-xs font-medium text-muted-foreground w-14">Rating</th>
                 <th className="text-center px-2 py-2 text-xs font-medium text-muted-foreground w-16">Tweets</th>
-                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">X Handles & Tweets</th>
+                <th className="text-left px-2 sm:px-3 py-2 text-xs font-medium text-muted-foreground">Handles</th>
               </tr>
             </thead>
             <tbody>
@@ -644,7 +644,7 @@ function MedalistsView({ medalists, loading, discovering, onDiscover, onRefresh,
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-5 flex-wrap">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4 sm:mb-5">
         {/* Weekly / Monthly toggle */}
         <div className="flex items-center gap-0.5 p-0.5 bg-secondary/50 rounded-md">
           <button onClick={() => { setArchiveType("weekly"); if (archivePeriods.weekly?.[0]) setPeriod(`weekly:${archivePeriods.weekly[0].value}`); }}
@@ -668,27 +668,27 @@ function MedalistsView({ medalists, loading, discovering, onDiscover, onRefresh,
           <select
             value={period.split(":")[1] || ""}
             onChange={e => e.target.value && setPeriod(`${archiveType}:${e.target.value}`)}
-            className="h-8 px-2 text-xs border rounded-md bg-background min-w-[200px]"
+            className="h-8 px-2 text-xs border rounded-md bg-background flex-1 sm:flex-none sm:min-w-[220px] max-w-full"
           >
             {archives.map(a => (
               <option key={a.value} value={a.value}>
-                {a.label} — {a.categories} categories, {a.total_papers} papers
+                {a.label} — {a.categories} cats, {a.total_papers} papers
               </option>
             ))}
           </select>
         )}
 
-        <Button onClick={onDiscover} disabled={discovering} size="sm" className="gap-1.5">
+        <Button onClick={onDiscover} disabled={discovering} size="sm" className="gap-1.5 shrink-0">
           {discovering ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-          {discovering ? "Searching..." : "Find All Tweets"}
+          {discovering ? "Searching…" : "Find All Tweets"}
         </Button>
         {discovering && (
-          <span className="text-xs text-muted-foreground animate-pulse">
-            Scanning medalists for tweets...
+          <span className="text-[11px] text-muted-foreground animate-pulse w-full sm:w-auto">
+            Scanning medalists for tweets…
           </span>
         )}
-        <div className="ml-auto text-xs text-muted-foreground">
-          {totalPapers} medalists across {cats.length} categories · {totalDiscovered} searched
+        <div className="w-full sm:w-auto sm:ml-auto text-[11px] sm:text-xs text-muted-foreground">
+          {totalPapers} medalists · {cats.length} categories · {totalDiscovered} searched
         </div>
       </div>
 
@@ -696,14 +696,14 @@ function MedalistsView({ medalists, loading, discovering, onDiscover, onRefresh,
         <div className="text-center py-8 text-muted-foreground">Loading...</div>
       ) : (
 
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4">
         {cats.map(cat => (
-          <div key={cat.category} className="border rounded-lg overflow-hidden">
-            <div className="bg-muted/30 px-4 py-2 border-b">
+          <div key={cat.category} className="border rounded-lg overflow-x-auto">
+            <div className="bg-muted/30 px-3 sm:px-4 py-2 border-b">
               <span className="font-semibold text-sm">{cat.name || cat.category}</span>
-              <span className="text-xs text-muted-foreground ml-2">{cat.category}</span>
+              <span className="text-[10px] sm:text-xs text-muted-foreground ml-2">{cat.category}</span>
             </div>
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[640px]">
               <tbody>
                 {cat.papers.map((p, i) => (
                   <MedalistRow key={p.id} paper={p} medal={MEDAL[i] || `#${i+1}`} category={cat.category} periodLabel={cat.label || ""} onRefresh={onRefresh} />
@@ -817,9 +817,9 @@ function MedalistRow({ paper, medal, category, periodLabel, onRefresh }) {
         <td className="px-2 py-2 text-xs font-mono text-center align-top pt-3 w-14">{paper.ai_rating || "—"}</td>
         <td className="px-3 py-2 align-top">
           {candidates.length > 0 ? (
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {candidates.slice(0, 2).map(c => (
-                <div key={c.handle} className="flex items-center gap-2 text-[11px]">
+                <div key={c.handle} className="flex flex-wrap items-center gap-1.5 text-[11px]">
                   <a href={`https://x.com/${c.handle}`} target="_blank" rel="noopener noreferrer"
                     className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border font-medium shrink-0 ${CONFIDENCE_COLORS[c.confidence]} hover:opacity-80`}
                   >
@@ -827,13 +827,18 @@ function MedalistRow({ paper, medal, category, periodLabel, onRefresh }) {
                   </a>
                   {c.tweet_url && (
                     <a href={c.tweet_url} target="_blank" rel="noopener noreferrer"
-                      className={`truncate flex items-center gap-1 ${
-                        (c.tweet_likes > 0 || c.tweet_retweets > 0) ? "text-blue-600" : "text-muted-foreground"
-                      } hover:text-foreground`}
+                      className={`shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] ${
+                        (c.tweet_likes > 0 || c.tweet_retweets > 0)
+                          ? "border-blue-300 bg-blue-50/40 text-blue-600 hover:bg-blue-50"
+                          : "border-border text-muted-foreground hover:text-foreground"
+                      }`}
                       title={c.tweet_text}
                     >
-                      <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-                      <span className="truncate">{c.tweet_text?.slice(0, 50)}{c.tweet_text?.length > 50 ? "..." : ""}</span>
+                      <ExternalLink className="h-2.5 w-2.5" />
+                      Tweet
+                      {(c.tweet_likes > 0 || c.tweet_retweets > 0) && (
+                        <span className="opacity-70">· {(c.tweet_likes || 0) + (c.tweet_retweets || 0)}</span>
+                      )}
                     </a>
                   )}
                   {c.tweet_url && (
@@ -958,9 +963,9 @@ function PaperRow({ paper, index }) {
         </td>
         <td className="px-3 py-2 align-top">
           {shown.length > 0 ? (
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {shown.map(c => (
-                <div key={c.handle} className="flex items-center gap-2 text-[11px]">
+                <div key={c.handle} className="flex flex-wrap items-center gap-1.5 text-[11px]">
                   <a href={`https://x.com/${c.handle}`} target="_blank" rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
                     className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border font-medium shrink-0 ${CONFIDENCE_COLORS[c.confidence]} hover:opacity-80`}
@@ -970,13 +975,18 @@ function PaperRow({ paper, index }) {
                   {c.tweet_url && (
                     <a href={c.tweet_url} target="_blank" rel="noopener noreferrer"
                       onClick={e => e.stopPropagation()}
-                      className={`hover:text-foreground truncate flex items-center gap-1 ${
-                        (c.tweet_likes > 0 || c.tweet_retweets > 0) ? "text-blue-600" : "text-muted-foreground"
+                      className={`shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] ${
+                        (c.tweet_likes > 0 || c.tweet_retweets > 0)
+                          ? "border-blue-300 bg-blue-50/40 text-blue-600 hover:bg-blue-50"
+                          : "border-border text-muted-foreground hover:text-foreground"
                       }`}
                       title={c.tweet_text}
                     >
-                      <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-                      <span className="truncate">{c.tweet_text?.slice(0, 60)}{c.tweet_text?.length > 60 ? "..." : ""}</span>
+                      <ExternalLink className="h-2.5 w-2.5" />
+                      Tweet
+                      {(c.tweet_likes > 0 || c.tweet_retweets > 0) && (
+                        <span className="opacity-70">· {(c.tweet_likes || 0) + (c.tweet_retweets || 0)}</span>
+                      )}
                     </a>
                   )}
                   {c.liked && (
