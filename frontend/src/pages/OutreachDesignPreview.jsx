@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Twitter, Heart, Repeat2, MessageSquare, Quote, ExternalLink } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 const API = process.env.REACT_APP_BACKEND_URL || "";
 
@@ -17,7 +16,10 @@ const CONFIDENCE_COLORS = {
   low: "bg-gray-100 text-gray-600 border-gray-200",
 };
 
+const MEDAL = ["🥇", "🥈", "🥉"];
+
 export default function OutreachDesignPreview() {
+  const [categories, setCategories] = useState([]);
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -29,66 +31,44 @@ export default function OutreachDesignPreview() {
           headers: getAdminHeaders(),
           params: { period: "monthly:2026-3", top_n: 3 },
         });
-        
-        let allCandidates = [];
-        if (res.data?.categories) {
-          for (const cat of res.data.categories) {
-            for (const paper of cat.papers) {
-              if (paper.candidates && paper.candidates.length > 0) {
-                allCandidates.push(...paper.candidates);
-              }
-            }
+
+        const cats = res.data?.categories || [];
+        setCategories(cats);
+
+        const allCandidates = [];
+        for (const cat of cats) {
+          for (const paper of cat.papers || []) {
+            if (paper.candidates?.length > 0) allCandidates.push(...paper.candidates);
           }
         }
-        
-        // If API fails to return the exact test data, provide realistic fallbacks for the preview
+
         if (allCandidates.length === 0) {
-          allCandidates = [
+          // Fallback sample (dev only)
+          allCandidates.push(
             {
               handle: "DrAI_Researcher", name: "Dr. Jane Smith", confidence: "high",
               tweet_url: "https://x.com/fake",
-              tweet_text: "Our new paper on LLM reasoning is out! We achieved SOTA on GSM8K using a novel self-correction method. Code and weights available now. Thanks to my amazing co-authors for making this happen! #AI #MachineLearning",
-              tweet_likes: 1245, tweet_retweets: 340, liked: false, quote_tweeted: false
+              tweet_text: "Our new paper on LLM reasoning is out! SOTA on GSM8K via self-correction.",
+              tweet_likes: 1245, tweet_retweets: 340, liked: false, quote_tweeted: false,
             },
             {
               handle: "ML_Student99", name: "John Doe", confidence: "medium",
               tweet_url: "https://x.com/fake2",
               tweet_text: "finally published the multimodal dataset we've been working on for 2 years",
-              tweet_likes: 12, tweet_retweets: 2, liked: true, quote_tweeted: false
+              tweet_likes: 12, tweet_retweets: 2, liked: true, quote_tweeted: false,
             },
             {
               handle: "RobotLab_Update", name: "Robotics Lab", confidence: "low",
               tweet_url: "https://x.com/fake3",
-              tweet_text: "New preprint available on arXiv: Distributed control for swarm robotics in unstructured environments.",
-              tweet_likes: 0, tweet_retweets: 0, liked: false, quote_tweeted: true
-            }
-          ];
+              tweet_text: "New preprint on arXiv: Distributed control for swarm robotics.",
+              tweet_likes: 0, tweet_retweets: 0, liked: false, quote_tweeted: true,
+            },
+          );
         }
-        
-        setCandidates(allCandidates.slice(0, 4)); // Take first 4
+        setCandidates(allCandidates.slice(0, 4));
       } catch (err) {
         console.error(err);
         setError("Failed to fetch real data. Showing fallback data.");
-        setCandidates([
-          {
-            handle: "DrAI_Researcher", name: "Dr. Jane Smith", confidence: "high",
-            tweet_url: "https://x.com/fake",
-            tweet_text: "Our new paper on LLM reasoning is out! We achieved SOTA on GSM8K using a novel self-correction method. Code and weights available now.",
-            tweet_likes: 1245, tweet_retweets: 340, liked: false, quote_tweeted: false
-          },
-          {
-            handle: "ML_Student99", name: "John Doe", confidence: "medium",
-            tweet_url: "https://x.com/fake2",
-            tweet_text: "finally published the multimodal dataset we've been working on for 2 years",
-            tweet_likes: 12, tweet_retweets: 2, liked: true, quote_tweeted: false
-          },
-          {
-            handle: "RobotLab_Update", name: "Robotics Lab", confidence: "low",
-            tweet_url: "https://x.com/fake3",
-            tweet_text: "New preprint available on arXiv: Distributed control for swarm robotics in unstructured environments.",
-            tweet_likes: 0, tweet_retweets: 0, liked: false, quote_tweeted: true
-          }
-        ]);
       } finally {
         setLoading(false);
       }
@@ -97,11 +77,11 @@ export default function OutreachDesignPreview() {
   }, []);
 
   if (loading) {
-    return <div className="p-8 text-center text-muted-foreground">Loading preview data...</div>;
+    return <div className="p-8 text-center text-muted-foreground">Loading preview data…</div>;
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
+    <div className="max-w-6xl mx-auto px-4 py-8">
       <div className="mb-8">
         <Link to="/admin/outreach" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-4">
           <ArrowLeft className="h-4 w-4" /> Back to Outreach
@@ -110,17 +90,56 @@ export default function OutreachDesignPreview() {
         <p className="text-muted-foreground text-sm mb-4">
           Testing different layouts for the candidate row in the Outreach dashboard. All action buttons here are visual-only.
         </p>
-        <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg text-sm">
-          <strong>Designer's Recommendation: Variant 2 (Inline Split)</strong> is the strongest choice. By indenting the tweet text below the handle, it creates a clear visual hierarchy. It preserves the tabular feel of the admin dashboard while offering excellent scanability. The grouped small icon actions at the bottom right ensure actions are accessible but unobtrusive.
-        </div>
+        {error && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-md text-xs mb-4">{error}</div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 gap-12">
+      {/* FULL-PAGE PREVIEW using Variant 1 ——————————————————————— */}
+      <section className="mb-12">
+        <div className="mb-3 border-b pb-2">
+          <h2 className="text-lg font-semibold">Full page preview — Variant 1 applied to Medalists</h2>
+          <p className="text-xs text-muted-foreground">Exactly how the real Medalists page will look if you pick Variant 1.</p>
+        </div>
+
+        {categories.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground text-sm border rounded-lg">
+            No medalist data available for the preview period (monthly:2026-3). Real data required for full-page preview.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {categories.map(cat => (
+              <div key={cat.category} className="border rounded-lg overflow-x-auto">
+                <div className="bg-muted/30 px-3 sm:px-4 py-2 border-b flex items-baseline gap-2">
+                  <span className="font-semibold text-sm">{cat.name || cat.category}</span>
+                  <span className="text-[10px] sm:text-xs text-muted-foreground">{cat.category}</span>
+                  {cat.label && <span className="ml-auto text-[10px] text-muted-foreground">{cat.label}</span>}
+                </div>
+                <table className="w-full text-sm min-w-[640px]">
+                  <tbody>
+                    {cat.papers.map((p, i) => (
+                      <FullPageMedalistRow key={p.id} paper={p} medal={MEDAL[i] || `#${i + 1}`} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Row-only variants for reference ——————————————————————— */}
+      <div className="mb-3 border-b pb-2">
+        <h2 className="text-lg font-semibold">Row-only variants (side-by-side comparison)</h2>
+        <p className="text-xs text-muted-foreground">Same candidate data rendered with each layout. Variant 1 is the one used above.</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-12 mt-4">
         {/* VARIANT 1 */}
         <section>
           <div className="mb-3 border-b pb-2">
-            <h2 className="text-lg font-semibold">Variant 1 — Compact Stacked</h2>
-            <p className="text-xs text-muted-foreground">Clean vertical flow. Stats on top right, text in middle, actions bottom left.</p>
+            <h2 className="text-lg font-semibold">Variant 1 — Compact Stacked <span className="text-xs font-normal text-green-700 ml-2">(Your pick)</span></h2>
+            <p className="text-xs text-muted-foreground">Clean vertical flow. Stats on top right, text in middle, actions bottom right.</p>
           </div>
           <div className="w-[45%] border border-dashed border-gray-300 p-2 bg-white">
             <div className="space-y-3">
@@ -132,8 +151,8 @@ export default function OutreachDesignPreview() {
         {/* VARIANT 2 */}
         <section>
           <div className="mb-3 border-b pb-2">
-            <h2 className="text-lg font-semibold">Variant 2 — Inline Split (Recommended)</h2>
-            <p className="text-xs text-muted-foreground">Handle on the left, creating an indentation for the tweet text. Highly scannable.</p>
+            <h2 className="text-lg font-semibold">Variant 2 — Inline Split</h2>
+            <p className="text-xs text-muted-foreground">Handle on the left, creating an indentation for the tweet text.</p>
           </div>
           <div className="w-[45%] border border-dashed border-gray-300 p-2 bg-white">
             <div className="space-y-3">
@@ -146,7 +165,7 @@ export default function OutreachDesignPreview() {
         <section>
           <div className="mb-3 border-b pb-2">
             <h2 className="text-lg font-semibold">Variant 3 — The Grid Density</h2>
-            <p className="text-xs text-muted-foreground">Ultra-compact. Handle, stats, and actions share the top line. Tweet text underneath.</p>
+            <p className="text-xs text-muted-foreground">Ultra-compact. Handle, stats, and actions share the top line.</p>
           </div>
           <div className="w-[45%] border border-dashed border-gray-300 p-2 bg-white">
             <div className="space-y-3">
@@ -159,7 +178,7 @@ export default function OutreachDesignPreview() {
         <section>
           <div className="mb-3 border-b pb-2">
             <h2 className="text-lg font-semibold">Variant 4 — Editorial Quote Block</h2>
-            <p className="text-xs text-muted-foreground">Uses the confidence color as a left-border. Very distinct message-like feel.</p>
+            <p className="text-xs text-muted-foreground">Uses the confidence color as a left-border. Message-like feel.</p>
           </div>
           <div className="w-[45%] border border-dashed border-gray-300 p-2 bg-white">
             <div className="space-y-3">
@@ -169,6 +188,49 @@ export default function OutreachDesignPreview() {
         </section>
       </div>
     </div>
+  );
+}
+
+// ----------------------------------------------------------------------
+// Full-page Medalist row using Variant 1 for each candidate
+// ----------------------------------------------------------------------
+function FullPageMedalistRow({ paper, medal }) {
+  const candidates = paper.candidates || [];
+  return (
+    <tr className="border-b last:border-0 hover:bg-muted/10 align-top">
+      <td className="px-3 py-2 w-8 text-center text-lg pt-2.5">{medal}</td>
+      <td className="px-3 py-2" style={{ width: "40%" }}>
+        <div className="font-medium text-[13px] leading-snug">{paper.title}</div>
+        <div className="text-[11px] text-muted-foreground mt-0.5">
+          {(paper.authors || []).slice(0, 3).join(", ")}
+          {(paper.authors || []).length > 3 && " et al."}
+          {paper.arxiv_id && (
+            <a
+              href={`https://arxiv.org/abs/${paper.arxiv_id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-2 text-accent hover:underline"
+            >
+              {paper.arxiv_id}
+            </a>
+          )}
+        </div>
+      </td>
+      <td className="px-2 py-2 text-xs font-mono text-center pt-3 w-14">{paper.ai_rating || "—"}</td>
+      <td className="px-3 py-2">
+        {candidates.length > 0 ? (
+          <div className="space-y-2">
+            {candidates.slice(0, 2).map((c) => (
+              <Variant1 key={c.handle} candidate={c} />
+            ))}
+          </div>
+        ) : paper.discovered ? (
+          <span className="text-[10px] text-muted-foreground italic">No tweets found</span>
+        ) : (
+          <span className="text-[10px] text-gray-400">—</span>
+        )}
+      </td>
+    </tr>
   );
 }
 
