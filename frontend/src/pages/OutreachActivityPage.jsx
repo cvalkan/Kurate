@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
 import { ArrowLeft, ExternalLink, Heart, Twitter, RefreshCw, Search, UserCheck } from "lucide-react";
@@ -56,10 +56,20 @@ function HandleBadge({ handle, tone = "blue" }) {
 }
 
 export default function OutreachActivityPage() {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("quotes");
   const [query, setQuery] = useState("");
+
+  // If no admin token at all, send the user to /admin/outreach to log in there —
+  // we want a single admin login entry-point, not one per page.
+  useEffect(() => {
+    const token = sessionStorage.getItem("admin_token") || localStorage.getItem("admin_token");
+    if (!token) {
+      navigate("/admin/outreach", { replace: true });
+    }
+  }, [navigate]);
 
   const load = async () => {
     setLoading(true);
@@ -67,6 +77,13 @@ export default function OutreachActivityPage() {
       const r = await axios.get(`${API}/api/admin/outreach/activity`, { headers: getAdminHeaders() });
       setData(r.data);
     } catch (e) {
+      // If the stored token is stale/invalid, clear it and bounce to login.
+      if (e.response?.status === 401 || e.response?.status === 403) {
+        sessionStorage.removeItem("admin_token");
+        localStorage.removeItem("admin_token");
+        navigate("/admin/outreach", { replace: true });
+        return;
+      }
       toast.error(`Failed to load activity: ${e.response?.data?.detail || e.message}`);
     } finally {
       setLoading(false);

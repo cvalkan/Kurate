@@ -8,7 +8,11 @@ import { Link } from "react-router-dom";
 const API = process.env.REACT_APP_BACKEND_URL;
 
 function getAdminHeaders() {
-  const token = sessionStorage.getItem("admin_token");
+  // Prefer sessionStorage (survives reloads within the tab) and fall back to
+  // localStorage (persists across tabs/windows). Both are written on login
+  // so this keeps auth consistent with OutreachActivityPage which has the
+  // same fallback chain.
+  const token = sessionStorage.getItem("admin_token") || localStorage.getItem("admin_token");
   return token ? { "X-Admin-Token": token } : {};
 }
 
@@ -656,15 +660,6 @@ export default function OutreachPage() {
             >
               <List className="h-3.5 w-3.5" />
               Activity
-            </Link>
-            <Link
-              to="/admin/outreach/list-preview"
-              data-testid="outreach-list-preview-link"
-              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors shrink-0"
-              title="Leaderboard-style list view with V1→V2 confidence comparison"
-            >
-              <List className="h-3.5 w-3.5" />
-              List preview
             </Link>
           </div>
         </div>
