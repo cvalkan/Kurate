@@ -1,5 +1,14 @@
 # Changelog
 
+## April 22, 2026
+### Outreach: Quote & Like persistence + Activity page
+- Fixed `/api/admin/outreach/medalists` to hydrate candidates with `liked` and `quote_tweeted` state (shared `_annotate_candidates` helper with `/discoveries`). Previously the Medalists view would drop the QT'd / Liked badges after any reload since the backend never returned those fields.
+- Fixed race condition where Medalists view occasionally rendered empty until the user switched tabs: the parent's "current" sentinel period was truthy, so MedalistsView never swapped it for a real `weekly:YYYY-WW`, and stale empty responses could overwrite real ones.
+- `handlePost` (quote tweet) now triggers a parent `onRefresh()` so DB-persisted QT state replaces optimistic in-place mutation, surviving view switches and period changes.
+- Post-discovery polling now fires a single delayed reload 1.5 s after completion to cover the DB-flush tail.
+- New backend endpoint `GET /api/admin/outreach/activity` returns all posted quote tweets + likes, joined with paper title/authors/arxiv_id.
+- New frontend page `/admin/outreach/activity` (`OutreachActivityPage.jsx`) — tabbed table listing every quote and like with direct links to our post and the original tweet. Link added to the Outreach page header.
+
 ## April 21, 2026
 ### Investigation: GPT-5.2 positional bias anomaly (resolved)
 - Mapped the W08–W17 positional bias per model via `/api/positional-bias-diagnostic?group=week`.

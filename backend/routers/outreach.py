@@ -64,6 +64,62 @@ async def discover_status():
     return _discover_status
 
 
+def _tweet_id_from_url(u: str) -> str:
+    if not u:
+        return ""
+    return u.rstrip("/").split("/")[-1].split("?")[0]
+
+
+async def _annotate_candidates(paper_ids: list, candidates_by_paper: dict) -> None:
+    """Mutates the per-paper candidate lists in place, attaching
+    liked / quote_tweeted state from the tweet_likes and tweet_drafts
+    collections. Used by both /discoveries and /medalists so the UI
+    stays consistent across views."""
+    if not paper_ids:
+        return
+
+    liked_by_paper: dict = {}
+    async for doc in db.tweet_likes.find(
+        {"paper_id": {"$in": paper_ids}, "status": "liked"},
+        {"_id": 0, "paper_id": 1, "tweet_id": 1, "liked_at": 1},
+    ):
+        liked_by_paper.setdefault(doc["paper_id"], {})[doc["tweet_id"]] = doc.get("liked_at")
+
+    qt_by_paper: dict = {}
+    async for doc in db.tweet_drafts.find(
+        {"paper_id": {"$in": paper_ids}, "status": "posted"},
+        {"_id": 0, "paper_id": 1, "handle": 1, "quote_tweet_id": 1,
+         "quote_tweet_url": 1, "posted_at": 1},
+    ):
+        qt_by_paper.setdefault(doc["paper_id"], {})[doc["handle"]] = {
+            "quote_tweet_id": doc.get("quote_tweet_id"),
+            "quote_tweet_url": doc.get("quote_tweet_url") or (
+                f"https://x.com/KurateOrg/status/{doc['quote_tweet_id']}"
+                if doc.get("quote_tweet_id") else None
+            ),
+            "quote_tweeted_at": doc.get("posted_at"),
+        }
+
+    for pid, cands in candidates_by_paper.items():
+        liked_map = liked_by_paper.get(pid, {})
+        qt_map = qt_by_paper.get(pid, {})
+        for c in cands:
+            tid = _tweet_id_from_url(c.get("tweet_url", ""))
+            if tid and tid in liked_map:
+                c["liked"] = True
+                c["liked_at"] = liked_map[tid]
+            else:
+                c["liked"] = False
+            qt = qt_map.get(c.get("handle", ""))
+            if qt and qt.get("quote_tweet_id"):
+                c["quote_tweeted"] = True
+                c["quote_tweet_id"] = qt["quote_tweet_id"]
+                c["quote_tweet_url"] = qt["quote_tweet_url"]
+                c["quote_tweeted_at"] = qt["quote_tweeted_at"]
+            else:
+                c["quote_tweeted"] = False
+
+
 @router.get("/medalists", dependencies=[Depends(verify_admin)])
 async def get_medalists(period: str = "current", top_n: int = 3):
     """Get top-N medalists across all categories.
@@ -107,14 +163,13 @@ async def get_medalists(period: str = "current", top_n: int = 3):
             if cat_freq != period_type:
                 continue
         papers = []
+        candidates_by_paper: dict = {}
         for p in archive.get("leaderboard", [])[:top_n]:
             disc = await db.x_handle_discoveries.find_one(
                 {"paper_id": p.get("id")}, {"_id": 0, "candidates": 1, "total_tweets": 1}
             )
-            # Check tweet draft status
-            tweet_draft = await db.tweet_drafts.find_one(
-                {"paper_id": p.get("id")}, {"_id": 0, "status": 1, "period_label": 1}
-            )
+            cands = disc.get("candidates", []) if disc else []
+            candidates_by_paper[p.get("id")] = cands
             papers.append({
                 "id": p.get("id"),
                 "rank": p.get("rank"),
@@ -124,12 +179,12 @@ async def get_medalists(period: str = "current", top_n: int = 3):
                 "ts_score": p.get("ts_score") or p.get("score"),
                 "ai_rating": p.get("ai_rating"),
                 "link": p.get("link"),
-                "candidates": disc.get("candidates", []) if disc else [],
+                "candidates": cands,
                 "total_tweets": disc.get("total_tweets", 0) if disc else 0,
                 "discovered": disc is not None,
-                "tweet_status": tweet_draft.get("status") if tweet_draft else None,
-                "tweet_period": tweet_draft.get("period_label") if tweet_draft else None,
             })
+        # Hydrate liked / quote_tweeted state into the candidate dicts in place
+        await _annotate_candidates(list(candidates_by_paper.keys()), candidates_by_paper)
         if papers:
             result_cats.append({
                 "category": cat,
@@ -252,60 +307,18 @@ async def get_discoveries(
     ):
         discoveries[doc["paper_id"]] = doc
 
-    # Index liked tweet_ids per paper so we can mark candidates liked.
-    liked_by_paper: dict = {}
-    async for doc in db.tweet_likes.find(
-        {"paper_id": {"$in": paper_ids}, "status": "liked"},
-        {"_id": 0, "paper_id": 1, "tweet_id": 1, "liked_at": 1},
-    ):
-        liked_by_paper.setdefault(doc["paper_id"], {})[doc["tweet_id"]] = doc.get("liked_at")
-
-    # Index quote-tweeted handles per paper (posted drafts). Keyed by handle since
-    # drafts are uniquely identified by (paper_id, handle).
-    qt_by_paper: dict = {}
-    async for doc in db.tweet_drafts.find(
-        {"paper_id": {"$in": paper_ids}, "status": "posted"},
-        {"_id": 0, "paper_id": 1, "handle": 1, "quote_tweet_id": 1,
-         "quote_tweet_url": 1, "posted_at": 1},
-    ):
-        qt_by_paper.setdefault(doc["paper_id"], {})[doc["handle"]] = {
-            "quote_tweet_id": doc.get("quote_tweet_id"),
-            "quote_tweet_url": doc.get("quote_tweet_url") or (
-                f"https://x.com/KurateOrg/status/{doc['quote_tweet_id']}"
-                if doc.get("quote_tweet_id") else None
-            ),
-            "quote_tweeted_at": doc.get("posted_at"),
-        }
-
-    def _tweet_id_from_url(u: str) -> str:
-        if not u:
-            return ""
-        return u.rstrip("/").split("/")[-1].split("?")[0]
+    # Hydrate liked / quote_tweeted state into each candidate in place
+    candidates_by_paper = {
+        pid: (discoveries.get(pid, {}).get("candidates") or []) for pid in paper_ids
+    }
+    await _annotate_candidates(paper_ids, candidates_by_paper)
 
     # Build response: papers with their discovery status
     result_papers = []
     for p in papers:
         pid = p["id"]
         disc = discoveries.get(pid)
-        liked_map = liked_by_paper.get(pid, {})
-        qt_map = qt_by_paper.get(pid, {})
-        candidates = disc.get("candidates", []) if disc else []
-        # Annotate each candidate with our like + quote-tweet state
-        for c in candidates:
-            tid = _tweet_id_from_url(c.get("tweet_url", ""))
-            if tid and tid in liked_map:
-                c["liked"] = True
-                c["liked_at"] = liked_map[tid]
-            else:
-                c["liked"] = False
-            qt = qt_map.get(c.get("handle", ""))
-            if qt and qt.get("quote_tweet_id"):
-                c["quote_tweeted"] = True
-                c["quote_tweet_id"] = qt["quote_tweet_id"]
-                c["quote_tweet_url"] = qt["quote_tweet_url"]
-                c["quote_tweeted_at"] = qt["quote_tweeted_at"]
-            else:
-                c["quote_tweeted"] = False
+        candidates = candidates_by_paper.get(pid, [])
         entry = {
             "id": pid,
             "title": p.get("title", ""),
@@ -855,6 +868,52 @@ async def unlike_tweet(body: LikeTweetRequest):
         raise HTTPException(500, f"Failed to unlike: {str(e)[:200]}")
 
 
+
+
+@router.get("/activity", dependencies=[Depends(verify_admin)])
+async def get_activity(limit: int = 200):
+    """Return all quote tweets and likes posted from @KurateOrg, joined
+    with paper title/authors, sorted by time. Used by the Activity page."""
+    # Quote tweets (successful posts only)
+    quotes = []
+    async for d in db.tweet_drafts.find(
+        {"status": "posted", "quote_tweet_id": {"$nin": [None, ""]}},
+        {"_id": 0},
+    ).sort("posted_at", -1).limit(limit):
+        quotes.append(d)
+
+    # Likes
+    likes = []
+    async for d in db.tweet_likes.find(
+        {"status": "liked"},
+        {"_id": 0},
+    ).sort("liked_at", -1).limit(limit):
+        likes.append(d)
+
+    # Batch-load papers for titles/authors
+    paper_ids = {q["paper_id"] for q in quotes} | {li["paper_id"] for li in likes}
+    papers = {}
+    if paper_ids:
+        async for p in db.papers.find(
+            {"id": {"$in": list(paper_ids)}},
+            {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1},
+        ):
+            papers[p["id"]] = p
+
+    def _enrich(d, paper_key):
+        p = papers.get(d.get("paper_id"), {})
+        return {
+            **d,
+            "paper_title": p.get("title", ""),
+            "paper_authors": p.get("authors", []),
+            "paper_arxiv_id": p.get("arxiv_id", ""),
+        }
+
+    return {
+        "quotes": [_enrich(q, "paper_id") for q in quotes],
+        "likes": [_enrich(li, "paper_id") for li in likes],
+        "counts": {"quotes": len(quotes), "likes": len(likes)},
+    }
 
 
 async def _get_papers_for_period(category: str, period: str, top_n: int) -> list:

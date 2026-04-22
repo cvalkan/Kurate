@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { toast } from "sonner";
-import { Search, ExternalLink, Twitter, RefreshCw, ChevronDown, Users, Trophy, Clock, Calendar, Heart } from "lucide-react";
+import { Search, ExternalLink, Twitter, RefreshCw, ChevronDown, Users, Trophy, Clock, Calendar, Heart, List } from "lucide-react";
 import { Button } from "../components/ui/button";
+import { Link } from "react-router-dom";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -309,6 +310,10 @@ export default function OutreachPage() {
   // Load medalists
   const loadMedalists = useCallback(async () => {
     if (!authed) return;
+    // "current" is a sentinel used before MedalistsView has picked an archive
+    // period. Skip the fetch so the valid fetch that follows can't be overwritten
+    // by this empty response (classic race condition when loads finish out of order).
+    if (!medalistPeriod || medalistPeriod === "current") return;
     setMedalistsLoading(true);
     try {
       const res = await axios.get(`${API}/api/admin/outreach/medalists`, {
@@ -336,7 +341,10 @@ export default function OutreachPage() {
             if (!status.data.running) {
               clearInterval(poll);
               setDiscoveringMedalists(false);
-              loadMedalists();
+              await loadMedalists();
+              // Flush-the-writes safety net: re-fetch shortly after to ensure
+              // the final candidate batch has been committed to the DB.
+              setTimeout(() => { loadMedalists(); }, 1500);
               toast.success("Medalist discovery complete!");
             } else {
               loadMedalists(); // Refresh incrementally
@@ -393,7 +401,8 @@ export default function OutreachPage() {
             if (!status.data.running) {
               clearInterval(poll);
               setDiscovering(false);
-              loadDiscoveries();
+              await loadDiscoveries();
+              setTimeout(() => { loadDiscoveries(); }, 1500);
               axios.get(`${API}/api/admin/outreach/handle-stats`, { headers: getAdminHeaders() })
                 .then(r => setStats(r.data)).catch(() => {});
               toast.success("Discovery complete!");
@@ -443,13 +452,23 @@ export default function OutreachPage() {
             <h1 className="text-2xl font-bold tracking-tight" data-testid="outreach-title">X Outreach</h1>
             <p className="text-sm text-muted-foreground mt-1">Discover author handles from top-ranked papers</p>
           </div>
-          {stats && (
-            <div className="flex gap-4 text-xs text-muted-foreground">
-              <span>{stats.total_papers_searched} papers searched</span>
-              <span>{stats.papers_with_candidates} with handles</span>
-              <span className="text-green-600">{stats.by_confidence?.high?.unique || 0} high-confidence</span>
-            </div>
-          )}
+          <div className="flex items-center gap-4">
+            {stats && (
+              <div className="flex gap-4 text-xs text-muted-foreground">
+                <span>{stats.total_papers_searched} papers searched</span>
+                <span>{stats.papers_with_candidates} with handles</span>
+                <span className="text-green-600">{stats.by_confidence?.high?.unique || 0} high-confidence</span>
+              </div>
+            )}
+            <Link
+              to="/admin/outreach/activity"
+              data-testid="outreach-activity-link"
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-accent text-accent hover:bg-accent hover:text-background transition-colors"
+            >
+              <List className="h-3.5 w-3.5" />
+              Activity
+            </Link>
+          </div>
         </div>
 
         {/* View toggle */}
@@ -603,8 +622,11 @@ function MedalistsView({ medalists, loading, discovering, onDiscover, onRefresh,
     axios.get(`${API}/api/admin/outreach/archive-periods`, { headers: getAdminHeaders() })
       .then(r => {
         setArchivePeriods(r.data);
-        // Auto-select the latest weekly archive if no period set
-        if (!period && r.data.weekly?.length > 0) {
+        // Auto-select the latest weekly archive if no valid period is set.
+        // "current" is the parent's sentinel default and must be replaced with a
+        // real archive period before the medalists endpoint can return data.
+        const needsPeriod = !period || period === "current" || !period.includes(":");
+        if (needsPeriod && r.data.weekly?.length > 0) {
           setPeriod(`weekly:${r.data.weekly[0].value}`);
         }
       })
@@ -684,7 +706,7 @@ function MedalistsView({ medalists, loading, discovering, onDiscover, onRefresh,
             <table className="w-full text-sm">
               <tbody>
                 {cat.papers.map((p, i) => (
-                  <MedalistRow key={p.id} paper={p} medal={MEDAL[i] || `#${i+1}`} category={cat.category} periodLabel={cat.label || ""} />
+                  <MedalistRow key={p.id} paper={p} medal={MEDAL[i] || `#${i+1}`} category={cat.category} periodLabel={cat.label || ""} onRefresh={onRefresh} />
                 ))}
               </tbody>
             </table>
@@ -699,7 +721,7 @@ function MedalistsView({ medalists, loading, discovering, onDiscover, onRefresh,
   );
 }
 
-function MedalistRow({ paper, medal, category, periodLabel }) {
+function MedalistRow({ paper, medal, category, periodLabel, onRefresh }) {
   const candidates = paper.candidates || [];
   const best = candidates[0];
   const [drafting, setDrafting] = useState(false);
@@ -736,6 +758,9 @@ function MedalistRow({ paper, medal, category, periodLabel }) {
         c.quote_tweet_url = res.data?.url || c.quote_tweet_url;
         c.quote_tweeted_at = res.data?.posted_at || new Date().toISOString();
       }
+      // Re-fetch to hydrate DB-persisted state across all sibling rows so the
+      // QT badge survives refreshes, view switches, and period changes.
+      if (typeof onRefresh === "function") { onRefresh(); }
     } catch (e) {
       toast.error(`Post failed: ${e.response?.data?.detail || e.message}`);
     } finally {
