@@ -1,0 +1,44 @@
+{
+  "summary": "Deployment-readiness test of CandidateCardV1 rollout to Medalists + Category Explorer with icon-only Like/Follow/QT/Draft buttons. All 9 backend smoke tests pass; all 10 frontend assertions pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "design_preview_route_removed": "PASS — /admin/outreach/design-preview no longer renders 'Outreach Row Design Variants' heading; React Router logs 'No routes matched' (SPA fallback).",
+    "medalists_march_2026_cards": "PASS — Selected Monthly -> 'March 2026 — 9 cats, 744 papers'; 10 candidate-card-* rendered including all 4 expected handles (@rainozhang, @gregorschub, @CapybaraPapers, @QFinancePapers).",
+    "four_icon_buttons_per_card": "PASS — every Medalists card has like-btn-*, follow-btn-*, qt-icon-*, draft-btn-* present.",
+    "icon_button_sizing": "PASS — outer button class is 'h-6 w-6' (24x24) per spec. Inner SVG glyph is h-3 w-3 (12x12) which is a normal centered-glyph pattern; button itself satisfies the 24x24 requirement.",
+    "tweet_text_color_coding": "PASS — @rainozhang (6/0) blue=True; @gregorschub (229/46) blue=True; @CapybaraPapers (0/0) blue=False, muted=True; @QFinancePapers (2/0) blue=True. Logic 'tweet_likes+tweet_retweets > 0 -> text-blue-600 else text-muted-foreground' is correctly implemented.",
+    "engagement_numbers_top_right": "PASS — heart + repeat-2 lucide icons and numeric counts visible top-right of each card (visible in screenshot: '6 0', '229 46', '0 0', '2 0').",
+    "qfinance_filled_pink_heart": "PASS — like-btn-QFinancePapers wrapper class includes 'border-pink-500 bg-pink-50 text-pink-600' and inner svg has 'fill-pink-500'. Title='Liked — click to like again'.",
+    "category_explorer_no_draft": "PASS — In Category Explorer (selected category, clicked Find Handles): 7 candidate cards rendered, each with like-btn/follow-btn/qt-icon, but 0 draft-btn-* selectors found (correct — Draft only in Medalists).",
+    "mobile_outreach_overflow": "PASS — 390x844 /admin/outreach: scrollWidth=clientWidth=390 (no horizontal overflow).",
+    "mobile_activity_tabs": "PASS — 390x844 /admin/outreach/activity: no overflow; all three tabs (Quotes, Likes, Follows) present.",
+    "backend_outreach_smoke": "9/9 PASS — admin-gated medalists/activity/discoveries endpoints return correct shapes; follow-handle and like-tweet are properly admin-gated (401 without token) and validate payloads (400 on bad input). NO live X writes were performed."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_outreach_smoke.py",
+    "/app/test_reports/pytest/outreach_smoke_iter58_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "OutreachPage.jsx is large (>1100 lines) — consider splitting CandidateCardV1, MedalistRow, PaperRow, QTIconButton, DraftIconButton, LikeButton, FollowButton into separate files for maintainability. Not blocking deployment.",
+    "design-preview route removal is clean: App.js no longer references the route and the OutreachDesignPreview.jsx file no longer exists; React Router shows the standard 'No routes matched' warning, which is the intended SPA fallback."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_outreach_smoke.py (new — pytest smoke for outreach endpoints; safe — no live X writes)"
+  ],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100% (10/10 assertions)"},
+  "test_credentials": "Admin password 'papersumo2025' via POST /api/admin/login; token returned in body and used as X-Admin-Token header. UI login via /admin/outreach.",
+  "seed_data_creation": "None — used existing March 2026 monthly archive.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Medalists view requires switching to Monthly + selecting 'March 2026 — 9 cats, 744 papers' from the NATIVE <select> (not Radix combobox) to populate cards. Use page.select_option(value='2026-3'). The default selection is 'April 2026' which has 0 medalists. Live Like/Follow/Draft action buttons must NOT be clicked against real handles — they hit @KurateOrg's X account. Backend admin endpoint is /api/admin/login (not /api/admin/auth) and uses X-Admin-Token header (not Bearer).",
+  "rca of the issue": "N/A — feature works as designed. Initial confusion was that the period-selector is a native HTML <select>, not a Radix combobox; using native select_option fixed it."
+}

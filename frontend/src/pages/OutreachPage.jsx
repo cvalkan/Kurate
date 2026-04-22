@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { toast } from "sonner";
-import { Search, ExternalLink, Twitter, RefreshCw, ChevronDown, Users, Trophy, Clock, Calendar, Heart, List, UserPlus, UserCheck } from "lucide-react";
+import { Search, ExternalLink, Twitter, RefreshCw, ChevronDown, Users, Trophy, Clock, Calendar, Heart, List, UserPlus, UserCheck, MessageSquare, Repeat2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Link } from "react-router-dom";
 
@@ -57,6 +57,25 @@ function LikeButton({ paperId, candidate, size = "sm" }) {
   };
 
   if (!tweetUrl) return null;
+
+  if (size === "icon") {
+    return (
+      <button
+        onClick={handleLike}
+        disabled={busy}
+        data-testid={`like-btn-${candidate.handle}`}
+        title={liked ? "Liked — click to like again" : "Like this tweet as @kurateorg"}
+        className={`h-6 w-6 rounded border flex items-center justify-center transition-colors disabled:opacity-60 ${
+          liked
+            ? "border-pink-500 bg-pink-50 text-pink-600"
+            : "border-border text-muted-foreground hover:text-pink-600 hover:border-pink-300"
+        }`}
+      >
+        <Heart className={`h-3 w-3 ${liked ? "fill-pink-500" : ""}`} />
+      </button>
+    );
+  }
+
   const iconSize = size === "xs" ? "h-2.5 w-2.5" : "h-3 w-3";
   const textSize = size === "xs" ? "text-[10px] px-1.5 py-0.5" : "text-[11px] px-2 py-0.5";
   return (
@@ -106,9 +125,28 @@ function FollowButton({ paperId, candidate, size = "sm" }) {
     }
   };
 
+  const Icon = followed ? UserCheck : UserPlus;
+
+  if (size === "icon") {
+    return (
+      <button
+        onClick={handleFollow}
+        disabled={busy || followed}
+        data-testid={`follow-btn-${candidate.handle}`}
+        title={followed ? `Following @${candidate.handle}` : `Follow @${candidate.handle} as @kurateorg`}
+        className={`h-6 w-6 rounded border flex items-center justify-center transition-colors disabled:opacity-60 ${
+          followed
+            ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+            : "border-border text-muted-foreground hover:text-indigo-600 hover:border-indigo-300"
+        }`}
+      >
+        <Icon className="h-3 w-3" />
+      </button>
+    );
+  }
+
   const iconSize = size === "xs" ? "h-2.5 w-2.5" : "h-3 w-3";
   const textSize = size === "xs" ? "text-[10px] px-1.5 py-0.5" : "text-[11px] px-2 py-0.5";
-  const Icon = followed ? UserCheck : UserPlus;
   return (
     <button
       onClick={handleFollow}
@@ -292,6 +330,107 @@ function QTBadge({ candidate }) {
       <Twitter className="h-2.5 w-2.5" />
       QT'd
     </a>
+  );
+}
+
+// Variant 1 — compact stacked card used for every candidate in both Medalists and Category Explorer views.
+function CandidateCardV1({ paperId, candidate: c, onDraft, onRowClick }) {
+  const engaged = (c.tweet_likes > 0 || c.tweet_retweets > 0);
+  const textColor = engaged ? "text-blue-600" : "text-muted-foreground";
+
+  const stopPropagation = (e) => e.stopPropagation();
+
+  return (
+    <div
+      className="p-2 sm:p-2.5 rounded-md border bg-background flex flex-col gap-1.5"
+      data-testid={`candidate-card-${c.handle}`}
+      onClick={onRowClick}
+    >
+      {/* Top: handle + engagement stats */}
+      <div className="flex items-center justify-between gap-2">
+        <a
+          href={`https://x.com/${c.handle}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={stopPropagation}
+          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[11px] font-medium shrink-0 ${CONFIDENCE_COLORS[c.confidence]} hover:opacity-80`}
+          title={`@${c.handle}${c.name ? ` — ${c.name}` : ""}`}
+        >
+          <Twitter className="h-2.5 w-2.5" />@{c.handle}
+        </a>
+        {c.tweet_url && (
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium shrink-0">
+            <span className="inline-flex items-center gap-0.5" title={`${c.tweet_likes || 0} likes`}>
+              <Heart className="h-2.5 w-2.5" /> {c.tweet_likes || 0}
+            </span>
+            <span className="inline-flex items-center gap-0.5" title={`${c.tweet_retweets || 0} retweets`}>
+              <Repeat2 className="h-3 w-3" /> {c.tweet_retweets || 0}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Middle: tweet text (color-coded by engagement) */}
+      {c.tweet_text && c.tweet_url && (
+        <a
+          href={c.tweet_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={stopPropagation}
+          className={`text-[11px] leading-snug line-clamp-2 hover:underline ${textColor}`}
+          title={c.tweet_text}
+        >
+          {c.tweet_text}
+        </a>
+      )}
+
+      {/* Bottom: small icon actions */}
+      {c.tweet_url && (
+        <div className="flex items-center justify-end gap-1.5 mt-0.5" onClick={stopPropagation}>
+          <LikeButton paperId={paperId} candidate={c} size="icon" />
+          <FollowButton paperId={paperId} candidate={c} size="icon" />
+          <QTIconButton candidate={c} />
+          {onDraft && <DraftIconButton onDraft={() => onDraft(c)} candidate={c} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QTIconButton({ candidate: c }) {
+  const qtUrl = c?.quote_tweet_url || (c?.quote_tweet_id ? `https://x.com/KurateOrg/status/${c.quote_tweet_id}` : null);
+  const isQT = Boolean(c?.quote_tweeted);
+  const cls = isQT
+    ? "border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100"
+    : "border-border text-muted-foreground/60 cursor-default";
+  const title = isQT ? `Quote-tweeted ${c.quote_tweeted_at?.slice(0, 10) || ""} — open` : "Not quote-tweeted yet";
+  const Cmp = isQT && qtUrl ? "a" : "span";
+  const extra = isQT && qtUrl
+    ? { href: qtUrl, target: "_blank", rel: "noopener noreferrer", onClick: (e) => e.stopPropagation() }
+    : {};
+  return (
+    <Cmp
+      {...extra}
+      className={`h-6 w-6 rounded border flex items-center justify-center transition-colors ${cls}`}
+      data-testid={`qt-icon-${c.handle}`}
+      title={title}
+    >
+      <Twitter className={`h-3 w-3 ${isQT ? "fill-blue-500" : ""}`} />
+    </Cmp>
+  );
+}
+
+function DraftIconButton({ onDraft, candidate: c }) {
+  const isQT = Boolean(c?.quote_tweeted);
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onDraft(); }}
+      data-testid={`draft-btn-${c.handle}`}
+      title={isQT ? "Draft another quote tweet" : "Draft a quote tweet"}
+      className="h-6 w-6 rounded border border-accent text-accent hover:bg-accent hover:text-background flex items-center justify-center transition-colors"
+    >
+      <MessageSquare className="h-3 w-3" />
+    </button>
   );
 }
 
@@ -867,43 +1006,14 @@ function MedalistRow({ paper, medal, category, periodLabel, onRefresh }) {
         <td className="px-2 py-2 text-xs font-mono text-center align-top pt-3 w-14">{paper.ai_rating || "—"}</td>
         <td className="px-3 py-2 align-top">
           {candidates.length > 0 ? (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {candidates.slice(0, 2).map(c => (
-                <div key={c.handle} className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                  <a href={`https://x.com/${c.handle}`} target="_blank" rel="noopener noreferrer"
-                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border font-medium shrink-0 ${CONFIDENCE_COLORS[c.confidence]} hover:opacity-80`}
-                  >
-                    <Twitter className="h-2.5 w-2.5" />@{c.handle}
-                  </a>
-                  {c.tweet_url && (
-                    <a href={c.tweet_url} target="_blank" rel="noopener noreferrer"
-                      className={`shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] ${
-                        (c.tweet_likes > 0 || c.tweet_retweets > 0)
-                          ? "border-blue-300 bg-blue-50/40 text-blue-600 hover:bg-blue-50"
-                          : "border-border text-muted-foreground hover:text-foreground"
-                      }`}
-                      title={c.tweet_text}
-                    >
-                      <ExternalLink className="h-2.5 w-2.5" />
-                      Tweet
-                      {(c.tweet_likes > 0 || c.tweet_retweets > 0) && (
-                        <span className="opacity-70">· {(c.tweet_likes || 0) + (c.tweet_retweets || 0)}</span>
-                      )}
-                    </a>
-                  )}
-                  {c.tweet_url && (
-                    <>
-                      <LikeButton paperId={paper.id} candidate={c} size="xs" />
-                      <FollowButton paperId={paper.id} candidate={c} size="xs" />
-                      <QTBadge candidate={c} />
-                      <button onClick={() => handleDraft(c)} disabled={drafting}
-                        className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-accent text-accent hover:bg-accent hover:text-background transition-colors disabled:opacity-50"
-                      >
-                        {drafting ? "..." : c.quote_tweeted ? "Draft again" : "Draft Quote"}
-                      </button>
-                    </>
-                  )}
-                </div>
+                <CandidateCardV1
+                  key={c.handle}
+                  paperId={paper.id}
+                  candidate={c}
+                  onDraft={(cand) => handleDraft(cand)}
+                />
               ))}
             </div>
           ) : paper.discovered ? (
@@ -1014,50 +1124,13 @@ function PaperRow({ paper, index }) {
         </td>
         <td className="px-3 py-2 align-top">
           {shown.length > 0 ? (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {shown.map(c => (
-                <div key={c.handle} className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                  <a href={`https://x.com/${c.handle}`} target="_blank" rel="noopener noreferrer"
-                    onClick={e => e.stopPropagation()}
-                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border font-medium shrink-0 ${CONFIDENCE_COLORS[c.confidence]} hover:opacity-80`}
-                  >
-                    <Twitter className="h-2.5 w-2.5" />@{c.handle}
-                  </a>
-                  {c.tweet_url && (
-                    <a href={c.tweet_url} target="_blank" rel="noopener noreferrer"
-                      onClick={e => e.stopPropagation()}
-                      className={`shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] ${
-                        (c.tweet_likes > 0 || c.tweet_retweets > 0)
-                          ? "border-blue-300 bg-blue-50/40 text-blue-600 hover:bg-blue-50"
-                          : "border-border text-muted-foreground hover:text-foreground"
-                      }`}
-                      title={c.tweet_text}
-                    >
-                      <ExternalLink className="h-2.5 w-2.5" />
-                      Tweet
-                      {(c.tweet_likes > 0 || c.tweet_retweets > 0) && (
-                        <span className="opacity-70">· {(c.tweet_likes || 0) + (c.tweet_retweets || 0)}</span>
-                      )}
-                    </a>
-                  )}
-                  {c.liked && (
-                    <span className="shrink-0 text-[10px] px-1 py-0.5 rounded border border-pink-500 bg-pink-50 text-pink-600 inline-flex items-center gap-0.5"
-                      data-testid={`liked-indicator-${c.handle}`}
-                      title={`Liked ${c.liked_at?.slice(0, 10) || ""}`}
-                    >
-                      <Heart className="h-2 w-2 fill-pink-500" />Liked
-                    </span>
-                  )}
-                  {c.followed && (
-                    <span className="shrink-0 text-[10px] px-1 py-0.5 rounded border border-indigo-500 bg-indigo-50 text-indigo-700 inline-flex items-center gap-0.5"
-                      data-testid={`followed-indicator-${c.handle}`}
-                      title={`Following since ${c.followed_at?.slice(0, 10) || ""}`}
-                    >
-                      <UserCheck className="h-2 w-2" />Following
-                    </span>
-                  )}
-                  <QTBadge candidate={c} />
-                </div>
+                <CandidateCardV1
+                  key={c.handle}
+                  paperId={paper.id}
+                  candidate={c}
+                />
               ))}
               {hasMore && (
                 <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
