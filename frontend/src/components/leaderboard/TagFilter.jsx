@@ -39,7 +39,7 @@ export function TagFilter({
                 <Lock className="h-3 w-3" /> Filter by tags
               </Button>
             </TooltipTrigger>
-            <TooltipContent><p className="text-xs">Sign in to filter by tags</p></TooltipContent>
+            <TooltipContent><p className="text-xs">Sign in for free to filter by tags</p></TooltipContent>
           </Tooltip>
         )}
         <Tooltip>

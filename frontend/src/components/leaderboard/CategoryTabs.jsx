@@ -63,7 +63,7 @@ export function CategoryTabs({
                     <Lock className="h-3 w-3" /> More <ChevronDown className="h-3 w-3" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent><p className="text-xs">Sign in to access more categories</p></TooltipContent>
+                <TooltipContent><p className="text-xs">Sign in for free to access more categories</p></TooltipContent>
               </Tooltip>
             )}
             {moreCatsOpen && isLoggedIn && (
@@ -90,7 +90,7 @@ export function CategoryTabs({
               <Lightbulb className="h-3.5 w-3.5" /><span>Suggest</span>
             </button>
           </TooltipTrigger>
-          <TooltipContent side="bottom"><p className="text-xs">{isLoggedIn ? "Suggest a new field or share feedback" : "Sign in to suggest a field"}</p></TooltipContent>
+          <TooltipContent side="bottom"><p className="text-xs">{isLoggedIn ? "Suggest a new field or share feedback" : "Sign in for free to suggest a field"}</p></TooltipContent>
         </Tooltip>
       </div>
       {isTagMode && <p className="text-[10px] text-muted-foreground mt-1 ml-1">Category tabs disabled while tag filter is active</p>}

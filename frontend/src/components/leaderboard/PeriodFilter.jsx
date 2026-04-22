@@ -67,7 +67,7 @@ export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedI
                   <Lock className="h-3 w-3" /> {p.label}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent><p className="text-xs">Sign in to access {p.label.toLowerCase()} view</p></TooltipContent>
+              <TooltipContent><p className="text-xs">Sign in for free to access {p.label.toLowerCase()} view</p></TooltipContent>
             </Tooltip>
           ) : (
             <Button key={p.key} variant={period === p.key ? "default" : "ghost"} size="sm"

@@ -1,0 +1,58 @@
+{
+  "summary": "Frontend visual/regression test of /admin/outreach/activity after restyle to grid-based Leaderboard-style table. All 8 acceptance criteria pass on both desktop (1920x900) and mobile (390x844). Tables render correctly, mobile hides Category+Posted columns, no horizontal overflow, rows are clickable anchors opening x.com in a new tab, ExternalLink icon replaces draft tweet text.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor: `fmtDate` silently falls back to `s.slice(0,10)` for unparseable dates which could expose raw ISO-like strings — acceptable but consider '—'.",
+    "Minor: `useBreakpoints` re-renders both table components on every resize; for 4 rows it's fine, but a `matchMedia` listener would be cheaper."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100%"},
+  "test_credentials": "admin password: papersumo2025 (from /app/memory/test_credentials.md). Token obtained via POST /api/admin/login and stored in localStorage+sessionStorage under key 'admin_token'.",
+  "seed_data_creation": "None — used existing backend data (4 quotes, 1 like).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "OutreachActivityPage.jsx now uses a CSS grid layout (gridTemplateColumns dynamically computed per breakpoint) mirroring LeaderboardTable. Columns on desktop quotes: [#, Paper, Quoted, Category, Posted, Tweet]; mobile quotes: [#, Paper, Quoted, Tweet]. Likes desktop: [#, Paper, Liked, Liked at, Tweet]; mobile likes: [#, Paper, Liked, Tweet]. Each row is an <a target=_blank> pointing to quote_tweet_url (quotes) or tweet_url (likes) with stopPropagation on the inner handle badge. data-testid='activity-quotes-table' / 'activity-likes-table' render conditionally with the active tab. data-testid for rows: activity-quote-<handle> / activity-like-<handle>. Search filters by paper title, handle, arxiv id, and authors.",
+  "observed_test_results": {
+    "desktop_1920x900": {
+      "title": "Outreach Activity",
+      "quotes_table_testid_present": true,
+      "quotes_headers": ["#", "Paper", "Quoted", "Category", "Posted", "Tweet"],
+      "quote_rows": 4,
+      "quote_handles": ["testuser", "zhenjun_zhao", "rainozhang", "gregorschub"],
+      "all_rows_have_external_link_icon": true,
+      "all_rows_have_href_to_x_com": true,
+      "all_rows_target_blank": true,
+      "no_draft_text_or_em_tags": true,
+      "row_click_opens_new_tab_url": "https://x.com/KurateOrg/status/2046672238192046263",
+      "likes_table_testid_present": true,
+      "likes_headers": ["#", "Paper", "Liked", "Liked at", "Tweet"],
+      "like_rows": 1,
+      "search_rainoz_count": 1,
+      "no_NaN_undefined_or_InvalidDate": true
+    },
+    "mobile_390x844": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "no_horizontal_overflow_quotes": true,
+      "no_horizontal_overflow_likes": true,
+      "mobile_quotes_headers": ["#", "Paper", "Quoted", "Tweet"],
+      "category_and_posted_hidden_on_mobile": true,
+      "quote_rows": 4,
+      "like_rows": 1,
+      "tabs_search_stacked_vertically": true,
+      "tabs_bottom_px": 253,
+      "search_top_px": 265,
+      "refresh_button_visible": true,
+      "search_rainoz_count": 1,
+      "no_NaN_undefined_or_InvalidDate": true
+    }
+  },
+  "rca_of_the_issue": "N/A — this was a visual regression check, not a bug fix. All 8 acceptance criteria from the review request verified green."
+}
