@@ -501,10 +501,10 @@ async def post_tweet(body: PostTweetRequest):
         )
         draft["draft_text"] = edited
 
-    auth_token = os.environ.get("TWITTER_AUTH_TOKEN")
+    auth_token, _src = await _get_twitter_auth_token()
     proxy = os.environ.get("TWITTER_PROXY", "")
     if not auth_token:
-        raise HTTPException(500, "TWITTER_AUTH_TOKEN not configured")
+        raise HTTPException(500, "No X auth token configured (set via Admin → Outreach → X Auth, or TWITTER_AUTH_TOKEN env)")
 
     from tweetapi import TweetAPI
     client = TweetAPI(api_key=TWEETAPI_KEY)
@@ -639,6 +639,123 @@ def _extract_tweet_id(tweet_url: str) -> str:
     return tweet_url.rstrip("/").split("/")[-1].split("?")[0]
 
 
+# ──────────────────────────────────────────────────────────────────────────
+# X (Twitter) auth-token management
+# ──────────────────────────────────────────────────────────────────────────
+# We store the current auth_token in db.settings with key="twitter_auth" so
+# the admin can rotate it from the UI without editing .env or restarting.
+# If no DB entry exists we fall back to TWITTER_AUTH_TOKEN from the env.
+
+async def _get_twitter_auth_token() -> tuple[str, str]:
+    """Return (auth_token, source) where source is 'db' or 'env' or ''."""
+    doc = await db.settings.find_one({"key": "twitter_auth"}, {"_id": 0})
+    if doc and doc.get("auth_token"):
+        return doc["auth_token"], "db"
+    env_tok = os.environ.get("TWITTER_AUTH_TOKEN") or ""
+    return env_tok, ("env" if env_tok else "")
+
+
+def _mask_token(tok: str) -> str:
+    if not tok:
+        return ""
+    if len(tok) <= 10:
+        return "****"
+    return f"{tok[:4]}…{tok[-4:]}"
+
+
+class TwitterAuthRequest(BaseModel):
+    auth_token: str
+    verify: bool = True
+
+
+@router.get("/twitter-auth/status", dependencies=[Depends(verify_admin)])
+async def twitter_auth_status():
+    """Return non-secret metadata about the currently configured X auth token."""
+    doc = await db.settings.find_one({"key": "twitter_auth"}, {"_id": 0})
+    tok, source = await _get_twitter_auth_token()
+    return {
+        "configured": bool(tok),
+        "source": source,
+        "masked": _mask_token(tok),
+        "length": len(tok),
+        "updated_at": (doc or {}).get("updated_at"),
+        "last_verified_at": (doc or {}).get("last_verified_at"),
+    }
+
+
+@router.post("/twitter-auth", dependencies=[Depends(verify_admin)])
+async def set_twitter_auth_token(body: TwitterAuthRequest):
+    """Save a new auth_token. If verify=True, runs a zero-effect Like+Unlike
+    round-trip on a known Kurate tweet to confirm the token is valid before
+    persisting. Returns masked info only — never the token itself."""
+    new_tok = (body.auth_token or "").strip()
+    if len(new_tok) < 20 or not all(c.isalnum() for c in new_tok):
+        raise HTTPException(400, "auth_token must be a 20+ char alphanumeric string")
+
+    now = datetime.now(timezone.utc).isoformat()
+    proxy = os.environ.get("TWITTER_PROXY", "") or None
+
+    verification: dict = {"verified": False, "error": None}
+    if body.verify:
+        if not TWEETAPI_KEY:
+            raise HTTPException(500, "TWEETAPI_KEY not configured — cannot verify")
+        # Known @KurateOrg tweet id used purely as a target for a self-like round-trip
+        verify_tweet_id = os.environ.get("TWITTER_VERIFY_TWEET_ID") or "2046687272339452032"
+        try:
+            from tweetapi import TweetAPI
+            client = TweetAPI(api_key=TWEETAPI_KEY)
+            r1 = client.interaction.favorite_post(
+                auth_token=new_tok, tweet_id=verify_tweet_id, proxy=proxy,
+            )
+            # Best-effort restore; ignore failure (token is already proven valid)
+            try:
+                client.interaction.unfavorite_post(
+                    auth_token=new_tok, tweet_id=verify_tweet_id, proxy=proxy,
+                )
+            except Exception:
+                pass
+            ok = bool(r1.data if hasattr(r1, "data") else r1)
+            verification = {"verified": ok, "error": None}
+            if not ok:
+                raise HTTPException(400, "Token could not be verified — TweetAPI returned empty result")
+        except HTTPException:
+            raise
+        except Exception as e:
+            err = str(e)[:250]
+            logger.warning(f"[outreach] Token verification failed: {err}")
+            raise HTTPException(400, f"Token verification failed: {err}")
+
+    await db.settings.update_one(
+        {"key": "twitter_auth"},
+        {"$set": {
+            "key": "twitter_auth",
+            "auth_token": new_tok,
+            "masked": _mask_token(new_tok),
+            "length": len(new_tok),
+            "updated_at": now,
+            "last_verified_at": now if verification["verified"] else None,
+        }},
+        upsert=True,
+    )
+    logger.info(f"[outreach] X auth token rotated (verified={verification['verified']}, "
+                f"masked={_mask_token(new_tok)})")
+    return {
+        "status": "saved",
+        "masked": _mask_token(new_tok),
+        "length": len(new_tok),
+        "updated_at": now,
+        "verified": verification["verified"],
+    }
+
+
+@router.delete("/twitter-auth", dependencies=[Depends(verify_admin)])
+async def clear_twitter_auth_token():
+    """Remove the DB-stored token so the system falls back to env-configured one."""
+    r = await db.settings.delete_one({"key": "twitter_auth"})
+    return {"status": "cleared", "deleted": r.deleted_count}
+
+
+
 @router.post("/like-tweet", dependencies=[Depends(verify_admin)])
 async def like_tweet(body: LikeTweetRequest):
     """Like a candidate tweet as @kurateorg — softer alternative to quote-tweeting."""
@@ -654,10 +771,10 @@ async def like_tweet(body: LikeTweetRequest):
     if existing:
         return {"status": "already_liked", "tweet_id": tweet_id, "liked_at": existing.get("liked_at")}
 
-    auth_token = os.environ.get("TWITTER_AUTH_TOKEN")
+    auth_token, _src = await _get_twitter_auth_token()
     proxy = os.environ.get("TWITTER_PROXY", "")
     if not auth_token:
-        raise HTTPException(500, "TWITTER_AUTH_TOKEN not configured")
+        raise HTTPException(500, "No X auth token configured (set via Admin → Outreach → X Auth, or TWITTER_AUTH_TOKEN env)")
     if not TWEETAPI_KEY:
         raise HTTPException(500, "TWEETAPI_KEY not configured")
 
@@ -713,10 +830,10 @@ async def unlike_tweet(body: LikeTweetRequest):
     if not tweet_id.isdigit():
         raise HTTPException(400, f"Could not parse tweet_id from URL: {body.tweet_url}")
 
-    auth_token = os.environ.get("TWITTER_AUTH_TOKEN")
+    auth_token, _src = await _get_twitter_auth_token()
     proxy = os.environ.get("TWITTER_PROXY", "")
     if not auth_token:
-        raise HTTPException(500, "TWITTER_AUTH_TOKEN not configured")
+        raise HTTPException(500, "No X auth token configured (set via Admin → Outreach → X Auth, or TWITTER_AUTH_TOKEN env)")
 
     from tweetapi import TweetAPI
     client = TweetAPI(api_key=TWEETAPI_KEY)

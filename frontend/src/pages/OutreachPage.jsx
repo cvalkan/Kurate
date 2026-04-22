@@ -76,6 +76,143 @@ function LikeButton({ paperId, candidate, size = "sm" }) {
   );
 }
 
+function XAuthCard() {
+  const [status, setStatus] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [tokenInput, setTokenInput] = useState("");
+  const [verify, setVerify] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    try {
+      const r = await axios.get(`${API}/api/admin/outreach/twitter-auth/status`, { headers: getAdminHeaders() });
+      setStatus(r.data);
+    } catch (e) {
+      /* ignore — shown as not-configured below */
+    }
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const handleSave = async () => {
+    const tok = tokenInput.trim();
+    if (tok.length < 20) {
+      toast.error("auth_token must be 20+ alphanumeric characters");
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await axios.post(
+        `${API}/api/admin/outreach/twitter-auth`,
+        { auth_token: tok, verify },
+        { headers: getAdminHeaders() }
+      );
+      if (verify && !r.data?.verified) {
+        toast.warning("Saved without verification");
+      } else if (verify) {
+        toast.success(`Saved & verified — token ${r.data.masked}`);
+      } else {
+        toast.success(`Saved — token ${r.data.masked}`);
+      }
+      setTokenInput("");
+      setOpen(false);
+      await refresh();
+    } catch (e) {
+      toast.error(`Failed: ${e.response?.data?.detail || e.message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleClear = async () => {
+    if (!window.confirm("Remove DB-stored token and fall back to env TWITTER_AUTH_TOKEN?")) return;
+    try {
+      await axios.delete(`${API}/api/admin/outreach/twitter-auth`, { headers: getAdminHeaders() });
+      toast.success("Cleared — now using env token");
+      await refresh();
+    } catch (e) {
+      toast.error(`Clear failed: ${e.response?.data?.detail || e.message}`);
+    }
+  };
+
+  const stale = status?.source === "db" && !status?.last_verified_at;
+  return (
+    <div className="mb-5 border rounded-md px-3 py-2 bg-secondary/30 flex flex-wrap items-center gap-3 text-xs" data-testid="x-auth-card">
+      <span className="font-semibold">X Auth</span>
+      {status ? (
+        <>
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border ${
+              status.configured
+                ? stale ? "border-amber-500 bg-amber-50 text-amber-700"
+                        : "border-green-500 bg-green-50 text-green-700"
+                : "border-red-500 bg-red-50 text-red-700"
+            }`}
+            data-testid="x-auth-status"
+          >
+            <Twitter className="h-3 w-3" />
+            {status.configured ? `${status.source} · ${status.masked}` : "not configured"}
+          </span>
+          {status.source === "db" && status.updated_at && (
+            <span className="text-muted-foreground">updated {status.updated_at.slice(0, 16).replace("T", " ")}</span>
+          )}
+          {status.source === "db" && status.last_verified_at && (
+            <span className="text-green-700">✓ verified {status.last_verified_at.slice(0, 16).replace("T", " ")}</span>
+          )}
+        </>
+      ) : (
+        <span className="text-muted-foreground">loading…</span>
+      )}
+      <div className="ml-auto flex items-center gap-2">
+        <button
+          onClick={() => setOpen((o) => !o)}
+          data-testid="x-auth-update-toggle"
+          className="text-[11px] px-2 py-0.5 rounded border border-accent text-accent hover:bg-accent hover:text-background transition-colors"
+        >
+          {open ? "Cancel" : "Update token"}
+        </button>
+        {status?.source === "db" && (
+          <button onClick={handleClear}
+            data-testid="x-auth-clear"
+            className="text-[11px] px-2 py-0.5 rounded border border-muted-foreground text-muted-foreground hover:bg-muted transition-colors"
+          >
+            Revert to env
+          </button>
+        )}
+      </div>
+      {open && (
+        <div className="w-full mt-2 flex flex-wrap items-center gap-2" data-testid="x-auth-form">
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder="Paste auth_token cookie from x.com (40-char hex)"
+            value={tokenInput}
+            onChange={(e) => setTokenInput(e.target.value)}
+            className="flex-1 min-w-[280px] text-xs font-mono px-2 py-1 rounded border bg-background"
+            data-testid="x-auth-input"
+          />
+          <label className="inline-flex items-center gap-1 text-[11px] text-muted-foreground cursor-pointer select-none">
+            <input type="checkbox" checked={verify} onChange={(e) => setVerify(e.target.checked)} />
+            Verify via Like+Unlike round-trip
+          </label>
+          <Button
+            size="sm" className="text-xs h-7"
+            onClick={handleSave}
+            disabled={busy || tokenInput.trim().length < 20}
+            data-testid="x-auth-save"
+          >
+            {busy ? "Saving…" : verify ? "Verify & Save" : "Save"}
+          </Button>
+          <span className="text-[10px] text-muted-foreground w-full">
+            💡 Get this from x.com logged in as @KurateOrg: DevTools → Application → Cookies → <code>auth_token</code>.
+            Token is stored server-side only; never logged.
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function QTBadge({ candidate }) {
   if (!candidate?.quote_tweeted) return null;
   const url = candidate.quote_tweet_url || (candidate.quote_tweet_id
@@ -306,6 +443,7 @@ export default function OutreachPage() {
         </div>
 
         {/* View toggle */}
+        <XAuthCard />
         <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md w-fit mb-5">
           <button onClick={() => setViewMode("medalists")}
             className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${viewMode === "medalists" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
