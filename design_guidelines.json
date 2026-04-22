@@ -1,95 +1,68 @@
 {
-  "theme": "Light",
-  "archetype": "Archetype 4 (Swiss & High-Contrast)",
-  "colors": {
-    "background": "#FFFFFF",
-    "surface": "#F9FAFB",
-    "text_primary": "#111827",
-    "text_secondary": "#4B5563",
-    "medals": {
-      "gold": "#D4A012",
-      "gold_bg": "#FEFCE8",
-      "silver": "#808080",
-      "silver_bg": "#F3F4F6",
-      "bronze": "#CD7F32",
-      "bronze_bg": "#FFF7ED"
+  "theme": "LIGHT",
+  "archetype": "4 (Swiss & High-Contrast)",
+  "typography": {
+    "headings": {
+      "family": "Inter, system-ui, sans-serif",
+      "h1": "text-2xl font-bold",
+      "h2": "text-lg font-semibold"
+    },
+    "body": {
+      "family": "Inter, system-ui, sans-serif",
+      "base": "text-sm",
+      "small": "text-xs",
+      "micro": "text-[11px] leading-snug",
+      "nano": "text-[10px]"
     }
   },
-  "typography": {
-    "heading": "Cabinet Grotesk, ui-sans-serif, system-ui",
-    "body": "Inter, ui-sans-serif, system-ui",
-    "badge_rank": "JetBrains Mono, ui-monospace, SFMono-Regular"
+  "colors": {
+    "primary": "text-foreground bg-background",
+    "secondary": "text-muted-foreground",
+    "confidence_high": "bg-green-100 text-green-800 border-green-200",
+    "confidence_medium": "bg-amber-100 text-amber-800 border-amber-200",
+    "confidence_low": "bg-gray-100 text-gray-600 border-gray-200",
+    "engagement_active": "text-blue-600",
+    "engagement_inactive": "text-muted-foreground",
+    "like_active": "border-pink-500 bg-pink-50 text-pink-600",
+    "qt_active": "border-blue-500 bg-blue-50 text-blue-700"
   },
-  "badge_integration_options": [
-    {
-      "option_name": "Option 1: The 'Prestigious Header Bar' (Top Integration)",
-      "description": "A dedicated 40px tall sub-header INSIDE the score card, right below the main paper title.",
-      "layout": "Full-width flex row inside the main card container, ABOVE the 70/30 split but inside the border. Flex justify-between items-center px-4 py-2.",
-      "states": {
-        "gold": "bg-[#FEFCE8] text-[#D4A012] border-b border-[#D4A012]/20. Left side: Medal Icon + 'Gold Medalist • #1 in quant-ph • Week 15, 2026'. Right side: 'Share' button with Lucide Share icon.",
-        "silver": "bg-[#F3F4F6] text-[#6B7280] border-b border-gray-200. Same layout but with Silver (#808080) icon.",
-        "bronze": "bg-[#FFF7ED] text-[#CD7F32] border-b border-[#CD7F32]/20. Same layout but with Bronze (#CD7F32) icon.",
-        "none": "The header bar simply does not render. The card starts directly with the 70/30 split."
-      }
+  "layouts": {
+    "variant_recommendation": "Variant 2 - Inline Split",
+    "spacing": {
+      "row_padding": "p-2",
+      "gap_elements": "gap-1.5",
+      "icon_gap": "gap-0.5",
+      "action_gap": "gap-1.5"
     },
-    {
-      "option_name": "Option 2: The 'Inline Pill' (Beside the Main Score)",
-      "description": "The badge is treated as a high-priority tag sitting right next to the '1708' Tournament Score.",
-      "layout": "Flex container aligning the Tournament Score and the Badge Pill horizontally. The pill acts as a status indicator.",
-      "states": {
-        "gold": "Pill: rounded-full border border-[#D4A012]/30 bg-[#D4A012]/10 px-3 py-1. Text: text-sm font-semibold text-[#D4A012]. Content: '🥇 #1 quant-ph • Week 15'. Share icon is embedded at the end of the pill.",
-        "silver": "Pill: rounded-full border border-gray-300 bg-gray-100 px-3 py-1. Text: text-sm font-semibold text-gray-700. Content: '🥈 #2 quant-ph • Week 15'.",
-        "bronze": "Pill: rounded-full border border-[#CD7F32]/30 bg-[#CD7F32]/10 px-3 py-1. Text: text-sm font-semibold text-[#CD7F32]. Content: '🥉 #3 quant-ph • Week 15'.",
-        "none": "The Tournament Score is left-aligned as usual with no adjacent pill."
-      }
+    "structure": {
+      "type": "flex row / mobile flex col",
+      "left_col": "shrink-0 pt-0.5 (Handle badge)",
+      "right_col": "flex-1 min-w-0 flex flex-col gap-1.5 (Tweet text + Actions line)"
     },
+    "action_icons": {
+      "size": "h-6 w-6",
+      "icon_size": "h-3 w-3",
+      "radius": "rounded",
+      "border": "border"
+    }
+  },
+  "motion": {
+    "hover": "hover:bg-muted/30 transition-colors",
+    "buttons": "hover:border-blue-200 hover:text-blue-600 transition-colors"
+  },
+  "components": [
     {
-      "option_name": "Option 3: The 'Medallion Seal' (Corner/Edge Overlay)",
-      "description": "A physical-looking seal overlaid on the top-right corner of the left panel (Tournament panel).",
-      "layout": "Absolute positioned seal (w-12 h-12) over the relative 70% left panel. -top-4 -right-4 or inside the padding top-4 right-4.",
-      "states": {
-        "gold": "bg-gradient-to-br from-[#FDE047] to-[#D4A012] rounded-full shadow-lg border-2 border-white text-white font-bold. Center has '#1'. Hover expands a small tooltip 'Gold • quant-ph • Week 15'.",
-        "silver": "bg-gradient-to-br from-gray-200 to-gray-400 rounded-full shadow-lg border-2 border-white text-white font-bold. Center '#2'.",
-        "bronze": "bg-gradient-to-br from-[#FDBA74] to-[#CD7F32] rounded-full shadow-lg border-2 border-white text-white font-bold. Center '#3'.",
-        "none": "No seal rendered. The card remains completely clean."
-      }
-    },
-    {
-      "option_name": "Option 4: The 'Medallion Split' (Center Divider Overlay)",
-      "description": "A highly stylized approach where a circular medallion bridges the gap between the 70% left panel and 30% right panel.",
-      "layout": "Absolute positioned circle exactly on the border separating the Tournament and Rating sections (left: 70%, translate-x: -50%).",
-      "states": {
-        "gold": "A metallic gold circle with a glowing drop-shadow. Contains the rank '#1'. A subtle banner below says 'quant-ph'.",
-        "silver": "A metallic silver circle. Contains rank '#2'.",
-        "bronze": "A metallic bronze circle. Contains rank '#3'.",
-        "none": "The dividing border remains a simple 1px gray line with no medallion."
-      }
+      "name": "OutreachDesignPreview",
+      "path": "/app/frontend/src/pages/OutreachDesignPreview.jsx",
+      "description": "A standalone preview page for testing 4 variations of the outreach handle row."
     }
   ],
-  "shareable_badge_design": {
-    "concept": "A premium digital trading card. Aspect ratio 3:4.",
-    "background_image_urls": {
-      "gold": "https://static.prod-images.emergentagent.com/jobs/e0fcc738-861f-436d-9055-d6287883867d/images/cd22302876e8b36b5ca15a4e802d3cd44ad660119390991adb8612f968669a36.png",
-      "silver": "https://static.prod-images.emergentagent.com/jobs/e0fcc738-861f-436d-9055-d6287883867d/images/7bed49a70aa265897236478c185031e24f22c421342b74177da582dd2f301cd3.png",
-      "bronze": "linear-gradient(to bottom right, #3f2b1c, #21160e)"
-    },
-    "layout": {
-      "container": "w-full max-w-md aspect-[3/4] rounded-2xl p-8 flex flex-col justify-between overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/10 bg-zinc-950",
-      "header": "Text: 'KURATE.ORG' (uppercase, tracking-[0.2em], text-xs text-white/50).",
-      "main_visual": "A massive, beautifully typeset Rank number (e.g., '#1') in the center. Uses Framer Motion for a 3D tilt effect on hover. Font: Cabinet Grotesk, text-8xl md:text-[120px], transparent text with a metallic gradient stroke/fill. Below it, 'GOLD MEDALIST' in small tracking-widest text.",
-      "paper_details": "The paper title 'Quantum Advantage in Learning...' aligned to the bottom. Large serif font (Cormorant Garamond, text-2xl, text-white). Below it, the category 'quant-ph' and 'Week 15, 2026'.",
-      "score_callout": "A small floating glassmorphism pill showing 'Score: 1708' floating at the top right: backdrop-blur-md bg-white/10 border border-white/20 rounded-full px-4 py-1.5 text-sm text-white."
-    },
-    "interactions": {
-      "hover": "The card tilts slightly towards the mouse (Framer Motion useTransform). A glare effect (white/20 gradient) slides across the surface to simulate holographic foil.",
-      "animations": "Framer Motion layout animations for smooth state transitions."
-    }
+  "accessibility": {
+    "contrast": "Using APCA validated text-blue-600 against white for engaged tweets.",
+    "aria": "Adding titles to all icon buttons to describe their function."
   },
-  "motion_and_interactions": {
-    "badge_hover": "Scale up by 1.05x, cursor-pointer. Drop shadow intensifies.",
-    "transitions": "transition-all duration-300 cubic-bezier(0.4, 0, 0.2, 1)"
+  "media": {
+    "image_urls": []
   },
-  "testing": {
-    "data_testid_rules": "All interactive elements must have a data-testid attribute (e.g., 'share-badge-button', 'score-card-badge-pill')."
-  }
+  "instructions_to_main_agent": "A new route '/admin/outreach/design-preview' has been added to App.js and OutreachDesignPreview.jsx has been created. The file fetches real data from /api/admin/outreach/medalists and renders 4 different candidate row layouts. No other files were modified. The user can review the designs and select one for later implementation."
 }

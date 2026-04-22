@@ -10,6 +10,7 @@ import AdminLoginPage from "@/pages/AdminLoginPage";
 import AdminPage from "@/pages/AdminPage";
 import OutreachPage from "@/pages/OutreachPage";
 import OutreachActivityPage from "@/pages/OutreachActivityPage";
+import OutreachDesignPreview from "@/pages/OutreachDesignPreview";
 import PromptsPage from "@/pages/PromptsPage";
 import AuthCallback from "@/pages/AuthCallback";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
@@ -51,6 +52,7 @@ function AppRouter() {
           <Route path="/test/score-card" element={<ScoreCardTest />} />
           <Route path="/admin/dashboard" element={<AdminPage />} />
           <Route path="/admin/outreach" element={<OutreachPage />} />
+          <Route path="/admin/outreach/design-preview" element={<OutreachDesignPreview />} />
           <Route path="/admin/outreach/activity" element={<OutreachActivityPage />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/auth/orcid/callback" element={<OrcidCallbackPage />} />
