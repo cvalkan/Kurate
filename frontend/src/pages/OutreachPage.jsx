@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Search, ExternalLink, Twitter, RefreshCw, ChevronDown, Users, Trophy, Clock, Calendar, Heart, List, UserPlus, UserCheck, MessageSquare, Repeat2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Link } from "react-router-dom";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -680,16 +681,19 @@ export default function OutreachPage() {
         </div>
 
         {viewMode === "medalists" ? (
-          <MedalistsView
-            medalists={medalists}
-            loading={medalistsLoading}
-            discovering={discoveringMedalists}
-            onDiscover={handleDiscoverMedalists}
-            onRefresh={loadMedalists}
-            period={medalistPeriod}
-            setPeriod={setMedalistPeriod}
-          />
+          <ErrorBoundary resetKey={medalistPeriod} label="Medalists view">
+            <MedalistsView
+              medalists={medalists}
+              loading={medalistsLoading}
+              discovering={discoveringMedalists}
+              onDiscover={handleDiscoverMedalists}
+              onRefresh={loadMedalists}
+              period={medalistPeriod}
+              setPeriod={setMedalistPeriod}
+            />
+          </ErrorBoundary>
         ) : (
+        <ErrorBoundary resetKey={`${selectedCat}-${selectedArchive || period}`} label="Category Explorer">
         <>
         {/* Category tabs */}
         <div className="flex flex-wrap gap-1.5 mb-4" data-testid="outreach-category-tabs">
@@ -798,6 +802,7 @@ export default function OutreachPage() {
           </table>
         </div>
         </>
+        </ErrorBoundary>
         )}
       </div>
     </div>
@@ -830,7 +835,9 @@ function MedalistsView({ medalists, loading, discovering, onDiscover, onRefresh,
     return <div className="text-center py-12 text-muted-foreground">Loading medalists...</div>;
   }
 
-  const cats = medalists?.categories || [];
+  const cats = (medalists?.categories || []).filter(
+    (c) => c && typeof c === "object" && Array.isArray(c.papers)
+  );
   const totalPapers = medalists?.total_papers || 0;
   const totalDiscovered = medalists?.total_discovered || 0;
   const archives = archiveType === "weekly" ? archivePeriods.weekly : archivePeriods.monthly;
@@ -898,7 +905,7 @@ function MedalistsView({ medalists, loading, discovering, onDiscover, onRefresh,
             </div>
             <table className="w-full text-sm min-w-[640px]">
               <tbody>
-                {cat.papers.map((p, i) => (
+                {(cat.papers || []).filter(p => p && typeof p === "object" && p.id).map((p, i) => (
                   <MedalistRow key={p.id} paper={p} medal={MEDAL[i] || `#${i+1}`} category={cat.category} periodLabel={cat.label || ""} onRefresh={onRefresh} />
                 ))}
               </tbody>
@@ -915,8 +922,11 @@ function MedalistsView({ medalists, loading, discovering, onDiscover, onRefresh,
 }
 
 function MedalistRow({ paper, medal, category, periodLabel, onRefresh }) {
-  const candidates = paper.candidates || [];
-  const best = candidates[0];
+  // Defensive: filter out null/malformed candidates (missing handle) so a single
+  // bad record in a legacy archive can't crash the entire Medalists view.
+  const candidates = (paper.candidates || []).filter(
+    (c) => c && typeof c === "object" && c.handle
+  );
   const [drafting, setDrafting] = useState(false);
   const [draft, setDraft] = useState(null);
   const [editText, setEditText] = useState("");
