@@ -56,7 +56,30 @@ export default function PrivacyPage() {
           <p>
             We use essential cookies and browser local storage for authentication session management.
             Google Analytics sets its own cookies (<code>_ga</code>, <code>_ga_*</code>) for visitor identification across sessions.
-            No third-party advertising cookies are used.
+            Reddit's advertising pixel sets a limited number of cookies (e.g. <code>_rdt_uuid</code>) used to measure
+            advertising effectiveness (see section 2.5).
+          </p>
+
+          <h3 className="font-medium mt-4 mb-2">2.5 Reddit Advertising Pixel</h3>
+          <p>
+            We use the <strong>Reddit Pixel</strong> to measure the effectiveness of advertising campaigns we may
+            run on reddit.com. The pixel fires a single <code>PageVisit</code> event when you load the site and
+            transmits to Reddit Inc. (United States):
+          </p>
+          <ul className="list-disc ml-5 space-y-1">
+            <li>Page URL and referrer</li>
+            <li>IP address, browser user-agent, and a pseudonymous cookie identifier (<code>_rdt_uuid</code>)</li>
+            <li>Approximate geographic location derived from IP</li>
+          </ul>
+          <p className="mt-2">
+            Reddit's "auto-advanced matching" feature, which would additionally collect email addresses and phone
+            numbers shown in the DOM (hashed with SHA-256 client-side) to improve cross-device attribution, is
+            <strong> disabled</strong> on our account. We do not transmit any hashed personal identifiers to Reddit.
+          </p>
+          <p className="mt-2">
+            Reddit processes this data as an independent controller for its own analytics and advertising purposes.
+            See <a href="https://redditinc.com/policies/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">Reddit's Privacy Policy</a> for details. You can opt out of Reddit's
+            advertising cookies via your browser's tracking-protection settings or Reddit's ad preferences.
           </p>
         </section>
 
@@ -73,6 +96,7 @@ export default function PrivacyPage() {
               <tr><td className="py-2 pr-4">User authentication (Google Sign-In)</td><td className="py-2">Consent / Contract performance</td></tr>
               <tr><td className="py-2 pr-4">Personalization (bookmarks, reading lists)</td><td className="py-2">Contract performance</td></tr>
               <tr><td className="py-2 pr-4">Website analytics (Google Analytics)</td><td className="py-2">Legitimate interest / Consent</td></tr>
+              <tr><td className="py-2 pr-4">Advertising measurement (Reddit Pixel)</td><td className="py-2">Legitimate interest / Consent</td></tr>
               <tr><td className="py-2 pr-4">Security and abuse prevention</td><td className="py-2">Legitimate interest</td></tr>
               <tr><td className="py-2 pr-4">Email notifications (if opted in)</td><td className="py-2">Consent</td></tr>
             </tbody>
@@ -87,6 +111,7 @@ export default function PrivacyPage() {
           <ul className="list-disc ml-5 space-y-1">
             <li><strong>Google Analytics 4</strong> — analytics data processed by Google LLC, USA</li>
             <li><strong>Google OAuth</strong> — authentication data processed by Google LLC, USA</li>
+            <li><strong>Reddit Pixel</strong> — advertising measurement data processed by Reddit Inc., USA</li>
             <li><strong>Cloudflare</strong> — CDN and security services, data may transit through global servers</li>
           </ul>
           <p className="mt-2">
