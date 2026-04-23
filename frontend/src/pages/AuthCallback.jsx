@@ -22,7 +22,17 @@ export default function AuthCallback() {
 
     (async () => {
       try {
-        await loginWithGoogle(sessionId);
+        const res = await loginWithGoogle(sessionId);
+        // Fire Reddit SignUp conversion event on first successful login only.
+        // `conversionId` is the user_id so Reddit de-duplicates if we later add
+        // server-side Conversions API tracking.
+        if (res?.is_new_user && typeof window !== "undefined" && typeof window.rdt === "function") {
+          try {
+            window.rdt("track", "SignUp", {
+              conversionId: res?.user?.user_id,
+            });
+          } catch (_) { /* non-fatal */ }
+        }
       } catch (err) {
         console.error("Google auth failed:", err);
       }

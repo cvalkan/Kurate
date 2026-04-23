@@ -299,6 +299,7 @@ async def google_session(req: SessionRequest, response: Response):
             {"$set": {"name": name, "picture": picture, "provider": "google", "email_verified": True}},
         )
         user_id = existing["user_id"]
+        is_new_user = False
     else:
         user_id = f"user_{uuid.uuid4().hex[:12]}"
         await db.users.insert_one({
@@ -311,6 +312,7 @@ async def google_session(req: SessionRequest, response: Response):
             "provider": "google",
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
+        is_new_user = True
 
     token = await _create_session(user_id, response)
 
@@ -326,6 +328,7 @@ async def google_session(req: SessionRequest, response: Response):
     return {
         "user": {"user_id": user_id, "email": email, "name": name, "picture": picture, "email_verified": True, "provider": "google", "orcid_id": full_user.get("orcid_id") if full_user else None, "orcid_admin_verified": orcid_admin_verified},
         "session_token": token,
+        "is_new_user": is_new_user,
     }
 
 
