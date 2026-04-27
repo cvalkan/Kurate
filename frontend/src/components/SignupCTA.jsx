@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Sparkles, ArrowRight, Bookmark, Layers, CalendarRange, Tags, Lightbulb } from "lucide-react";
+import { LockOpen, ArrowRight, Bookmark, Layers, CalendarRange, Tags, Lightbulb } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export function SignupCTA({ onClick, categories = [] }) {
@@ -23,7 +23,7 @@ export function SignupCTA({ onClick, categories = [] }) {
     >
       <div className="flex items-center gap-3 min-w-0">
         <div className="hidden sm:flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
-          <Sparkles className="h-4 w-4" />
+          <LockOpen className="h-4 w-4" />
         </div>
         <p className="text-sm sm:text-[15px] leading-snug text-foreground">
           <span className="font-medium">Sign up for free</span>
