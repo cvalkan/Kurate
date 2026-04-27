@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Sparkles, ArrowRight, Bookmark, Layers, CalendarRange, Tags, Lightbulb } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export function SignupCTA({ onClick, categories = [] }) {
   // Controlled tooltip: open on hover (desktop) AND on tap (mobile).
-  // Mouse handlers cover desktop hover; onClick covers tap-to-open on touch
-  // devices where hover is unreliable.
+  // pointerType lets us distinguish touch from mouse so synthetic mouseEnter
+  // events fired by touch don't immediately collide with the click toggle.
   const [open, setOpen] = useState(false);
+  const lastPointer = useRef("mouse");
   const categoryNames = categories.map(c => c.name).filter(Boolean).join(", ");
   const perks = [
     { icon: Layers, label: "Browse all available categories", detail: categoryNames || "All arXiv & chemRxiv fields tracked on Kurate" },
@@ -31,9 +32,10 @@ export function SignupCTA({ onClick, categories = [] }) {
             <TooltipTrigger asChild>
               <button
                 type="button"
-                onMouseEnter={() => setOpen(true)}
-                onMouseLeave={() => setOpen(false)}
-                onClick={() => setOpen(o => !o)}
+                onPointerDown={(e) => { lastPointer.current = e.pointerType || "mouse"; }}
+                onMouseEnter={() => { if (lastPointer.current === "mouse") setOpen(true); }}
+                onMouseLeave={() => { if (lastPointer.current === "mouse") setOpen(false); }}
+                onClick={() => { if (lastPointer.current !== "mouse") setOpen(o => !o); }}
                 className="underline decoration-dotted underline-offset-[3px] decoration-muted-foreground/60 cursor-help text-foreground focus:outline-none"
                 data-testid="signup-cta-more-trigger"
               >
