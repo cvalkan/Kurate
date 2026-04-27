@@ -1,15 +1,15 @@
 import { Sparkles, ArrowRight, Bookmark, Layers, CalendarRange, Tags, Lightbulb } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-const PERKS = [
-  { icon: Layers, label: "Browse all categories", detail: "Robotics, Game Theory, Economics, Physics & more" },
-  { icon: CalendarRange, label: "Monthly & all-time rankings", detail: "Beyond the default last-7-day window" },
-  { icon: Tags, label: "Cross-category tag filters", detail: "Slice the leaderboard by tag combinations" },
-  { icon: Bookmark, label: "Bookmark papers", detail: "Build a personal reading list" },
-  { icon: Lightbulb, label: "Suggest new fields", detail: "Vote on which arXiv categories to add next" },
-];
-
-export function SignupCTA({ onClick }) {
+export function SignupCTA({ onClick, categories = [] }) {
+  const categoryNames = categories.map(c => c.name).filter(Boolean).join(", ");
+  const perks = [
+    { icon: Layers, label: "Browse all categories", detail: categoryNames || "All arXiv & chemRxiv fields tracked on Kurate" },
+    { icon: CalendarRange, label: "Monthly & all-time rankings", detail: "Beyond the default last-7-day window" },
+    { icon: Tags, label: "Cross-category tag filters", detail: "Filter the leaderboard by tag combinations" },
+    { icon: Bookmark, label: "Bookmark papers", detail: "Build personalized reading lists" },
+    { icon: Lightbulb, label: "Suggest new fields", detail: "Vote on which arXiv categories to add next" },
+  ];
   return (
     <div
       className="mb-6 rounded-lg border border-accent/25 bg-accent/[0.07] px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between gap-3 sm:gap-4"
@@ -34,7 +34,7 @@ export function SignupCTA({ onClick }) {
             <TooltipContent side="bottom" align="start" className="max-w-xs p-3" data-testid="signup-cta-perks">
               <p className="text-xs font-semibold mb-2">What you get with a free account</p>
               <ul className="space-y-1.5">
-                {PERKS.map(({ icon: Icon, label, detail }) => (
+                {perks.map(({ icon: Icon, label, detail }) => (
                   <li key={label} className="flex items-start gap-2">
                     <Icon className="h-3.5 w-3.5 mt-0.5 shrink-0 text-accent" />
                     <div className="min-w-0">

@@ -361,7 +361,7 @@ export default function LeaderboardPage() {
         </p>
       </div>
 
-      {!isLoggedIn && <SignupCTA onClick={requireAuth} />}
+      {!isLoggedIn && <SignupCTA onClick={requireAuth} categories={categories} />}
 
       <CategoryTabs
         categories={categories} category={category}
