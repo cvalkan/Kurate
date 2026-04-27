@@ -28,7 +28,7 @@ export function SignupCTA({ onClick, categories = [] }) {
         <p className="text-sm sm:text-[15px] leading-snug text-foreground">
           <span className="font-medium">Sign up for free</span>
           <span className="text-muted-foreground"> to unlock all papers &{" "}</span>
-          <Tooltip open={open} onOpenChange={setOpen}>
+          <Tooltip open={open} onOpenChange={() => {}}>
             <TooltipTrigger asChild>
               <button
                 type="button"
