@@ -1,5 +1,5 @@
 import { Sparkles, ArrowRight, Bookmark, Layers, CalendarRange, Tags, Lightbulb } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 
 const PERKS = [
   { icon: Layers, label: "Browse all categories", detail: "Robotics, Game Theory, Economics, Physics & more" },
@@ -12,7 +12,7 @@ const PERKS = [
 export function SignupCTA({ onClick }) {
   return (
     <div
-      className="mb-6 rounded-lg border border-accent/30 bg-gradient-to-r from-accent/[0.07] via-accent/[0.04] to-transparent px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between gap-3 sm:gap-4"
+      className="mb-6 rounded-lg border border-accent/25 bg-accent/[0.07] px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between gap-3 sm:gap-4"
       data-testid="signup-cta-banner"
     >
       <div className="flex items-center gap-3 min-w-0">
@@ -20,37 +20,36 @@ export function SignupCTA({ onClick }) {
           <Sparkles className="h-4 w-4" />
         </div>
         <p className="text-sm sm:text-[15px] leading-snug text-foreground">
-          <span className="font-medium">Sign up free</span>
+          <span className="font-medium">Sign up for free</span>
           <span className="text-muted-foreground"> to unlock all papers &{" "}</span>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span
-                className="underline decoration-dotted underline-offset-[3px] decoration-muted-foreground/60 cursor-help text-foreground"
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="underline decoration-dotted underline-offset-[3px] decoration-muted-foreground/60 hover:decoration-foreground text-foreground focus:outline-none"
                 data-testid="signup-cta-more-trigger"
               >
                 more
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-xs p-0 overflow-hidden">
-              <div className="p-3">
-                <p className="text-xs font-semibold mb-2 text-foreground">What you get with a free account</p>
-                <ul className="space-y-1.5">
-                  {PERKS.map(({ icon: Icon, label, detail }) => (
-                    <li key={label} className="flex items-start gap-2">
-                      <Icon className="h-3.5 w-3.5 mt-0.5 shrink-0 text-accent" />
-                      <div className="min-w-0">
-                        <div className="text-xs font-medium leading-tight">{label}</div>
-                        <div className="text-[11px] text-muted-foreground leading-tight">{detail}</div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-                <p className="text-[10px] text-muted-foreground mt-2.5 pt-2 border-t border-border">
-                  No credit card. Email or Google sign-in.
-                </p>
-              </div>
-            </TooltipContent>
-          </Tooltip>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent side="bottom" align="start" className="w-72 p-3" data-testid="signup-cta-perks">
+              <p className="text-xs font-semibold mb-2 text-foreground">What you get with a free account</p>
+              <ul className="space-y-1.5">
+                {PERKS.map(({ icon: Icon, label, detail }) => (
+                  <li key={label} className="flex items-start gap-2">
+                    <Icon className="h-3.5 w-3.5 mt-0.5 shrink-0 text-accent" />
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium leading-tight">{label}</div>
+                      <div className="text-[11px] text-muted-foreground leading-tight">{detail}</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[10px] text-muted-foreground mt-2.5 pt-2 border-t border-border">
+                No credit card. Email or Google sign-in.
+              </p>
+            </PopoverContent>
+          </Popover>
         </p>
       </div>
       <button
