@@ -10,6 +10,7 @@ import { StatusBar } from "@/components/leaderboard/StatusBar";
 import { StatsToggle } from "@/components/leaderboard/StatsToggle";
 import { PeriodFilter } from "@/components/leaderboard/PeriodFilter";
 import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
+import { SignupCTA } from "@/components/SignupCTA";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -359,6 +360,8 @@ export default function LeaderboardPage() {
             : <>AI-estimated scientific impact ranking of the latest arXiv {categoryName} preprints. <Link to="/methodology" className="text-accent hover:underline">Methodology</Link></>}
         </p>
       </div>
+
+      {!isLoggedIn && <SignupCTA onClick={requireAuth} />}
 
       <CategoryTabs
         categories={categories} category={category}
