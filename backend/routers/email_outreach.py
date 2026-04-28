@@ -664,20 +664,20 @@ async def gmail_status():
 
 
 # --- Gmail OAuth for admin ---
+# Reuses the existing /api/gmail/callback registered in GCP.
+# We just initiate the flow with user_id="admin" and return_to="/admin/outreach/email".
+
+SITE_URL = os.environ.get("SITE_URL", "")
 
 @router.get("/gmail/auth-url", dependencies=[Depends(verify_admin)])
 async def gmail_auth_url_admin(request: Request):
-    """Start Gmail OAuth flow for admin. Uses request origin as redirect URI
-    so it works on both production and preview environments."""
+    """Start Gmail OAuth flow for admin. Uses the same redirect_uri as the
+    existing congrats flow (already registered in GCP)."""
     if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
         raise HTTPException(503, "Gmail integration not configured (GOOGLE_CLIENT_ID/SECRET missing)")
 
-    # Use the request's origin so this works on any domain (preview or production)
-    origin = request.headers.get("origin", "")
-    if not origin:
-        # Fallback: derive from request URL
-        origin = str(request.base_url).rstrip("/")
-    redirect_uri = f"{origin}/api/admin/email-outreach/gmail/callback"
+    # Use the SAME redirect_uri that's registered in GCP
+    redirect_uri = f"{SITE_URL}/api/gmail/callback" if SITE_URL else f"{request.headers.get('origin', '')}/api/gmail/callback"
 
     from google_auth_oauthlib.flow import Flow
     flow = Flow.from_client_config(
@@ -697,71 +697,12 @@ async def gmail_auth_url_admin(request: Request):
         prompt="consent",
         include_granted_scopes="true",
     )
-    # Store state for callback verification
+    # Store state — the existing /api/gmail/callback handler reads this
     await db.gmail_oauth_states.insert_one({
         "state": state,
         "user_id": "admin",
-        "redirect_uri": redirect_uri,
+        "return_to": "/admin/outreach/email",
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
     })
-    return {"url": url, "redirect_uri": redirect_uri}
-
-
-@router.get("/gmail/callback")
-async def gmail_callback_admin(request: Request, state: str = "", code: str = "", error: str = ""):
-    """Handle Gmail OAuth callback for admin."""
-    from fastapi.responses import HTMLResponse
-    from google_auth_oauthlib.flow import Flow
-
-    if error:
-        return HTMLResponse(f"<h3>Gmail authorization failed: {error}</h3><p><a href='/admin/outreach/email'>Back</a></p>")
-
-    # Look up state
-    state_doc = await db.gmail_oauth_states.find_one({"state": state}, {"_id": 0})
-    if not state_doc:
-        return HTMLResponse("<h3>Invalid or expired OAuth state</h3><p><a href='/admin/outreach/email'>Back</a></p>")
-
-    redirect_uri = state_doc.get("redirect_uri", "")
-    if not redirect_uri:
-        origin = str(request.base_url).rstrip("/")
-        redirect_uri = f"{origin}/api/admin/email-outreach/gmail/callback"
-
-    flow = Flow.from_client_config(
-        {
-            "web": {
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-            }
-        },
-        scopes=["https://www.googleapis.com/auth/gmail.send"],
-        redirect_uri=redirect_uri,
-    )
-    try:
-        flow.fetch_token(code=code)
-        creds = flow.credentials
-        await db.gmail_tokens.update_one(
-            {"user_id": "admin"},
-            {"$set": {
-                "user_id": "admin",
-                "access_token": creds.token,
-                "refresh_token": creds.refresh_token,
-                "token_uri": creds.token_uri,
-                "client_id": creds.client_id,
-                "client_secret": creds.client_secret,
-                "authorized_at": datetime.now(timezone.utc).isoformat(),
-            }},
-            upsert=True,
-        )
-        logger.info("[email-outreach] Gmail OAuth completed for admin")
-        # Clean up state
-        await db.gmail_oauth_states.delete_one({"state": state})
-        return HTMLResponse(
-            "<h3>Gmail connected successfully!</h3>"
-            "<p>You can close this tab and return to the Email Outreach page.</p>"
-            "<script>setTimeout(()=>window.close(),2000)</script>"
-        )
-    except Exception as e:
-        logger.error(f"[email-outreach] Gmail OAuth callback failed: {e}")
-        return HTMLResponse(f"<h3>Authorization failed: {str(e)[:200]}</h3><p><a href='/admin/outreach/email'>Back</a></p>")
+    return {"url": url}

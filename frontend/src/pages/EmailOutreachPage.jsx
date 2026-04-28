@@ -348,7 +348,7 @@ export default function EmailOutreachPage() {
           </div>
         ) : (
           <div className="border border-border rounded-lg overflow-x-auto" data-testid="email-outreach-table">
-            <div className={`${GRID} py-2 bg-secondary/40 text-[11px] font-medium text-muted-foreground border-b border-border select-none`}
+            <div className={`${GRID} py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border select-none`}
               style={gridStyle}>
               <div>#</div>
               <div>Paper</div>
@@ -367,30 +367,30 @@ export default function EmailOutreachPage() {
               return (
                 <div key={p.id} data-testid={`email-row-${p.id}`}>
                   <div
-                    className={`${GRID} py-2.5 items-center border-b border-border/40 last:border-0 hover:bg-secondary/20 transition-colors ${
+                    className={`${GRID} py-2 sm:py-3 items-center border-b border-border/50 last:border-0 hover:bg-secondary/30 transition-colors ${
                       p.already_sent ? "bg-green-50/30" : ""
                     }`}
                     style={gridStyle}
                   >
-                    <div className="text-[11px] text-muted-foreground/70 font-mono">{i + 1}</div>
+                    <div className="text-xs text-muted-foreground font-mono">{i + 1}</div>
 
                     <div className="min-w-0">
-                      <p className="text-[13px] font-medium truncate leading-snug" title={p.title}>
+                      <p className="text-xs sm:text-sm font-medium truncate leading-tight" title={p.title}>
                         {medal && <span className="mr-0.5">{medal}</span>}{p.title}
                       </p>
-                      <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">
                         {(p.authors || []).slice(0, 2).join(", ")}
                         {(p.authors || []).length > 2 && ` +${p.authors.length - 2}`}
                         {p.arxiv_id && (
                           <a href={`https://arxiv.org/abs/${p.arxiv_id}`} target="_blank" rel="noopener noreferrer"
-                            className="ml-1.5 text-accent/70 hover:text-accent hover:underline">{p.arxiv_id}</a>
+                            className="ml-2 text-accent hover:underline">{p.arxiv_id}</a>
                         )}
                       </p>
                     </div>
 
                     <div className="min-w-0">
                       {isExtracting ? (
-                        <span className="text-[11px] text-muted-foreground/60 italic flex items-center gap-1">
+                        <span className="text-[11px] text-muted-foreground italic flex items-center gap-1">
                           <RefreshCw className="h-2.5 w-2.5 animate-spin" /> extracting…
                         </span>
                       ) : hasEmails ? (
@@ -399,30 +399,30 @@ export default function EmailOutreachPage() {
                             <a key={e} href={`mailto:${e}`} className="block text-[11px] text-blue-600 hover:underline truncate leading-relaxed" title={e}>{e}</a>
                           ))}
                           {p.emails.length > 2 && (
-                            <p className="text-[10px] text-muted-foreground/60">+{p.emails.length - 2} more</p>
+                            <p className="text-[10px] text-muted-foreground">+{p.emails.length - 2} more</p>
                           )}
                         </div>
                       ) : p.emails_extracted ? (
-                        <span className="text-[11px] text-muted-foreground/50 italic">no email found</span>
+                        <span className="text-[11px] text-muted-foreground italic">no email found</span>
                       ) : (
                         <button onClick={() => handleExtract(p.id)}
-                          className="text-[11px] text-accent/70 hover:text-accent hover:underline" data-testid={`extract-btn-${p.id}`}>
+                          className="text-[11px] text-accent hover:underline" data-testid={`extract-btn-${p.id}`}>
                           extract
                         </button>
                       )}
                     </div>
 
-                    <div className="text-[11px] text-muted-foreground/70 truncate" title={`${p.category_name} · #${p.rank}`}>
-                      {p.category_name || p.category} <span className="opacity-60">#{p.rank}</span>
+                    <div className="text-[11px] text-muted-foreground truncate" title={p.category_name || p.category}>
+                      {p.category_name || p.category}
                     </div>
 
                     <div className="text-right">
                       {p.already_sent ? (
-                        <span className="text-[10px] text-green-600">sent {fmtDate(p.sent_at)}</span>
+                        <span className="text-[11px] text-green-600">sent {fmtDate(p.sent_at)}</span>
                       ) : hasEmails ? (
-                        <span className="text-[10px] text-blue-500">ready</span>
+                        <span className="text-[11px] text-blue-500">ready</span>
                       ) : (
-                        <span className="text-[10px] text-muted-foreground/40">—</span>
+                        <span className="text-[11px] text-muted-foreground">—</span>
                       )}
                     </div>
 
