@@ -252,7 +252,7 @@ export default function EmailOutreachPage() {
     );
   }, [papers, query]);
 
-  const cols = ["2rem", "1fr", "12rem", "6rem", "4.5rem", "5.5rem"];
+  const cols = ["2rem", "1fr", "12rem", "8rem", "4.5rem", "5.5rem"];
   const gridStyle = { gridTemplateColumns: cols.join(" ") };
 
   return (
@@ -281,11 +281,20 @@ export default function EmailOutreachPage() {
           <div className="mb-4 px-3 py-2 rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-xs inline-flex items-center gap-2"
             data-testid="gmail-warning">
             <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-            Gmail not connected. <a href="/admin/dashboard" className="underline font-medium">Connect Gmail</a> to send emails.
+            Gmail not connected.
+            <button onClick={async () => {
+              try {
+                const r = await axios.get(`${API}/api/admin/email-outreach/gmail/auth-url`, { headers: getAdminHeaders() });
+                if (r.data?.url) window.open(r.data.url, "_blank");
+              } catch (e) { toast.error(`Gmail auth failed: ${e.response?.data?.detail || e.message}`); }
+            }} className="underline font-medium hover:text-amber-900" data-testid="connect-gmail-btn">
+              Connect Gmail
+            </button>
+            to send emails.
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
           <select value={period} onChange={(e) => setPeriod(e.target.value)}
             className="h-8 px-2 text-xs border rounded-md bg-background min-w-[180px]"
             data-testid="email-period-select">
@@ -301,17 +310,19 @@ export default function EmailOutreachPage() {
             </optgroup>
           </select>
 
-          <TemplateEditor template={template} onSave={() => {
-            axios.get(`${API}/api/admin/email-outreach/templates`, { headers: getAdminHeaders() })
-              .then(r => setTemplate(r.data.templates?.[0] || r.data.default)).catch(() => {});
-          }} />
-
-          <div className="relative sm:ml-auto w-full sm:w-56">
+          <div className="relative w-56">
             <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <input type="text" value={query} onChange={(e) => setQuery(e.target.value)}
               placeholder="Search paper, author, email…" data-testid="email-outreach-search"
               className="w-full h-8 pl-8 pr-3 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-accent" />
           </div>
+        </div>
+
+        <div className="mb-4">
+          <TemplateEditor template={template} onSave={() => {
+            axios.get(`${API}/api/admin/email-outreach/templates`, { headers: getAdminHeaders() })
+              .then(r => setTemplate(r.data.templates?.[0] || r.data.default)).catch(() => {});
+          }} />
         </div>
 
         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mb-4" data-testid="email-outreach-stats">
@@ -370,7 +381,10 @@ export default function EmailOutreachPage() {
                       <p className="text-[11px] text-muted-foreground truncate mt-0.5">
                         {(p.authors || []).slice(0, 2).join(", ")}
                         {(p.authors || []).length > 2 && ` +${p.authors.length - 2}`}
-                        {p.arxiv_id && <span className="ml-1.5 text-accent/70">{p.arxiv_id}</span>}
+                        {p.arxiv_id && (
+                          <a href={`https://arxiv.org/abs/${p.arxiv_id}`} target="_blank" rel="noopener noreferrer"
+                            className="ml-1.5 text-accent/70 hover:text-accent hover:underline">{p.arxiv_id}</a>
+                        )}
                       </p>
                     </div>
 
@@ -382,7 +396,7 @@ export default function EmailOutreachPage() {
                       ) : hasEmails ? (
                         <div className="space-y-0">
                           {p.emails.slice(0, 2).map(e => (
-                            <p key={e} className="text-[11px] text-blue-600 truncate leading-relaxed" title={e}>{e}</p>
+                            <a key={e} href={`mailto:${e}`} className="block text-[11px] text-blue-600 hover:underline truncate leading-relaxed" title={e}>{e}</a>
                           ))}
                           {p.emails.length > 2 && (
                             <p className="text-[10px] text-muted-foreground/60">+{p.emails.length - 2} more</p>

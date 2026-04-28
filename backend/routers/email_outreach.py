@@ -7,7 +7,7 @@ import json
 from datetime import datetime, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from typing import Optional
 from google.oauth2.credentials import Credentials
@@ -130,7 +130,13 @@ async def get_email_medalists(period: str = "weekly:2026-1", top_n: int = 3):
     Returns a flat list of papers (not grouped by category) for table rendering."""
     from core.auth import get_settings
 
-    cat_names = dict(CATEGORIES)
+    # Build category name map (covers all categories, not just the hardcoded 6)
+    settings = await get_settings() or {}
+    try:
+        from core.arxiv_categories import ARXIV_TAXONOMY
+    except ImportError:
+        ARXIV_TAXONOMY = {}
+    cat_names = {**ARXIV_TAXONOMY, **dict(CATEGORIES)}  # CATEGORIES overrides taxonomy
 
     if period.startswith("weekly:"):
         parts = period.split(":")[1].split("-")
@@ -172,6 +178,11 @@ async def get_email_medalists(period: str = "weekly:2026-1", top_n: int = 3):
             ):
                 sent_emails.append({"to_email": s["to_email"], "sent_at": s["sent_at"]})
 
+            cached_emails = email_doc.get("emails", []) if email_doc else []
+            # Mark as "extracted" only if emails were found OR the paper has full_text
+            # (abstract-only extractions with empty results should be retried)
+            truly_extracted = email_doc is not None and (len(cached_emails) > 0 or email_doc.get("has_full_text", False))
+
             all_papers.append({
                 "id": paper_id,
                 "rank": p.get("rank"),
@@ -181,8 +192,8 @@ async def get_email_medalists(period: str = "weekly:2026-1", top_n: int = 3):
                 "category": cat,
                 "category_name": cat_names.get(cat, cat),
                 "period_label": archive.get("label", ""),
-                "emails": email_doc.get("emails", []) if email_doc else [],
-                "emails_extracted": email_doc is not None,
+                "emails": cached_emails,
+                "emails_extracted": truly_extracted,
                 "sent_emails": sent_emails,
                 "already_sent": len(sent_emails) > 0,
                 "sent_at": sent_emails[0]["sent_at"] if sent_emails else None,
@@ -280,11 +291,11 @@ async def extract_emails_for_paper(body: ExtractEmailsRequest):
     except Exception as e:
         logger.warning(f"[email-extract] LLM extraction failed for {body.paper_id}: {e}")
 
-    await _cache_emails(body.paper_id, emails, paper.get("authors", []))
+    await _cache_emails(body.paper_id, emails, paper.get("authors", []), has_full_text=bool(full_text))
     return {"paper_id": body.paper_id, "emails": emails}
 
 
-async def _cache_emails(paper_id: str, emails: list, authors: list):
+async def _cache_emails(paper_id: str, emails: list, authors: list, has_full_text: bool = False):
     """Store extracted emails in the author_emails collection."""
     await db.author_emails.update_one(
         {"paper_id": paper_id},
@@ -292,6 +303,7 @@ async def _cache_emails(paper_id: str, emails: list, authors: list):
             "paper_id": paper_id,
             "emails": emails,
             "authors": authors,
+            "has_full_text": has_full_text,
             "extracted_at": datetime.now(timezone.utc).isoformat(),
         }},
         upsert=True,
@@ -308,10 +320,13 @@ async def extract_emails_batch(body: ExtractBatchRequest):
     if not body.paper_ids:
         return {"status": "no_papers"}
 
-    # Only extract for papers without cached emails
+    # Skip papers that already have cached emails found.
+    # Papers with empty cached results (from abstract-only extraction) should be retried
+    # since on-demand PDF download may now succeed.
     already = set()
     async for doc in db.author_emails.find(
-        {"paper_id": {"$in": body.paper_ids}}, {"_id": 0, "paper_id": 1}
+        {"paper_id": {"$in": body.paper_ids}, "emails.0": {"$exists": True}},
+        {"_id": 0, "paper_id": 1}
     ):
         already.add(doc["paper_id"])
 
@@ -646,3 +661,107 @@ async def gmail_status():
         "authorized": bool(token and token.get("access_token")),
         "user_id": token.get("user_id") if token else None,
     }
+
+
+# --- Gmail OAuth for admin ---
+
+@router.get("/gmail/auth-url", dependencies=[Depends(verify_admin)])
+async def gmail_auth_url_admin(request: Request):
+    """Start Gmail OAuth flow for admin. Uses request origin as redirect URI
+    so it works on both production and preview environments."""
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        raise HTTPException(503, "Gmail integration not configured (GOOGLE_CLIENT_ID/SECRET missing)")
+
+    # Use the request's origin so this works on any domain (preview or production)
+    origin = request.headers.get("origin", "")
+    if not origin:
+        # Fallback: derive from request URL
+        origin = str(request.base_url).rstrip("/")
+    redirect_uri = f"{origin}/api/admin/email-outreach/gmail/callback"
+
+    from google_auth_oauthlib.flow import Flow
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        },
+        scopes=["https://www.googleapis.com/auth/gmail.send"],
+        redirect_uri=redirect_uri,
+    )
+    url, state = flow.authorization_url(
+        access_type="offline",
+        prompt="consent",
+        include_granted_scopes="true",
+    )
+    # Store state for callback verification
+    await db.gmail_oauth_states.insert_one({
+        "state": state,
+        "user_id": "admin",
+        "redirect_uri": redirect_uri,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"url": url, "redirect_uri": redirect_uri}
+
+
+@router.get("/gmail/callback")
+async def gmail_callback_admin(request: Request, state: str = "", code: str = "", error: str = ""):
+    """Handle Gmail OAuth callback for admin."""
+    from fastapi.responses import HTMLResponse
+    from google_auth_oauthlib.flow import Flow
+
+    if error:
+        return HTMLResponse(f"<h3>Gmail authorization failed: {error}</h3><p><a href='/admin/outreach/email'>Back</a></p>")
+
+    # Look up state
+    state_doc = await db.gmail_oauth_states.find_one({"state": state}, {"_id": 0})
+    if not state_doc:
+        return HTMLResponse("<h3>Invalid or expired OAuth state</h3><p><a href='/admin/outreach/email'>Back</a></p>")
+
+    redirect_uri = state_doc.get("redirect_uri", "")
+    if not redirect_uri:
+        origin = str(request.base_url).rstrip("/")
+        redirect_uri = f"{origin}/api/admin/email-outreach/gmail/callback"
+
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        },
+        scopes=["https://www.googleapis.com/auth/gmail.send"],
+        redirect_uri=redirect_uri,
+    )
+    try:
+        flow.fetch_token(code=code)
+        creds = flow.credentials
+        await db.gmail_tokens.update_one(
+            {"user_id": "admin"},
+            {"$set": {
+                "user_id": "admin",
+                "access_token": creds.token,
+                "refresh_token": creds.refresh_token,
+                "token_uri": creds.token_uri,
+                "client_id": creds.client_id,
+                "client_secret": creds.client_secret,
+                "authorized_at": datetime.now(timezone.utc).isoformat(),
+            }},
+            upsert=True,
+        )
+        logger.info("[email-outreach] Gmail OAuth completed for admin")
+        # Clean up state
+        await db.gmail_oauth_states.delete_one({"state": state})
+        return HTMLResponse(
+            "<h3>Gmail connected successfully!</h3>"
+            "<p>You can close this tab and return to the Email Outreach page.</p>"
+            "<script>setTimeout(()=>window.close(),2000)</script>"
+        )
+    except Exception as e:
+        logger.error(f"[email-outreach] Gmail OAuth callback failed: {e}")
+        return HTMLResponse(f"<h3>Authorization failed: {str(e)[:200]}</h3><p><a href='/admin/outreach/email'>Back</a></p>")
