@@ -394,6 +394,7 @@ class SendEmailRequest(BaseModel):
     template_name: str = "default"
     custom_subject: Optional[str] = None
     custom_body: Optional[str] = None
+    is_test: bool = False
 
 
 @router.post("/send", dependencies=[Depends(verify_admin)])
@@ -535,21 +536,22 @@ async def send_outreach_email(body: SendEmailRequest):
             sent_to.append(to_email)
             logger.info(f"[email-outreach] Sent to {to_email} for paper {body.paper_id}")
 
-        # Record in DB
+        # Record in DB (skip for test sends)
         now = datetime.now(timezone.utc).isoformat()
-        for to_email in sent_to:
-            await db.email_sends.insert_one({
-                "paper_id": body.paper_id,
-                "to_email": to_email,
-                "subject": subject,
-                "period": body.period,
-                "category": body.category,
-                "rank": body.rank,
-                "sent_at": now,
-                "status": "sent",
-                "paper_title": paper.get("title", ""),
-                "authors": authors,
-            })
+        if not body.is_test:
+            for to_email in sent_to:
+                await db.email_sends.insert_one({
+                    "paper_id": body.paper_id,
+                    "to_email": to_email,
+                    "subject": subject,
+                    "period": body.period,
+                    "category": body.category,
+                    "rank": body.rank,
+                    "sent_at": now,
+                    "status": "sent",
+                    "paper_title": paper.get("title", ""),
+                    "authors": authors,
+                })
 
         return {"status": "sent", "recipients": sent_to, "sent_at": now}
 
@@ -626,13 +628,14 @@ class TestSendRequest(BaseModel):
 
 @router.post("/test-send", dependencies=[Depends(verify_admin)])
 async def test_send(body: TestSendRequest):
-    """Send a test email to roblauko@gmail.com with badge for a specific paper."""
+    """Send a test email to roblauko@gmail.com with badge for a specific paper. Does NOT record as sent."""
     return await send_outreach_email(SendEmailRequest(
         paper_id=body.paper_id,
         to_emails=["roblauko@gmail.com"],
         period=body.period,
         category=body.category,
         rank=body.rank,
+        is_test=True,
     ))
 
 
