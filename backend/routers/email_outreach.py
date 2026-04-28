@@ -39,12 +39,17 @@ DEFAULT_TEMPLATE = {
 
 
 async def _get_gmail_creds(admin_user_id: str = "admin") -> Credentials:
-    """Get valid Gmail credentials for the admin. Refreshes if expired."""
+    """Get valid Gmail credentials. Checks 'admin' first, then falls back to any stored token."""
     token_doc = await db.gmail_tokens.find_one(
         {"user_id": admin_user_id}, {"_id": 0}
     )
+    # Fallback: use any available Gmail token (e.g. from the congrats OAuth flow)
     if not token_doc or not token_doc.get("access_token"):
-        raise HTTPException(403, "Gmail not authorized. Connect Gmail first via the Congrats page.")
+        token_doc = await db.gmail_tokens.find_one(
+            {"access_token": {"$exists": True, "$ne": ""}}, {"_id": 0}
+        )
+    if not token_doc or not token_doc.get("access_token"):
+        raise HTTPException(403, "Gmail not authorized. Click 'Connect Gmail' on the Email Outreach page.")
 
     creds = Credentials(
         token=token_doc["access_token"],
