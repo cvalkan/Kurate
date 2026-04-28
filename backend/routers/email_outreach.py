@@ -261,7 +261,7 @@ async def extract_emails_for_paper(body: ExtractEmailsRequest):
                 "Handle cases where institution names are glued to emails due to PDF extraction (e.g. 'Corporationjtu@nvidia.com' should become 'jtu@nvidia.com'). "
                 "Return ONLY a JSON array of clean email strings. If none found, return []. No explanations."
             ),
-        ).with_model("gemini", "gemini-2.0-flash")
+        ).with_model("openai", "gpt-4o-mini")
 
         response = await asyncio.to_thread(
             lambda: asyncio.run(chat.send_message(UserMessage(
