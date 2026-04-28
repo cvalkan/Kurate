@@ -129,11 +129,12 @@ async def gmail_auth_url(request: Request, return_to: str = Query("")):
         prompt="consent",
         include_granted_scopes="true",
     )
-    # Store state → user mapping (10 min TTL)
+    # Store state → user mapping (10 min TTL) + PKCE code_verifier
     await db.gmail_oauth_states.insert_one({
         "state": state,
         "user_id": user["user_id"],
         "return_to": return_to,
+        "code_verifier": flow.code_verifier,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
     })

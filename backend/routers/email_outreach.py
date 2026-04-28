@@ -702,11 +702,12 @@ async def gmail_auth_url_admin(request: Request):
         prompt="consent",
         include_granted_scopes="true",
     )
-    # Store state — the existing /api/gmail/callback handler reads this
+    # Store state + PKCE code_verifier so the callback can complete the exchange
     await db.gmail_oauth_states.insert_one({
         "state": state,
         "user_id": "admin",
         "return_to": "/admin/outreach/email",
+        "code_verifier": flow.code_verifier,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
     })

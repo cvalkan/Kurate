@@ -200,6 +200,9 @@ async def gmail_callback(code: str, state: str, request: Request):
     redirect_uri = SITE_URL + "/api/gmail/callback" if SITE_URL else f"{request.headers.get('origin', '')}/api/gmail/callback"
     from routers.congrats import _build_flow
     flow = _build_flow(redirect_uri)
+    # Restore PKCE code_verifier if it was stored during auth URL generation
+    if state_doc.get("code_verifier"):
+        flow.code_verifier = state_doc["code_verifier"]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         flow.fetch_token(code=code)
