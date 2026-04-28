@@ -1,0 +1,33 @@
+{
+  "summary": "Tested Email Outreach pipeline (backend + frontend). All 9 backend pytest tests passed (templates GET/POST, gmail-status, medalists for monthly:2026-3 returning 4 cats / 12 papers, manual set-emails with persistence verification, extract-emails 404 handling, history endpoint, auth rejection). Frontend admin login works on /admin/outreach/email; OutreachNav with both X Outreach and Email Outreach links present; gmail status badge shows 'Gmail Not Connected' as expected; period selector has Monthly + Weekly optgroups; 12 paper cards render with Extract Emails and Manual buttons; template editor is collapsible and exposes subject/body inputs (with default template subject auto-populated); Send History panel collapsible and loads on expand. X Outreach page exposes top-right anchor <a href='/admin/outreach/email'>Email Outreach</a> for reverse navigation.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_email_outreach.py",
+    "/app/test_reports/pytest/email_outreach_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "extract-emails endpoint uses asyncio.to_thread(lambda: asyncio.run(chat.send_message(...))) which spins a fresh event loop in a thread per call — works but is awkward; if emergentintegrations exposes an async API, prefer `await chat.send_message(...)` directly.",
+    "send_outreach_email always passes total_papers='hundreds of' and rank=1 in send-batch path (TODO note in code); batch sends will mis-rank emails.",
+    "_get_gmail_creds is hardcoded to user_id='admin' but gmail-status falls back to any token doc — the send path will fail if the OAuth token was stored under a different user_id. Consider unifying lookup.",
+    "Frontend EmailOutreachPage stores admin password token in both sessionStorage and localStorage — duplicates state and can desync on logout.",
+    "No data-testid on the X Outreach page header 'Email Outreach' button (uses generic anchor) — fine for now but worth tagging for consistency with the rest of the admin UI."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_email_outreach.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin password: papersumo2025 (POST /api/admin/login -> X-Admin-Token header)",
+  "seed_data_creation": "Used existing leaderboard_archives for monthly:2026-3 (4 cats, 12 papers). Test wrote a TEST_ template (then restored default) and saved manual emails (TEST_author1@example.edu, TEST_author2@example.org) on one paper — minor residual test data in author_emails/settings collections.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression: pytest /app/backend/tests/test_email_outreach.py. Gmail OAuth not connected in preview; extract-emails depends on Emergent LLM key (only the 404 path is verified here). Frontend page route: /admin/outreach/email. The template was restored to default after the save test. The X Outreach page does have a top-right 'Email Outreach' anchor link to /admin/outreach/email (confirmed visually and via DOM query)."
+}

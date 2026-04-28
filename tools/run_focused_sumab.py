@@ -2,7 +2,7 @@
 """Focused run: finish GPT codegen, then Gemini for llm + codegen only."""
 import requests, time
 
-API = "https://judge-hub-4.preview.emergentagent.com"
+API = "https://academic-ranker-1.preview.emergentagent.com"
 TOKEN = "adm_PwgAikZRN0yUbPwU72rgzilv_OTqJYv5pMFHYptbW98"
 H = {"Content-Type": "application/json", "X-Admin-Token": TOKEN}
 

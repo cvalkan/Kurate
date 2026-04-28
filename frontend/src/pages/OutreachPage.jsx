@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { toast } from "sonner";
-import { Search, ExternalLink, Twitter, RefreshCw, ChevronDown, Users, Trophy, Clock, Calendar, Heart, List, UserPlus, UserCheck, MessageSquare, Repeat2 } from "lucide-react";
+import { Search, ExternalLink, Twitter, RefreshCw, ChevronDown, Users, Trophy, Clock, Calendar, Heart, List, UserPlus, UserCheck, MessageSquare, Repeat2, Send } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Link } from "react-router-dom";
 import ErrorBoundary from "../components/ErrorBoundary";
@@ -661,6 +661,14 @@ export default function OutreachPage() {
             >
               <List className="h-3.5 w-3.5" />
               Activity
+            </Link>
+            <Link
+              to="/admin/outreach/email"
+              data-testid="outreach-email-link"
+              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-blue-500 text-blue-600 hover:bg-blue-500 hover:text-white transition-colors shrink-0"
+            >
+              <Send className="h-3.5 w-3.5" />
+              Email Outreach
             </Link>
           </div>
         </div>
