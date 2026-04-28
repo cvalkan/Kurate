@@ -35,6 +35,10 @@ Full category ranking: <a href="{{leaderboard_url}}">{{leaderboard_url}}</a></p>
 
 {{badge_html}}
 
+<p>Share the news: &nbsp;
+<a href="{{twitter_share_url}}" style="text-decoration:none;">Share on X</a> &nbsp;|&nbsp;
+<a href="{{linkedin_share_url}}" style="text-decoration:none;">Share on LinkedIn</a></p>
+
 <p>Congratulations - and if the ranking surprises you (positively or negatively), I'd love to hear your take. I'm always refining the methodology.</p>
 
 <p>Best,<br>Robert<br><a href="https://kurate.org">Kurate.org</a></p>""",
@@ -481,9 +485,19 @@ async def send_outreach_email(body: SendEmailRequest):
     else:
         badge_html = ""
 
-    # Render variables
+    # Build share URLs (same text/unfurl pattern as BadgePage)
     authors = paper.get("authors", [])
     first_author = authors[0] if authors else "researcher"
+    arxiv_id = paper.get("arxiv_id", "")
+    arxiv_suffix = f"\nhttps://arxiv.org/abs/{arxiv_id}" if arxiv_id else ""
+
+    slug = f"w{week}" if week is not None else f"m{month}" if month is not None else ""
+    share_url = f"https://kurate.org/api/badge/{body.category}/{year}/{slug}/{body.paper_id}/share" if slug and year else f"https://kurate.org/paper/{body.paper_id}"
+    tweet_text = f'Our paper "{paper.get("title", "")}" ranked #{body.rank} in {category_name} Preprints ({period_label}) on Kurate.org!{arxiv_suffix}'
+
+    import urllib.parse
+    twitter_share_url = f"https://twitter.com/intent/tweet?text={urllib.parse.quote(tweet_text)}&url={urllib.parse.quote(share_url)}"
+    linkedin_share_url = f"https://www.linkedin.com/sharing/share-offsite/?url={urllib.parse.quote(share_url)}"
 
     variables = {
         "author_name": first_author,
@@ -493,9 +507,11 @@ async def send_outreach_email(body: SendEmailRequest):
         "period": period_label,
         "paper_id": body.paper_id,
         "total_papers": total_papers,
-        "arxiv_id": paper.get("arxiv_id", ""),
+        "arxiv_id": arxiv_id,
         "leaderboard_url": leaderboard_url,
         "badge_html": badge_html,
+        "twitter_share_url": twitter_share_url,
+        "linkedin_share_url": linkedin_share_url,
     }
 
     subject = _render_template(subject_tpl, variables)
