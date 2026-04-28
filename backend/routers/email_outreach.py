@@ -488,6 +488,8 @@ async def send_outreach_email(body: SendEmailRequest):
     # Build share URLs (same text/unfurl pattern as BadgePage)
     authors = paper.get("authors", [])
     first_author = authors[0] if authors else "researcher"
+    # Use only first name for greeting (e.g. "Michael Blank" -> "Michael")
+    first_name = first_author.split()[0] if first_author else "there"
     arxiv_id = paper.get("arxiv_id", "")
     arxiv_suffix = f"\nhttps://arxiv.org/abs/{arxiv_id}" if arxiv_id else ""
 
@@ -500,7 +502,7 @@ async def send_outreach_email(body: SendEmailRequest):
     linkedin_share_url = f"https://www.linkedin.com/sharing/share-offsite/?url={urllib.parse.quote(share_url)}"
 
     variables = {
-        "author_name": first_author,
+        "author_name": first_name,
         "paper_title": paper.get("title", ""),
         "category": category_name,
         "rank": str(body.rank),
