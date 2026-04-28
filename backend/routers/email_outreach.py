@@ -26,15 +26,15 @@ DEFAULT_TEMPLATE = {
     "subject": "Your paper ranked #{{rank}} in {{category}} on Kurate.org",
     "body_html": """<p>Hi {{author_name}},</p>
 
-<p>Congratulations! Your paper <strong>"{{paper_title}}"</strong> was ranked <strong>#{{rank}}</strong> in <strong>{{category}}</strong> on <a href="https://kurate.org">Kurate.org</a> for {{period}}.</p>
+<p>Your paper <strong>"{{paper_title}}"</strong> was ranked <strong>#{{rank}}</strong> in <strong>{{category}}</strong> for {{period}} on <a href="https://kurate.org">Kurate.org</a> — based on AI-evaluated scientific impact across {{total_papers}} papers.</p>
 
-<p>Kurate uses AI-powered pairwise tournaments to surface the most impactful preprints each week — and yours stood out among {{total_papers}} papers evaluated.</p>
+<p>See the full ranking: <a href="{{leaderboard_url}}">{{leaderboard_url}}</a></p>
 
-<p>If you'd like to share this with colleagues, here's your paper's page: <a href="https://kurate.org/paper/{{paper_id}}">kurate.org/paper/{{paper_id}}</a></p>
+{{badge_html}}
 
-<p>Congratulations again — and if the ranking surprises you (positively or negatively), I'd love to hear your take. I'm always refining the methodology.</p>
+<p>Congratulations!</p>
 
-<p>Best,<br>Robert</p>""",
+<p>— <a href="https://kurate.org">Kurate.org</a></p>""",
 }
 
 
@@ -209,19 +209,44 @@ class ExtractEmailsRequest(BaseModel):
 
 @router.post("/extract-emails", dependencies=[Depends(verify_admin)])
 async def extract_emails_for_paper(body: ExtractEmailsRequest):
-    """Extract author emails for a single paper using LLM."""
+    """Extract author emails for a single paper using LLM.
+
+    If full_text is missing (legacy papers), downloads the PDF on-demand first.
+    """
     paper = await db.papers.find_one(
         {"id": body.paper_id},
-        {"_id": 0, "title": 1, "authors": 1, "abstract": 1, "full_text": 1, "arxiv_id": 1}
+        {"_id": 0, "title": 1, "authors": 1, "abstract": 1, "full_text": 1, "arxiv_id": 1, "pdf_link": 1, "doi": 1}
     )
     if not paper:
         raise HTTPException(404, "Paper not found")
 
-    text = paper.get("full_text", "") or paper.get("abstract", "")
+    full_text = paper.get("full_text", "") or ""
+
+    # If no full_text, try downloading the PDF on-demand (legacy papers missing pdf_link)
+    if not full_text and paper.get("arxiv_id"):
+        pdf_url = paper.get("pdf_link") or f"https://arxiv.org/pdf/{paper['arxiv_id']}"
+        logger.info(f"[email-extract] Downloading PDF on-demand for {paper['arxiv_id']}")
+        try:
+            from services.llm import download_and_extract_pdf
+            full_text = await download_and_extract_pdf(pdf_url, doi=paper.get("doi")) or ""
+            if full_text:
+                await db.papers.update_one(
+                    {"id": body.paper_id},
+                    {"$set": {"full_text": full_text, "pdf_link": pdf_url, "needs_pdf": False},
+                     "$unset": {"pdf_failed": "", "pdf_fail_reason": ""}},
+                )
+                logger.info(f"[email-extract] PDF downloaded for {paper['arxiv_id']} ({len(full_text)} chars)")
+        except Exception as e:
+            logger.warning(f"[email-extract] On-demand PDF download failed for {paper['arxiv_id']}: {e}")
+
+    text = full_text or paper.get("abstract", "") or ""
     if not text:
+        await _cache_emails(body.paper_id, [], paper.get("authors", []))
         return {"paper_id": body.paper_id, "emails": [], "note": "No paper text available"}
 
-    snippet = text[:5000]
+    # Use first 8K chars — covers header, affiliations, correspondence section
+    snippet = text[:8000]
+    emails = []
 
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
@@ -230,12 +255,17 @@ async def extract_emails_for_paper(body: ExtractEmailsRequest):
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
             session_id=f"extract-emails-{body.paper_id}",
-            system_message="Extract email addresses from this academic paper text. Return ONLY a JSON array of email strings. If none found, return []. No explanations.",
+            system_message=(
+                "Extract author email addresses from this academic paper text. "
+                "Handle curly-brace group notation like {user1, user2}@domain.edu — expand each into a full email address. "
+                "Handle cases where institution names are glued to emails due to PDF extraction (e.g. 'Corporationjtu@nvidia.com' should become 'jtu@nvidia.com'). "
+                "Return ONLY a JSON array of clean email strings. If none found, return []. No explanations."
+            ),
         ).with_model("gemini", "gemini-2.0-flash")
 
         response = await asyncio.to_thread(
             lambda: asyncio.run(chat.send_message(UserMessage(
-                text=f"Extract all author email addresses from this paper:\n\nTitle: {paper.get('title', '')}\nAuthors: {', '.join(paper.get('authors', []))}\n\nText:\n{snippet}"
+                text=f"Extract all author email addresses:\n\nTitle: {paper.get('title', '')}\nAuthors: {', '.join(paper.get('authors', []))}\n\nText:\n{snippet}"
             ))),
         )
         cleaned = response.strip()
@@ -244,26 +274,28 @@ async def extract_emails_for_paper(body: ExtractEmailsRequest):
             if cleaned.startswith("json"):
                 cleaned = cleaned[4:]
             cleaned = cleaned.strip()
-        emails = json.loads(cleaned)
-        if not isinstance(emails, list):
-            emails = []
-        emails = [e for e in emails if isinstance(e, str) and "@" in e]
+        parsed = json.loads(cleaned)
+        if isinstance(parsed, list):
+            emails = [e for e in parsed if isinstance(e, str) and "@" in e]
     except Exception as e:
-        logger.warning(f"Email extraction failed for {body.paper_id}: {e}")
-        emails = []
+        logger.warning(f"[email-extract] LLM extraction failed for {body.paper_id}: {e}")
 
-    # Cache in DB
+    await _cache_emails(body.paper_id, emails, paper.get("authors", []))
+    return {"paper_id": body.paper_id, "emails": emails}
+
+
+async def _cache_emails(paper_id: str, emails: list, authors: list):
+    """Store extracted emails in the author_emails collection."""
     await db.author_emails.update_one(
-        {"paper_id": body.paper_id},
+        {"paper_id": paper_id},
         {"$set": {
-            "paper_id": body.paper_id,
+            "paper_id": paper_id,
             "emails": emails,
-            "authors": paper.get("authors", []),
+            "authors": authors,
             "extracted_at": datetime.now(timezone.utc).isoformat(),
         }},
         upsert=True,
     )
-    return {"paper_id": body.paper_id, "emails": emails}
 
 
 class ExtractBatchRequest(BaseModel):
@@ -346,8 +378,7 @@ class SendEmailRequest(BaseModel):
 
 @router.post("/send", dependencies=[Depends(verify_admin)])
 async def send_outreach_email(body: SendEmailRequest):
-    """Send a personalized outreach email to paper authors via Gmail."""
-    # Get paper info
+    """Send a personalized outreach email to paper authors via Gmail, with inline badge."""
     paper = await db.papers.find_one(
         {"id": body.paper_id},
         {"_id": 0, "title": 1, "authors": 1, "arxiv_id": 1}
@@ -370,15 +401,63 @@ async def send_outreach_email(body: SendEmailRequest):
             subject_tpl = tpl["subject"]
             body_tpl = tpl["body_html"]
 
-    # Parse period label
-    period_label = body.period
     cat_names = dict(CATEGORIES)
     category_name = cat_names.get(body.category, body.category)
 
-    # Count papers in the period for context
-    total_papers = "hundreds of"
+    # Parse period to get year/week/month for badge + leaderboard URL
+    year, week, month = None, None, None
+    period_label = body.period
+    if body.period.startswith("weekly:"):
+        parts = body.period.split(":")[1].split("-")
+        year, week = int(parts[0]), int(parts[1])
+        period_label = f"Week {week}, {year}"
+    elif body.period.startswith("monthly:"):
+        parts = body.period.split(":")[1].split("-")
+        year, month = int(parts[0]), int(parts[1])
+        month_names = ["", "January", "February", "March", "April", "May", "June",
+                       "July", "August", "September", "October", "November", "December"]
+        period_label = f"{month_names[month]} {year}"
 
-    # Render for first author (or generic)
+    # Get paper count from archive
+    total_papers = "?"
+    archive_query = {"category": body.category}
+    if week is not None:
+        archive_query.update({"period_type": "weekly", "year": year, "week": week})
+    elif month is not None:
+        archive_query.update({"period_type": "monthly", "year": year, "month": month})
+    archive = await db.leaderboard_archives.find_one(archive_query, {"_id": 0, "paper_count": 1})
+    if archive:
+        total_papers = str(archive.get("paper_count", "?"))
+
+    # Build leaderboard URL
+    if week is not None:
+        leaderboard_url = f"https://kurate.org/leaderboard/{body.category}/{year}/w{week}"
+    elif month is not None:
+        leaderboard_url = f"https://kurate.org/leaderboard/{body.category}/{year}/m{month}"
+    else:
+        leaderboard_url = f"https://kurate.org"
+
+    # Generate badge PNG if top-3
+    badge_png = None
+    if body.rank <= 3 and year:
+        try:
+            from routers.badges import _get_badge_data, _render_badge_png
+            badge_data = await _get_badge_data(
+                body.category, year, body.paper_id,
+                week=week, month=month,
+            )
+            badge_png = await _render_badge_png(badge_data)
+            logger.info(f"[email-outreach] Badge rendered for {body.paper_id} ({len(badge_png)} bytes)")
+        except Exception as e:
+            logger.warning(f"[email-outreach] Badge render failed: {e}")
+
+    # Build badge HTML (inline CID reference if we have the image)
+    if badge_png:
+        badge_html = '<p><img src="cid:badge" alt="Kurate Badge" style="max-width:600px;width:100%;border-radius:8px;" /></p>'
+    else:
+        badge_html = ""
+
+    # Render variables
     authors = paper.get("authors", [])
     first_author = authors[0] if authors else "researcher"
 
@@ -391,6 +470,8 @@ async def send_outreach_email(body: SendEmailRequest):
         "paper_id": body.paper_id,
         "total_papers": total_papers,
         "arxiv_id": paper.get("arxiv_id", ""),
+        "leaderboard_url": leaderboard_url,
+        "badge_html": badge_html,
     }
 
     subject = _render_template(subject_tpl, variables)
@@ -399,17 +480,28 @@ async def send_outreach_email(body: SendEmailRequest):
     # Get Gmail credentials
     creds = await _get_gmail_creds()
 
-    # Send
+    # Build and send email
     try:
         service = build("gmail", "v1", credentials=creds, cache_discovery=False)
         sent_to = []
-        for to_email in body.to_emails[:5]:  # Max 5 recipients per paper
-            msg = MIMEMultipart("alternative")
+        for to_email in body.to_emails[:5]:
+            msg = MIMEMultipart("related")
             msg["to"] = to_email
             msg["subject"] = subject
             msg["from"] = "robert@kurate.org"
-            part = MIMEText(body_html, "html")
-            msg.attach(part)
+
+            # HTML part
+            html_part = MIMEText(body_html, "html")
+            msg.attach(html_part)
+
+            # Attach badge image inline
+            if badge_png:
+                from email.mime.image import MIMEImage
+                img_part = MIMEImage(badge_png, _subtype="png")
+                img_part.add_header("Content-ID", "<badge>")
+                img_part.add_header("Content-Disposition", "inline", filename="kurate-badge.png")
+                msg.attach(img_part)
+
             raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
             await asyncio.to_thread(
                 lambda: service.users().messages().send(
@@ -496,6 +588,28 @@ async def send_batch(body: SendBatchRequest):
             results["failed"].append(paper_id)
 
     return results
+
+
+
+# --- Test send ---
+
+class TestSendRequest(BaseModel):
+    paper_id: str
+    period: str
+    category: str
+    rank: int
+
+
+@router.post("/test-send", dependencies=[Depends(verify_admin)])
+async def test_send(body: TestSendRequest):
+    """Send a test email to roblauko@gmail.com with badge for a specific paper."""
+    return await send_outreach_email(SendEmailRequest(
+        paper_id=body.paper_id,
+        to_emails=["roblauko@gmail.com"],
+        period=body.period,
+        category=body.category,
+        rank=body.rank,
+    ))
 
 
 # --- History ---

@@ -272,6 +272,19 @@ export default function EmailOutreachPage() {
     finally { setSending(prev => { const n = new Set(prev); n.delete(paper.id); return n; }); }
   };
 
+  // Test send (to roblauko@gmail.com)
+  const handleTestSend = async (paper) => {
+    if (!window.confirm(`Send TEST email (with badge) to roblauko@gmail.com for "${paper.title?.slice(0, 50)}..."?`)) return;
+    setSending(prev => new Set([...prev, paper.id]));
+    try {
+      await axios.post(`${API}/api/admin/email-outreach/test-send`, {
+        paper_id: paper.id, period, category: paper.category || "", rank: paper.rank || 1,
+      }, { headers: getAdminHeaders() });
+      toast.success("Test email sent to roblauko@gmail.com");
+    } catch (e) { toast.error(`Test send failed: ${e.response?.data?.detail || e.message}`); }
+    finally { setSending(prev => { const n = new Set(prev); n.delete(paper.id); return n; }); }
+  };
+
   // Filter
   const filtered = useMemo(() => {
     if (!query.trim()) return papers;
@@ -284,7 +297,7 @@ export default function EmailOutreachPage() {
     );
   }, [papers, query]);
 
-  const cols = ["2rem", "1fr", "10rem", "7rem", "5rem", "3.5rem"];
+  const cols = ["2rem", "1fr", "10rem", "7rem", "5rem", "5.5rem"];
   const gridStyle = { gridTemplateColumns: cols.join(" ") };
 
   return (
@@ -453,7 +466,12 @@ export default function EmailOutreachPage() {
                     </div>
 
                     {/* Send button */}
-                    <div className="flex items-center justify-end">
+                    <div className="flex items-center justify-end gap-1">
+                      <button onClick={() => handleTestSend(p)} disabled={isSending}
+                        className="h-6 px-1.5 rounded border border-amber-400 text-amber-600 hover:bg-amber-50 text-[9px] font-medium transition-colors disabled:opacity-50"
+                        title="Test send to roblauko@gmail.com" data-testid={`test-btn-${p.id}`}>
+                        {isSending ? "…" : "Test"}
+                      </button>
                       {!p.already_sent && p.emails?.length > 0 && gmailStatus?.authorized ? (
                         <button onClick={() => handleSend(p)} disabled={isSending}
                           className="h-6 w-6 rounded border border-accent text-accent hover:bg-accent hover:text-background flex items-center justify-center transition-colors disabled:opacity-50"
