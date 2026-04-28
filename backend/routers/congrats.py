@@ -238,43 +238,69 @@ class ExtractEmailsRequest(BaseModel):
 
 @router.post("/extract-emails")
 async def extract_emails(body: ExtractEmailsRequest, request: Request):
-    """Use LLM to extract author email addresses from the paper."""
+    """Extract author email addresses from the paper using LLM.
+    Downloads PDF on-demand if full_text is missing (legacy papers)."""
     user = await _get_current_user(request)
     if not user:
         raise HTTPException(401, "Not authenticated")
 
     paper = await db.papers.find_one(
-        {"id": body.paper_id}, {"_id": 0, "title": 1, "authors": 1, "abstract": 1, "full_text": 1, "arxiv_id": 1}
+        {"id": body.paper_id},
+        {"_id": 0, "title": 1, "authors": 1, "abstract": 1, "full_text": 1, "arxiv_id": 1, "pdf_link": 1, "doi": 1}
     )
     if not paper:
         raise HTTPException(404, "Paper not found")
 
-    text = paper.get("full_text", "") or paper.get("abstract", "")
+    # Check cache first
+    cached = await db.author_emails.find_one({"paper_id": body.paper_id}, {"_id": 0})
+    if cached and cached.get("emails"):
+        return {"emails": cached["emails"]}
+
+    full_text = paper.get("full_text", "") or ""
+
+    # On-demand PDF download for legacy papers missing full_text
+    if not full_text and paper.get("arxiv_id"):
+        pdf_url = paper.get("pdf_link") or f"https://arxiv.org/pdf/{paper['arxiv_id']}"
+        try:
+            from services.llm import download_and_extract_pdf
+            full_text = await download_and_extract_pdf(pdf_url, doi=paper.get("doi")) or ""
+            if full_text:
+                await db.papers.update_one(
+                    {"id": body.paper_id},
+                    {"$set": {"full_text": full_text, "pdf_link": pdf_url, "needs_pdf": False},
+                     "$unset": {"pdf_failed": "", "pdf_fail_reason": ""}},
+                )
+                logger.info(f"[congrats] PDF downloaded for {paper['arxiv_id']} ({len(full_text)} chars)")
+        except Exception as e:
+            logger.warning(f"[congrats] On-demand PDF download failed for {paper.get('arxiv_id')}: {e}")
+
+    text = full_text or paper.get("abstract", "") or ""
     if not text:
         return {"emails": [], "note": "No paper text available"}
 
-    # Use first 5000 chars (emails are usually in the first page)
-    snippet = text[:5000]
+    snippet = text[:8000]
 
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         from core.config import EMERGENT_LLM_KEY
 
+        import json
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
             session_id=f"extract-emails-{body.paper_id}",
-            system_message="Extract email addresses from this academic paper text. Return ONLY a JSON array of email strings. If none found, return []. No explanations.",
-        ).with_model("gemini", "gemini-2.0-flash")
+            system_message=(
+                "Extract author email addresses from this academic paper text. "
+                "Handle curly-brace group notation like {user1, user2}@domain.edu — expand each into a full email address. "
+                "Handle cases where institution names are glued to emails due to PDF extraction (e.g. 'Corporationjtu@nvidia.com' should become 'jtu@nvidia.com'). "
+                "Return ONLY a JSON array of clean email strings. If none found, return []. No explanations."
+            ),
+        ).with_model("openai", "gpt-4o-mini")
 
-        import json
-        loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(
-            None,
+        response = await asyncio.to_thread(
             lambda: asyncio.run(chat.send_message(UserMessage(
-                text=f"Extract all author email addresses from this paper:\n\nTitle: {paper.get('title', '')}\nAuthors: {', '.join(paper.get('authors', []))}\n\nText:\n{snippet}"
+                text=f"Extract all author email addresses:\n\nTitle: {paper.get('title', '')}\nAuthors: {', '.join(paper.get('authors', []))}\n\nText:\n{snippet}"
             ))),
         )
-        # Parse JSON array from response
         cleaned = response.strip()
         if cleaned.startswith("```"):
             cleaned = cleaned.split("```")[1]
@@ -285,7 +311,20 @@ async def extract_emails(body: ExtractEmailsRequest, request: Request):
         if not isinstance(emails, list):
             emails = []
         emails = [e for e in emails if isinstance(e, str) and "@" in e]
+
+        # Cache result
+        await db.author_emails.update_one(
+            {"paper_id": body.paper_id},
+            {"$set": {
+                "paper_id": body.paper_id,
+                "emails": emails,
+                "authors": paper.get("authors", []),
+                "has_full_text": bool(full_text),
+                "extracted_at": datetime.now(timezone.utc).isoformat(),
+            }},
+            upsert=True,
+        )
         return {"emails": emails}
     except Exception as e:
-        logger.warning(f"Email extraction failed: {e}")
+        logger.warning(f"[congrats] Email extraction failed: {e}")
         return {"emails": [], "note": "Could not extract emails automatically"}
