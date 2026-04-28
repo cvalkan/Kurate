@@ -469,13 +469,43 @@ async def send_outreach_email(body: SendEmailRequest):
     badge_png = None
     if body.rank <= 3 and year:
         try:
-            from routers.badges import _get_badge_data, _render_badge_png
-            badge_data = await _get_badge_data(
-                body.category, year, body.paper_id,
-                week=week, month=month,
-            )
-            badge_png = await _render_badge_png(badge_data)
-            logger.info(f"[email-outreach] Badge rendered for {body.paper_id} ({len(badge_png)} bytes)")
+            from routers.badges import _render_badge_png, _get_tier
+            from core.config import CATEGORIES as _BADGE_CATS
+            try:
+                from core.arxiv_categories import ARXIV_TAXONOMY as _BADGE_TAX
+            except ImportError:
+                _BADGE_TAX = {}
+
+            # Look up the archive directly instead of using _get_badge_data
+            # (which recomputes rank and may disagree with the stored rank)
+            if week is not None:
+                arch_query = {"category": body.category, "year": year, "week": week, "period_type": "weekly"}
+            else:
+                arch_query = {"category": body.category, "year": year, "month": month, "period_type": "monthly"}
+            archive = await db.leaderboard_archives.find_one(arch_query, {"_id": 0})
+            if archive:
+                lb = archive.get("leaderboard", [])
+                paper_entry = next((p for p in lb if p.get("id") == body.paper_id), None)
+                if paper_entry:
+                    tier = _get_tier(body.rank)
+                    if tier:
+                        slug = f"w{week}" if week is not None else f"m{month}"
+                        badge_data = {
+                            "paper": paper_entry,
+                            "rank": body.rank,
+                            "tier": tier,
+                            "archive_label": archive.get("label", ""),
+                            "category": body.category,
+                            "category_name": {**_BADGE_TAX, **dict(_BADGE_CATS)}.get(body.category, body.category),
+                            "paper_count": archive.get("paper_count", len(lb)),
+                            "categories": paper_entry.get("categories", [body.category]),
+                            "year": year,
+                            "week": week,
+                            "month": month,
+                            "slug": slug,
+                        }
+                        badge_png = await _render_badge_png(badge_data)
+                        logger.info(f"[email-outreach] Badge rendered for {body.paper_id} ({len(badge_png)} bytes)")
         except Exception as e:
             logger.warning(f"[email-outreach] Badge render failed: {e}")
 
