@@ -423,17 +423,18 @@ async def _bg_memory_heartbeat():
 
 
 async def _bg_archive_loop():
-    """Background loop that checks and creates archive snapshots daily at 00:00 UTC."""
+    """Background loop that checks and creates archive snapshots daily at 00:00 UTC.
+    On startup, runs with catch_up=True to fill any gaps from missed Monday windows."""
     from core.memlog import log_mem
     await asyncio.sleep(30)  # Wait for cache to warm
 
-    # First iteration: archive snapshots only
+    # First iteration: catch-up mode — create current week/month if missing
     try:
-        log_mem("archive_loop initial run start")
-        await run_archive_snapshots()
-        log_mem("archive_loop initial run done")
+        log_mem("archive_loop initial catch-up start")
+        await run_archive_snapshots(catch_up=True)
+        log_mem("archive_loop initial catch-up done")
     except Exception as e:
-        logger.warning(f"Archive snapshot check failed: {e}")
+        logger.warning(f"Archive snapshot catch-up failed: {e}")
 
     while True:
         # Sleep until next day at 00:05 UTC
@@ -1764,31 +1765,37 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
     return doc
 
 
-async def run_archive_snapshots():
+async def run_archive_snapshots(catch_up: bool = False):
     """Create both weekly and monthly snapshots as appropriate.
-    Weekly: every Monday. Monthly: 1st of month. Both always created for all categories."""
+    Weekly: every Monday. Monthly: 1st of month. Both always created for all categories.
+
+    When catch_up=True (used on startup), always attempt to create the current
+    week and current month archives regardless of day-of-week.  This makes the
+    archiver resilient to server restarts — if the Monday window was missed,
+    the next startup will fill the gap.  create_archive_snapshot is idempotent
+    so duplicate calls are harmless.
+    """
     from core.auth import get_settings
     settings = await get_settings()
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
 
     utc_now = datetime.now(timezone.utc)
-    is_monday = utc_now.weekday() == 0
-    is_first = utc_now.day == 1
+    should_weekly = catch_up or utc_now.weekday() == 0  # Monday or catch-up
+    should_monthly = catch_up or utc_now.day == 1        # 1st or catch-up
 
     created = 0
     for cat in active_cats:
-        if is_monday:
+        if should_weekly:
             result = await create_archive_snapshot(cat, "weekly")
             if result:
                 created += 1
-        if is_first:
+        if should_monthly:
             result = await create_archive_snapshot(cat, "monthly")
             if result:
                 created += 1
-                created += 1
 
     if created:
-        logger.info(f"Archive snapshots: {created} new snapshots created")
+        logger.info(f"Archive snapshots: {created} new snapshots created (catch_up={catch_up})")
     return created
 
 
