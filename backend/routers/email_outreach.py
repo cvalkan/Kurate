@@ -30,7 +30,8 @@ DEFAULT_TEMPLATE = {
 
 <p>Kurate ranks preprints using <a href="https://kurate.org/methodology">pairwise tournaments</a> where multiple AI models compare papers head-to-head on novelty, rigor, and potential impact. Your paper came out on top.</p>
 
-<p>See the full ranking: <a href="{{leaderboard_url}}">{{leaderboard_url}}</a></p>
+<p>Your paper's score card: <a href="https://kurate.org/paper/{{paper_id}}">kurate.org/paper/{{paper_id}}</a><br>
+Full category ranking: <a href="{{leaderboard_url}}">{{leaderboard_url}}</a></p>
 
 {{badge_html}}
 
