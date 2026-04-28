@@ -3122,6 +3122,16 @@ async def create_all_snapshots():
     return {"status": "ok", "created": created, "categories": len(active_cats)}
 
 
+@router.delete("/archive/week/{year}/{week}", dependencies=[Depends(verify_admin)])
+async def delete_weekly_archive(year: int, week: int):
+    """Delete all weekly archive snapshots for a specific ISO week."""
+    result = await db.leaderboard_archives.delete_many(
+        {"period_type": "weekly", "year": year, "week": week}
+    )
+    logger.info(f"Deleted {result.deleted_count} weekly archives for {year}-W{week}")
+    return {"status": "ok", "deleted": result.deleted_count, "period": f"{year}-W{week}"}
+
+
 @router.post("/archive/set-frequency", dependencies=[Depends(verify_admin)])
 async def set_archive_frequency(request: Request):
     """Set which archive type to DISPLAY per category (weekly or monthly).
