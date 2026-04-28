@@ -28,7 +28,7 @@ DEFAULT_TEMPLATE = {
 
 <p>Your paper <strong>"{{paper_title}}"</strong> was ranked <strong>#{{rank}}</strong> in <strong>{{category}}</strong> for {{period}} on <a href="https://kurate.org">Kurate.org</a>, based on AI-evaluated scientific impact across {{total_papers}} papers.</p>
 
-<p>Kurate ranks preprints using <a href="https://kurate.org/methodology">pairwise tournaments</a> where multiple AI models compare papers head-to-head on novelty, rigor, and potential impact. Your paper came out on top.</p>
+<p>Kurate ranks preprints using <a href="https://kurate.org/methodology">pairwise tournaments</a> where multiple AI models compare papers head-to-head on scientific impact, including novelty, rigor, and real-world applications. Your paper came out on top.</p>
 
 <p>Your paper's score card: <a href="https://kurate.org/paper/{{paper_id}}">kurate.org/paper/{{paper_id}}</a><br>
 Full category ranking: <a href="{{leaderboard_url}}">{{leaderboard_url}}</a></p>
