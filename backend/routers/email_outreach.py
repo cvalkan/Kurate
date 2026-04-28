@@ -126,11 +126,11 @@ async def save_template(body: SaveTemplateRequest):
 
 @router.get("/medalists", dependencies=[Depends(verify_admin)])
 async def get_email_medalists(period: str = "weekly:2026-1", top_n: int = 3):
-    """Get medalists with cached author emails for email outreach."""
+    """Get medalists with cached author emails for email outreach.
+    Returns a flat list of papers (not grouped by category) for table rendering."""
     from core.auth import get_settings
 
     cat_names = dict(CATEGORIES)
-    result_cats = []
 
     if period.startswith("weekly:"):
         parts = period.split(":")[1].split("-")
@@ -139,11 +139,13 @@ async def get_email_medalists(period: str = "weekly:2026-1", top_n: int = 3):
         parts = period.split(":")[1].split("-")
         period_type, query_filter = "monthly", {"year": int(parts[0]), "month": int(parts[1])}
     else:
-        return {"period": period, "categories": [], "error": "Use weekly:YYYY-WW or monthly:YYYY-MM"}
+        return {"period": period, "papers": [], "error": "Use weekly:YYYY-WW or monthly:YYYY-MM"}
 
     settings = await get_settings() or {}
     freq_config = settings.get("archive_frequency") or {}
     has_freq_config = bool(freq_config)
+
+    all_papers = []
 
     async for archive in db.leaderboard_archives.find(
         {"period_type": period_type, **query_filter},
@@ -156,45 +158,46 @@ async def get_email_medalists(period: str = "weekly:2026-1", top_n: int = 3):
             if cat_freq != period_type:
                 continue
 
-        papers = []
         for p in archive.get("leaderboard", [])[:top_n]:
             paper_id = p.get("id")
             # Get cached emails
             email_doc = await db.author_emails.find_one(
                 {"paper_id": paper_id}, {"_id": 0}
             )
-            # Check if already sent for this period
-            sent_doc = await db.email_sends.find_one(
-                {"paper_id": paper_id, "period": period}, {"_id": 0, "sent_at": 1, "to_email": 1}
-            )
-            papers.append({
+            # Get all sends for this paper+period
+            sent_emails = []
+            async for s in db.email_sends.find(
+                {"paper_id": paper_id, "period": period},
+                {"_id": 0, "to_email": 1, "sent_at": 1},
+            ):
+                sent_emails.append({"to_email": s["to_email"], "sent_at": s["sent_at"]})
+
+            all_papers.append({
                 "id": paper_id,
                 "rank": p.get("rank"),
                 "title": p.get("title"),
                 "authors": p.get("authors", []),
                 "arxiv_id": p.get("arxiv_id"),
-                "ts_score": p.get("ts_score") or p.get("score"),
+                "category": cat,
+                "category_name": cat_names.get(cat, cat),
+                "period_label": archive.get("label", ""),
                 "emails": email_doc.get("emails", []) if email_doc else [],
                 "emails_extracted": email_doc is not None,
-                "already_sent": sent_doc is not None,
-                "sent_at": sent_doc.get("sent_at") if sent_doc else None,
+                "sent_emails": sent_emails,
+                "already_sent": len(sent_emails) > 0,
+                "sent_at": sent_emails[0]["sent_at"] if sent_emails else None,
             })
 
-        if papers:
-            result_cats.append({
-                "category": cat,
-                "name": cat_names.get(cat, cat),
-                "label": archive.get("label", ""),
-                "papers": papers,
-            })
+    # Sort by category then rank
+    all_papers.sort(key=lambda p: (p["category"], p.get("rank") or 99))
 
-    result_cats.sort(key=lambda c: c["category"])
     return {
         "period": period,
-        "categories": result_cats,
-        "total_papers": sum(len(c["papers"]) for c in result_cats),
-        "total_with_emails": sum(1 for c in result_cats for p in c["papers"] if p["emails"]),
-        "total_sent": sum(1 for c in result_cats for p in c["papers"] if p["already_sent"]),
+        "papers": all_papers,
+        "total_papers": len(all_papers),
+        "total_with_emails": sum(1 for p in all_papers if p["emails"]),
+        "total_sent": sum(1 for p in all_papers if p["already_sent"]),
+        "total_no_emails": sum(1 for p in all_papers if p["emails_extracted"] and not p["emails"]),
     }
 
 

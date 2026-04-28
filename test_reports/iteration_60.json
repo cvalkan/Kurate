@@ -1,0 +1,33 @@
+{
+  "summary": "Tested the redesigned Email Outreach page (flat table). Backend: updated /app/backend/tests/test_email_outreach.py to the new flat shape (papers[] at top-level, category/category_name on each paper) and added two new tests for /extract-emails-batch (empty + structure). All 11 pytest tests pass. Frontend: admin login at /admin works with papersumo2025, Admin dashboard tab bar shows both X Outreach and Email Outreach tabs (data-testid=tab-outreach, tab-email-outreach). Page /admin/outreach/email loads with the 6-column flat table (#, Paper, Emails, Category, Status, Send). For monthly:2026-3 (seed) it shows 12 rows with stats '12 papers • 2 with emails • 10 no email found • 0 sent' exactly matching backend. Blue EmailBadge renders for the 2 papers that have emails (TEST_author1@example.edu and TEST_author2@example.org pre-seeded from iter59), amber 'no email found' badge + 'add manually' button for the 10 without. Period selector exposes both Monthly (latest April 2026) and Weekly (latest 2026-16) optgroups. Search filter works (empty state shown for bogus query). Template editor collapses/expands correctly (subject/body inputs hidden when collapsed, visible when expanded). Gmail-not-connected warning renders as expected (gmail-status.authorized=false in preview).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_email_outreach.py",
+    "/app/test_reports/pytest/email_outreach_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "EmailOutreachPage auto-extract effect depends on `papers.length > 0 && papers[0]?.id` (line 242) — if the first paper's id doesn't change but later papers do (e.g. same top-1 across periods), the batch extractor won't re-trigger. Consider depending on a stable hash of unextracted ids instead.",
+    "TemplateEditor sits inside a flex row beside the period <select> and the search box but renders as a block with mb-5 — visually fine, but on narrow widths it stacks awkwardly between the select and search. Minor polish only.",
+    "extract-emails still uses asyncio.to_thread(lambda: asyncio.run(chat.send_message(...))) wrapping — awkward pattern carried over from iter59; prefer direct await if emergentintegrations supports it.",
+    "send-batch path still hardcodes rank=1 and total_papers='hundreds of' (flagged in iter59; not retested as Gmail OAuth is unavailable in preview).",
+    "Admin token is still dual-stored in sessionStorage and localStorage in EmailOutreachPage but only sessionStorage on AdminPage — keep a single source to avoid logout desync."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_email_outreach.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin password: papersumo2025 (POST /api/admin/login -> X-Admin-Token header)",
+  "seed_data_creation": "Reused existing leaderboard_archives for monthly:2026-3 (12 papers across 4 cats). Pre-seeded manual emails from iter59 still present on row 1 (TEST_author1@example.edu, TEST_author2@example.org). Saved + restored default template during test_save_custom_template.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression: `pytest /app/backend/tests/test_email_outreach.py -v`. Medalists endpoint returns flat `papers[]` (old `categories[]` shape is gone and asserted absent). Use period=monthly:2026-3 for 12 papers. Gmail OAuth not connected in preview (gmail-status.authorized=false) — expected. Email extraction via Emergent LLM key is not asserted positively; only 404 path and batch endpoint shape are verified. Frontend route: /admin/outreach/email. Admin panel tab link at data-testid='tab-email-outreach'."
+}

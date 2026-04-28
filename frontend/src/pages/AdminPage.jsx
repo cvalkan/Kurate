@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Settings, Activity, LogOut, FileText, Save, HelpCircle, FlaskConical, MessageSquare, Users,
-  Sliders, Twitter,
+  Sliders, Twitter, Mail,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminOverview } from "@/components/AdminOverview";
@@ -291,6 +291,10 @@ export default function AdminPage() {
         <a href="/admin/outreach" className="inline-flex items-center gap-1.5 text-xs h-8 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors shrink-0" data-testid="tab-outreach">
           <Twitter className="h-3.5 w-3.5" />
           X Outreach
+        </a>
+        <a href="/admin/outreach/email" className="inline-flex items-center gap-1.5 text-xs h-8 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors shrink-0" data-testid="tab-email-outreach">
+          <Mail className="h-3.5 w-3.5" />
+          Email Outreach
         </a>
       </div>
 

@@ -75,21 +75,19 @@ class TestMedalists:
         assert r.status_code == 200, r.text
         data = r.json()
         assert data["period"] == "monthly:2026-3"
-        assert "categories" in data
-        assert isinstance(data["categories"], list)
+        # NEW flat shape: papers[] at top-level (not categories[].papers[])
+        assert "papers" in data
+        assert isinstance(data["papers"], list)
+        assert "categories" not in data, "Old grouped shape should be gone"
         assert "total_papers" in data
         assert "total_with_emails" in data
         assert "total_sent" in data
-        # Each category should have papers with required structure
-        if data["categories"]:
-            cat = data["categories"][0]
-            assert "category" in cat
-            assert "name" in cat
-            assert "papers" in cat
-            if cat["papers"]:
-                p = cat["papers"][0]
-                for key in ("id", "rank", "title", "emails", "emails_extracted", "already_sent"):
-                    assert key in p, f"missing key {key}"
+        assert "total_no_emails" in data
+        if data["papers"]:
+            p = data["papers"][0]
+            for key in ("id", "rank", "title", "emails", "emails_extracted",
+                        "already_sent", "category", "category_name"):
+                assert key in p, f"missing key {key}"
 
     def test_medalists_invalid_period(self, headers):
         r = requests.get(
@@ -110,10 +108,9 @@ class TestManualEmails:
             params={"period": "monthly:2026-3", "top_n": 3},
             headers=headers, timeout=30,
         )
-        cats = r.json().get("categories", [])
-        for c in cats:
-            for p in c.get("papers", []):
-                return p["id"]
+        cats = r.json().get("papers", [])
+        for p in cats:
+            return p["id"]
         pytest.skip("No papers available for set-emails test")
 
     def test_set_emails_manually(self, headers, sample_paper_id):
@@ -135,14 +132,13 @@ class TestManualEmails:
             params={"period": "monthly:2026-3", "top_n": 3},
             headers=headers, timeout=30,
         )
-        cats = r2.json().get("categories", [])
+        cats = r2.json().get("papers", [])
         found = False
-        for c in cats:
-            for p in c.get("papers", []):
-                if p["id"] == sample_paper_id:
-                    assert "TEST_author1@example.edu" in p["emails"]
-                    found = True
-                    break
+        for p in cats:
+            if p["id"] == sample_paper_id:
+                assert "TEST_author1@example.edu" in p["emails"]
+                found = True
+                break
         assert found, "Saved emails not visible in medalists endpoint"
 
 
@@ -155,6 +151,37 @@ class TestExtractEmails:
             headers=headers, timeout=30,
         )
         assert r.status_code == 404
+
+    def test_extract_emails_batch_empty(self, headers):
+        r = requests.post(
+            f"{BASE_URL}/api/admin/email-outreach/extract-emails-batch",
+            json={"paper_ids": []}, headers=headers, timeout=15,
+        )
+        assert r.status_code == 200
+        assert r.json().get("status") == "no_papers"
+
+    def test_extract_emails_batch_structure(self, headers):
+        # Pull a real paper id from medalists
+        m = requests.get(
+            f"{BASE_URL}/api/admin/email-outreach/medalists",
+            params={"period": "monthly:2026-3", "top_n": 3},
+            headers=headers, timeout=30,
+        ).json()
+        papers = m.get("papers", [])
+        if not papers:
+            pytest.skip("No papers available")
+        pid = papers[0]["id"]
+        r = requests.post(
+            f"{BASE_URL}/api/admin/email-outreach/extract-emails-batch",
+            json={"paper_ids": [pid]}, headers=headers, timeout=15,
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["status"] in ("started", "all_cached")
+        if data["status"] == "started":
+            assert "extracting" in data
+            assert "already_cached" in data
+
 
 
 # --- History ---
