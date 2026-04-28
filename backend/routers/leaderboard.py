@@ -1647,11 +1647,26 @@ async def get_older_archive(category: str):
 
 async def create_archive_snapshot(category: str, period_type: str = "weekly"):
     """Create a frozen leaderboard snapshot for the given category.
-    Called by the scheduler at the configured interval."""
+    Called by the scheduler at the configured interval.
+
+    Archives the PREVIOUS completed period — not the current one — so that
+    all papers for that period have had time to be fetched, summarized, and
+    ranked before the snapshot is frozen.
+    """
     utc_now = datetime.now(timezone.utc)
-    year = utc_now.isocalendar()[0]
-    week = utc_now.isocalendar()[1]
-    month = utc_now.month
+
+    if period_type == "weekly":
+        # Archive PREVIOUS week (the one that just ended)
+        from datetime import date
+        prev_week_date = utc_now - timedelta(days=7)
+        year = prev_week_date.isocalendar()[0]
+        week = prev_week_date.isocalendar()[1]
+    else:
+        # Archive PREVIOUS month
+        first_of_this_month = utc_now.replace(day=1)
+        last_of_prev_month = first_of_this_month - timedelta(days=1)
+        year = last_of_prev_month.year
+        month = last_of_prev_month.month
 
     # Check if this snapshot already exists
     if period_type == "weekly":
@@ -1676,7 +1691,6 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
     else:
         # Weekly: use ISO week boundaries
         from datetime import date
-        # Monday of this ISO week
         week_start_date = date.fromisocalendar(year, week, 1)
         week_end_date = week_start_date + timedelta(days=7)
         period_filter = {"published": {
