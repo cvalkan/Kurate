@@ -26,15 +26,17 @@ DEFAULT_TEMPLATE = {
     "subject": "Your paper ranked #{{rank}} in {{category}} on Kurate.org",
     "body_html": """<p>Hi {{author_name}},</p>
 
-<p>Your paper <strong>"{{paper_title}}"</strong> was ranked <strong>#{{rank}}</strong> in <strong>{{category}}</strong> for {{period}} on <a href="https://kurate.org">Kurate.org</a> — based on AI-evaluated scientific impact across {{total_papers}} papers.</p>
+<p>Your paper <strong>"{{paper_title}}"</strong> was ranked <strong>#{{rank}}</strong> in <strong>{{category}}</strong> for {{period}} on <a href="https://kurate.org">Kurate.org</a>, based on AI-evaluated scientific impact across {{total_papers}} papers.</p>
+
+<p>Kurate ranks preprints using <a href="https://kurate.org/methodology">pairwise tournaments</a> where multiple AI models compare papers head-to-head on novelty, rigor, and potential impact. Your paper came out on top.</p>
 
 <p>See the full ranking: <a href="{{leaderboard_url}}">{{leaderboard_url}}</a></p>
 
 {{badge_html}}
 
-<p>Congratulations!</p>
+<p>Congratulations - and if the ranking surprises you (positively or negatively), I'd love to hear your take. I'm always refining the methodology.</p>
 
-<p>— <a href="https://kurate.org">Kurate.org</a></p>""",
+<p>Best,<br>Robert<br><a href="https://kurate.org">Kurate.org</a></p>""",
 }
 
 
