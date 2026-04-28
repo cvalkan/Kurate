@@ -252,7 +252,7 @@ export default function EmailOutreachPage() {
     );
   }, [papers, query]);
 
-  const cols = ["2rem", "1fr", "12rem", "8rem", "4.5rem", "5.5rem"];
+  const cols = ["2rem", "1fr", "8rem", "12rem", "4.5rem", "5.5rem"];
   const gridStyle = { gridTemplateColumns: cols.join(" ") };
 
   return (
@@ -352,8 +352,8 @@ export default function EmailOutreachPage() {
               style={gridStyle}>
               <div>#</div>
               <div>Paper</div>
-              <div>Emails</div>
               <div>Category</div>
+              <div>Emails</div>
               <div className="text-right">Status</div>
               <div className="text-right"></div>
             </div>
@@ -388,6 +388,10 @@ export default function EmailOutreachPage() {
                       </p>
                     </div>
 
+                    <div className="text-[11px] text-muted-foreground truncate" title={p.category_name || p.category}>
+                      {p.category_name || p.category}
+                    </div>
+
                     <div className="min-w-0">
                       {isExtracting ? (
                         <span className="text-[11px] text-muted-foreground italic flex items-center gap-1">
@@ -410,10 +414,6 @@ export default function EmailOutreachPage() {
                           extract
                         </button>
                       )}
-                    </div>
-
-                    <div className="text-[11px] text-muted-foreground truncate" title={p.category_name || p.category}>
-                      {p.category_name || p.category}
                     </div>
 
                     <div className="text-right">
