@@ -24,42 +24,6 @@ function fmtDate(s) {
 
 const GRID = "grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4";
 
-function EmailBadge({ email }) {
-  return (
-    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-blue-400 bg-blue-50 text-blue-700 text-[11px] font-medium truncate max-w-full">
-      <Mail className="h-2.5 w-2.5 shrink-0" />
-      <span className="truncate">{email}</span>
-    </span>
-  );
-}
-
-function NoEmailBadge() {
-  return (
-    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-600 text-[10px] truncate">
-      <AlertCircle className="h-2.5 w-2.5 shrink-0" />
-      no email found
-    </span>
-  );
-}
-
-function ExtractingBadge() {
-  return (
-    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-gray-300 bg-gray-50 text-gray-500 text-[10px] animate-pulse">
-      <RefreshCw className="h-2.5 w-2.5 shrink-0 animate-spin" />
-      extracting…
-    </span>
-  );
-}
-
-function SentBadge({ date }) {
-  return (
-    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-green-400 bg-green-50 text-green-700 text-[10px] font-medium">
-      <Check className="h-2.5 w-2.5 shrink-0" />
-      sent {fmtDate(date)}
-    </span>
-  );
-}
-
 function TemplateEditor({ template, onSave }) {
   const [subject, setSubject] = useState(template?.subject || "");
   const [bodyHtml, setBodyHtml] = useState(template?.body_html || "");
@@ -101,7 +65,7 @@ function TemplateEditor({ template, onSave }) {
               className="w-full px-2 py-1.5 text-xs font-mono border rounded-md bg-background resize-y" data-testid="template-body-input" />
           </div>
           <div className="text-[10px] text-muted-foreground">
-            {"{{author_name}} {{paper_title}} {{category}} {{rank}} {{period}} {{paper_id}} {{total_papers}} {{arxiv_id}}"}
+            {"{{author_name}} {{paper_title}} {{category}} {{rank}} {{period}} {{paper_id}} {{total_papers}} {{arxiv_id}} {{leaderboard_url}} {{badge_html}}"}
           </div>
           <Button size="sm" onClick={handleSave} disabled={saving} className="h-7 text-xs" data-testid="template-save-btn">
             {saving ? "Saving…" : "Save Template"}
@@ -154,18 +118,15 @@ export default function EmailOutreachPage() {
   const [template, setTemplate] = useState(null);
   const [gmailStatus, setGmailStatus] = useState(null);
   const [query, setQuery] = useState("");
-  const [extracting, setExtracting] = useState(new Set()); // paper ids being extracted
-  const [editingManual, setEditingManual] = useState(null); // paper id with open manual input
+  const [extracting, setExtracting] = useState(new Set());
   const [sending, setSending] = useState(new Set());
   const [stats, setStats] = useState({});
 
-  // Auth check
   useEffect(() => {
     const token = sessionStorage.getItem("admin_token") || localStorage.getItem("admin_token");
     if (!token) navigate("/admin", { replace: true });
   }, [navigate]);
 
-  // Load archive periods + template + gmail status
   useEffect(() => {
     const h = getAdminHeaders();
     axios.get(`${API}/api/admin/outreach/archive-periods`, { headers: h })
@@ -180,7 +141,6 @@ export default function EmailOutreachPage() {
       .then(r => setGmailStatus(r.data)).catch(() => {});
   }, []);
 
-  // Load medalists
   const loadMedalists = useCallback(async () => {
     if (!period) return;
     setLoading(true);
@@ -211,7 +171,6 @@ export default function EmailOutreachPage() {
     axios.post(`${API}/api/admin/email-outreach/extract-emails-batch`,
       { paper_ids: unextracted }, { headers: getAdminHeaders() })
       .then(() => {
-        // Poll for completion
         let attempts = 0;
         const poll = setInterval(async () => {
           attempts++;
@@ -241,7 +200,6 @@ export default function EmailOutreachPage() {
       .catch(() => setExtracting(new Set()));
   }, [papers.length > 0 && papers[0]?.id, period]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Single extract
   const handleExtract = async (paperId) => {
     setExtracting(prev => new Set([...prev, paperId]));
     try {
@@ -256,7 +214,6 @@ export default function EmailOutreachPage() {
     finally { setExtracting(prev => { const n = new Set(prev); n.delete(paperId); return n; }); }
   };
 
-  // Send email
   const handleSend = async (paper) => {
     if (!paper.emails?.length) return;
     if (!window.confirm(`Send congratulations to ${paper.emails.join(", ")}?`)) return;
@@ -272,7 +229,6 @@ export default function EmailOutreachPage() {
     finally { setSending(prev => { const n = new Set(prev); n.delete(paper.id); return n; }); }
   };
 
-  // Test send (to roblauko@gmail.com)
   const handleTestSend = async (paper) => {
     if (!window.confirm(`Send TEST email (with badge) to roblauko@gmail.com for "${paper.title?.slice(0, 50)}..."?`)) return;
     setSending(prev => new Set([...prev, paper.id]));
@@ -285,7 +241,6 @@ export default function EmailOutreachPage() {
     finally { setSending(prev => { const n = new Set(prev); n.delete(paper.id); return n; }); }
   };
 
-  // Filter
   const filtered = useMemo(() => {
     if (!query.trim()) return papers;
     const q = query.toLowerCase();
@@ -297,13 +252,12 @@ export default function EmailOutreachPage() {
     );
   }, [papers, query]);
 
-  const cols = ["2rem", "1fr", "10rem", "7rem", "5rem", "5.5rem"];
+  const cols = ["2rem", "1fr", "12rem", "6rem", "4.5rem", "5.5rem"];
   const gridStyle = { gridTemplateColumns: cols.join(" ") };
 
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 sm:py-6">
-        {/* Top bar */}
         <div className="flex items-center justify-between mb-4">
           <Link to="/admin/dashboard" data-testid="email-outreach-back"
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
@@ -316,7 +270,6 @@ export default function EmailOutreachPage() {
           </Button>
         </div>
 
-        {/* Title */}
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" data-testid="email-outreach-title">
           Email Outreach
         </h1>
@@ -332,7 +285,6 @@ export default function EmailOutreachPage() {
           </div>
         )}
 
-        {/* Period + template + search */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
           <select value={period} onChange={(e) => setPeriod(e.target.value)}
             className="h-8 px-2 text-xs border rounded-md bg-background min-w-[180px]"
@@ -362,22 +314,20 @@ export default function EmailOutreachPage() {
           </div>
         </div>
 
-        {/* Stats */}
         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mb-4" data-testid="email-outreach-stats">
           <span>{stats.total || 0} papers</span>
           <span className="text-blue-600">{stats.withEmails || 0} with emails</span>
-          <span className="text-amber-600">{stats.noEmails || 0} no email found</span>
+          <span className="text-amber-600">{stats.noEmails || 0} no email</span>
           <span className="text-green-600">{stats.sent || 0} sent</span>
           {extracting.size > 0 && (
             <span className="text-gray-500 animate-pulse">extracting {extracting.size}…</span>
           )}
         </div>
 
-        {/* Table */}
         {loading && !papers.length ? (
           <div className="space-y-3">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="h-12 bg-secondary/30 rounded-lg animate-pulse" />
+              <div key={i} className="h-10 bg-secondary/30 rounded animate-pulse" />
             ))}
           </div>
         ) : filtered.length === 0 ? (
@@ -387,111 +337,100 @@ export default function EmailOutreachPage() {
           </div>
         ) : (
           <div className="border border-border rounded-lg overflow-x-auto" data-testid="email-outreach-table">
-            {/* Header */}
-            <div className={`${GRID} py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border select-none`}
+            <div className={`${GRID} py-2 bg-secondary/40 text-[11px] font-medium text-muted-foreground border-b border-border select-none`}
               style={gridStyle}>
               <div>#</div>
               <div>Paper</div>
               <div>Emails</div>
               <div>Category</div>
               <div className="text-right">Status</div>
-              <div className="text-right">Send</div>
+              <div className="text-right"></div>
             </div>
-            {/* Rows */}
+
             {filtered.map((p, i) => {
               const isExtracting = extracting.has(p.id);
               const isSending = sending.has(p.id);
               const medal = { 1: "\u{1F947}", 2: "\u{1F948}", 3: "\u{1F949}" }[p.rank] || "";
+              const hasEmails = p.emails?.length > 0;
 
               return (
                 <div key={p.id} data-testid={`email-row-${p.id}`}>
                   <div
-                    className={`${GRID} py-2 sm:py-3 items-center border-b border-border/50 last:border-0 transition-colors ${
-                      p.already_sent ? "bg-green-50/40" : ""
+                    className={`${GRID} py-2.5 items-center border-b border-border/40 last:border-0 hover:bg-secondary/20 transition-colors ${
+                      p.already_sent ? "bg-green-50/30" : ""
                     }`}
                     style={gridStyle}
                   >
-                    {/* # */}
-                    <div className="text-xs text-muted-foreground font-mono">{i + 1}</div>
+                    <div className="text-[11px] text-muted-foreground/70 font-mono">{i + 1}</div>
 
-                    {/* Paper */}
                     <div className="min-w-0">
-                      <p className="text-xs sm:text-sm font-medium truncate leading-tight" title={p.title}>
-                        {medal} {p.title}
+                      <p className="text-[13px] font-medium truncate leading-snug" title={p.title}>
+                        {medal && <span className="mr-0.5">{medal}</span>}{p.title}
                       </p>
-                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">
+                      <p className="text-[11px] text-muted-foreground truncate mt-0.5">
                         {(p.authors || []).slice(0, 2).join(", ")}
                         {(p.authors || []).length > 2 && ` +${p.authors.length - 2}`}
-                        {p.arxiv_id && <span className="ml-2 text-accent">{p.arxiv_id}</span>}
+                        {p.arxiv_id && <span className="ml-1.5 text-accent/70">{p.arxiv_id}</span>}
                       </p>
                     </div>
 
-                    {/* Emails */}
-                    <div className="min-w-0 space-y-0.5">
+                    <div className="min-w-0">
                       {isExtracting ? (
-                        <ExtractingBadge />
-                      ) : p.emails?.length > 0 ? (
-                        p.emails.map(e => <EmailBadge key={e} email={e} />)
-                      ) : p.emails_extracted ? (
-                        <div className="space-y-0.5">
-                          <NoEmailBadge />
-                          <button onClick={() => setEditingManual(editingManual === p.id ? null : p.id)}
-                            className="text-[10px] text-accent hover:underline" data-testid={`manual-btn-${p.id}`}>
-                            <Edit className="h-2.5 w-2.5 inline mr-0.5" />add manually
-                          </button>
+                        <span className="text-[11px] text-muted-foreground/60 italic flex items-center gap-1">
+                          <RefreshCw className="h-2.5 w-2.5 animate-spin" /> extracting…
+                        </span>
+                      ) : hasEmails ? (
+                        <div className="space-y-0">
+                          {p.emails.slice(0, 2).map(e => (
+                            <p key={e} className="text-[11px] text-blue-600 truncate leading-relaxed" title={e}>{e}</p>
+                          ))}
+                          {p.emails.length > 2 && (
+                            <p className="text-[10px] text-muted-foreground/60">+{p.emails.length - 2} more</p>
+                          )}
                         </div>
+                      ) : p.emails_extracted ? (
+                        <span className="text-[11px] text-muted-foreground/50 italic">no email found</span>
                       ) : (
                         <button onClick={() => handleExtract(p.id)}
-                          className="text-[10px] text-accent hover:underline" data-testid={`extract-btn-${p.id}`}>
-                          <Users className="h-2.5 w-2.5 inline mr-0.5" />extract
+                          className="text-[11px] text-accent/70 hover:text-accent hover:underline" data-testid={`extract-btn-${p.id}`}>
+                          extract
                         </button>
                       )}
                     </div>
 
-                    {/* Category */}
-                    <div className="text-[11px] text-muted-foreground truncate" title={`${p.category_name} · #${p.rank}`}>
-                      {p.category_name || p.category}
-                      <span className="text-muted-foreground/70"> · #{p.rank}</span>
+                    <div className="text-[11px] text-muted-foreground/70 truncate" title={`${p.category_name} · #${p.rank}`}>
+                      {p.category_name || p.category} <span className="opacity-60">#{p.rank}</span>
                     </div>
 
-                    {/* Status */}
                     <div className="text-right">
                       {p.already_sent ? (
-                        <SentBadge date={p.sent_at} />
-                      ) : p.emails?.length > 0 ? (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-blue-600">ready</span>
+                        <span className="text-[10px] text-green-600">sent {fmtDate(p.sent_at)}</span>
+                      ) : hasEmails ? (
+                        <span className="text-[10px] text-blue-500">ready</span>
                       ) : (
-                        <span className="text-[10px] text-muted-foreground">—</span>
+                        <span className="text-[10px] text-muted-foreground/40">—</span>
                       )}
                     </div>
 
-                    {/* Send button */}
                     <div className="flex items-center justify-end gap-1">
                       <button onClick={() => handleTestSend(p)} disabled={isSending}
-                        className="h-6 px-1.5 rounded border border-amber-400 text-amber-600 hover:bg-amber-50 text-[9px] font-medium transition-colors disabled:opacity-50"
+                        className="h-5 px-1.5 rounded text-[9px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
                         title="Test send to roblauko@gmail.com" data-testid={`test-btn-${p.id}`}>
                         {isSending ? "…" : "Test"}
                       </button>
-                      {!p.already_sent && p.emails?.length > 0 && gmailStatus?.authorized ? (
+                      {!p.already_sent && hasEmails && gmailStatus?.authorized ? (
                         <button onClick={() => handleSend(p)} disabled={isSending}
-                          className="h-6 w-6 rounded border border-accent text-accent hover:bg-accent hover:text-background flex items-center justify-center transition-colors disabled:opacity-50"
+                          className="h-5 w-5 rounded text-accent hover:bg-accent hover:text-background flex items-center justify-center transition-colors disabled:opacity-50"
                           title="Send email" data-testid={`send-btn-${p.id}`}>
                           {isSending ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
                         </button>
                       ) : p.already_sent ? (
-                        <Check className="h-3.5 w-3.5 text-green-600" />
+                        <Check className="h-3.5 w-3.5 text-green-500" />
                       ) : (
-                        <span className="text-muted-foreground/30"><Send className="h-3 w-3" /></span>
+                        <Send className="h-3 w-3 text-muted-foreground/20" />
                       )}
                     </div>
                   </div>
-
-                  {/* Manual email input row */}
-                  {editingManual === p.id && (
-                    <div className="px-4 py-2 bg-secondary/20 border-b border-border/50">
-                      <ManualEmailInput paperId={p.id} onSaved={() => { setEditingManual(null); loadMedalists(); }} />
-                    </div>
-                  )}
                 </div>
               );
             })}
