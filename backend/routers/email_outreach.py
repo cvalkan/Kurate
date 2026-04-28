@@ -485,16 +485,20 @@ async def send_outreach_email(body: SendEmailRequest):
         service = build("gmail", "v1", credentials=creds, cache_discovery=False)
         sent_to = []
         for to_email in body.to_emails[:5]:
+            # Proper MIME structure for inline images:
+            # multipart/related
+            #   ├── multipart/alternative
+            #   │     └── text/html (references cid:badge)
+            #   └── image/png (Content-ID: <badge>)
             msg = MIMEMultipart("related")
             msg["to"] = to_email
             msg["subject"] = subject
             msg["from"] = "robert@kurate.org"
 
-            # HTML part
-            html_part = MIMEText(body_html, "html")
-            msg.attach(html_part)
+            msg_alt = MIMEMultipart("alternative")
+            msg_alt.attach(MIMEText(body_html, "html"))
+            msg.attach(msg_alt)
 
-            # Attach badge image inline
             if badge_png:
                 from email.mime.image import MIMEImage
                 img_part = MIMEImage(badge_png, _subtype="png")
