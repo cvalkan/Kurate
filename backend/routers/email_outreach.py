@@ -39,7 +39,7 @@ Full category ranking: <a href="{{leaderboard_url}}">{{leaderboard_url}}</a></p>
 <a href="{{twitter_share_url}}" style="text-decoration:none;">Share on X</a> &nbsp;|&nbsp;
 <a href="{{linkedin_share_url}}" style="text-decoration:none;">Share on LinkedIn</a></p>
 
-<p>Congratulations - and if the ranking surprises you (positively or negatively), I'd love to hear your take. I'm always refining the methodology.</p>
+<p>Congratulations on your achievement! If the ranking surprises you (positively or negatively), I'd love to hear your take. I'm always refining the methodology.</p>
 
 <p>Best,<br>Robert<br><a href="https://kurate.org">Kurate.org</a></p>""",
 }
