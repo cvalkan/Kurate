@@ -26,7 +26,7 @@ DEFAULT_TEMPLATE = {
     "subject": "Your paper ranked #{{rank}} in {{category}} on Kurate.org",
     "body_html": """<p>Hi {{author_name}},</p>
 
-<p>Your paper <strong>"{{paper_title}}"</strong> was ranked <strong>#{{rank}}</strong> in <strong>{{category}}</strong> for {{period}} on <a href="https://kurate.org">Kurate.org</a>, based on AI-evaluated scientific impact across {{total_papers}} papers.</p>
+<p>Your paper <strong>"{{paper_title}}"</strong> was ranked <strong>#{{rank}}</strong> in <strong>{{category}}</strong> for {{period}} on <a href="https://kurate.org">Kurate.org</a>, based on AI-evaluated scientific impact across {{total_papers}} papers. Congratulations on your achievement!</p>
 
 <p>Kurate ranks preprints using <a href="https://kurate.org/methodology">pairwise tournaments</a> where multiple AI models compare papers head-to-head on scientific impact, including novelty, rigor, and real-world applications. Your paper came out on top.</p>
 
@@ -39,9 +39,9 @@ Full category ranking: <a href="{{leaderboard_url}}">{{leaderboard_url}}</a></p>
 <a href="{{twitter_share_url}}" style="text-decoration:none;">Share on X</a> &nbsp;|&nbsp;
 <a href="{{linkedin_share_url}}" style="text-decoration:none;">Share on LinkedIn</a></p>
 
-<p>Congratulations on your achievement! If the ranking surprises you (positively or negatively), I'd love to hear your take. I'm always refining the methodology.</p>
+<p>If the ranking surprises you (positively or negatively), I'd love to hear your take. I'm always refining the methodology and appreciate feedback of all kind.</p>
 
-<p>Best,<br>Robert<br><a href="https://kurate.org">Kurate.org</a></p>""",
+<p>Best,<br>Robert Lauko<br><a href="https://kurate.org">Kurate.org</a></p>""",
 }
 
 
