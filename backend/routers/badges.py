@@ -462,7 +462,7 @@ async def badge_exists(category: str, year: int, week: int, paper_id: str):
         return {"has_badge": False}
     paper = archive["leaderboard"][0]
     tier = _get_tier(paper.get("rank", 999))
-    return {"has_badge": bool(tier), "rank": paper.get("rank_ts", paper.get("rank")), "tier": tier["name"] if tier else None}
+    return {"has_badge": bool(tier), "rank": paper.get("rank", 999), "tier": tier["name"] if tier else None}
 
 
 async def _find_paper_badge(paper_id: str) -> dict:
@@ -493,7 +493,7 @@ async def _find_paper_badge(paper_id: str) -> dict:
         p = next((entry for entry in lb if entry.get("id") == paper_id), None)
         if not p:
             continue
-        archive_rank = _compute_archive_rank(lb, paper_id)
+        archive_rank = p.get("rank", 999)
         # Medal requires minimum matches — prevents meaningless badges from 1-2 matches
         paper_comparisons = p.get("comparisons") or 0
         tier = _get_tier(archive_rank) if paper_comparisons >= MIN_MATCHES_FOR_MEDAL else None
@@ -776,8 +776,8 @@ async def get_paper_badges(paper_id: str):
         if not p:
             continue
 
-        # Compute rank by sorting full leaderboard by ts_score (consistent with list view)
-        rank = _compute_archive_rank(lb, paper_id)
+        # Use the stored rank from the frozen archive
+        rank = p.get("rank", 999)
 
         paper_comparisons = p.get("comparisons") or 0
         tier = _get_tier(rank) if paper_comparisons >= MIN_MATCHES_FOR_MEDAL else None
