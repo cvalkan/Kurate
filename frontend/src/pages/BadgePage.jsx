@@ -54,14 +54,16 @@ function normalizeBadgeData(raw, { category, year, slug, paperId, isShareMode })
 }
 
 function buildShareText(d, variant = "author") {
-  const arxivSuffix = d.arxiv_id ? `\nhttps://arxiv.org/abs/${d.arxiv_id}` : "";
   const tierLabel = d.tier ? `${d.tier} ` : "";
   const periodLabel = d.archive_label ? ` (${d.archive_label})` : "";
+  // Don't include arXiv URL or "Kurate.org" (with dot) in tweet text —
+  // Twitter auto-links bare domains and picks one to unfurl.
+  // The badge share URL (passed via ?url= param) should be the only link.
   if (variant === "congrats") {
     const names = d.authors.slice(0, 2).join(" & ") + (d.authors.length > 2 ? " et al." : "");
-    return `Congrats to ${names} for ranking #${d.rank} ${tierLabel}in ${d.category_name} Preprints${periodLabel} on Kurate.org!${arxivSuffix}`;
+    return `Congrats to ${names} for ranking #${d.rank} ${tierLabel}in ${d.category_name} Preprints${periodLabel} on Kurate!`;
   }
-  return `Our paper "${d.title}" ranked #${d.rank} ${tierLabel}in ${d.category_name} Preprints${periodLabel} on Kurate.org!${arxivSuffix}`;
+  return `Our paper "${d.title}" ranked #${d.rank} ${tierLabel}in ${d.category_name} Preprints${periodLabel} on Kurate!`;
 }
 
 function openTwitter(text, url) {
