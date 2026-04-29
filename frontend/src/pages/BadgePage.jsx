@@ -65,7 +65,7 @@ export default function BadgePage() {
   }
 
   const shareUrl = isShareMode
-    ? `${window.location.origin}/api/badge/paper/${paperId}/share/page`
+    ? (data.badge?.badge_url ? `${window.location.origin}/api${data.badge.badge_url}/share` : `${window.location.origin}/api/badge/paper/${paperId}/share/page`)
     : `${window.location.origin}/api/badge/${category}/${year}/${slug}/${paperId}/share`;
   const archiveLeaderboardUrl = isShareMode
     ? (data.badge?.leaderboard_url || `/?cat=${data.category}&period=all`)
@@ -76,10 +76,14 @@ export default function BadgePage() {
     : `${API}/api/badge/${category}/${year}/${slug}/${paperId}/image.png`;
   const arxivUrl = data.arxiv_id ? `https://arxiv.org/abs/${data.arxiv_id}` : "";
   const arxivSuffix = arxivUrl ? `\n${arxivUrl}` : "";
-  const tierLabel = data.tier ? `${data.tier} ` : "";
-  const periodLabel = data.archive_label ? ` (${data.archive_label})` : "";
-  const authorTweet = `Our paper "${data.title}" ranked #${data.rank} ${tierLabel}in ${data.category_name} Preprints${periodLabel} on Kurate.org!${arxivSuffix}`;
-  const congratsTweet = `Congrats to ${data.authors?.slice(0, 2).join(" & ")}${data.authors?.length > 2 ? " et al." : ""} for ranking #${data.rank} ${tierLabel}in ${data.category_name} Preprints${periodLabel} on Kurate.org!${arxivSuffix}`;
+  // For sharing text, use the badge's archive rank (not the all-time rank)
+  const badgeRank = (isShareMode && data.badge?.rank) ? data.badge.rank : data.rank;
+  const badgeTier = (isShareMode && data.badge?.tier) ? data.badge.tier : data.tier;
+  const tierLabel = badgeTier ? `${badgeTier} ` : "";
+  const badgePeriod = isShareMode ? data.badge?.archive_label : data.archive_label;
+  const periodLabel = badgePeriod ? ` (${badgePeriod})` : "";
+  const authorTweet = `Our paper "${data.title}" ranked #${badgeRank} ${tierLabel}in ${data.category_name} Preprints${periodLabel} on Kurate.org!${arxivSuffix}`;
+  const congratsTweet = `Congrats to ${data.authors?.slice(0, 2).join(" & ")}${data.authors?.length > 2 ? " et al." : ""} for ranking #${badgeRank} ${tierLabel}in ${data.category_name} Preprints${periodLabel} on Kurate.org!${arxivSuffix}`;
 
   const copyLink = () => {
     navigator.clipboard.writeText(archiveLeaderboardUrl.startsWith("http") ? archiveLeaderboardUrl : `${window.location.origin}${archiveLeaderboardUrl}`);
