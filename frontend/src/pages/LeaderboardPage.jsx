@@ -146,21 +146,17 @@ export default function LeaderboardPage() {
   const sortedArchiveLeaderboard = useMemo(() => {
     if (!activeArchive?.leaderboard) return null;
     const data = [...activeArchive.leaderboard];
-    // Map sort key based on scoring method
-    // For "rank" sort: use ts_score/os_score (archive rank_ts is global, not period-specific)
-    const key = sortKey === "rank" && scoringMethod === "ts" ? "ts_score"
-      : sortKey === "rank" && scoringMethod === "os" ? "os_score"
-      : sortKey === "rank" ? "ts_score"
+    // Default "rank" sort uses the frozen archive rank field (the truth at archive time)
+    const key = sortKey === "rank" ? "rank"
       : sortKey === "score" && scoringMethod === "ts" ? "ts_score"
       : sortKey === "score" && scoringMethod === "os" ? "os_score"
       : sortKey === "gap_score" && scoringMethod === "ts" ? "gap_score_ts"
       : sortKey === "wilson_margin" && scoringMethod === "ts" ? "ts_sigma"
       : sortKey === "wilson_margin" && scoringMethod === "os" ? "os_sigma"
-      : sortKey || "ts_score";
-    // Rank sort: "asc" means rank 1,2,3 (score desc), "desc" means rank reversed (score asc)
+      : sortKey || "rank";
     const dir = sortKey === "rank"
-      ? (sortDir === "desc" ? "asc" : "desc")
-      : (sortDir || "asc");
+      ? (sortDir || "asc")
+      : (sortDir || "desc");
     data.sort((a, b) => {
       let va = a[key], vb = b[key];
       if (typeof va === "string" && typeof vb === "string") {
