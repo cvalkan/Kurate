@@ -300,8 +300,15 @@ async def extract_emails_for_paper(body: ExtractEmailsRequest):
         parsed = json.loads(cleaned)
         if isinstance(parsed, list):
             emails = [e for e in parsed if isinstance(e, str) and "@" in e]
+        # Track successful extraction
+        from services.llm import track_llm_usage
+        await track_llm_usage("openai", "gpt-4o-mini", context="email_extract", success=True,
+                              input_tokens=len(snippet) // 4, output_tokens=len(cleaned) // 4)
     except Exception as e:
         logger.warning(f"[email-extract] LLM extraction failed for {body.paper_id}: {e}")
+        from services.llm import track_llm_usage
+        await track_llm_usage("openai", "gpt-4o-mini", context="email_extract", success=False,
+                              input_tokens=len(snippet) // 4)
 
     await _cache_emails(body.paper_id, emails, paper.get("authors", []), has_full_text=bool(full_text))
     return {"paper_id": body.paper_id, "emails": emails}

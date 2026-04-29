@@ -41,6 +41,25 @@ async def _log_llm_error(provider: str, model: str, error: str, context: str = "
     except Exception:
         pass  # never let logging break the caller
 
+
+async def track_llm_usage(provider: str, model: str, context: str, success: bool,
+                          input_tokens: int = 0, output_tokens: int = 0, thinking_tokens: int = 0):
+    """Track every LLM call (successful or failed) in a single collection.
+    Used for cost accounting across all call sites."""
+    try:
+        await db.llm_usage.insert_one({
+            "ts": datetime.now(timezone.utc),
+            "provider": provider,
+            "model": model,
+            "context": context,  # e.g. "summary", "match", "email_extract", "validation"
+            "success": success,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "thinking_tokens": thinking_tokens,
+        })
+    except Exception:
+        pass
+
 _TOKEN_LIMIT_KEYWORDS = ("token", "context_length", "context length", "too long", "too many tokens",
                          "maximum context", "max_tokens", "content_too_large", "request too large",
                          "input too long", "payload too large")

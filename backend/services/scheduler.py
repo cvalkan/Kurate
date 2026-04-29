@@ -1319,6 +1319,13 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
             except Exception as e:
                 failed += 1
                 _sync_progress()
+                # Track the failed attempt's cost
+                from services.llm import track_llm_usage
+                await track_llm_usage(
+                    model_info.get("provider", ""), model_info.get("model", ""),
+                    context="summary", success=False,
+                    input_tokens=len(paper.get("full_text", "") or paper.get("abstract", "") or "") // 4,
+                )
                 # Increment failure counter for this paper+model
                 await db.papers.update_one(
                     {"id": paper_id},
@@ -1355,6 +1362,16 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                     await db.papers.update_one(
                         {"id": paper["id"]},
                         {"$set": update_fields, "$unset": {f"summary_failures.{mk}": ""}},
+                    )
+                    # Track successful summary generation
+                    from services.llm import track_llm_usage
+                    tokens = result.get("tokens", {})
+                    await track_llm_usage(
+                        model_info.get("provider", ""), model_info.get("model", ""),
+                        context="summary", success=True,
+                        input_tokens=tokens.get("input", 0),
+                        output_tokens=tokens.get("output", 0),
+                        thinking_tokens=tokens.get("thinking", 0),
                     )
                     generated += 1
                     _sync_progress()
@@ -1593,6 +1610,16 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                     completed += 1
 
                 await db.matches.insert_one(match_doc)
+                # Track LLM usage for this match
+                from services.llm import track_llm_usage
+                match_tokens = match_doc.get("tokens", {})
+                match_model = match_doc.get("model_used", {})
+                await track_llm_usage(
+                    match_model.get("provider", ""), match_model.get("model", ""),
+                    context="match", success=match_doc.get("completed", False),
+                    input_tokens=match_tokens.get("input_est", match_tokens.get("input", 0)),
+                    output_tokens=match_tokens.get("output_est", match_tokens.get("output", 0)),
+                )
                 # Bump incremental match counter (avoids full-collection scan in _refresh_cache)
                 from routers.leaderboard import bump_match_counter
                 bump_match_counter(category, failed=match_doc.get("failed", False))

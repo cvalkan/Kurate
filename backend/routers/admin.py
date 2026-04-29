@@ -1237,6 +1237,42 @@ async def get_usage_stats(category: str = None):
     return result
 
 
+@router.get("/llm-usage", dependencies=[Depends(verify_admin)])
+async def get_llm_usage_aggregate(days: int = 7):
+    """Aggregate LLM usage from the llm_usage collection, grouped by day and context."""
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    pipeline = [
+        {"$match": {"ts": {"$gte": cutoff}}},
+        {"$group": {
+            "_id": {
+                "date": {"$dateToString": {"format": "%Y-%m-%d", "date": "$ts"}},
+                "context": "$context",
+                "success": "$success",
+            },
+            "calls": {"$sum": 1},
+            "input_tokens": {"$sum": "$input_tokens"},
+            "output_tokens": {"$sum": "$output_tokens"},
+            "thinking_tokens": {"$sum": "$thinking_tokens"},
+        }},
+        {"$sort": {"_id.date": -1}},
+    ]
+    results = []
+    async for doc in db.llm_usage.aggregate(pipeline):
+        results.append({
+            "date": doc["_id"]["date"],
+            "context": doc["_id"]["context"],
+            "success": doc["_id"]["success"],
+            "calls": doc["calls"],
+            "input_tokens": doc["input_tokens"],
+            "output_tokens": doc["output_tokens"],
+            "thinking_tokens": doc["thinking_tokens"],
+        })
+    return {"usage": results, "days": days}
+
+
+
 @router.get("/prompt", dependencies=[Depends(verify_admin)])
 async def get_evaluation_prompt():
     doc = await db.settings.find_one({"key": "custom_prompt"}, {"_id": 0})
