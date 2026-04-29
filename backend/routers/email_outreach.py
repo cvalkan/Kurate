@@ -429,7 +429,11 @@ async def send_outreach_email(body: SendEmailRequest):
             subject_tpl = tpl["subject"]
             body_tpl = tpl["body_html"]
 
-    cat_names = dict(CATEGORIES)
+    try:
+        from core.arxiv_categories import ARXIV_TAXONOMY
+    except ImportError:
+        ARXIV_TAXONOMY = {}
+    cat_names = {**ARXIV_TAXONOMY, **dict(CATEGORIES)}
     category_name = cat_names.get(body.category, body.category)
 
     # Parse period to get year/week/month for badge + leaderboard URL
