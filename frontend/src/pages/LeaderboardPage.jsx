@@ -154,8 +154,8 @@ export default function LeaderboardPage() {
     }
     // Non-default sort: sort by the requested field
     const key = sortKey === "score" ? "score"
-      : sortKey === "gap_score" ? "gap_score"
-      : sortKey === "wilson_margin" ? "wilson_margin"
+      : sortKey === "wilson_margin" ? "ts_sigma"
+      : sortKey === "gap_score" ? "gap_score_ts"
       : sortKey;
     const dir = sortDir || "desc";
     data.sort((a, b) => {

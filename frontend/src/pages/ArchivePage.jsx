@@ -72,7 +72,10 @@ export default function ArchivePage() {
     }
 
     // Non-default sort
-    const key = sortKey === "score" ? "score" : sortKey;
+    const key = sortKey === "score" ? "score"
+      : sortKey === "wilson_margin" ? "ts_sigma"
+      : sortKey === "gap_score" ? "gap_score_ts"
+      : sortKey;
     const dir = sortDir || "desc";
     data.sort((a, b) => {
       let va = a[key], vb = b[key];
