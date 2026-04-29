@@ -131,17 +131,6 @@ def _truncate(text: str, max_len: int) -> str:
     return text[:max_len - 1] + "\u2026" if len(text) > max_len else text
 
 
-def _compute_archive_rank(leaderboard: list, paper_id: str) -> int:
-    """Compute paper rank from archive leaderboard by sorting on ts_score.
-    Every paper should have ts_score (computed from matches or default 1200)."""
-    sorted_lb = sorted(
-        leaderboard,
-        key=lambda p: p.get("ts_score") or 1200,
-        reverse=True,
-    )
-    return next((i + 1 for i, p in enumerate(sorted_lb) if p.get("id") == paper_id), 999)
-
-
 async def _get_badge_data(category: str, year: int, paper_id: str, week: int = None, month: int = None) -> dict:
     """Fetch archive and extract badge data for a specific paper. Works for both weekly and monthly."""
     if week is not None:
