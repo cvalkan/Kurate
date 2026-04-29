@@ -796,36 +796,6 @@ async def get_paper_badges(paper_id: str):
     return {"badges": badges}
 
 
-    paper = next((p for p in lb if p.get("id") == paper_id), None)
-    if not paper:
-        raise HTTPException(404, "Paper not found in this archive")
-
-    tier = _get_tier(paper.get("rank_ts", paper.get("rank", 999)))
-    if not tier:
-        raise HTTPException(404, "Paper is not in the top 3 for this period")
-
-    if not paper.get("comparisons"):
-        raise HTTPException(404, "Paper has no tournament matches yet — badge unavailable")
-
-    return {
-        "title": paper.get("title"),
-        "authors": paper.get("authors", []),
-        "rank": paper.get("rank_ts", paper.get("rank", 999)),
-        "score": paper.get("score"),
-        "win_rate": paper.get("win_rate"),
-        "comparisons": paper.get("comparisons"),
-        "tier": tier["name"],
-        "tier_color": tier["color"],
-        "archive_label": archive.get("label", f"Month {month}, {year}"),
-        "category": category,
-        "category_name": CATEGORIES.get(category, category),
-        "paper_count": archive.get("paper_count", len(lb)),
-        "arxiv_id": paper.get("arxiv_id"),
-        "paper_id": paper_id,
-        "image_url": f"/api/badge/{category}/{year}/m{month}/{paper_id}/image.png",
-    }
-
-
 @router.get("/{category}/{year}/m{month}/{paper_id}/image.png")
 async def get_monthly_badge_image(category: str, year: int, month: int, paper_id: str):
     """Serve pre-rendered monthly badge image, falling back to on-the-fly rendering."""
@@ -848,10 +818,11 @@ async def get_monthly_badge_image(category: str, year: int, month: int, paper_id
     paper = next((p for p in lb if p.get("id") == paper_id), None)
     if not paper:
         raise HTTPException(404, "Paper not found")
-    tier = _get_tier(paper.get("rank_ts", paper.get("rank", 999)))
+    rank = paper.get("rank", 999)
+    tier = _get_tier(rank)
     if not tier:
         raise HTTPException(404, "Not in top 3")
-    data = {"paper": paper, "tier": tier, "archive_label": archive.get("label"),
+    data = {"paper": paper, "rank": rank, "tier": tier, "archive_label": archive.get("label"),
             "category": category, "category_name": CATEGORIES.get(category, category),
             "paper_count": archive.get("paper_count", len(lb))}
     paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "categories": 1})
