@@ -426,6 +426,7 @@ export default function LeaderboardPage() {
             sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
             showRatingCol={showRatingCol} showGapCol={showGapCol}
             scoringMethod={scoringMethod}
+            isArchive={!!activeArchive}
           />
           </div>
 

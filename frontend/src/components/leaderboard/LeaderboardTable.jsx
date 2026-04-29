@@ -45,7 +45,7 @@ export function LeaderboardTable({
   debouncedKeyword, keyword, onLoadMore, hasMore, loadingMore,
   sortKey, sortDir, onSort, showRatingCol = true, showGapCol = true,
   bookmarksMode = false, onRemoveBookmark, selectedPapers, onToggleSelect,
-  scoringMethod = "wr",
+  scoringMethod = "wr", isArchive = false,
 }) {
   const sentinelRef = useRef(null);
   const { bookmarkedIds, toggleBookmark } = useBookmarks();
@@ -74,7 +74,8 @@ export function LeaderboardTable({
   const OS_SCALE = 15.0; // Must match backend OS_SCALE in ranking.py
   const getScore = (p) => {
     if (isGlobal && p.global_score !== undefined) return p.global_score;
-    return p.ranking_score || p.ts_score || p.score;
+    if (isArchive) return p.ranking_score || p.ts_score || p.score;
+    return isTS ? (p.ts_score || p.score) : isOS ? (p.os_score || p.score) : p.score;
   };
   const getWinRate = (p) => isGlobal && p.global_win_rate !== undefined ? p.global_win_rate : p.win_rate;
   const getComparisons = (p) => isGlobal && p.global_comparisons !== undefined ? p.global_comparisons : p.comparisons;
@@ -92,7 +93,10 @@ export function LeaderboardTable({
     }
     return p.wilson_margin;
   };
-  const getRank = (p) => isTS ? (p.rank_ts || p.rank) : isOS ? (p.rank_os || p.rank) : (p.rank_wr || p.rank);
+  const getRank = (p) => {
+    if (isArchive) return p.rank;
+    return isTS ? (p.rank_ts || p.rank) : isOS ? (p.rank_os || p.rank) : (p.rank_wr || p.rank);
+  };
 
   const scoreRankMap = useMemo(() => {
     const scoreFn = isGlobal ? (p => p.global_score || 0)
@@ -105,20 +109,21 @@ export function LeaderboardTable({
     return map;
   }, [leaderboard, isGlobal, isTS]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-rank by global score or TrueSkill when those toggles are active.
-  // Sorting is done server-side — the table just displays in received order,
-  // except for TS/Global which are frontend-only view switches.
+  // Assign display rank to each entry.
+  // Archives: use stored rank (frozen truth).
+  // Live: use getRank (rank_ts/rank_os depending on scoring mode).
+  // Global: re-sort by global_score.
   const sorted = useMemo(() => {
-    let ranked;
     if (isGlobal) {
-      ranked = [...leaderboard].sort((a, b) => (b.global_score || 0) - (a.global_score || 0));
+      const ranked = [...leaderboard].sort((a, b) => (b.global_score || 0) - (a.global_score || 0));
       ranked.forEach((p, i) => { p._displayRank = i + 1; });
-    } else {
-      // Server-sorted: use the order from the backend (handles both WR and TS)
-      ranked = leaderboard.map((p, i) => ({ ...p, _displayRank: getRank(p) || (i + 1) }));
+      return ranked;
     }
-    return ranked;
-  }, [leaderboard, isGlobal]); // eslint-disable-line react-hooks/exhaustive-deps
+    return leaderboard.map((p, i) => ({
+      ...p,
+      _displayRank: getRank(p) || (i + 1),
+    }));
+  }, [leaderboard, isGlobal, isArchive, isTS, isOS]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build grid template based on visible columns and screen size
   // Mobile: #, Paper, Score only. Tablet: +Win%, Match. Desktop: all columns.
