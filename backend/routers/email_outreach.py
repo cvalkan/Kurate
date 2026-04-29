@@ -527,8 +527,8 @@ async def send_outreach_email(body: SendEmailRequest):
     tweet_text = f'Our paper "{paper.get("title", "")}" ranked #{body.rank} in {category_name} Preprints ({period_label}) on @kurateorg!'
 
     import urllib.parse
-    twitter_share_url = f"https://twitter.com/intent/tweet?text={urllib.parse.quote(tweet_text)}&url={urllib.parse.quote(share_url)}"
-    linkedin_share_url = f"https://www.linkedin.com/sharing/share-offsite/?url={urllib.parse.quote(share_url)}"
+    twitter_share_url = f"https://twitter.com/intent/tweet?text={urllib.parse.quote(tweet_text, safe='')}&url={urllib.parse.quote(share_url, safe='')}"
+    linkedin_share_url = f"https://www.linkedin.com/sharing/share-offsite/?url={urllib.parse.quote(share_url, safe='')}"
 
     variables = {
         "author_name": first_name,
