@@ -162,8 +162,8 @@ async def _get_badge_data(category: str, year: int, paper_id: str, week: int = N
     if not paper:
         raise HTTPException(404, "Paper not found in this archive")
 
-    # Compute rank by sorting the FULL archive leaderboard by ts_score (same as list view)
-    rank = _compute_archive_rank(lb, paper_id)
+    # Use the stored rank from the frozen archive (not recomputed)
+    rank = paper.get("rank", 999)
 
     tier = _get_tier(rank)
     if not tier:
