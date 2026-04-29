@@ -86,6 +86,32 @@ def _render_template(template_str: str, variables: dict) -> str:
     return result
 
 
+def _match_email_to_author(email: str, authors: list) -> str:
+    """Match a recipient email to an author name from the paper's author list.
+    Uses the email local part to fuzzy-match against author names.
+    Falls back to first author's first name if no match found."""
+    if not authors:
+        return "there"
+    local = email.split("@")[0].lower().replace(".", " ").replace("_", " ").replace("-", " ")
+    # Try matching each author's last name or first name against the email local part
+    best_match = None
+    for author in authors:
+        parts = author.lower().split()
+        for part in parts:
+            if len(part) >= 3 and part in local:
+                best_match = author
+                break
+        if best_match:
+            break
+    name = best_match or authors[0]
+    # Extract first name
+    first = name.split()[0]
+    if len(first) <= 2 or (len(first) <= 3 and first.endswith(".")):
+        return name
+    return first
+
+
+
 # --- Templates ---
 
 @router.get("/templates", dependencies=[Depends(verify_admin)])
@@ -567,6 +593,11 @@ async def send_outreach_email(body: SendEmailRequest):
         service = build("gmail", "v1", credentials=creds, cache_discovery=False)
         sent_to = []
         for to_email in body.to_emails[:5]:
+            # Personalize greeting: try to match recipient email to an author name
+            recipient_name = _match_email_to_author(to_email, authors)
+            variables["author_name"] = recipient_name
+            personalized_body = _render_template(body_tpl, variables)
+
             # Proper MIME structure for inline images:
             # multipart/related
             #   ├── multipart/alternative
@@ -578,7 +609,7 @@ async def send_outreach_email(body: SendEmailRequest):
             msg["from"] = "Robert Lauko <robert@kurate.org>"
 
             msg_alt = MIMEMultipart("alternative")
-            msg_alt.attach(MIMEText(body_html, "html"))
+            msg_alt.attach(MIMEText(personalized_body, "html"))
             msg.attach(msg_alt)
 
             if badge_png:
