@@ -74,7 +74,7 @@ export function LeaderboardTable({
   const OS_SCALE = 15.0; // Must match backend OS_SCALE in ranking.py
   const getScore = (p) => {
     if (isGlobal && p.global_score !== undefined) return p.global_score;
-    if (isArchive) return p.ranking_score || p.ts_score || p.score;
+    if (isArchive) return p.score;
     return isTS ? (p.ts_score || p.score) : isOS ? (p.os_score || p.score) : p.score;
   };
   const getWinRate = (p) => isGlobal && p.global_win_rate !== undefined ? p.global_win_rate : p.win_rate;
@@ -94,7 +94,7 @@ export function LeaderboardTable({
     return p.wilson_margin;
   };
   const getRank = (p) => {
-    if (isArchive) return p.rank;
+    if (isArchive) return null; // Archives derive rank from array position, handled below
     return isTS ? (p.rank_ts || p.rank) : isOS ? (p.rank_os || p.rank) : (p.rank_wr || p.rank);
   };
 
@@ -110,7 +110,7 @@ export function LeaderboardTable({
   }, [leaderboard, isGlobal, isTS]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Assign display rank to each entry.
-  // Archives: use stored rank (frozen truth).
+  // Archives: rank = array position (1-indexed). Array is sorted by score desc.
   // Live: use getRank (rank_ts/rank_os depending on scoring mode).
   // Global: re-sort by global_score.
   const sorted = useMemo(() => {
@@ -119,6 +119,11 @@ export function LeaderboardTable({
       ranked.forEach((p, i) => { p._displayRank = i + 1; });
       return ranked;
     }
+    if (isArchive) {
+      // Archive: position in array IS the rank (array sorted by score at freeze time)
+      return leaderboard.map((p, i) => ({ ...p, _displayRank: i + 1 }));
+    }
+    // Live leaderboard: use scoring-method-specific rank from backend
     return leaderboard.map((p, i) => ({
       ...p,
       _displayRank: getRank(p) || (i + 1),

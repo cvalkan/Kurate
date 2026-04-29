@@ -176,7 +176,7 @@ async def get_email_medalists(period: str = "weekly:2026-1", top_n: int = 3):
             if cat_freq != period_type:
                 continue
 
-        for p in archive.get("leaderboard", [])[:top_n]:
+        for i, p in enumerate(archive.get("leaderboard", [])[:top_n]):
             paper_id = p.get("id")
             # Get cached emails
             email_doc = await db.author_emails.find_one(
@@ -191,13 +191,11 @@ async def get_email_medalists(period: str = "weekly:2026-1", top_n: int = 3):
                 sent_emails.append({"to_email": s["to_email"], "sent_at": s["sent_at"]})
 
             cached_emails = email_doc.get("emails", []) if email_doc else []
-            # Mark as "extracted" only if emails were found OR the paper has full_text
-            # (abstract-only extractions with empty results should be retried)
             truly_extracted = email_doc is not None and (len(cached_emails) > 0 or email_doc.get("has_full_text", False))
 
             all_papers.append({
                 "id": paper_id,
-                "rank": p.get("rank"),
+                "rank": i + 1,
                 "title": p.get("title"),
                 "authors": p.get("authors", []),
                 "arxiv_id": p.get("arxiv_id"),

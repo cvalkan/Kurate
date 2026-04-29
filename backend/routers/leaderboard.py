@@ -1704,17 +1704,15 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
     if not source_entries:
         return None
 
-    # Freeze the leaderboard: store essential fields only
-    # `ranking_score` = the score used for rank ordering (currently ts_score)
+    # Freeze the leaderboard: entries sorted by score descending.
+    # Rank = array position (1-indexed). No rank field stored — derived from position.
     frozen_entries = []
-    for i, r in enumerate(source_entries, 1):
+    for r in source_entries:
         entry = {
-            "rank": i,
             "id": r.get("paper_id"),
             "title": r.get("title", ""),
             "authors": r.get("authors", []),
-            "ranking_score": r.get("ts_score") or r.get("score"),
-            "score": r.get("score"),
+            "score": r.get("ts_score") or r.get("score"),
             "wins": r.get("wins"),
             "losses": r.get("losses"),
             "comparisons": r.get("comparisons"),
@@ -1727,10 +1725,6 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
             "ai_rating": r.get("ai_rating"),
             "gap_score": r.get("gap_score"),
         }
-        # Include TS and OS scores if available
-        for field in ["ts_score", "ts_sigma", "rank_ts", "os_score", "os_sigma", "rank_os", "gap_score_ts"]:
-            if r.get(field) is not None:
-                entry[field] = r[field]
         frozen_entries.append(entry)
 
     if period_type == "weekly":
@@ -1743,6 +1737,7 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
     doc = {
         "category": category,
         "period_type": period_type,
+        "scoring_method": "ts",
         "year": year,
         "week": week if period_type == "weekly" else None,
         "month": month if period_type == "monthly" else None,

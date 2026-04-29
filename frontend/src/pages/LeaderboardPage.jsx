@@ -146,15 +146,18 @@ export default function LeaderboardPage() {
   const sortedArchiveLeaderboard = useMemo(() => {
     if (!activeArchive?.leaderboard) return null;
     const data = [...activeArchive.leaderboard];
-    // Default sort uses the stored archive rank (frozen truth, scoring-method independent)
-    const key = sortKey === "rank" ? "rank"
-      : sortKey === "score" && scoringMethod === "ts" ? "ranking_score"
-      : sortKey === "score" && scoringMethod === "os" ? "os_score"
-      : sortKey === "gap_score" && scoringMethod === "ts" ? "gap_score_ts"
-      : sortKey === "wilson_margin" && scoringMethod === "ts" ? "ts_sigma"
-      : sortKey === "wilson_margin" && scoringMethod === "os" ? "os_sigma"
-      : sortKey || "rank";
-    const dir = sortDir || "asc";
+    // Default: preserve array order (position = rank, array sorted by score at freeze time)
+    // User can click column headers to re-sort by other fields (win_rate, comparisons, etc.)
+    if (!sortKey || sortKey === "rank") {
+      // "rank" sort = original array order (ascending position = descending score)
+      return sortDir === "desc" ? [...data].reverse() : data;
+    }
+    // Non-default sort: sort by the requested field
+    const key = sortKey === "score" ? "score"
+      : sortKey === "gap_score" ? "gap_score"
+      : sortKey === "wilson_margin" ? "wilson_margin"
+      : sortKey;
+    const dir = sortDir || "desc";
     data.sort((a, b) => {
       let va = a[key], vb = b[key];
       if (typeof va === "string" && typeof vb === "string") {
@@ -165,7 +168,7 @@ export default function LeaderboardPage() {
       return dir === "asc" ? va - vb : vb - va;
     });
     return data;
-  }, [activeArchive, sortKey, sortDir, scoringMethod]);
+  }, [activeArchive, sortKey, sortDir]);
 
 
   const fetchLeaderboard = useCallback(async () => {

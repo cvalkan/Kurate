@@ -132,11 +132,11 @@ def _truncate(text: str, max_len: int) -> str:
 
 
 def _compute_archive_rank(leaderboard: list, paper_id: str) -> int:
-    """Get paper rank from the stored rank field in the archive.
-    Falls back to array position if rank field is missing."""
-    for p in leaderboard:
+    """Get paper rank from its position in the archive array (1-indexed).
+    The array is sorted by score descending — position IS the rank."""
+    for i, p in enumerate(leaderboard):
         if p.get("id") == paper_id:
-            return p.get("rank", 999)
+            return i + 1
     return 999
 
 
@@ -454,13 +454,16 @@ async def badge_exists(category: str, year: int, week: int, paper_id: str):
     """Quick check if a paper has a badge (top 3) in an archive."""
     archive = await db.leaderboard_archives.find_one(
         {"category": category, "year": year, "week": week, "period_type": "weekly"},
-        {"_id": 0, "leaderboard": {"$elemMatch": {"id": paper_id}}},
+        {"_id": 0, "leaderboard": {"$slice": 3}},
     )
     if not archive or not archive.get("leaderboard"):
         return {"has_badge": False}
-    paper = archive["leaderboard"][0]
-    tier = _get_tier(paper.get("rank", 999))
-    return {"has_badge": bool(tier), "rank": paper.get("rank", 999), "tier": tier["name"] if tier else None}
+    for i, p in enumerate(archive["leaderboard"]):
+        if p.get("id") == paper_id:
+            rank = i + 1
+            tier = _get_tier(rank)
+            return {"has_badge": bool(tier), "rank": rank, "tier": tier["name"] if tier else None}
+    return {"has_badge": False}
 
 
 async def _find_paper_badge(paper_id: str) -> dict:
@@ -774,8 +777,8 @@ async def get_paper_badges(paper_id: str):
         if not p:
             continue
 
-        # Use the stored rank from the frozen archive
-        rank = p.get("rank", 999)
+        # Rank = array position (1-indexed)
+        rank = next((i + 1 for i, e in enumerate(lb) if e.get("id") == paper_id), 999)
 
         paper_comparisons = p.get("comparisons") or 0
         tier = _get_tier(rank) if paper_comparisons >= MIN_MATCHES_FOR_MEDAL else None

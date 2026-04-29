@@ -3180,27 +3180,35 @@ async def delete_monthly_archive(year: int, month: int):
 
 @router.post("/archive/rerank-all", dependencies=[Depends(verify_admin)])
 async def rerank_all_archives():
-    """Populate ranking_score field on all archive entries.
-    For old archives that don't have ranking_score, sets it to ts_score || score.
-    Does NOT change rank ordering — just ensures the ranking_score field exists."""
+    """Migrate all archives to the new format:
+    - Sort leaderboard array by score descending (rank = array position)
+    - Set entry.score = ts_score (the authoritative score)
+    - Remove stale rank/ranking_score/rank_ts/rank_os fields from entries
+    - Add scoring_method: 'ts' to archive document
+    """
     fixed = 0
-    async for doc in db.leaderboard_archives.find({}, {"_id": 1, "leaderboard": 1}):
+    async for doc in db.leaderboard_archives.find({}, {"_id": 1, "leaderboard": 1, "scoring_method": 1}):
         lb = doc.get("leaderboard", [])
         if not lb:
             continue
-        changed = False
-        for entry in lb:
-            if entry.get("ranking_score") is None:
-                entry["ranking_score"] = entry.get("ts_score") or entry.get("score") or 0
-                changed = True
-        if changed:
-            await db.leaderboard_archives.update_one(
-                {"_id": doc["_id"]},
-                {"$set": {"leaderboard": lb}},
-            )
-            fixed += 1
-    logger.info(f"Backfilled ranking_score on {fixed} archives")
-    return {"status": "ok", "fixed": fixed}
+
+        # Sort by ts_score desc (or score as fallback) — this makes array position = rank
+        sorted_lb = sorted(lb, key=lambda p: p.get("ts_score") or p.get("score") or 0, reverse=True)
+
+        # Normalize each entry: set score = ts_score, remove redundant rank fields
+        for entry in sorted_lb:
+            entry["score"] = entry.get("ts_score") or entry.get("score") or 0
+            for stale_field in ["rank", "ranking_score", "rank_ts", "rank_os", "ts_score", "ts_sigma", "os_score", "os_sigma", "gap_score_ts"]:
+                entry.pop(stale_field, None)
+
+        await db.leaderboard_archives.update_one(
+            {"_id": doc["_id"]},
+            {"$set": {"leaderboard": sorted_lb, "scoring_method": "ts"}},
+        )
+        fixed += 1
+
+    logger.info(f"Migrated {fixed} archives to position-based ranking")
+    return {"status": "ok", "migrated": fixed}
 
 
 

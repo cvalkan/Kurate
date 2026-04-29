@@ -183,7 +183,7 @@ async def get_medalists(period: str = "current", top_n: int = 3):
                 continue
         papers = []
         candidates_by_paper: dict = {}
-        for p in archive.get("leaderboard", [])[:top_n]:
+        for i, p in enumerate(archive.get("leaderboard", [])[:top_n]):
             disc = await db.x_handle_discoveries.find_one(
                 {"paper_id": p.get("id")}, {"_id": 0, "candidates": 1, "total_tweets": 1}
             )
@@ -191,11 +191,11 @@ async def get_medalists(period: str = "current", top_n: int = 3):
             candidates_by_paper[p.get("id")] = cands
             papers.append({
                 "id": p.get("id"),
-                "rank": p.get("rank"),
+                "rank": i + 1,
                 "title": p.get("title"),
                 "authors": p.get("authors", []),
                 "arxiv_id": p.get("arxiv_id"),
-                "ts_score": p.get("ts_score") or p.get("score"),
+                "ts_score": p.get("score") or p.get("ts_score"),
                 "ai_rating": p.get("ai_rating"),
                 "link": p.get("link"),
                 "candidates": cands,
@@ -334,8 +334,8 @@ async def get_discoveries(
 
     # Build response: papers with their discovery status
     result_papers = []
-    for p in papers:
-        pid = p["id"]
+    for i, p in enumerate(papers):
+        pid = p["id"] if "id" in p else p.get("paper_id", "")
         disc = discoveries.get(pid)
         candidates = candidates_by_paper.get(pid, [])
         entry = {
@@ -343,8 +343,8 @@ async def get_discoveries(
             "title": p.get("title", ""),
             "authors": p.get("authors", []),
             "arxiv_id": p.get("arxiv_id", ""),
-            "rank": p.get("rank"),
-            "ts_score": p.get("ts_score"),
+            "rank": p.get("rank") or (i + 1),
+            "ts_score": p.get("score") or p.get("ts_score"),
             "ai_rating": p.get("ai_rating"),
             "comparisons": p.get("comparisons", 0),
             "discovered": disc is not None,
