@@ -521,11 +521,10 @@ async def send_outreach_email(body: SendEmailRequest):
     # Use only first name for greeting (e.g. "Michael Blank" -> "Michael")
     first_name = first_author.split()[0] if first_author else "there"
     arxiv_id = paper.get("arxiv_id", "")
-    arxiv_suffix = f"\nhttps://arxiv.org/abs/{arxiv_id}" if arxiv_id else ""
 
     slug = f"w{week}" if week is not None else f"m{month}" if month is not None else ""
     share_url = f"https://kurate.org/api/badge/{body.category}/{year}/{slug}/{body.paper_id}/share" if slug and year else f"https://kurate.org/paper/{body.paper_id}"
-    tweet_text = f'Our paper "{paper.get("title", "")}" ranked #{body.rank} in {category_name} Preprints ({period_label}) on Kurate.org!{arxiv_suffix}'
+    tweet_text = f'Our paper "{paper.get("title", "")}" ranked #{body.rank} in {category_name} Preprints ({period_label}) on Kurate!'
 
     import urllib.parse
     twitter_share_url = f"https://twitter.com/intent/tweet?text={urllib.parse.quote(tweet_text)}&url={urllib.parse.quote(share_url)}"
