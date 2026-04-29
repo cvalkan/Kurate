@@ -3183,7 +3183,8 @@ async def rerank_all_archives():
     """Migrate all archives to the new format:
     - Sort leaderboard array by score descending (rank = array position)
     - Set entry.score = ts_score (the authoritative score)
-    - Remove stale rank/ranking_score/rank_ts/rank_os fields from entries
+    - Remove only truly stale fields (rank, ranking_score, rank_ts, rank_os)
+    - Keep ci, wilson_margin, gap_score, ts_sigma etc for display
     - Add scoring_method: 'ts' to archive document
     """
     fixed = 0
@@ -3195,10 +3196,10 @@ async def rerank_all_archives():
         # Sort by ts_score desc (or score as fallback) — this makes array position = rank
         sorted_lb = sorted(lb, key=lambda p: p.get("ts_score") or p.get("score") or 0, reverse=True)
 
-        # Normalize each entry: set score = ts_score, remove redundant rank fields
+        # Normalize each entry: set score = ts_score, remove ONLY redundant rank fields
         for entry in sorted_lb:
             entry["score"] = entry.get("ts_score") or entry.get("score") or 0
-            for stale_field in ["rank", "ranking_score", "rank_ts", "rank_os", "ts_score", "ts_sigma", "os_score", "os_sigma", "gap_score_ts"]:
+            for stale_field in ["rank", "ranking_score", "rank_ts", "rank_os"]:
                 entry.pop(stale_field, None)
 
         await db.leaderboard_archives.update_one(
@@ -3208,6 +3209,47 @@ async def rerank_all_archives():
         fixed += 1
 
     logger.info(f"Migrated {fixed} archives to position-based ranking")
+
+
+@router.post("/archive/repair-fields", dependencies=[Depends(verify_admin)])
+async def repair_archive_fields():
+    """Re-populate missing fields (ts_sigma, gap_score, ci, wilson_margin, os_score, os_sigma)
+    from the live rankings collection. Fixes data lost during migration."""
+    repaired = 0
+    async for doc in db.leaderboard_archives.find({}, {"_id": 1, "leaderboard": 1}):
+        lb = doc.get("leaderboard", [])
+        if not lb:
+            continue
+        changed = False
+        paper_ids = [p.get("id") for p in lb if p.get("id")]
+        # Batch fetch rankings for all papers in this archive
+        rankings = {}
+        async for r in db.rankings.find(
+            {"paper_id": {"$in": paper_ids}},
+            {"_id": 0, "paper_id": 1, "ts_sigma": 1, "gap_score": 1, "gap_score_ts": 1,
+             "ci": 1, "wilson_margin": 1, "os_score": 1, "os_sigma": 1}
+        ):
+            rankings[r["paper_id"]] = r
+
+        for entry in lb:
+            pid = entry.get("id")
+            r = rankings.get(pid, {})
+            # Only fill in fields that are missing from the archive entry
+            for field in ["ts_sigma", "gap_score", "gap_score_ts", "ci", "wilson_margin", "os_score", "os_sigma"]:
+                if field not in entry and r.get(field) is not None:
+                    entry[field] = r[field]
+                    changed = True
+
+        if changed:
+            await db.leaderboard_archives.update_one(
+                {"_id": doc["_id"]},
+                {"$set": {"leaderboard": lb}},
+            )
+            repaired += 1
+
+    logger.info(f"Repaired fields on {repaired} archives")
+    return {"status": "ok", "repaired": repaired}
+
     return {"status": "ok", "migrated": fixed}
 
 
