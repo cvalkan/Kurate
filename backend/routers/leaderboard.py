@@ -1705,6 +1705,7 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
         return None
 
     # Freeze the leaderboard: store essential fields only
+    # `ranking_score` = the score used for rank ordering (currently ts_score)
     frozen_entries = []
     for i, r in enumerate(source_entries, 1):
         entry = {
@@ -1712,6 +1713,7 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
             "id": r.get("paper_id"),
             "title": r.get("title", ""),
             "authors": r.get("authors", []),
+            "ranking_score": r.get("ts_score") or r.get("score"),
             "score": r.get("score"),
             "wins": r.get("wins"),
             "losses": r.get("losses"),

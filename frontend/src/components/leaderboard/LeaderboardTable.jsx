@@ -74,6 +74,8 @@ export function LeaderboardTable({
   const OS_SCALE = 15.0; // Must match backend OS_SCALE in ranking.py
   const getScore = (p) => {
     if (isGlobal && p.global_score !== undefined) return p.global_score;
+    // ranking_score = the score used for rank ordering (future-proof)
+    if (p.ranking_score !== undefined) return p.ranking_score;
     return isTS ? (p.ts_score || p.score) : isOS ? (p.os_score || p.score) : p.score;
   };
   const getWinRate = (p) => isGlobal && p.global_win_rate !== undefined ? p.global_win_rate : p.win_rate;

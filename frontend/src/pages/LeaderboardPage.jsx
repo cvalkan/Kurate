@@ -148,7 +148,7 @@ export default function LeaderboardPage() {
     const data = [...activeArchive.leaderboard];
     // Default sort uses the stored archive rank (frozen truth, scoring-method independent)
     const key = sortKey === "rank" ? "rank"
-      : sortKey === "score" && scoringMethod === "ts" ? "ts_score"
+      : sortKey === "score" && scoringMethod === "ts" ? "ranking_score"
       : sortKey === "score" && scoringMethod === "os" ? "os_score"
       : sortKey === "gap_score" && scoringMethod === "ts" ? "gap_score_ts"
       : sortKey === "wilson_margin" && scoringMethod === "ts" ? "ts_sigma"

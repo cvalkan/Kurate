@@ -68,7 +68,7 @@ export default function ArchivePage() {
 
     // Sort: default "rank" uses the stored archive rank (the frozen truth at archive time)
     const key = sortKey === "rank" ? "rank"
-      : sortKey === "score" ? "ts_score"
+      : sortKey === "score" ? "ranking_score"
       : sortKey;
     const dir = sortDir || "asc";
 
