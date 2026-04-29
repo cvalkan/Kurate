@@ -10,16 +10,76 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
 const API = process.env.REACT_APP_BACKEND_URL || "";
+const ORIGIN = typeof window !== "undefined" ? window.location.origin : "";
+
+/**
+ * Normalize the two different API response shapes into one uniform object.
+ * - Period-specific: /api/badge/{cat}/{year}/{slug}/{paperId}  → flat fields
+ * - Universal share: /api/badge/paper/{paperId}/share          → badge nested
+ */
+function normalizeBadgeData(raw, { category, year, slug, paperId, isShareMode }) {
+  const badge = raw.badge || {};
+  return {
+    title: raw.title,
+    authors: raw.authors || [],
+    arxiv_id: raw.arxiv_id,
+    paper_id: raw.paper_id || paperId,
+    category: raw.category || category,
+    category_name: raw.category_name,
+    // Badge-specific (archive) rank and tier — the one that matters for sharing
+    rank: badge.rank || raw.rank,
+    tier: badge.tier || raw.tier,
+    archive_label: badge.archive_label || raw.archive_label,
+    paper_count: badge.paper_count || raw.paper_count,
+    // All-time rank for the footer subtitle
+    alltime_rank: raw.rank,
+    total_in_category: raw.total_in_category,
+    // Display helpers
+    has_medal: !!(raw.has_medal || (raw.tier && (raw.display_rank || raw.rank) <= 3)),
+    display_rank: raw.display_rank || badge.rank || raw.rank,
+    // URLs
+    image_url: isShareMode
+      ? (raw.image_url ? `${API}${raw.image_url}` : null)
+      : `${API}/api/badge/${category}/${year}/${slug}/${paperId}/image.png`,
+    share_url: badge.badge_url
+      ? `${ORIGIN}/api${badge.badge_url}/share`
+      : isShareMode
+        ? `${ORIGIN}/api/badge/paper/${paperId}/share/page`
+        : `${ORIGIN}/api/badge/${category}/${year}/${slug}/${paperId}/share`,
+    leaderboard_url: isShareMode
+      ? (badge.leaderboard_url || `/?cat=${raw.category}&period=all`)
+      : `/leaderboard/${category}/${year}/${slug}`,
+    alltime_leaderboard_url: `/?cat=${raw.category || category}&period=all`,
+  };
+}
+
+function buildShareText(d, variant = "author") {
+  const arxivSuffix = d.arxiv_id ? `\nhttps://arxiv.org/abs/${d.arxiv_id}` : "";
+  const tierLabel = d.tier ? `${d.tier} ` : "";
+  const periodLabel = d.archive_label ? ` (${d.archive_label})` : "";
+  if (variant === "congrats") {
+    const names = d.authors.slice(0, 2).join(" & ") + (d.authors.length > 2 ? " et al." : "");
+    return `Congrats to ${names} for ranking #${d.rank} ${tierLabel}in ${d.category_name} Preprints${periodLabel} on Kurate.org!${arxivSuffix}`;
+  }
+  return `Our paper "${d.title}" ranked #${d.rank} ${tierLabel}in ${d.category_name} Preprints${periodLabel} on Kurate.org!${arxivSuffix}`;
+}
+
+function openTwitter(text, url) {
+  window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, "_blank");
+}
+
+function openLinkedIn(text, url) {
+  if (text) navigator.clipboard.writeText(text).then(() => toast.success("Text copied — paste it in your LinkedIn post!")).catch(() => {});
+  window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`, "_blank");
+}
 
 export default function BadgePage() {
   const { category, year, slug, paperId } = useParams();
-  const isShareMode = !category && !year && !slug;  // /share/:paperId route
+  const isShareMode = !category && !year && !slug;
   const { user, getAuthHeaders } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
-
-  // Congrats state
   const [remaining, setRemaining] = useState(null);
   const [showEmail, setShowEmail] = useState(false);
   const [extracting, setExtracting] = useState(false);
@@ -32,18 +92,15 @@ export default function BadgePage() {
       ? `${API}/api/badge/paper/${paperId}/share`
       : `${API}/api/badge/${category}/${year}/${slug}/${paperId}`;
     axios.get(url)
-      .then(res => setData(res.data))
+      .then(res => setData(normalizeBadgeData(res.data, { category, year, slug, paperId, isShareMode })))
       .catch(() => setData(null))
       .finally(() => setLoading(false));
   }, [category, year, slug, paperId, isShareMode]);
 
-  // Fetch congrats remaining + gmail status
   useEffect(() => {
     if (!user) return;
-    const headers = getAuthHeaders();
-    axios.get(`${API}/api/congrats/remaining`, { withCredentials: true, headers })
-      .then(res => setRemaining(res.data))
-      .catch(() => {});
+    axios.get(`${API}/api/congrats/remaining`, { withCredentials: true, headers: getAuthHeaders() })
+      .then(res => setRemaining(res.data)).catch(() => {});
   }, [user, getAuthHeaders]);
 
   if (loading) {
@@ -64,49 +121,20 @@ export default function BadgePage() {
     );
   }
 
-  const shareUrl = isShareMode
-    ? (data.badge?.badge_url ? `${window.location.origin}/api${data.badge.badge_url}/share` : `${window.location.origin}/api/badge/paper/${paperId}/share/page`)
-    : `${window.location.origin}/api/badge/${category}/${year}/${slug}/${paperId}/share`;
-  const archiveLeaderboardUrl = isShareMode
-    ? (data.badge?.leaderboard_url || `/?cat=${data.category}&period=all`)
-    : `/leaderboard/${category}/${year}/${slug}`;
-  const leaderboardUrl = `${window.location.origin}/?cat=${data.category || category}&period=all`;
-  const imageUrl = isShareMode
-    ? (data.image_url ? `${API}${data.image_url}` : null)
-    : `${API}/api/badge/${category}/${year}/${slug}/${paperId}/image.png`;
-  const arxivUrl = data.arxiv_id ? `https://arxiv.org/abs/${data.arxiv_id}` : "";
-  const arxivSuffix = arxivUrl ? `\n${arxivUrl}` : "";
-  // For sharing text, use the badge's archive rank (not the all-time rank)
-  const badgeRank = (isShareMode && data.badge?.rank) ? data.badge.rank : data.rank;
-  const badgeTier = (isShareMode && data.badge?.tier) ? data.badge.tier : data.tier;
-  const tierLabel = badgeTier ? `${badgeTier} ` : "";
-  const badgePeriod = isShareMode ? data.badge?.archive_label : data.archive_label;
-  const periodLabel = badgePeriod ? ` (${badgePeriod})` : "";
-  const authorTweet = `Our paper "${data.title}" ranked #${badgeRank} ${tierLabel}in ${data.category_name} Preprints${periodLabel} on Kurate.org!${arxivSuffix}`;
-  const congratsTweet = `Congrats to ${data.authors?.slice(0, 2).join(" & ")}${data.authors?.length > 2 ? " et al." : ""} for ranking #${badgeRank} ${tierLabel}in ${data.category_name} Preprints${periodLabel} on Kurate.org!${arxivSuffix}`;
+  // All share text uses the normalized badge rank (not all-time)
+  const authorText = buildShareText(data, "author");
+  const congratsText = buildShareText(data, "congrats");
 
   const copyLink = () => {
-    navigator.clipboard.writeText(archiveLeaderboardUrl.startsWith("http") ? archiveLeaderboardUrl : `${window.location.origin}${archiveLeaderboardUrl}`);
+    const url = data.leaderboard_url.startsWith("http") ? data.leaderboard_url : `${ORIGIN}${data.leaderboard_url}`;
+    navigator.clipboard.writeText(url);
     setCopied(true);
     toast.success("Link copied!");
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const shareTwitter = (text) => {
-    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`, "_blank");
-  };
-
-  const shareLinkedIn = (text) => {
-    if (text) {
-      navigator.clipboard.writeText(text).then(() => {
-        toast.success("Text copied — paste it in your LinkedIn post!");
-      }).catch(() => {});
-    }
-    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, "_blank");
-  };
-
   const recordCongrats = async (method) => {
-    if (!user) return;
+    if (!user || isShareMode) return;
     try {
       const res = await axios.post(`${API}/api/congrats/send`, {
         paper_id: paperId, badge_category: category,
@@ -118,45 +146,22 @@ export default function BadgePage() {
     }
   };
 
-  const handleCongratsTwitter = () => {
-    recordCongrats("twitter");
-    shareTwitter(congratsTweet);
-  };
-
-  const handleCongratsLinkedIn = () => {
-    recordCongrats("linkedin");
-    const text = `Congrats to ${data.authors?.slice(0, 2).join(" & ")}${data.authors?.length > 2 ? " et al." : ""} for ranking #${data.rank} in ${data.category_name} Preprints (${data.archive_label}) on Kurate.org!`;
-    shareLinkedIn(text);
-  };
-
-  // Email flow
   const startEmailFlow = async () => {
     setShowEmail(true);
-    // Pre-fill template
-    const arxivLine = arxivUrl ? `\narXiv: ${arxivUrl}` : "";
-    const badgeImageUrl = `${window.location.origin}/api/badge/${category}/${year}/${slug}/${paperId}/image.png`;
-    setEmailSubject(`Congratulations on ranking #${data.rank} in ${data.category_name} (${data.archive_label})`);
+    const arxivLine = data.arxiv_id ? `\narXiv: https://arxiv.org/abs/${data.arxiv_id}` : "";
+    setEmailSubject(`Congratulations on ranking #${data.rank} in ${data.category_name} (${data.archive_label || ""})`);
     setEmailBody(
-      `Hi,\n\n` +
-      `Congratulations on your paper "${data.title}" ranking #${data.rank} in ${data.category_name} Preprints for ${data.archive_label} on Kurate.org!\n\n` +
+      `Hi,\n\nCongratulations on your paper "${data.title}" ranking #${data.rank} in ${data.category_name} Preprints for ${data.archive_label || ""} on Kurate.org!\n\n` +
       `This is a remarkable achievement. The ranking is based on AI-estimated scientific impact via pairwise tournament judging. Learn more about the methodology: https://kurate.org/methodology\n\n` +
-      `Your badge: ${window.location.origin}/badge/${category}/${year}/${slug}/${paperId}\n\n` +
-      `Best regards`
+      `Your badge: ${ORIGIN}/badge/${category}/${year}/${slug}/${paperId}\n\nBest regards`
     );
-    // Try to extract emails
     if (!toEmails) {
       setExtracting(true);
       try {
-        const res = await axios.post(`${API}/api/congrats/extract-emails`,
-          { paper_id: paperId },
-          { withCredentials: true, headers: getAuthHeaders() }
-        );
-        if (res.data.emails?.length) {
-          setToEmails(res.data.emails.join(", "));
-          toast.success(`Found ${res.data.emails.length} author email(s)`);
-        } else {
-          toast.info("No emails found in paper — please enter manually");
-        }
+        const res = await axios.post(`${API}/api/congrats/extract-emails`, { paper_id: paperId },
+          { withCredentials: true, headers: getAuthHeaders() });
+        if (res.data.emails?.length) { setToEmails(res.data.emails.join(", ")); toast.success(`Found ${res.data.emails.length} author email(s)`); }
+        else toast.info("No emails found in paper — please enter manually");
       } catch { /* ignore */ }
       finally { setExtracting(false); }
     }
@@ -165,8 +170,7 @@ export default function BadgePage() {
   const openMailto = () => {
     const emails = toEmails.split(",").map(e => e.trim()).filter(e => e.includes("@"));
     if (!emails.length) { toast.error("Enter at least one email address"); return; }
-    const mailto = `mailto:${emails.join(",")}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
-    window.open(mailto, "_blank");
+    window.open(`mailto:${emails.join(",")}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`, "_blank");
     recordCongrats("email");
     setShowEmail(false);
   };
@@ -174,23 +178,19 @@ export default function BadgePage() {
   const openGmail = () => {
     const emails = toEmails.split(",").map(e => e.trim()).filter(e => e.includes("@"));
     if (!emails.length) { toast.error("Enter at least one email address"); return; }
-    const gmailUrl = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(emails.join(","))}&su=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
-    window.open(gmailUrl, "_blank");
+    window.open(`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(emails.join(","))}&su=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`, "_blank");
     recordCongrats("email");
     setShowEmail(false);
   };
 
-  const hasMedal = !!(data.has_medal || (data.tier && data.display_rank && data.display_rank <= 3));
-  const displayRank = data.display_rank || data.rank;
   const truncTitle = data.title?.length > 70 ? data.title.slice(0, 67) + "..." : data.title;
-  const pageTitle = hasMedal
-    ? `#${displayRank} ${data.tier} — ${data.title} | Kurate.org`
-    : `#${data.rank} in ${data.category_name} — ${data.title} | Kurate.org`;
-  const ogTitle = hasMedal
-    ? `#${displayRank} ${data.tier} in ${data.category_name} Preprints — ${data.badge?.archive_label || data.archive_label || ""}`
-    : `#${data.rank} of ${data.total_in_category} in ${data.category_name} — Kurate.org`;
-  // Footer below image: always shows current live rank in all-time leaderboard
-  const subtitleText = `#${data.rank} of ${data.total_in_category || "—"} in ${data.category_name} (All Time)`;
+  const pageTitle = data.has_medal
+    ? `#${data.display_rank} ${data.tier} — ${data.title} | Kurate.org`
+    : `#${data.alltime_rank} in ${data.category_name} — ${data.title} | Kurate.org`;
+  const ogTitle = data.has_medal
+    ? `#${data.display_rank} ${data.tier} in ${data.category_name} Preprints — ${data.archive_label || ""}`
+    : `#${data.alltime_rank} of ${data.total_in_category} in ${data.category_name} — Kurate.org`;
+  const subtitleText = `#${data.alltime_rank} of ${data.total_in_category || "—"} in ${data.category_name} (All Time)`;
 
   return (
     <>
@@ -198,7 +198,7 @@ export default function BadgePage() {
         <title>{pageTitle}</title>
         <meta property="og:title" content={ogTitle} />
         <meta property="og:description" content={`${data.title} | AI-ranked by scientific impact | Kurate.org`} />
-        <meta property="og:image" content={`${window.location.origin}${data.image_url}`} />
+        <meta property="og:image" content={`${ORIGIN}${data.image_url}`} />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta property="og:type" content="article" />
@@ -209,7 +209,7 @@ export default function BadgePage() {
         {/* Badge preview */}
         <div className="rounded-xl border border-border overflow-hidden mb-8 bg-white" data-testid="badge-preview">
           <div className="relative min-h-[120px]">
-            <img src={imageUrl} alt="Badge" className="w-full" loading="eager"
+            <img src={data.image_url} alt="Badge" className="w-full" loading="eager"
               onLoad={e => e.target.parentElement.querySelector('[data-loader]')?.remove()}
               onError={e => { const loader = e.target.parentElement.querySelector('[data-loader]'); if (loader) loader.querySelector('span').textContent = 'Badge image unavailable'; }}
             />
@@ -234,45 +234,44 @@ export default function BadgePage() {
         {/* Navigation links */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-accent mb-8">
           <a href={`/paper/${data.paper_id}`} className="hover:underline">Paper details</a>
-          {archiveLeaderboardUrl && archiveLeaderboardUrl !== leaderboardUrl && (
+          {data.leaderboard_url && data.leaderboard_url !== data.alltime_leaderboard_url && (
             <>
               <span className="text-border">·</span>
-              <a href={archiveLeaderboardUrl} className="hover:underline">{data.badge?.archive_label || data.archive_label || "Archive"} leaderboard</a>
+              <a href={data.leaderboard_url} className="hover:underline">{data.archive_label || "Archive"} leaderboard</a>
             </>
           )}
           <span className="text-border">·</span>
-          <a href={`/?cat=${data.category || category}&period=all`} className="hover:underline">All Time leaderboard</a>
+          <a href={data.alltime_leaderboard_url} className="hover:underline">All Time leaderboard</a>
         </div>
 
-        {/* Section 1: Share your achievement (for authors) */}
+        {/* Share your achievement (for authors) */}
         <div className="mb-10" data-testid="author-section">
           <div className="flex items-center gap-2 mb-1">
             <Trophy className="h-4 w-4 text-amber-500" />
             <h2 className="font-heading text-base font-semibold">Share your achievement</h2>
           </div>
           <p className="text-xs text-muted-foreground mb-4">Are you one of the authors? Share this badge on social media.</p>
-
           <div className="flex flex-wrap items-center gap-2" data-testid="author-share-buttons">
             <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={copyLink} data-testid="copy-link-btn">
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               {copied ? "Copied!" : "Copy link"}
             </Button>
-            <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => shareTwitter(authorTweet)} data-testid="author-share-x">
+            <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => openTwitter(authorText, data.share_url)} data-testid="author-share-x">
               <Share2 className="h-3.5 w-3.5" /> Share on X
             </Button>
-            <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => shareLinkedIn(authorTweet)} data-testid="author-share-linkedin">
+            <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => openLinkedIn(authorText, data.share_url)} data-testid="author-share-linkedin">
               <Share2 className="h-3.5 w-3.5" /> Share on LinkedIn
             </Button>
-            <a href={imageUrl} download={`kurate-badge-${data.tier?.toLowerCase()}.png`} className="inline-flex items-center gap-1.5 text-xs px-3 h-8 rounded-md border border-input bg-background hover:bg-secondary/50 transition-colors font-medium" data-testid="download-badge-img">
+            <a href={data.image_url} download={`kurate-badge-${data.tier?.toLowerCase()}.png`}
+              className="inline-flex items-center gap-1.5 text-xs px-3 h-8 rounded-md border border-input bg-background hover:bg-secondary/50 transition-colors font-medium" data-testid="download-badge-img">
               <Download className="h-3.5 w-3.5" /> Download image
             </a>
           </div>
         </div>
 
-        {/* Divider */}
         <div className="border-t border-border my-8" />
 
-        {/* Section 2: Congratulate the authors (for peers) */}
+        {/* Congratulate the authors (for peers) */}
         <div data-testid="congrats-section">
           <div className="flex items-center gap-2 mb-1">
             <Heart className="h-4 w-4 text-rose-500" />
@@ -283,78 +282,69 @@ export default function BadgePage() {
             {remaining && <span className="ml-1 text-muted-foreground/70">({remaining.remaining}/{remaining.limit} remaining this week)</span>}
           </p>
 
-          {/* Social sharing — open to everyone */}
           <div className="flex flex-wrap items-center gap-2 mb-4" data-testid="congrats-buttons">
-            <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={handleCongratsTwitter} data-testid="congrats-x-btn">
+            <Button size="sm" variant="outline" className="gap-1.5 text-xs"
+              onClick={() => { recordCongrats("twitter"); openTwitter(congratsText, data.share_url); }} data-testid="congrats-x-btn">
               <Share2 className="h-3.5 w-3.5" /> Congrats on X
             </Button>
-            <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={handleCongratsLinkedIn} data-testid="congrats-linkedin-btn">
+            <Button size="sm" variant="outline" className="gap-1.5 text-xs"
+              onClick={() => { recordCongrats("linkedin"); openLinkedIn(congratsText, data.share_url); }} data-testid="congrats-linkedin-btn">
               <Share2 className="h-3.5 w-3.5" /> Congrats on LinkedIn
             </Button>
-            {/* Email button — sign-in required */}
             {user ? (
-              <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={startEmailFlow} data-testid="congrats-email-btn"
-                disabled={remaining && remaining.remaining <= 0}>
+              <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={startEmailFlow}
+                disabled={remaining && remaining.remaining <= 0} data-testid="congrats-email-btn">
                 <Mail className="h-3.5 w-3.5" /> Send email
               </Button>
             ) : (
-              <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => window.dispatchEvent(new CustomEvent("open-auth-modal"))} data-testid="congrats-email-signin-btn">
+              <Button size="sm" variant="outline" className="gap-1.5 text-xs"
+                onClick={() => window.dispatchEvent(new CustomEvent("open-auth-modal"))} data-testid="congrats-email-signin-btn">
                 <LogIn className="h-3.5 w-3.5" /> Sign in to email
               </Button>
             )}
           </div>
 
-          {/* Rate limit message for logged-in users */}
           {user && remaining && remaining.remaining <= 0 && (
             <div className="p-3 bg-secondary/30 rounded-lg border border-border text-center text-xs text-muted-foreground mb-4">
               You've used all {remaining.limit} email congratulations this week. Social sharing is unlimited!
             </div>
           )}
 
-          {/* Email flow (only shown when user is signed in and clicks Send email) */}
           {showEmail && user && (
-                <div className="p-4 border border-border rounded-lg bg-background space-y-3" data-testid="email-flow">
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground block mb-1">To (comma-separated)</label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={toEmails} onChange={e => setToEmails(e.target.value)}
-                        placeholder={extracting ? "Extracting emails from paper..." : "author@university.edu"}
-                        disabled={extracting}
-                        className="text-sm" data-testid="email-to-input"
-                      />
-                      {extracting && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mt-2" />}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground block mb-1">Subject</label>
-                    <Input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} className="text-sm" data-testid="email-subject-input" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <label className="text-xs font-medium text-muted-foreground">Message</label>
-                      <Edit3 className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-[10px] text-muted-foreground">edit before sending</span>
-                    </div>
-                    <Textarea
-                      value={emailBody}
-                      onChange={e => setEmailBody(e.target.value)}
-                      rows={12} className="text-sm" data-testid="email-body-input"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" className="gap-1.5" onClick={openGmail} data-testid="send-gmail-btn">
-                      <Send className="h-3.5 w-3.5" /> Open in Gmail
-                    </Button>
-                    <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={openMailto} data-testid="send-email-btn">
-                      <Mail className="h-3.5 w-3.5" /> Other email client
-                    </Button>
-                    <Button size="sm" variant="ghost" className="text-xs" onClick={() => setShowEmail(false)}>
-                      Cancel
-                    </Button>
-                  </div>
+            <div className="p-4 border border-border rounded-lg bg-background space-y-3" data-testid="email-flow">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">To (comma-separated)</label>
+                <div className="flex gap-2">
+                  <Input value={toEmails} onChange={e => setToEmails(e.target.value)}
+                    placeholder={extracting ? "Extracting emails from paper..." : "author@university.edu"}
+                    disabled={extracting} className="text-sm" data-testid="email-to-input" />
+                  {extracting && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mt-2" />}
                 </div>
-              )}
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">Subject</label>
+                <Input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} className="text-sm" data-testid="email-subject-input" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <label className="text-xs font-medium text-muted-foreground">Message</label>
+                  <Edit3 className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-[10px] text-muted-foreground">edit before sending</span>
+                </div>
+                <Textarea value={emailBody} onChange={e => setEmailBody(e.target.value)}
+                  rows={12} className="text-sm" data-testid="email-body-input" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" className="gap-1.5" onClick={openGmail} data-testid="send-gmail-btn">
+                  <Send className="h-3.5 w-3.5" /> Open in Gmail
+                </Button>
+                <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={openMailto} data-testid="send-email-btn">
+                  <Mail className="h-3.5 w-3.5" /> Other email client
+                </Button>
+                <Button size="sm" variant="ghost" className="text-xs" onClick={() => setShowEmail(false)}>Cancel</Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>
