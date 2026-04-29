@@ -146,7 +146,7 @@ export default function LeaderboardPage() {
   const sortedArchiveLeaderboard = useMemo(() => {
     if (!activeArchive?.leaderboard) return null;
     const data = [...activeArchive.leaderboard];
-    // Default "rank" sort uses the frozen archive rank field (the truth at archive time)
+    // Default sort uses the stored archive rank (frozen truth, scoring-method independent)
     const key = sortKey === "rank" ? "rank"
       : sortKey === "score" && scoringMethod === "ts" ? "ts_score"
       : sortKey === "score" && scoringMethod === "os" ? "os_score"
@@ -154,9 +154,7 @@ export default function LeaderboardPage() {
       : sortKey === "wilson_margin" && scoringMethod === "ts" ? "ts_sigma"
       : sortKey === "wilson_margin" && scoringMethod === "os" ? "os_sigma"
       : sortKey || "rank";
-    const dir = sortKey === "rank"
-      ? (sortDir || "asc")
-      : (sortDir || "desc");
+    const dir = sortDir || "asc";
     data.sort((a, b) => {
       let va = a[key], vb = b[key];
       if (typeof va === "string" && typeof vb === "string") {

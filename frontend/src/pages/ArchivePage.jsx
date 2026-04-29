@@ -66,11 +66,11 @@ export default function ArchivePage() {
       );
     }
 
-    // Sort: default "rank" uses the stored archive rank (frozen at archive time)
-    const key = sortKey === "score" ? "ts_score" : sortKey;
-    const dir = sortKey === "rank"
-      ? (sortDir || "asc")
-      : (sortDir || "desc");
+    // Sort: default "rank" uses the stored archive rank (the frozen truth at archive time)
+    const key = sortKey === "rank" ? "rank"
+      : sortKey === "score" ? "ts_score"
+      : sortKey;
+    const dir = sortDir || "asc";
 
     data.sort((a, b) => {
       let va = a[key], vb = b[key];

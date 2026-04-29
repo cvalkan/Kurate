@@ -131,6 +131,15 @@ def _truncate(text: str, max_len: int) -> str:
     return text[:max_len - 1] + "\u2026" if len(text) > max_len else text
 
 
+def _compute_archive_rank(leaderboard: list, paper_id: str) -> int:
+    """Get paper rank from the stored rank field in the archive.
+    Falls back to array position if rank field is missing."""
+    for p in leaderboard:
+        if p.get("id") == paper_id:
+            return p.get("rank", 999)
+    return 999
+
+
 async def _get_badge_data(category: str, year: int, paper_id: str, week: int = None, month: int = None) -> dict:
     """Fetch archive and extract badge data for a specific paper. Works for both weekly and monthly."""
     if week is not None:
@@ -151,8 +160,8 @@ async def _get_badge_data(category: str, year: int, paper_id: str, week: int = N
     if not paper:
         raise HTTPException(404, "Paper not found in this archive")
 
-    # Use the stored rank from the frozen archive (not recomputed)
-    rank = paper.get("rank", 999)
+    # Compute rank from ts_score position (authoritative, consistent with frontend display)
+    rank = _compute_archive_rank(lb, paper_id)
 
     tier = _get_tier(rank)
     if not tier:
@@ -482,7 +491,7 @@ async def _find_paper_badge(paper_id: str) -> dict:
         p = next((entry for entry in lb if entry.get("id") == paper_id), None)
         if not p:
             continue
-        archive_rank = p.get("rank", 999)
+        archive_rank = _compute_archive_rank(lb, paper_id)
         # Medal requires minimum matches — prevents meaningless badges from 1-2 matches
         paper_comparisons = p.get("comparisons") or 0
         tier = _get_tier(archive_rank) if paper_comparisons >= MIN_MATCHES_FOR_MEDAL else None

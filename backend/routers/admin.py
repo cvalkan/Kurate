@@ -3178,6 +3178,33 @@ async def delete_monthly_archive(year: int, month: int):
     return {"status": "ok", "deleted": result.deleted_count, "period": f"{year}-{month:02d}"}
 
 
+@router.post("/archive/rerank-all", dependencies=[Depends(verify_admin)])
+async def rerank_all_archives():
+    """Re-assign rank fields in ALL archives based on ts_score order.
+    Fixes old backfill-created archives where rank didn't match ts_score."""
+    fixed = 0
+    async for doc in db.leaderboard_archives.find({}, {"_id": 1, "leaderboard": 1, "category": 1, "label": 1}):
+        lb = doc.get("leaderboard", [])
+        if not lb:
+            continue
+        # Sort by ts_score DESC (or score as fallback)
+        sorted_lb = sorted(lb, key=lambda p: p.get("ts_score") or p.get("score") or 0, reverse=True)
+        changed = False
+        for i, entry in enumerate(sorted_lb, 1):
+            if entry.get("rank") != i:
+                entry["rank"] = i
+                changed = True
+        if changed:
+            await db.leaderboard_archives.update_one(
+                {"_id": doc["_id"]},
+                {"$set": {"leaderboard": sorted_lb}},
+            )
+            fixed += 1
+    logger.info(f"Re-ranked {fixed} archives")
+    return {"status": "ok", "fixed": fixed}
+
+
+
 
 @router.post("/archive/set-frequency", dependencies=[Depends(verify_admin)])
 async def set_archive_frequency(request: Request):
