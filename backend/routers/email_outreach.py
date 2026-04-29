@@ -568,7 +568,7 @@ async def send_outreach_email(body: SendEmailRequest):
             msg = MIMEMultipart("related")
             msg["to"] = to_email
             msg["subject"] = subject
-            msg["from"] = "robert@kurate.org"
+            msg["from"] = "Robert Lauko <robert@kurate.org>"
 
             msg_alt = MIMEMultipart("alternative")
             msg_alt.attach(MIMEText(body_html, "html"))
