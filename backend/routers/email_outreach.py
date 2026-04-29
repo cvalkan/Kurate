@@ -103,7 +103,9 @@ def _match_email_to_author(email: str, authors: list) -> str:
                 break
         if best_match:
             break
-    name = best_match or authors[0]
+    name = best_match if best_match else None
+    if not name:
+        return "there"
     # Extract first name
     first = name.split()[0]
     if len(first) <= 2 or (len(first) <= 3 and first.endswith(".")):
