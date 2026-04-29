@@ -522,8 +522,10 @@ async def send_outreach_email(body: SendEmailRequest):
     # Build share URLs (same text/unfurl pattern as BadgePage)
     authors = paper.get("authors", [])
     first_author = authors[0] if authors else "researcher"
-    # Use only first name for greeting (e.g. "Michael Blank" -> "Michael")
+    # Use first name, but fall back to full name if first name is just an initial (e.g. "E." or "J.")
     first_name = first_author.split()[0] if first_author else "there"
+    if len(first_name) <= 2 or (len(first_name) <= 3 and first_name.endswith(".")):
+        first_name = first_author
     arxiv_id = paper.get("arxiv_id", "")
 
     slug = f"w{week}" if week is not None else f"m{month}" if month is not None else ""
