@@ -61,9 +61,9 @@ function buildShareText(d, variant = "author") {
   // The badge share URL (passed via ?url= param) should be the only link.
   if (variant === "congrats") {
     const names = d.authors.slice(0, 2).join(" & ") + (d.authors.length > 2 ? " et al." : "");
-    return `Congrats to ${names} for ranking #${d.rank} ${tierLabel}in ${d.category_name} Preprints${periodLabel} on Kurate!`;
+    return `Congrats to ${names} for ranking #${d.rank} ${tierLabel}in ${d.category_name} Preprints${periodLabel} on @kurateorg!`;
   }
-  return `Our paper "${d.title}" ranked #${d.rank} ${tierLabel}in ${d.category_name} Preprints${periodLabel} on Kurate!`;
+  return `Our paper "${d.title}" ranked #${d.rank} ${tierLabel}in ${d.category_name} Preprints${periodLabel} on @kurateorg!`;
 }
 
 function openTwitter(text, url) {

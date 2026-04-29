@@ -524,7 +524,7 @@ async def send_outreach_email(body: SendEmailRequest):
 
     slug = f"w{week}" if week is not None else f"m{month}" if month is not None else ""
     share_url = f"https://kurate.org/api/badge/{body.category}/{year}/{slug}/{body.paper_id}/share" if slug and year else f"https://kurate.org/paper/{body.paper_id}"
-    tweet_text = f'Our paper "{paper.get("title", "")}" ranked #{body.rank} in {category_name} Preprints ({period_label}) on Kurate!'
+    tweet_text = f'Our paper "{paper.get("title", "")}" ranked #{body.rank} in {category_name} Preprints ({period_label}) on @kurateorg!'
 
     import urllib.parse
     twitter_share_url = f"https://twitter.com/intent/tweet?text={urllib.parse.quote(tweet_text)}&url={urllib.parse.quote(share_url)}"
