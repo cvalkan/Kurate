@@ -3180,27 +3180,26 @@ async def delete_monthly_archive(year: int, month: int):
 
 @router.post("/archive/rerank-all", dependencies=[Depends(verify_admin)])
 async def rerank_all_archives():
-    """Re-assign rank fields in ALL archives based on ts_score order.
-    Fixes old backfill-created archives where rank didn't match ts_score."""
+    """Populate ranking_score field on all archive entries.
+    For old archives that don't have ranking_score, sets it to ts_score || score.
+    Does NOT change rank ordering — just ensures the ranking_score field exists."""
     fixed = 0
-    async for doc in db.leaderboard_archives.find({}, {"_id": 1, "leaderboard": 1, "category": 1, "label": 1}):
+    async for doc in db.leaderboard_archives.find({}, {"_id": 1, "leaderboard": 1}):
         lb = doc.get("leaderboard", [])
         if not lb:
             continue
-        # Sort by ts_score DESC (or score as fallback)
-        sorted_lb = sorted(lb, key=lambda p: p.get("ts_score") or p.get("score") or 0, reverse=True)
         changed = False
-        for i, entry in enumerate(sorted_lb, 1):
-            if entry.get("rank") != i:
-                entry["rank"] = i
+        for entry in lb:
+            if entry.get("ranking_score") is None:
+                entry["ranking_score"] = entry.get("ts_score") or entry.get("score") or 0
                 changed = True
         if changed:
             await db.leaderboard_archives.update_one(
                 {"_id": doc["_id"]},
-                {"$set": {"leaderboard": sorted_lb}},
+                {"$set": {"leaderboard": lb}},
             )
             fixed += 1
-    logger.info(f"Re-ranked {fixed} archives")
+    logger.info(f"Backfilled ranking_score on {fixed} archives")
     return {"status": "ok", "fixed": fixed}
 
 
