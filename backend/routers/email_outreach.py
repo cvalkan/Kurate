@@ -708,17 +708,27 @@ async def get_send_history(limit: int = 100):
 async def gmail_status():
     """Check if Gmail is authorized for sending."""
     token = await db.gmail_tokens.find_one(
-        {"user_id": "admin"}, {"_id": 0, "access_token": 1}
+        {"user_id": "admin"}, {"_id": 0, "access_token": 1, "user_id": 1}
     )
-    # Also check any user with gmail tokens
     if not token:
         token = await db.gmail_tokens.find_one(
-            {}, {"_id": 0, "access_token": 1, "user_id": 1}
+            {"access_token": {"$exists": True, "$ne": ""}}, {"_id": 0, "access_token": 1, "user_id": 1}
         )
     return {
         "authorized": bool(token and token.get("access_token")),
         "user_id": token.get("user_id") if token else None,
     }
+
+
+@router.delete("/gmail/disconnect", dependencies=[Depends(verify_admin)])
+async def gmail_disconnect():
+    """Disconnect Gmail OAuth - removes stored tokens."""
+    result = await db.gmail_tokens.delete_many({"user_id": "admin"})
+    if result.deleted_count == 0:
+        # Try deleting any token
+        result = await db.gmail_tokens.delete_many({})
+    logger.info(f"[email-outreach] Gmail disconnected ({result.deleted_count} tokens removed)")
+    return {"status": "disconnected", "deleted": result.deleted_count}
 
 
 # --- Gmail OAuth for admin ---

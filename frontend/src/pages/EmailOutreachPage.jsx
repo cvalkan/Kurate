@@ -277,7 +277,7 @@ export default function EmailOutreachPage() {
           Send personalized congratulations to top-ranked paper authors via Gmail.
         </p>
 
-        {!gmailStatus?.authorized && (
+        {!gmailStatus?.authorized ? (
           <div className="mb-4 px-3 py-2 rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-xs inline-flex items-center gap-2"
             data-testid="gmail-warning">
             <AlertCircle className="h-3.5 w-3.5 shrink-0" />
@@ -291,6 +291,31 @@ export default function EmailOutreachPage() {
               Connect Gmail
             </button>
             to send emails.
+          </div>
+        ) : (
+          <div className="mb-4 px-3 py-2 rounded-md border border-green-200 bg-green-50 text-green-800 text-xs inline-flex items-center gap-2"
+            data-testid="gmail-connected">
+            <Mail className="h-3.5 w-3.5 shrink-0" />
+            Gmail connected.
+            <button onClick={async () => {
+              try {
+                const r = await axios.get(`${API}/api/admin/email-outreach/gmail/auth-url`, { headers: getAdminHeaders() });
+                if (r.data?.url) window.open(r.data.url, "_blank");
+              } catch (e) { toast.error(`Gmail auth failed: ${e.response?.data?.detail || e.message}`); }
+            }} className="underline font-medium hover:text-green-900" data-testid="reconnect-gmail-btn">
+              Reconnect
+            </button>
+            <span className="text-green-600">|</span>
+            <button onClick={async () => {
+              if (!window.confirm("Disconnect Gmail? You won't be able to send emails until you reconnect.")) return;
+              try {
+                await axios.delete(`${API}/api/admin/email-outreach/gmail/disconnect`, { headers: getAdminHeaders() });
+                setGmailStatus({ authorized: false });
+                toast.success("Gmail disconnected");
+              } catch (e) { toast.error(`Disconnect failed: ${e.response?.data?.detail || e.message}`); }
+            }} className="underline font-medium hover:text-green-900" data-testid="disconnect-gmail-btn">
+              Disconnect
+            </button>
           </div>
         )}
 
