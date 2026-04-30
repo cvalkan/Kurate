@@ -1751,6 +1751,11 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
     await db.leaderboard_archives.insert_one(doc)
     logger.info(f"Archive snapshot created: {category} {label} ({len(frozen_entries)} papers)")
 
+    from core.memlog import log_event
+    await log_event("archive_created", category=category,
+        detail=f"{label} — {len(frozen_entries)} papers",
+        count=len(frozen_entries), label=label, period_type=period_type)
+
     # Pre-render badge images for top 3 papers
     try:
         from routers.badges import _get_badge_data, _render_badge_image

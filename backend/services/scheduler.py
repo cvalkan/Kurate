@@ -478,6 +478,8 @@ async def _compare_loop_inner():
                 else:
                     _compare_loop_diag["last_cycle_results"] = {"_all_goals_met": True}
                     log_mem(f"Compare loop: all goals met for {len(active_cats)} categories")
+                    from core.memlog import log_event
+                    await log_event("convergence", detail=f"All goals met for {len(active_cats)} categories", count=len(active_cats))
                     for cat in active_cats:
                         if _get_cat_status(cat).get("papers_count", 0) >= min_papers:
                             _get_cat_status(cat)["current_activity"] = "Goals met — idle"
@@ -992,6 +994,15 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
 
         cat_status["current_activity"] = "Idle"
         log_mem(f"fetch_cycle({category}) done (new={result['new_papers']}, pdfs={result['pdfs_downloaded']}, sums={result['summaries_generated']})")
+
+        # Log pipeline event for admin Logs tab
+        from core.memlog import log_event
+        await log_event("fetch_cycle", category=category,
+            detail=f"new={result['new_papers']}, pdfs={result['pdfs_downloaded']}, summaries={result['summaries_generated']}, rankings={result['rankings_inserted']}",
+            count=result['new_papers'],
+            pdfs=result['pdfs_downloaded'],
+            summaries=result['summaries_generated'],
+            rankings=result['rankings_inserted'])
 
         if result["new_papers"] > 0 or result["summaries_generated"] > 0 or result["rankings_inserted"] > 0:
             from routers.leaderboard import notify_data_changed

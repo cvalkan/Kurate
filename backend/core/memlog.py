@@ -99,3 +99,22 @@ async def ensure_ttl_index(db):
         await db.system_logs.create_index("ts", expireAfterSeconds=7 * 86400, name="ttl_7d")
     except Exception:
         pass
+
+
+async def log_event(event: str, detail: str = "", category: str = "", count: int = 0, **extra):
+    """Log a pipeline event (fetch, download, summary, archive, tournament) to system_logs.
+    These appear in the admin Logs tab alongside LLM usage."""
+    db = _get_db()
+    doc = {
+        "ts": datetime.now(timezone.utc),
+        "level": "event",
+        "event": event,
+        "detail": detail,
+        "category": category,
+        "count": count,
+        **extra,
+    }
+    try:
+        await db.system_logs.insert_one(doc)
+    except Exception:
+        pass
