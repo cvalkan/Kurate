@@ -130,10 +130,12 @@ export default function AdminPage() {
   }, [fetchGlobalSettings, navigate]);
 
   // When category changes, only fetch category-specific data (fast)
+  // Skip if not on Tournaments tab to avoid re-rendering other tabs
   useEffect(() => {
     if (!adminCat || !sessionStorage.getItem("admin_token")) return;
+    if (activeTab !== "overview") return;
     fetchLiveData();
-  }, [adminCat]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [adminCat, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll at 15s when tournament is active, 30s when idle/paused (aligns with server cache TTL)
   // Only poll when Tournaments tab is active to avoid competing requests
