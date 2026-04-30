@@ -231,8 +231,8 @@ export function AdminLogs() {
               <tbody>
                 {filtered.map((log, i) => {
                   const isFallback = (log.context || "").includes("FALLBACK");
-                  const apiLabel = isFallback ? "Direct" : "Emergent";
-                  const modelName = [log.provider, log.model].filter(Boolean).join("/");
+                  const apiLabel = isFallback ? "Anthropic" : "Emergent";
+                  const modelName = log.model || log.provider || "—";
                   return (
                     <tr key={i} className="border-t border-border/50 hover:bg-secondary/20">
                       <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">{(log.ts || "").replace("T", " ").slice(0, 19)}</td>
