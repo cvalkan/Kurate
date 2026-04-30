@@ -27,36 +27,43 @@ def _get_direct_key(provider: str):
     return None
 
 
-async def _log_llm_error(provider: str, model: str, error: str, context: str = ""):
+async def _log_llm_error(provider: str, model: str, error: str, context: str = "", paper_title: str = ""):
     """Persist LLM errors to MongoDB for production debugging."""
     try:
-        await db.llm_error_logs.insert_one({
+        doc = {
             "ts": datetime.now(timezone.utc),
             "provider": provider,
             "model": model,
             "error_type": type(error).__name__ if not isinstance(error, str) else "str",
             "error": str(error)[:1000],
             "context": context,
-        })
+        }
+        if paper_title:
+            doc["paper"] = paper_title[:100]
+        await db.llm_error_logs.insert_one(doc)
     except Exception:
         pass  # never let logging break the caller
 
 
 async def track_llm_usage(provider: str, model: str, context: str, success: bool,
-                          input_tokens: int = 0, output_tokens: int = 0, thinking_tokens: int = 0):
+                          input_tokens: int = 0, output_tokens: int = 0, thinking_tokens: int = 0,
+                          paper_title: str = ""):
     """Track every LLM call (successful or failed) in a single collection.
     Used for cost accounting across all call sites."""
     try:
-        await db.llm_usage.insert_one({
+        doc = {
             "ts": datetime.now(timezone.utc),
             "provider": provider,
             "model": model,
-            "context": context,  # e.g. "summary", "match", "email_extract", "validation"
+            "context": context,
             "success": success,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "thinking_tokens": thinking_tokens,
-        })
+        }
+        if paper_title:
+            doc["paper"] = paper_title[:100]
+        await db.llm_usage.insert_one(doc)
     except Exception:
         pass
 
@@ -1023,7 +1030,7 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
                         tokens["thinking"] = getattr(details, "reasoning_tokens", 0) or 0
 
                 _PROXY_FAIL_COUNTS[provider] = 0  # Reset circuit breaker on proxy success
-                await track_llm_usage(provider, model, context="summary", success=True,
+                await track_llm_usage(provider, model, context="summary", success=True, paper_title=paper.get('title', ''),
                                       input_tokens=tokens.get("input", 0),
                                       output_tokens=tokens.get("output", 0),
                                       thinking_tokens=tokens.get("thinking", 0))
@@ -1038,8 +1045,8 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
                 }
         except Exception as e:
             err_str = str(e).lower()
-            await _log_llm_error(provider, model, e, context="generate_summary")
-            await track_llm_usage(provider, model, context="summary", success=False,
+            await _log_llm_error(provider, model, e, context="generate_summary", paper_title=paper.get('title', ''))
+            await track_llm_usage(provider, model, context="summary", success=False, paper_title=paper.get('title', ''),
                                   input_tokens=len(content) // 4 if content else 0)
             is_budget = any(kw in err_str for kw in ("budget", "balance", "insufficient", "credit", "quota"))
             is_token_limit = any(kw in err_str for kw in _TOKEN_LIMIT_KEYWORDS)
@@ -1125,15 +1132,16 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
                     "truncated_pct": round(100 * char_limit / original_char_limit) if was_truncated else 100,
                 }
         except Exception as fallback_err:
-            await _log_llm_error(provider, model, fallback_err, context="generate_summary_FALLBACK")
-            await track_llm_usage(provider, model, context="summary_fallback", success=False,
+            await _log_llm_error(provider, model, fallback_err, context="generate_summary_FALLBACK", paper_title=paper.get('title', ''))
+            await track_llm_usage(provider, model, context="summary_fallback", success=False, paper_title=paper.get('title', ''),
                                   input_tokens=len(content) // 4 if 'content' in dir() else 0)
             logger.error(f"Direct Anthropic fallback also failed for summary: {fallback_err}")
     else:
         if provider == "anthropic" and not _ANTHROPIC_DIRECT_KEY:
-            await _log_llm_error(provider, model, "ANTHROPIC_API_KEY not set — fallback unavailable", context="generate_summary_NO_FALLBACK")
+            await _log_llm_error(provider, model, "ANTHROPIC_API_KEY not set — fallback unavailable", context="generate_summary_NO_FALLBACK", paper_title=paper.get('title', ''))
 
-    return None
+    # Raise so the caller can track failures per paper
+    raise RuntimeError(f"Summary generation failed for '{paper.get('title', '')[:60]}' ({provider}/{model})")
 
 
 

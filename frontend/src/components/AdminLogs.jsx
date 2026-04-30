@@ -76,8 +76,8 @@ function normalizeRow(doc, source) {
       api: isFallback ? "Anthropic" : "Emergent",
       success: doc.success,
       detail: doc.success
-        ? `in=${(doc.input_tokens || 0).toLocaleString()} out=${(doc.output_tokens || 0).toLocaleString()}${doc.thinking_tokens ? ` think=${doc.thinking_tokens.toLocaleString()}` : ""}`
-        : "failed",
+        ? `${doc.paper ? doc.paper + " — " : ""}in=${(doc.input_tokens || 0).toLocaleString()} out=${(doc.output_tokens || 0).toLocaleString()}${doc.thinking_tokens ? ` think=${doc.thinking_tokens.toLocaleString()}` : ""}`
+        : `${doc.paper ? doc.paper + " — " : ""}failed`,
       isError: false,
     };
   }
@@ -105,7 +105,7 @@ function normalizeRow(doc, source) {
       model: doc.model || "",
       api: isFallback ? "Anthropic" : "Emergent",
       success: false,
-      detail: doc.error || doc.error_type || "Unknown error",
+      detail: `${doc.paper ? doc.paper + " — " : ""}${doc.error || doc.error_type || "Unknown error"}`,
       isError: true,
     };
   }
