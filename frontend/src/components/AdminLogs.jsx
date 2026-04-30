@@ -41,6 +41,11 @@ const APIS = [
   { value: "anthropic", label: "Anthropic" },
 ];
 
+const VIEWS = [
+  { value: "logs", label: "Logs" },
+  { value: "health", label: "Paper Health" },
+];
+
 function Badge({ children, color = "gray" }) {
   const colors = {
     blue: "bg-blue-50 text-blue-700",
@@ -113,6 +118,7 @@ function normalizeRow(doc, source) {
 }
 
 export function AdminLogs() {
+  const [view, setView] = useState("logs"); // "logs" | "health"
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [type, setType] = useState("all");
@@ -186,6 +192,17 @@ export function AdminLogs() {
 
   return (
     <div className="space-y-4" data-testid="admin-logs">
+      {/* View switcher */}
+      <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md w-fit">
+        {VIEWS.map(v => (
+          <button key={v.value} onClick={() => setView(v.value)}
+            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+              view === v.value ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`}>{v.label}</button>
+        ))}
+      </div>
+
+      {view === "logs" && (<>
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
         <Filter className="h-3.5 w-3.5 text-muted-foreground" />
@@ -219,9 +236,6 @@ export function AdminLogs() {
         {stats.failed > 0 && <span className="text-red-500">{stats.failed} failed</span>}
         {stats.events > 0 && <span className="text-indigo-600">{stats.events} events</span>}
       </div>
-
-      {/* Paper Health */}
-      <PaperHealthSection />
 
       {/* Table */}
       <div className="border rounded-lg overflow-x-auto" data-testid="logs-table">
@@ -279,84 +293,104 @@ export function AdminLogs() {
         </div>
       )}
       {loading && <div className="text-center text-xs text-muted-foreground py-4">Loading...</div>}
+      </>)}
+
+      {view === "health" && <PaperHealthTable />}
     </div>
   );
 }
 
-function PaperHealthSection() {
+function PaperHealthTable() {
   const [data, setData] = useState(null);
-  const [open, setOpen] = useState(false);
-  const [showIncomplete, setShowIncomplete] = useState(10);
-  const [showUnprocessed, setShowUnprocessed] = useState(10);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("all"); // "all" | "blocked" | "incomplete" | "unprocessed"
+  const [visibleCount, setVisibleCount] = useState(50);
 
   useEffect(() => {
-    if (!open) return;
+    setLoading(true);
     axios.get(`${API}/api/admin/disqualified-papers`, { headers: getAdminHeaders() })
-      .then(r => setData(r.data)).catch(() => {});
-  }, [open]);
+      .then(r => setData(r.data)).catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const rows = useMemo(() => {
+    if (!data) return [];
+    let result = [];
+    if (filter === "all" || filter === "blocked") {
+      for (const p of data.disqualified || []) {
+        result.push({ ...p, status: "blocked", statusDetail: Object.entries(p.blocked_models).map(([m, c]) => `${m.split(":")[1] || m}: ${c}x`).join(", ") });
+      }
+    }
+    if (filter === "all" || filter === "incomplete") {
+      for (const p of data.incomplete || []) {
+        result.push({ ...p, status: "incomplete", statusDetail: p.missing_models.map(m => m.split(":")[1] || m).join(", ") });
+      }
+    }
+    if (filter === "all" || filter === "unprocessed") {
+      for (const p of data.no_summaries || []) {
+        result.push({ ...p, status: "unprocessed", statusDetail: p.added_at?.slice(0, 10) || "" });
+      }
+    }
+    return result;
+  }, [data, filter]);
+
+  if (loading) return <div className="text-center text-xs text-muted-foreground py-8">Loading...</div>;
+  if (!data) return <div className="text-center text-xs text-muted-foreground py-8">Failed to load</div>;
 
   return (
-    <div className="border rounded-lg p-3 bg-secondary/10" data-testid="paper-health">
-      <button onClick={() => setOpen(!open)} className="flex items-center gap-2 text-xs font-medium w-full text-left">
-        Paper Health
-        <span className="text-muted-foreground font-normal">
-          {data ? `${data.disqualified_count} blocked · ${data.incomplete_count} incomplete · ${data.no_summaries_count} unprocessed` : "click to load"}
-        </span>
-      </button>
-      {open && data && (
-        <div className="mt-3 space-y-4">
-          {data.disqualified_count > 0 && (
-            <div>
-              <h4 className="text-[11px] font-medium text-red-600 mb-1">Blocked (3+ failures) — will not retry</h4>
-              {data.disqualified.map(p => (
-                <div key={p.id} className="text-[11px] py-1 border-b border-border/30">
-                  <span className="text-muted-foreground">[{p.category}]</span>{" "}
-                  <span className="font-medium">{p.title?.slice(0, 60)}</span>{" "}
-                  <span className="text-red-500">{Object.entries(p.blocked_models).map(([m, c]) => `${m}: ${c}x`).join(", ")}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {data.incomplete_count > 0 && (
-            <div>
-              <h4 className="text-[11px] font-medium text-amber-600 mb-1">Incomplete summaries ({data.incomplete_count}) — will retry next cycle</h4>
-              {data.incomplete.slice(0, showIncomplete).map(p => (
-                <div key={p.id} className="text-[11px] py-1 border-b border-border/30">
-                  <span className="text-muted-foreground">[{p.category}]</span>{" "}
-                  <span className="font-medium">{p.title?.slice(0, 55)}</span>{" "}
-                  <span className="text-amber-600">missing: {p.missing_models.map(m => m.split(":")[1] || m).join(", ")}</span>
-                  {Object.keys(p.failure_counts || {}).length > 0 && (
-                    <span className="text-red-400 ml-1">({Object.values(p.failure_counts).join("+")} failures)</span>
-                  )}
-                </div>
-              ))}
-              {data.incomplete_count > showIncomplete && (
-                <button onClick={() => setShowIncomplete(s => s + 20)} className="text-[11px] text-accent hover:underline mt-1">
-                  Load more ({data.incomplete_count - showIncomplete} remaining)
-                </button>
-              )}
-            </div>
-          )}
-          {data.no_summaries_count > 0 && (
-            <div>
-              <h4 className="text-[11px] font-medium text-gray-500 mb-1">Unprocessed ({data.no_summaries_count}) — awaiting pipeline</h4>
-              {data.no_summaries.slice(0, showUnprocessed).map(p => (
-                <div key={p.id} className="text-[11px] py-1 border-b border-border/30">
-                  <span className="text-muted-foreground">[{p.category}]</span>{" "}
-                  <span>{p.title?.slice(0, 60)}</span>{" "}
-                  <span className="text-muted-foreground">{p.added_at?.slice(0, 10)}</span>
-                </div>
-              ))}
-              {data.no_summaries_count > showUnprocessed && (
-                <button onClick={() => setShowUnprocessed(s => s + 20)} className="text-[11px] text-accent hover:underline mt-1">
-                  Load more ({data.no_summaries_count - showUnprocessed} remaining)
-                </button>
-              )}
-            </div>
-          )}
-          {data.disqualified_count === 0 && data.incomplete_count === 0 && data.no_summaries_count === 0 && (
-            <p className="text-[11px] text-muted-foreground">All papers healthy.</p>
-          )}
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+        <select value={filter} onChange={e => { setFilter(e.target.value); setVisibleCount(50); }}
+          className="h-8 px-2 text-xs border rounded-md bg-background">
+          <option value="all">All ({(data.disqualified_count || 0) + (data.incomplete_count || 0) + (data.no_summaries_count || 0)})</option>
+          <option value="blocked">Blocked ({data.disqualified_count || 0})</option>
+          <option value="incomplete">Incomplete ({data.incomplete_count || 0})</option>
+          <option value="unprocessed">Unprocessed ({data.no_summaries_count || 0})</option>
+        </select>
+        <span className="text-xs text-muted-foreground">{rows.length} papers</span>
+      </div>
+
+      <div className="border rounded-lg overflow-x-auto">
+        <table className="w-full text-xs" style={{ minWidth: "650px" }}>
+          <thead>
+            <tr className="bg-secondary/50 text-muted-foreground">
+              <th className="px-3 py-2 text-left font-medium" style={{ width: "55px" }}>Status</th>
+              <th className="px-3 py-2 text-left font-medium" style={{ width: "80px" }}>Category</th>
+              <th className="px-3 py-2 text-left font-medium">Paper</th>
+              <th className="px-3 py-2 text-left font-medium" style={{ width: "110px" }}>arXiv</th>
+              <th className="px-3 py-2 text-left font-medium">Issue</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.slice(0, visibleCount).map((r, i) => (
+              <tr key={i} className={`border-t border-border/50 hover:bg-secondary/20 ${
+                r.status === "blocked" ? "bg-red-50/20" : r.status === "incomplete" ? "bg-amber-50/20" : ""
+              }`}>
+                <td className="px-3 py-1.5">
+                  <Badge color={r.status === "blocked" ? "red" : r.status === "incomplete" ? "amber" : "gray"}>
+                    {r.status}
+                  </Badge>
+                </td>
+                <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">{r.category}</td>
+                <td className="px-3 py-1.5 font-medium truncate max-w-[300px]" title={r.title}>{r.title}</td>
+                <td className="px-3 py-1.5">
+                  {r.arxiv_id && <a href={`https://arxiv.org/abs/${r.arxiv_id}`} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">{r.arxiv_id}</a>}
+                </td>
+                <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">{r.statusDetail}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">All papers healthy.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {rows.length > visibleCount && (
+        <div className="text-center py-2">
+          <button onClick={() => setVisibleCount(v => v + 50)} className="text-xs text-accent hover:underline">
+            Load more ({rows.length - visibleCount} remaining)
+          </button>
         </div>
       )}
     </div>
