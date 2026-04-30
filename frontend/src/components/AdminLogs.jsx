@@ -220,6 +220,9 @@ export function AdminLogs() {
         {stats.events > 0 && <span className="text-indigo-600">{stats.events} events</span>}
       </div>
 
+      {/* Paper Health */}
+      <PaperHealthSection />
+
       {/* Table */}
       <div className="border rounded-lg overflow-x-auto" data-testid="logs-table">
         <table className="w-full text-xs" style={{ minWidth: "750px" }}>
@@ -276,9 +279,6 @@ export function AdminLogs() {
         </div>
       )}
       {loading && <div className="text-center text-xs text-muted-foreground py-4">Loading...</div>}
-
-      {/* Disqualified / Incomplete Papers */}
-      <PaperHealthSection />
     </div>
   );
 }
@@ -286,6 +286,8 @@ export function AdminLogs() {
 function PaperHealthSection() {
   const [data, setData] = useState(null);
   const [open, setOpen] = useState(false);
+  const [showIncomplete, setShowIncomplete] = useState(10);
+  const [showUnprocessed, setShowUnprocessed] = useState(10);
 
   useEffect(() => {
     if (!open) return;
@@ -294,7 +296,7 @@ function PaperHealthSection() {
   }, [open]);
 
   return (
-    <div className="border rounded-lg p-3 mt-4 bg-secondary/10" data-testid="paper-health">
+    <div className="border rounded-lg p-3 bg-secondary/10" data-testid="paper-health">
       <button onClick={() => setOpen(!open)} className="flex items-center gap-2 text-xs font-medium w-full text-left">
         Paper Health
         <span className="text-muted-foreground font-normal">
@@ -305,7 +307,7 @@ function PaperHealthSection() {
         <div className="mt-3 space-y-4">
           {data.disqualified_count > 0 && (
             <div>
-              <h4 className="text-[11px] font-medium text-red-600 mb-1">Blocked (3+ failures)</h4>
+              <h4 className="text-[11px] font-medium text-red-600 mb-1">Blocked (3+ failures) — will not retry</h4>
               {data.disqualified.map(p => (
                 <div key={p.id} className="text-[11px] py-1 border-b border-border/30">
                   <span className="text-muted-foreground">[{p.category}]</span>{" "}
@@ -317,35 +319,43 @@ function PaperHealthSection() {
           )}
           {data.incomplete_count > 0 && (
             <div>
-              <h4 className="text-[11px] font-medium text-amber-600 mb-1">Incomplete summaries ({data.incomplete_count})</h4>
-              {data.incomplete.slice(0, 20).map(p => (
+              <h4 className="text-[11px] font-medium text-amber-600 mb-1">Incomplete summaries ({data.incomplete_count}) — will retry next cycle</h4>
+              {data.incomplete.slice(0, showIncomplete).map(p => (
                 <div key={p.id} className="text-[11px] py-1 border-b border-border/30">
                   <span className="text-muted-foreground">[{p.category}]</span>{" "}
                   <span className="font-medium">{p.title?.slice(0, 55)}</span>{" "}
                   <span className="text-amber-600">missing: {p.missing_models.map(m => m.split(":")[1] || m).join(", ")}</span>
                   {Object.keys(p.failure_counts || {}).length > 0 && (
-                    <span className="text-red-400 ml-1">({Object.entries(p.failure_counts).map(([m, c]) => `${c}x`).join(", ")} failures)</span>
+                    <span className="text-red-400 ml-1">({Object.values(p.failure_counts).join("+")} failures)</span>
                   )}
                 </div>
               ))}
-              {data.incomplete_count > 20 && <p className="text-[10px] text-muted-foreground">+{data.incomplete_count - 20} more</p>}
+              {data.incomplete_count > showIncomplete && (
+                <button onClick={() => setShowIncomplete(s => s + 20)} className="text-[11px] text-accent hover:underline mt-1">
+                  Load more ({data.incomplete_count - showIncomplete} remaining)
+                </button>
+              )}
             </div>
           )}
           {data.no_summaries_count > 0 && (
             <div>
-              <h4 className="text-[11px] font-medium text-gray-500 mb-1">Unprocessed ({data.no_summaries_count})</h4>
-              {data.no_summaries.slice(0, 10).map(p => (
+              <h4 className="text-[11px] font-medium text-gray-500 mb-1">Unprocessed ({data.no_summaries_count}) — awaiting pipeline</h4>
+              {data.no_summaries.slice(0, showUnprocessed).map(p => (
                 <div key={p.id} className="text-[11px] py-1 border-b border-border/30">
                   <span className="text-muted-foreground">[{p.category}]</span>{" "}
                   <span>{p.title?.slice(0, 60)}</span>{" "}
                   <span className="text-muted-foreground">{p.added_at?.slice(0, 10)}</span>
                 </div>
               ))}
-              {data.no_summaries_count > 10 && <p className="text-[10px] text-muted-foreground">+{data.no_summaries_count - 10} more</p>}
+              {data.no_summaries_count > showUnprocessed && (
+                <button onClick={() => setShowUnprocessed(s => s + 20)} className="text-[11px] text-accent hover:underline mt-1">
+                  Load more ({data.no_summaries_count - showUnprocessed} remaining)
+                </button>
+              )}
             </div>
           )}
           {data.disqualified_count === 0 && data.incomplete_count === 0 && data.no_summaries_count === 0 && (
-            <p className="text-[11px] text-muted-foreground">All papers healthy — no blocked, incomplete, or unprocessed papers.</p>
+            <p className="text-[11px] text-muted-foreground">All papers healthy.</p>
           )}
         </div>
       )}
