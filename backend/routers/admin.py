@@ -1283,18 +1283,16 @@ async def get_llm_usage_aggregate(days: int = 7):
 
 @router.get("/disqualified-papers", dependencies=[Depends(verify_admin)])
 async def get_disqualified_papers():
-    """List papers that have been disqualified from summary generation (3+ failures per model).
-    Also lists papers with incomplete summaries (missing one or more models)."""
-    disqualified = []
-    incomplete = []
+    """List papers with summary issues: blocked (3+ failures), incomplete, or unprocessed."""
 
-    # Papers with summary_failures >= 3 for any model
+    # 1. Blocked: papers with summary_failures >= 3 (indexed field, fast)
+    disqualified = []
     async for doc in db.papers.find(
         {"summary_failures": {"$exists": True}},
         {"_id": 0, "id": 1, "title": 1, "arxiv_id": 1, "categories": 1, "summary_failures": 1, "summaries": 1},
-    ):
+    ).limit(100):
         failures = doc.get("summary_failures", {})
-        blocked_models = {model: count for model, count in failures.items() if count >= 3}
+        blocked_models = {m: c for m, c in failures.items() if c >= 3}
         if blocked_models:
             disqualified.append({
                 "id": doc.get("id"),
@@ -1305,30 +1303,27 @@ async def get_disqualified_papers():
                 "has_summaries": list((doc.get("summaries") or {}).keys()),
             })
 
-    # Papers with summaries but missing one or more of the 3 expected models
-    expected_keys = [
-        "anthropic:claude-opus-4-6:thinking",
-        "openai:gpt-5_2",
-        "gemini:gemini-3-pro-preview",
-    ]
+    # 2. Incomplete: papers missing Claude summary specifically (most common failure)
+    # Uses a targeted query instead of scanning all 10K papers
+    incomplete = []
     async for doc in db.papers.find(
-        {"summaries": {"$exists": True, "$ne": {}}, "is_latest_version": {"$ne": False}},
-        {"_id": 0, "id": 1, "title": 1, "arxiv_id": 1, "categories": 1, "summaries": 1, "summary_failures": 1},
-    ):
-        existing_keys = set((doc.get("summaries") or {}).keys())
-        missing = [k for k in expected_keys if k not in existing_keys]
-        if missing:
-            failures = doc.get("summary_failures", {})
-            incomplete.append({
-                "id": doc.get("id"),
-                "title": doc.get("title"),
-                "arxiv_id": doc.get("arxiv_id"),
-                "category": (doc.get("categories") or [""])[0],
-                "missing_models": missing,
-                "failure_counts": failures,
-            })
+        {
+            "summaries": {"$exists": True, "$ne": {}},
+            "is_latest_version": {"$ne": False},
+            "summaries.anthropic:claude-opus-4-6:thinking": {"$exists": False},
+        },
+        {"_id": 0, "id": 1, "title": 1, "arxiv_id": 1, "categories": 1, "summary_failures": 1},
+    ).limit(100):
+        incomplete.append({
+            "id": doc.get("id"),
+            "title": doc.get("title"),
+            "arxiv_id": doc.get("arxiv_id"),
+            "category": (doc.get("categories") or [""])[0],
+            "missing_models": ["claude-opus-4-6:thinking"],
+            "failure_counts": doc.get("summary_failures", {}),
+        })
 
-    # Papers with no summaries at all
+    # 3. Unprocessed: no summaries at all (recent papers awaiting pipeline)
     no_summaries = []
     async for doc in db.papers.find(
         {"$or": [{"summaries": {"$exists": False}}, {"summaries": {}}], "is_latest_version": {"$ne": False}},
