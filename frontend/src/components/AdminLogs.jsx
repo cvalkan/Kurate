@@ -68,11 +68,12 @@ function typeColor(ctx) {
 
 function normalizeRow(doc, source) {
   if (source === "llm") {
+    const isFallback = (doc.context || "").includes("fallback");
     return {
       ts: doc.ts,
       type: doc.context || "llm",
       model: doc.model || doc.provider || "",
-      api: "Emergent",
+      api: isFallback ? "Anthropic" : "Emergent",
       success: doc.success,
       detail: doc.success
         ? `in=${(doc.input_tokens || 0).toLocaleString()} out=${(doc.output_tokens || 0).toLocaleString()}${doc.thinking_tokens ? ` think=${doc.thinking_tokens.toLocaleString()}` : ""}`
