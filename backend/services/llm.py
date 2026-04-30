@@ -797,8 +797,9 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
             except Exception as e:
                 last_error = e
                 err_str = str(e).lower()
-                await _log_llm_error(provider, model, e, context="compare_papers")
-                await track_llm_usage(provider, model, context="match", success=False)
+                match_label = f"{paper1.get('title','')[:30]} vs {paper2.get('title','')[:30]}"
+                await _log_llm_error(provider, model, e, context="compare_papers", paper_title=match_label)
+                await track_llm_usage(provider, model, context="match", success=False, paper_title=match_label)
                 is_budget = any(kw in err_str for kw in ("budget", "balance", "insufficient", "credit", "quota"))
                 is_overloaded = "overloaded" in err_str or "rate" in err_str
                 is_token_limit = any(kw in err_str for kw in _TOKEN_LIMIT_KEYWORDS)
@@ -895,10 +896,16 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
 
             result["model_used"] = model_info
             result["tokens"] = {"input_est": input_tokens_est, "output_est": output_tokens_est}
+            match_label = f"{paper1.get('title','')[:30]} vs {paper2.get('title','')[:30]}"
+            await track_llm_usage(provider, model, context="match_fallback", success=True,
+                                  input_tokens=input_tokens_est, output_tokens=output_tokens_est,
+                                  paper_title=match_label)
             logger.info(f"Direct {provider} fallback succeeded for {model}")
             return result
         except Exception as fallback_err:
-            await _log_llm_error(provider, model, fallback_err, context="compare_papers_FALLBACK")
+            match_label = f"{paper1.get('title','')[:30]} vs {paper2.get('title','')[:30]}"
+            await _log_llm_error(provider, model, fallback_err, context="compare_papers_FALLBACK", paper_title=match_label)
+            await track_llm_usage(provider, model, context="match_fallback", success=False, paper_title=match_label)
             logger.error(f"Direct {provider} fallback also failed: {fallback_err}")
 
     raise Exception(f"Comparison failed after {max_retries} retries: {last_error}")

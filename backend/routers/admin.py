@@ -1281,6 +1281,92 @@ async def get_llm_usage_aggregate(days: int = 7):
     return {"usage": results, "days": days}
 
 
+@router.get("/disqualified-papers", dependencies=[Depends(verify_admin)])
+async def get_disqualified_papers():
+    """List papers that have been disqualified from summary generation (3+ failures per model).
+    Also lists papers with incomplete summaries (missing one or more models)."""
+    disqualified = []
+    incomplete = []
+
+    # Papers with summary_failures >= 3 for any model
+    async for doc in db.papers.find(
+        {"summary_failures": {"$exists": True}},
+        {"_id": 0, "id": 1, "title": 1, "arxiv_id": 1, "categories": 1, "summary_failures": 1, "summaries": 1},
+    ):
+        failures = doc.get("summary_failures", {})
+        blocked_models = {model: count for model, count in failures.items() if count >= 3}
+        if blocked_models:
+            disqualified.append({
+                "id": doc.get("id"),
+                "title": doc.get("title"),
+                "arxiv_id": doc.get("arxiv_id"),
+                "category": (doc.get("categories") or [""])[0],
+                "blocked_models": blocked_models,
+                "has_summaries": list((doc.get("summaries") or {}).keys()),
+            })
+
+    # Papers with summaries but missing one or more of the 3 expected models
+    expected_keys = [
+        "anthropic:claude-opus-4-6:thinking",
+        "openai:gpt-5_2",
+        "gemini:gemini-3-pro-preview",
+    ]
+    async for doc in db.papers.find(
+        {"summaries": {"$exists": True, "$ne": {}}, "is_latest_version": {"$ne": False}},
+        {"_id": 0, "id": 1, "title": 1, "arxiv_id": 1, "categories": 1, "summaries": 1, "summary_failures": 1},
+    ):
+        existing_keys = set((doc.get("summaries") or {}).keys())
+        missing = [k for k in expected_keys if k not in existing_keys]
+        if missing:
+            failures = doc.get("summary_failures", {})
+            incomplete.append({
+                "id": doc.get("id"),
+                "title": doc.get("title"),
+                "arxiv_id": doc.get("arxiv_id"),
+                "category": (doc.get("categories") or [""])[0],
+                "missing_models": missing,
+                "failure_counts": failures,
+            })
+
+    # Papers with no summaries at all
+    no_summaries = []
+    async for doc in db.papers.find(
+        {"$or": [{"summaries": {"$exists": False}}, {"summaries": {}}], "is_latest_version": {"$ne": False}},
+        {"_id": 0, "id": 1, "title": 1, "arxiv_id": 1, "categories": 1, "added_at": 1},
+    ).sort("added_at", -1).limit(50):
+        no_summaries.append({
+            "id": doc.get("id"),
+            "title": doc.get("title"),
+            "arxiv_id": doc.get("arxiv_id"),
+            "category": (doc.get("categories") or [""])[0],
+            "added_at": doc.get("added_at"),
+        })
+
+    return {
+        "disqualified": disqualified,
+        "disqualified_count": len(disqualified),
+        "incomplete": incomplete,
+        "incomplete_count": len(incomplete),
+        "no_summaries": no_summaries,
+        "no_summaries_count": len(no_summaries),
+    }
+
+
+@router.post("/reset-summary-failures", dependencies=[Depends(verify_admin)])
+async def reset_summary_failures(paper_id: str = None):
+    """Reset summary failure counters. If paper_id given, reset that paper only. Otherwise reset all."""
+    if paper_id:
+        result = await db.papers.update_one({"id": paper_id}, {"$unset": {"summary_failures": ""}})
+        return {"status": "ok", "reset": result.modified_count}
+    else:
+        result = await db.papers.update_many(
+            {"summary_failures": {"$exists": True}},
+            {"$unset": {"summary_failures": ""}},
+        )
+        return {"status": "ok", "reset": result.modified_count}
+
+
+
 
 @router.get("/prompt", dependencies=[Depends(verify_admin)])
 async def get_evaluation_prompt():
