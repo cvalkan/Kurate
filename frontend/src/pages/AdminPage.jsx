@@ -9,11 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Settings, Activity, LogOut, FileText, Save, HelpCircle, FlaskConical, MessageSquare, Users,
-  Sliders, Twitter, Mail,
+  Sliders, Twitter, Mail, ScrollText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminOverview } from "@/components/AdminOverview";
-import { AdminExperiment } from "@/components/AdminExperiment";
+import { AdminLogs } from "@/components/AdminLogs";
 import { AdminStatistics } from "@/components/AdminStatistics";
 import { AdminCategories } from "@/components/AdminCategories";
 
@@ -262,7 +262,7 @@ export default function AdminPage() {
     { key: "overview", label: "Tournaments", icon: Sliders },
     { key: "settings", label: "Settings", icon: Settings },
     { key: "prompt", label: "Prompt", icon: FileText },
-    { key: "experiment", label: "Experiment", icon: FlaskConical },
+    { key: "logs", label: "Logs", icon: ScrollText },
     { key: "suggestions", label: "Suggestions", icon: MessageSquare },
     { key: "users", label: "Users", icon: Users },
   ];
@@ -570,7 +570,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {activeTab === "experiment" && <AdminExperiment />}
+      {activeTab === "logs" && <AdminLogs />}
 
       {activeTab === "suggestions" && <AdminSuggestions />}
 
