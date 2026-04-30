@@ -791,6 +791,7 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
                 last_error = e
                 err_str = str(e).lower()
                 await _log_llm_error(provider, model, e, context="compare_papers")
+                await track_llm_usage(provider, model, context="match", success=False)
                 is_budget = any(kw in err_str for kw in ("budget", "balance", "insufficient", "credit", "quota"))
                 is_overloaded = "overloaded" in err_str or "rate" in err_str
                 is_token_limit = any(kw in err_str for kw in _TOKEN_LIMIT_KEYWORDS)
@@ -1022,6 +1023,10 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
                         tokens["thinking"] = getattr(details, "reasoning_tokens", 0) or 0
 
                 _PROXY_FAIL_COUNTS[provider] = 0  # Reset circuit breaker on proxy success
+                await track_llm_usage(provider, model, context="summary", success=True,
+                                      input_tokens=tokens.get("input", 0),
+                                      output_tokens=tokens.get("output", 0),
+                                      thinking_tokens=tokens.get("thinking", 0))
                 return {
                     "summary": summary_text,
                     "model_used": model_info,
@@ -1034,6 +1039,8 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
         except Exception as e:
             err_str = str(e).lower()
             await _log_llm_error(provider, model, e, context="generate_summary")
+            await track_llm_usage(provider, model, context="summary", success=False,
+                                  input_tokens=len(content) // 4 if content else 0)
             is_budget = any(kw in err_str for kw in ("budget", "balance", "insufficient", "credit", "quota"))
             is_token_limit = any(kw in err_str for kw in _TOKEN_LIMIT_KEYWORDS)
             is_auth = any(kw in err_str for kw in ("authentication", "invalid x-api-key", "invalid api key", "not allowed", "timeout", "timed out", "502", "bad gateway"))
@@ -1119,6 +1126,8 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
                 }
         except Exception as fallback_err:
             await _log_llm_error(provider, model, fallback_err, context="generate_summary_FALLBACK")
+            await track_llm_usage(provider, model, context="summary_fallback", success=False,
+                                  input_tokens=len(content) // 4 if 'content' in dir() else 0)
             logger.error(f"Direct Anthropic fallback also failed for summary: {fallback_err}")
     else:
         if provider == "anthropic" and not _ANTHROPIC_DIRECT_KEY:
