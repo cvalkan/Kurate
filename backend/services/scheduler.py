@@ -1625,11 +1625,13 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                 from services.llm import track_llm_usage
                 match_tokens = match_doc.get("tokens", {})
                 match_model = match_doc.get("model_used", {})
+                match_label = f"{p1.get('title','')[:30]} vs {p2.get('title','')[:30]}"
                 await track_llm_usage(
                     match_model.get("provider", ""), match_model.get("model", ""),
                     context="match", success=match_doc.get("completed", False),
                     input_tokens=match_tokens.get("input_est", match_tokens.get("input", 0)),
                     output_tokens=match_tokens.get("output_est", match_tokens.get("output", 0)),
+                    paper_title=match_label,
                 )
                 # Bump incremental match counter (avoids full-collection scan in _refresh_cache)
                 from routers.leaderboard import bump_match_counter
