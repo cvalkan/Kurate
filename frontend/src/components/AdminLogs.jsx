@@ -316,6 +316,11 @@ function PaperHealthTable() {
   const rows = useMemo(() => {
     if (!data) return [];
     let result = [];
+    if (filter === "all" || filter === "refused") {
+      for (const p of data.refused || []) {
+        result.push({ ...p, status: "refused", statusDetail: p.refused_models?.map(m => m.split(":")[1] || m).join(", ") || "content policy" });
+      }
+    }
     if (filter === "all" || filter === "blocked") {
       for (const p of data.disqualified || []) {
         result.push({ ...p, status: "blocked", statusDetail: Object.entries(p.blocked_models).map(([m, c]) => `${m.split(":")[1] || m}: ${c}x`).join(", ") });
@@ -343,7 +348,8 @@ function PaperHealthTable() {
         <Filter className="h-3.5 w-3.5 text-muted-foreground" />
         <select value={filter} onChange={e => { setFilter(e.target.value); setVisibleCount(50); }}
           className="h-8 px-2 text-xs border rounded-md bg-background">
-          <option value="all">All ({(data.disqualified_count || 0) + (data.incomplete_count || 0) + (data.no_summaries_count || 0)})</option>
+          <option value="all">All ({(data.refused_count || 0) + (data.disqualified_count || 0) + (data.incomplete_count || 0) + (data.no_summaries_count || 0)})</option>
+          <option value="refused">Refused ({data.refused_count || 0})</option>
           <option value="blocked">Blocked ({data.disqualified_count || 0})</option>
           <option value="incomplete">Incomplete ({data.incomplete_count || 0})</option>
           <option value="unprocessed">Unprocessed ({data.no_summaries_count || 0})</option>

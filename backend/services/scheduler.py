@@ -1299,14 +1299,21 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
 
         mk = _summary_model_key(model_info)
 
-        # Skip papers that have failed 3+ times for this model (retry storm prevention)
+        # Skip refused papers permanently (content policy — will never succeed, even with force)
+        refused_doc = await db.papers.find_one(
+            {"id": paper_id}, {"_id": 0, f"summary_refused.{mk}": 1}
+        )
+        if (refused_doc or {}).get("summary_refused", {}).get(mk):
+            return  # Permanently refused — never retry
+
+        # Skip papers that have failed 3+ times (budget/other — saves credits)
         if not force:
             fail_doc = await db.papers.find_one(
                 {"id": paper_id}, {"_id": 0, f"summary_failures.{mk}": 1}
             )
             fail_count = (fail_doc or {}).get("summary_failures", {}).get(mk, 0)
             if fail_count >= 3:
-                return  # Skip — already failed 3 times, don't waste credits
+                return  # Failed 3+ times — don't waste credits
 
         async with sem:
             if _summary_gen_stop:
@@ -1330,19 +1337,23 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
             except Exception as e:
                 failed += 1
                 _sync_progress()
-                # Track the failed attempt's cost
-                from services.llm import track_llm_usage
-                await track_llm_usage(
-                    model_info.get("provider", ""), model_info.get("model", ""),
-                    context="summary", success=False,
-                    input_tokens=len(paper.get("full_text", "") or paper.get("abstract", "") or "") // 4,
-                )
-                # Increment failure counter for this paper+model
-                await db.papers.update_one(
-                    {"id": paper_id},
-                    {"$inc": {f"summary_failures.{mk}": 1}},
-                )
-                logger.warning(f"[{category}] Summary gen error for '{paper.get('title', '')[:40]}' ({mk}): {e}")
+                err_msg = str(e)
+                is_refusal = err_msg.startswith("REFUSED:")
+
+                # For refusals: mark permanently so we never retry this paper+model
+                if is_refusal:
+                    await db.papers.update_one(
+                        {"id": paper_id},
+                        {"$set": {f"summary_refused.{mk}": True, f"summary_failures.{mk}": 999}},
+                    )
+                    logger.warning(f"[{category}] REFUSED: '{paper.get('title', '')[:40]}' ({mk})")
+                else:
+                    # Increment failure counter for this paper+model
+                    await db.papers.update_one(
+                        {"id": paper_id},
+                        {"$inc": {f"summary_failures.{mk}": 1}},
+                    )
+                    logger.warning(f"[{category}] Summary gen error for '{paper.get('title', '')[:40]}' ({mk}): {e}")
                 return
             if result and result.get("summary"):
                 summary_val = result["summary"]

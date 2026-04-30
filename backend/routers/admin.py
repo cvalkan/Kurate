@@ -1283,12 +1283,28 @@ async def get_llm_usage_aggregate(days: int = 7):
 
 @router.get("/disqualified-papers", dependencies=[Depends(verify_admin)])
 async def get_disqualified_papers():
-    """List papers with summary issues: blocked (3+ failures), incomplete, or unprocessed."""
+    """List papers with summary issues: refused, blocked (3+ failures), incomplete, or unprocessed."""
 
-    # 1. Blocked: papers with summary_failures >= 3 (indexed field, fast)
+    # 1. Refused: papers where Claude explicitly declined (content policy)
+    refused = []
+    async for doc in db.papers.find(
+        {"summary_refused": {"$exists": True}},
+        {"_id": 0, "id": 1, "title": 1, "arxiv_id": 1, "categories": 1, "summary_refused": 1, "summaries": 1},
+    ).limit(100):
+        refused_models = list((doc.get("summary_refused") or {}).keys())
+        refused.append({
+            "id": doc.get("id"),
+            "title": doc.get("title"),
+            "arxiv_id": doc.get("arxiv_id"),
+            "category": (doc.get("categories") or [""])[0],
+            "refused_models": refused_models,
+            "has_summaries": list((doc.get("summaries") or {}).keys()),
+        })
+
+    # 2. Blocked: papers with summary_failures >= 3 (but not refused)
     disqualified = []
     async for doc in db.papers.find(
-        {"summary_failures": {"$exists": True}},
+        {"summary_failures": {"$exists": True}, "summary_refused": {"$exists": False}},
         {"_id": 0, "id": 1, "title": 1, "arxiv_id": 1, "categories": 1, "summary_failures": 1, "summaries": 1},
     ).limit(100):
         failures = doc.get("summary_failures", {})
@@ -1338,6 +1354,8 @@ async def get_disqualified_papers():
         })
 
     return {
+        "refused": refused,
+        "refused_count": len(refused),
         "disqualified": disqualified,
         "disqualified_count": len(disqualified),
         "incomplete": incomplete,

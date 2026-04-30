@@ -1016,6 +1016,13 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
                 _llm_executor,
                 lambda: litellm.completion(**params),
             )
+            # Check for explicit model refusal
+            if raw_response.choices and getattr(raw_response.choices[0], "finish_reason", None) == "refusal":
+                await _log_llm_error(provider, model, "Model refused to assess this paper",
+                                     context="generate_summary_REFUSED", paper_title=paper.get('title', ''))
+                await track_llm_usage(provider, model, context="summary_refused", success=False, paper_title=paper.get('title', ''))
+                raise RuntimeError(f"REFUSED: {provider}/{model} declined to summarize '{paper.get('title', '')[:60]}'")
+
             response_text = raw_response.choices[0].message.content if raw_response.choices else ""
             if response_text and response_text.strip():
                 summary_text = response_text.strip()
@@ -1058,6 +1065,12 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
             is_budget = any(kw in err_str for kw in ("budget", "balance", "insufficient", "credit", "quota"))
             is_token_limit = any(kw in err_str for kw in _TOKEN_LIMIT_KEYWORDS)
             is_auth = any(kw in err_str for kw in ("authentication", "invalid x-api-key", "invalid api key", "not allowed", "timeout", "timed out", "502", "bad gateway"))
+            is_refusal = any(kw in err_str for kw in ("refused", "refusal", "content_policy", "safety"))
+
+            if is_refusal:
+                await _log_llm_error(provider, model, e, context="generate_summary_REFUSED", paper_title=paper.get('title', ''))
+                await track_llm_usage(provider, model, context="summary_refused", success=False, paper_title=paper.get('title', ''))
+                raise RuntimeError(f"REFUSED: {provider}/{model} declined to summarize '{paper.get('title', '')[:60]}'")
 
             if is_auth and provider == "anthropic" and _ANTHROPIC_DIRECT_KEY:
                 _PROXY_FAIL_COUNTS[provider] = _PROXY_FAIL_COUNTS.get(provider, 0) + 1; import time as _t; _PROXY_LAST_FAIL_TIME[provider] = _t.time()
