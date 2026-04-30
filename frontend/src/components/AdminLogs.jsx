@@ -94,7 +94,11 @@ function normalizeRow(doc, source) {
   }
   if (source === "errors") {
     const isFallback = (doc.context || "").includes("FALLBACK");
-    const type = doc.context?.replace("generate_summary_FALLBACK", "summary").replace("generate_summary", "summary").replace("compare_papers_FALLBACK", "match").replace("compare_papers", "match") || "error";
+    const type = (doc.context || "error")
+      .replace("generate_summary_FALLBACK", "summary_fallback")
+      .replace("generate_summary", "summary")
+      .replace("compare_papers_FALLBACK", "match_fallback")
+      .replace("compare_papers", "match");
     return {
       ts: doc.ts,
       type,
