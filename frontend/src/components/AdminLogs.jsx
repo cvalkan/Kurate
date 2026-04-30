@@ -246,7 +246,7 @@ export function AdminLogs() {
                     : <span className="text-red-600 text-[10px] font-medium">FAIL</span>}
                 </td>
                 <td className="px-3 py-1.5">
-                  <div className="overflow-x-auto max-w-[500px]">
+                  <div className="overflow-x-auto max-w-[500px] scrollbar-none" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
                     <span className={`whitespace-nowrap ${r.isError ? "text-red-600" : "text-muted-foreground"}`}>
                       {r.detail || "—"}
                     </span>
