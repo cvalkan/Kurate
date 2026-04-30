@@ -10,6 +10,14 @@ function getAdminHeaders() {
   return token ? { "X-Admin-Token": token } : {};
 }
 
+function toCET(ts) {
+  if (!ts) return "";
+  try {
+    const d = new Date(ts.includes("Z") ? ts : ts + "Z");
+    return d.toLocaleString("sv-SE", { timeZone: "Europe/Berlin" }).replace("T", " ");
+  } catch { return ts.slice(0, 19).replace("T", " "); }
+}
+
 const LLM_CONTEXTS = ["all", "match", "summary", "email_extract"];
 const EVENT_TYPES = ["all", "fetch_cycle", "archive_created", "convergence"];
 const STATUSES = ["all", "success", "failed"];
@@ -32,7 +40,7 @@ function LlmLogsTable({ logs }) {
       <tbody>
         {logs.map((log, i) => (
           <tr key={i} className={`border-t border-border/50 ${!log.success ? "bg-red-50/30" : ""} hover:bg-secondary/20`}>
-            <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">{(log.ts || "").replace("T", " ").slice(0, 19)}</td>
+            <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">{toCET(log.ts)}</td>
             <td className="px-3 py-1.5">
               <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                 log.context === "match" ? "bg-blue-50 text-blue-700" :
@@ -71,7 +79,7 @@ function EventLogsTable({ logs }) {
       <tbody>
         {logs.map((log, i) => (
           <tr key={i} className="border-t border-border/50 hover:bg-secondary/20">
-            <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">{(log.ts || "").replace("T", " ").slice(0, 19)}</td>
+            <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">{toCET(log.ts)}</td>
             <td className="px-3 py-1.5">
               <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium inline-flex items-center gap-1 ${
                 log.event === "fetch_cycle" ? "bg-green-50 text-green-700" :
@@ -235,7 +243,7 @@ export function AdminLogs() {
                   const modelName = log.model || log.provider || "—";
                   return (
                     <tr key={i} className="border-t border-border/50 hover:bg-secondary/20">
-                      <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">{(log.ts || "").replace("T", " ").slice(0, 19)}</td>
+                      <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">{toCET(log.ts)}</td>
                       <td className="px-3 py-1.5 whitespace-nowrap">{modelName}</td>
                       <td className="px-3 py-1.5 whitespace-nowrap">
                         <span className={`text-[10px] px-1.5 py-0.5 rounded ${
