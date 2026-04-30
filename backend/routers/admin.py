@@ -884,19 +884,28 @@ async def get_progress_estimate(category: str = "cs.RO"):
     median_topk = sorted(topk_margins)[len(topk_margins) // 2] if topk_margins else 0.0
     matches_for_goal2 = 0 if goal2_met else max(0, int(topk_additional * 0.6))
 
-    # Goal 3: Cross-matches among top-K papers (targeted queries, not bulk load)
+    # Goal 3: Cross-matches among top-K papers (single batch query, not N^2 individual lookups)
     topk_total_pairs = len(top_k_list) * (len(top_k_list) - 1) // 2
     topk_matched_pairs = 0
-    for i in range(len(top_k_list)):
-        for j in range(i + 1, len(top_k_list)):
-            p1, p2 = top_k_list[i], top_k_list[j]
-            has_match = await db.matches.count_documents({
-                "completed": True, "failed": {"$ne": True}, "primary_category": category,
-                "mode": {"$exists": False},
-                "$or": [{"paper1_id": p1, "paper2_id": p2}, {"paper1_id": p2, "paper2_id": p1}],
-            }) > 0
-            if has_match:
-                topk_matched_pairs += 1
+    if top_k_list:
+        # Build all pair conditions in one $or query
+        pair_conditions = []
+        for i in range(len(top_k_list)):
+            for j in range(i + 1, len(top_k_list)):
+                p1, p2 = top_k_list[i], top_k_list[j]
+                pair_conditions.append({"paper1_id": p1, "paper2_id": p2})
+                pair_conditions.append({"paper1_id": p2, "paper2_id": p1})
+        if pair_conditions:
+            # Find all matches involving any top-K pair in one query
+            matched_pairs_set = set()
+            async for m in db.matches.find(
+                {"completed": True, "failed": {"$ne": True}, "primary_category": category,
+                 "mode": {"$exists": False}, "$or": pair_conditions},
+                {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+            ):
+                pair_key = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
+                matched_pairs_set.add(pair_key)
+            topk_matched_pairs = len(matched_pairs_set)
     matches_for_goal3 = topk_total_pairs - topk_matched_pairs
     goal3_met = bool(topk_matched_pairs == topk_total_pairs)
 
