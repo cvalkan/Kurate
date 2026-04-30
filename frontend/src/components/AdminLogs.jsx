@@ -115,6 +115,7 @@ export function AdminLogs() {
   const [status, setStatus] = useState("all");
   const [api, setApi] = useState("all");
   const [search, setSearch] = useState("");
+  const [visibleCount, setVisibleCount] = useState(200);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -122,20 +123,19 @@ export function AdminLogs() {
       const headers = getAdminHeaders();
       const fetches = [];
 
-      // Always fetch all sources, filter client-side for simplicity
       fetches.push(
         axios.get(`${API}/api/admin/db/llm_usage`, {
-          headers, params: { sort: JSON.stringify({ ts: -1 }), limit: 300 },
+          headers, params: { sort: JSON.stringify({ ts: -1 }), limit: 1000 },
         }).then(r => (r.data.docs || []).map(d => normalizeRow(d, "llm"))).catch(() => [])
       );
       fetches.push(
         axios.get(`${API}/api/admin/db/system_logs`, {
-          headers, params: { sort: JSON.stringify({ ts: -1 }), limit: 100, filter: JSON.stringify({ level: "event" }) },
+          headers, params: { sort: JSON.stringify({ ts: -1 }), limit: 500, filter: JSON.stringify({ level: "event" }) },
         }).then(r => (r.data.docs || []).map(d => normalizeRow(d, "events"))).catch(() => [])
       );
       fetches.push(
         axios.get(`${API}/api/admin/db/llm_error_logs`, {
-          headers, params: { sort: JSON.stringify({ ts: -1 }), limit: 200 },
+          headers, params: { sort: JSON.stringify({ ts: -1 }), limit: 500 },
         }).then(r => (r.data.docs || []).map(d => normalizeRow(d, "errors"))).catch(() => [])
       );
 
@@ -227,7 +227,7 @@ export function AdminLogs() {
             </tr>
           </thead>
           <tbody>
-            {filtered.slice(0, 500).map((r, i) => (
+            {filtered.slice(0, visibleCount).map((r, i) => (
               <tr key={i} className={`border-t border-border/50 hover:bg-secondary/20 ${
                 r.isError ? "bg-red-50/20" :
                 ["fetch_cycle", "archive_created", "convergence"].includes(r.type) ? "bg-indigo-50/20" :
@@ -261,8 +261,13 @@ export function AdminLogs() {
           </tbody>
         </table>
       </div>
-      {filtered.length > 500 && (
-        <p className="text-[10px] text-muted-foreground text-center">Showing 500 of {filtered.length} entries</p>
+      {filtered.length > visibleCount && (
+        <div className="text-center py-2">
+          <button onClick={() => setVisibleCount(v => v + 200)}
+            className="text-xs text-accent hover:underline">
+            Show more ({filtered.length - visibleCount} remaining)
+          </button>
+        </div>
       )}
       {loading && <div className="text-center text-xs text-muted-foreground py-4">Loading...</div>}
     </div>
