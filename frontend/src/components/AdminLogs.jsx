@@ -154,6 +154,8 @@ export function AdminLogs() {
   const filtered = useMemo(() => {
     let result = rows;
     if (type === "error") result = result.filter(r => r.isError || r.success === false);
+    else if (type === "summary") result = result.filter(r => r.type === "summary" || r.type === "summary_fallback");
+    else if (type === "match") result = result.filter(r => r.type === "match" || r.type === "match_fallback");
     else if (type !== "all") result = result.filter(r => r.type === type);
     if (status === "success") result = result.filter(r => r.success === true);
     if (status === "failed") result = result.filter(r => r.success === false);
