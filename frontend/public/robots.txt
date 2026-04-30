@@ -18,5 +18,6 @@ Disallow: /test/
 Disallow: /auth/
 Disallow: /profile
 Disallow: /bookmarks
+Disallow: /members/
 
 Sitemap: https://kurate.org/api/sitemap.xml

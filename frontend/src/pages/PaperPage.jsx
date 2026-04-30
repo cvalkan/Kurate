@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { Helmet } from "react-helmet";
 import axios from "axios";
 import DOMPurify from "dompurify";
 import { Badge } from "@/components/ui/badge";
@@ -361,9 +362,24 @@ export default function PaperPage() {
   const { paper, matches, stats } = data;
   const winRate = stats.comparisons > 0 ? Math.round((stats.wins / stats.comparisons) * 100) : 0;
   const summaryEntries = getSummaryEntries(paper.summaries, paper.summary_dates);
+  const authorsStr = paper.authors?.slice(0, 4).join(", ") + (paper.authors?.length > 4 ? " et al." : "");
+  const catStr = (paper.categories || []).slice(0, 2).join(" · ");
 
   return (
     <div className="container mx-auto px-4 md:px-6 max-w-4xl py-6 md:py-10">
+      <Helmet>
+        <title>{paper.title} | Kurate.org</title>
+        <meta name="description" content={`${authorsStr} | ${catStr} | AI-ranked by scientific impact on Kurate.org`} />
+        <link rel="canonical" href={`https://kurate.org/paper/${id}`} />
+        <meta property="og:title" content={`${paper.title} | Kurate.org`} />
+        <meta property="og:description" content={`by ${authorsStr} | ${catStr} | AI-ranked by scientific impact`} />
+        <meta property="og:url" content={`https://kurate.org/paper/${id}`} />
+        <meta property="og:type" content="article" />
+        <meta property="og:site_name" content="Kurate.org" />
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content={`${paper.title} | Kurate.org`} />
+        <meta name="twitter:description" content={`by ${authorsStr} | AI-ranked on Kurate.org`} />
+      </Helmet>
       <button onClick={() => {
         const cat = paper.categories?.[0];
         if (cat) navigate(`/?cat=${cat}&period=all`);

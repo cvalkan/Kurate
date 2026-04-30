@@ -226,6 +226,73 @@ async def gmail_callback(code: str, state: str, request: Request):
     return RedirectResponse(url=return_to or "/")
 
 
+# --- SEO: Server-side meta tags for paper pages ---
+# Crawlers (Googlebot, etc.) get paper-specific meta tags.
+# Regular browsers get the SPA shell (handled by the frontend static server).
+
+_BOT_UAS = ("googlebot", "bingbot", "slurp", "duckduckbot", "baiduspider",
+            "yandexbot", "facebookexternalhit", "twitterbot", "linkedinbot", "applebot")
+
+@app.get("/paper/{paper_id}")
+async def paper_seo_page(paper_id: str, request: Request):
+    """Serve paper-specific meta tags for search engine crawlers."""
+    ua = (request.headers.get("user-agent") or "").lower()
+    is_bot = any(bot in ua for bot in _BOT_UAS)
+
+    if not is_bot:
+        # Regular browser — let the frontend handle it (fall through to static files)
+        from starlette.responses import Response
+        return Response(status_code=404)  # Frontend catch-all will serve index.html
+
+    paper = await db.papers.find_one(
+        {"id": paper_id},
+        {"_id": 0, "title": 1, "authors": 1, "abstract": 1, "categories": 1, "arxiv_id": 1, "published": 1}
+    )
+    if not paper:
+        return HTMLResponse(status_code=404, content="<html><body>Paper not found</body></html>")
+
+    title = paper.get("title", "Paper")
+    authors = paper.get("authors", [])
+    abstract = (paper.get("abstract") or "")[:300]
+    categories = paper.get("categories", [])
+    arxiv_id = paper.get("arxiv_id", "")
+    authors_str = ", ".join(authors[:4]) + (" et al." if len(authors) > 4 else "")
+    cat_str = " · ".join(categories[:3])
+
+    og_title = f"{title} | Kurate.org"
+    og_desc = f"by {authors_str} | {cat_str} | AI-ranked by scientific impact"
+    canonical = f"https://kurate.org/paper/{paper_id}"
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{title} | Kurate.org</title>
+<meta name="description" content="{og_desc}">
+<link rel="canonical" href="{canonical}">
+<meta property="og:title" content="{og_title}">
+<meta property="og:description" content="{og_desc}">
+<meta property="og:url" content="{canonical}">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Kurate.org">
+<meta property="og:image" content="https://kurate.org/kurate-logo.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{og_title}">
+<meta name="twitter:description" content="{og_desc}">
+<meta name="twitter:site" content="@KurateAI">
+</head>
+<body>
+<h1>{title}</h1>
+<p>{authors_str}</p>
+<p>{abstract}...</p>
+<p><a href="https://kurate.org/paper/{paper_id}">View on Kurate.org</a></p>
+{f'<p><a href="https://arxiv.org/abs/{arxiv_id}">arXiv: {arxiv_id}</a></p>' if arxiv_id else ''}
+</body>
+</html>"""
+    return HTMLResponse(content=html, headers={"Cache-Control": "public, max-age=3600"})
+
+
+
 @app.on_event("startup")
 async def startup():
     app.state.prewarm_status = {"done": False, "step": "Loading caches"}
