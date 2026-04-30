@@ -223,26 +223,34 @@ export function AdminLogs() {
                 <th className="px-3 py-2 text-left font-medium">Time</th>
                 <th className="px-3 py-2 text-left font-medium">Provider</th>
                 <th className="px-3 py-2 text-left font-medium">Model</th>
-                <th className="px-3 py-2 text-left font-medium">Context</th>
+                <th className="px-3 py-2 text-left font-medium">API</th>
                 <th className="px-3 py-2 text-left font-medium">Type</th>
                 <th className="px-3 py-2 text-left font-medium">Error</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((log, i) => (
-                <tr key={i} className="border-t border-border/50 hover:bg-secondary/20">
-                  <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">{(log.ts || "").replace("T", " ").slice(0, 19)}</td>
-                  <td className="px-3 py-1.5">{log.provider}</td>
-                  <td className="px-3 py-1.5 text-muted-foreground">{log.model}</td>
-                  <td className="px-3 py-1.5 text-muted-foreground">{log.context || "—"}</td>
-                  <td className="px-3 py-1.5">
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                      (log.error_type || "").includes("Budget") || (log.error || "").includes("Budget") ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"
-                    }`}>{log.error_type || "Error"}</span>
-                  </td>
-                  <td className="px-3 py-1.5 text-red-600 max-w-[400px] truncate" title={log.error}>{log.error}</td>
-                </tr>
-              ))}
+              {filtered.map((log, i) => {
+                const isFallback = (log.context || "").includes("FALLBACK");
+                const apiLabel = isFallback ? "Direct" : "Emergent";
+                return (
+                  <tr key={i} className="border-t border-border/50 hover:bg-secondary/20">
+                    <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">{(log.ts || "").replace("T", " ").slice(0, 19)}</td>
+                    <td className="px-3 py-1.5">{log.provider}</td>
+                    <td className="px-3 py-1.5 text-muted-foreground">{log.model}</td>
+                    <td className="px-3 py-1.5">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                        isFallback ? "bg-orange-50 text-orange-700" : "bg-blue-50 text-blue-700"
+                      }`}>{apiLabel}</span>
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                        (log.error_type || "").includes("Budget") || (log.error || "").includes("Budget") ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"
+                      }`}>{log.error_type || "Error"}</span>
+                    </td>
+                    <td className="px-3 py-1.5 text-red-600 max-w-[400px] truncate" title={log.error}>{log.error}</td>
+                  </tr>
+                );
+              })}
               {!filtered.length && <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">No errors found</td></tr>}
             </tbody>
           </table>
