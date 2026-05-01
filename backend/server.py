@@ -512,6 +512,23 @@ async def _deferred_startup():
         logger.warning(f"Index creation warning: {e}")
 
     log_mem("_deferred_startup: after indexes")
+
+    # Warmup: prime MongoDB query plan cache for paper detail endpoint
+    try:
+        sample = await db.rankings.find_one({}, {"_id": 0, "paper_id": 1, "category": 1})
+        if sample:
+            pid, cat = sample["paper_id"], sample["category"]
+            import asyncio
+            await asyncio.gather(
+                db.papers.find_one({"id": pid}, {"_id": 0, "title": 1}),
+                db.matches.find({"completed": True, "$or": [{"paper1_id": pid}, {"paper2_id": pid}]}, {"_id": 0, "paper1_id": 1}).to_list(1),
+                db.rankings.aggregate([{"$match": {"category": cat, "ts_score": {"$exists": True}}}, {"$group": {"_id": None, "min": {"$min": "$ts_score"}, "max": {"$max": "$ts_score"}}}]).to_list(1),
+                db.rankings.count_documents({"category": cat}),
+            )
+            logger.info(f"Query plan warmup complete (cat={cat})")
+    except Exception:
+        pass
+
     force_gc()
 
     # Migration: remove papers whose primary category is not in active categories
