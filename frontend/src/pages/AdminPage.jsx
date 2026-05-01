@@ -137,7 +137,8 @@ export default function AdminPage() {
     fetchLiveData();
   }, [adminCat, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Poll at 15s when tournament is active, 30s when idle/paused (aligns with server cache TTL)
+  // Poll at 15s when tournament is active, 30s when idle/paused
+  // Server always returns fresh data (no backend cache on progress/status)
   // Only poll when Tournaments tab is active to avoid competing requests
   useEffect(() => {
     if (activeTab !== "overview") return;

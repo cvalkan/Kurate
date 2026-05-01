@@ -25,20 +25,35 @@ from routers.validation_utils import collect_all
 
 router = APIRouter(prefix="/api/admin")
 
-# Per-category cache for admin endpoints (avoids hammering DB on rapid category switching)
+# Per-endpoint cache for admin endpoints.
+# ONLY used for expensive/slow-changing endpoints (stats, timeseries).
+# Real-time endpoints (status, progress) are NEVER cached — they query indexed
+# collections directly and should respond in <200ms.
 _admin_cache = {}  # {(endpoint, category): {"data": ..., "ts": float}}
-_ADMIN_CACHE_TTL = 300  # 5 min — timeseries is expensive (70s+ cold), data changes slowly
 _ADMIN_CACHE_MAX = 50  # Max cached entries
+
+# Per-endpoint TTLs — differentiated by how fast the underlying data changes
+_ADMIN_CACHE_TTLS = {
+    "stats": 300,           # 5 min — token/cost aggregation, expensive & slow-changing
+    "stats_all_cats": 300,  # 5 min — precomputed stats across all categories
+    "timeseries": 300,      # 5 min — historical daily data (also backed by MongoDB)
+}
 
 
 def _get_admin_cached(key: str, category: str):
+    ttl = _ADMIN_CACHE_TTLS.get(key)
+    if ttl is None:
+        return None  # Endpoint not cached — always compute fresh
     entry = _admin_cache.get((key, category))
-    if entry and _time.time() - entry["ts"] < _ADMIN_CACHE_TTL:
+    if entry and _time.time() - entry["ts"] < ttl:
         return entry["data"]
     return None
 
 
 def _set_admin_cached(key: str, category: str, data):
+    # Only cache endpoints that have an explicit TTL
+    if key not in _ADMIN_CACHE_TTLS:
+        return
     if len(_admin_cache) >= _ADMIN_CACHE_MAX:
         oldest_key = min(_admin_cache, key=lambda k: _admin_cache[k]["ts"])
         del _admin_cache[oldest_key]
@@ -47,9 +62,10 @@ def _set_admin_cached(key: str, category: str, data):
 
 def _invalidate_admin_cache(category: str = None):
     """Invalidate admin cache for a category (or all if None).
-    Always also invalidates __all__ aggregates since any category change affects totals."""
+    Always also invalidates __all__ aggregates and __precomputed__ data
+    since any category change affects cross-category totals."""
     if category:
-        keys_to_remove = [k for k in _admin_cache if k[1] == category or k[1] in ("__all__", None)]
+        keys_to_remove = [k for k in _admin_cache if k[1] == category or k[1] in ("__all__", None, "__precomputed__")]
     else:
         keys_to_remove = list(_admin_cache.keys())
     for k in keys_to_remove:
@@ -675,10 +691,7 @@ async def get_summary_generation_progress(category: str = "cs.RO"):
 
 @router.get("/status", dependencies=[Depends(verify_admin)])
 async def get_admin_status(category: str = "cs.RO"):
-    cached = _get_admin_cached("status", category)
-    if cached is not None:
-        return cached
-
+    # No caching — always serve real-time data from indexed collections
     lb_cache = _get_lb_cache()
 
     # All counts in parallel
@@ -711,12 +724,13 @@ async def get_admin_status(category: str = "cs.RO"):
     paper_ids_needed.discard("")
     paper_titles = {}
     async for r in db.rankings.find({"paper_id": {"$in": list(paper_ids_needed)}}, {"_id": 0, "paper_id": 1, "title": 1}):
-        paper_titles[r["paper_id"]] = r["title"]
+        if r.get("title"):
+            paper_titles[r["paper_id"]] = r["title"]
     # Fallback for any missing titles
     missing = paper_ids_needed - set(paper_titles.keys())
     if missing:
         async for p in db.papers.find({"id": {"$in": list(missing)}}, {"_id": 0, "id": 1, "title": 1}):
-            paper_titles[p["id"]] = p["title"]
+            paper_titles[p["id"]] = p.get("title", "Untitled")
 
     enriched_recent = []
     for m in cat_matches_sorted:
@@ -750,17 +764,12 @@ async def get_admin_status(category: str = "cs.RO"):
         "scheduler": cat_scheduler,
         "recent_matches": enriched_recent,
     }
-    _set_admin_cached("status", category, result)
     return result
 
 
 @router.get("/progress", dependencies=[Depends(verify_admin)])
 async def get_progress_estimate(category: str = "cs.RO"):
-    """Triple-goal progress — always computed from rankings DB (single source of truth)."""
-    cached = _get_admin_cached("progress", category)
-    if cached is not None:
-        return cached
-
+    """Triple-goal progress — always computed fresh from rankings DB (single source of truth)."""
     settings = await get_settings()
     global_paused = settings.get("paused", False)
 
@@ -925,13 +934,13 @@ async def get_progress_estimate(category: str = "cs.RO"):
     seconds_per_match = 10.0 / max(parallel_agents, 1)
     est_minutes = max(0, round(total_est * seconds_per_match / 60))
 
-    cat_scheduler = _get_cat_status(category)
-    cat_matches_done = cat_scheduler.get("matches_count", 0)
-    if cat_matches_done == 0:
-        cat_matches_done = sum(e.get("comparisons", 0) for e in entries) // 2
+    # Query matches directly from DB for real-time accuracy (no stale in-memory counter)
     # Parallelize expensive count queries
     import asyncio
-    cat_papers_with_pdf, cat_total_in_db, cat_papers_with_summaries = await asyncio.gather(
+    cat_matches_done, cat_papers_with_pdf, cat_total_in_db, cat_papers_with_summaries = await asyncio.gather(
+        db.matches.count_documents(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
+        ),
         db.papers.count_documents({"categories.0": category, "full_text": {"$ne": None}}),
         db.papers.count_documents({"categories.0": category}),
         db.papers.count_documents({"categories.0": category, "summaries": {"$exists": True, "$ne": {}}}),
@@ -1019,7 +1028,6 @@ async def get_progress_estimate(category: str = "cs.RO"):
     except Exception:
         pass
 
-    _set_admin_cached("progress", category, result)
     return result
 
 

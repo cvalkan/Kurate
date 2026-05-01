@@ -1034,6 +1034,9 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             notify_data_changed()
             invalidate_goals_cache(category)
             wake_scheduler()
+            # Invalidate admin stats cache (token usage, model breakdown changes with new data)
+            from routers.admin import _invalidate_admin_cache
+            _invalidate_admin_cache(category)
 
         # Determine overall status
         if result["errors"]:

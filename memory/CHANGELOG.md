@@ -1,5 +1,14 @@
 # Changelog
 
+## May 1, 2026 — Admin Panel Real-Time Data Fix
+- **Root cause**: `_ADMIN_CACHE_TTL = 300` (5 min) applied as blanket cache to ALL admin endpoints. After data changes (fetch, summarize, compare), the UI showed stale numbers for up to 5 minutes.
+- Removed caching from `progress` and `status` endpoints — they now always serve real-time data from indexed DB queries (~150-350ms).
+- Retained 5-min cache only for expensive endpoints (`stats` — model aggregation, `timeseries` — historical daily data).
+- Fixed `progress` endpoint to query `db.matches.count_documents()` directly instead of stale `_category_status` in-memory dict.
+- Added `_invalidate_admin_cache(category)` to `run_fetch_cycle()` so `stats` cache refreshes after new data.
+- Fixed KeyError on `title` field in `status` endpoint (some ranking docs lack denormalized title).
+- This also fixes the "goals don't switch to unmet after new papers" issue — the admin cache was serving stale `goals_met: true` responses.
+
 ## April 22, 2026 (later) — Variant 1 rollout + deployment prep
 - Applied Variant 1 (stacked card layout) to both Medalists view and Category Explorer via new shared `<CandidateCardV1>` component: handle + engagement counts on top, color-coded tweet text in the middle (blue when engaged, muted gray when not), and four 24×24 icon-only action buttons (Like, Follow, QT, Draft) on the bottom.
 - Added `size="icon"` mode to `LikeButton` and `FollowButton`; new `QTIconButton` (link when quote-tweeted, muted otherwise) and `DraftIconButton` (Medalists only).

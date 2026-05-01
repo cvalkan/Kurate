@@ -8,6 +8,14 @@ Full-stack AI paper-judging platform (FastAPI + React + MongoDB) using TrueSkill
 
 ## What's Been Implemented (This Session)
 
+### Admin Panel Real-Time Data Fix (May 2026)
+- **Root cause identified**: `_ADMIN_CACHE_TTL = 300` (5-minute blanket cache) was incorrectly applied to real-time endpoints (`progress`, `status`). After new papers were fetched/summarized or matches completed, the admin UI would show stale data for up to 5 minutes.
+- **Fix**: Differentiated cache strategy — `progress` and `status` endpoints now serve fresh data on every request (no cache). Only expensive/slow-changing endpoints (`stats`, `timeseries`) retain 5-min cache.
+- **`progress` endpoint**: Now queries `db.matches.count_documents()` directly instead of relying on `_category_status` in-memory dict (which could be stale from scheduler lag).
+- **`run_fetch_cycle`**: Now calls `_invalidate_admin_cache(category)` after data changes to clear the `stats` cache.
+- **Performance**: `progress` ~300ms, `status` ~150ms per request — well within acceptable limits for 10-15s polling.
+- **Goals cache bug confirmed**: The `_goals_met_cache` itself was correctly invalidated, but the admin `progress` endpoint was serving the OLD cached response (with `goals_met: true`) for 5 minutes after invalidation. Now fixed by removing caching from that endpoint entirely.
+
 ### Email Outreach Pipeline
 - **Backend**: `/api/admin/email-outreach/*` — flat medalists list, template CRUD, LLM email extraction with on-demand PDF download, send via Gmail OAuth with inline badge, test-send to roblauko@gmail.com, history tracking
 - **Frontend**: `/admin/outreach/email` — flat table layout, auto-extraction on load, badges for email status, period selector, search, template editor, Test button per paper
@@ -26,8 +34,6 @@ Full-stack AI paper-judging platform (FastAPI + React + MongoDB) using TrueSkill
 - On-demand PDF download in extraction backfills missing `full_text`
 
 ## Known Issues
-- P0: Emergent LLM Key budget depleted (blocks email extraction, summarizing, matching)
-- P0: Premature W18 archive on production needs deletion after deploy
 - P1: 964 legacy papers need `pdf_link` backfill
 - P1: Missing GPT/Gemini SI Ratings
 - P2: Duplicate medals in archives
