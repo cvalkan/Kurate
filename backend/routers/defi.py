@@ -14,30 +14,36 @@ async def get_defi_papers(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     search: str = Query("", description="Search title/authors/keywords"),
-    subset: str = Query("all", description="Filter: all, ai"),
+    subset: str = Query("all", description="Filter: all, ai, agents"),
+    availability: str = Query("all", description="Filter: all, pdf, abstract_only"),
 ):
-    """List DeFi papers with sorting and search. subset=ai filters to AI/ML intersection."""
+    """List DeFi papers. subset=ai/agents filters topic, availability=pdf/abstract_only filters by PDF."""
     query = {}
     
+    if availability == "pdf":
+        query["pdf_url"] = {"$exists": True, "$ne": None, "$ne": ""}
+    elif availability == "abstract_only":
+        query["$or"] = [{"pdf_url": None}, {"pdf_url": ""}, {"pdf_url": {"$exists": False}}]
+    
     if subset == "ai":
-        # Blockchain & AI (broader — any AI/ML + blockchain)
         ai_terms = ["artificial intelligence", "machine learning", "deep learning", "neural network",
                      "reinforcement learning", "llm", "large language model", "gpt", "chatgpt",
                      "ai agent", "autonomous agent", "multi-agent", "intelligent agent", "agentic",
                      "ai-driven", "ai-powered", "ai-based"]
-        query["$or"] = [
+        subset_cond = {"$or": [
             {"title": {"$regex": "|".join(ai_terms), "$options": "i"}},
             {"abstract": {"$regex": "|".join(ai_terms[:8]), "$options": "i"}},
-        ]
+        ]}
+        query = {"$and": [query, subset_cond]} if query else subset_cond
     elif subset == "agents":
-        # Blockchain & AI Agents (narrower — specifically agent-focused)
         agent_terms = ["ai agent", "autonomous agent", "multi-agent", "intelligent agent",
                        "llm agent", "agentic", "agent-based", "on-chain agent",
                        "autonomous trading", "automated agent"]
-        query["$or"] = [
+        subset_cond = {"$or": [
             {"title": {"$regex": "|".join(agent_terms), "$options": "i"}},
             {"abstract": {"$regex": "|".join(agent_terms), "$options": "i"}},
-        ]
+        ]}
+        query = {"$and": [query, subset_cond]} if query else subset_cond
     
     if search:
         search_cond = {"$or": [

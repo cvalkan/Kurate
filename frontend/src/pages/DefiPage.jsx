@@ -18,6 +18,7 @@ export default function DefiPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [stats, setStats] = useState(null);
   const [subset, setSubset] = useState("all");
+  const [availability, setAvailability] = useState("all");
   const offsetRef = useRef(0);
   const limit = 50;
 
@@ -35,7 +36,7 @@ export default function DefiPage() {
     const off = append ? offsetRef.current : 0;
     try {
       const r = await axios.get(`${API}/api/defi/papers`, {
-        params: { sort: apiSort, dir: sortDir, limit, offset: off, search: debouncedSearch, subset },
+        params: { sort: apiSort, dir: sortDir, limit, offset: off, search: debouncedSearch, subset, availability },
       });
       const newPapers = (r.data.papers || []).map((p, i) => ({
         // Map to LeaderboardTable's expected shape
@@ -60,7 +61,11 @@ export default function DefiPage() {
         _external_link: true,
       }));
       if (append) {
-        setPapers(prev => [...prev, ...newPapers]);
+        setPapers(prev => {
+          const existingIds = new Set(prev.map(p => p.id));
+          const unique = newPapers.filter(p => !existingIds.has(p.id));
+          return [...prev, ...unique];
+        });
       } else {
         setPapers(newPapers);
       }
@@ -68,7 +73,7 @@ export default function DefiPage() {
       offsetRef.current = off + newPapers.length;
     } catch { }
     finally { setLoading(false); setLoadingMore(false); }
-  }, [apiSort, sortDir, debouncedSearch, subset]);
+  }, [apiSort, sortDir, debouncedSearch, subset, availability]);
 
   useEffect(() => { offsetRef.current = 0; load(false); }, [load]);
 
@@ -117,6 +122,22 @@ export default function DefiPage() {
             }`} data-testid="subset-agents">
             Blockchain & AI Agents ({stats?.agent_count?.toLocaleString() || "..."})
           </button>
+        </div>
+
+        {/* Availability toggle */}
+        <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md w-fit mb-4">
+          <button onClick={() => setAvailability("all")}
+            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+              availability === "all" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`} data-testid="avail-all">All</button>
+          <button onClick={() => setAvailability("pdf")}
+            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+              availability === "pdf" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`} data-testid="avail-pdf">With PDF</button>
+          <button onClick={() => setAvailability("abstract_only")}
+            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+              availability === "abstract_only" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`} data-testid="avail-abstract">Abstract only</button>
         </div>
 
         {/* Stats */}
