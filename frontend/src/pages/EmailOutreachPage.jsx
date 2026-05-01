@@ -252,6 +252,8 @@ export default function EmailOutreachPage() {
     );
   }, [papers, query]);
 
+  const [view, setView] = useState("outreach"); // "outreach" | "unsubscribes"
+
   const cols = ["2rem", "1fr", "8rem", "12rem", "4.5rem", "5.5rem"];
   const gridStyle = { gridTemplateColumns: cols.join(" ") };
 
@@ -273,9 +275,27 @@ export default function EmailOutreachPage() {
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" data-testid="email-outreach-title">
           Email Outreach
         </h1>
-        <p className="text-sm text-muted-foreground mt-1 mb-5">
+        <p className="text-sm text-muted-foreground mt-1 mb-4">
           Send personalized congratulations to top-ranked paper authors via Gmail.
         </p>
+
+        {/* View toggle */}
+        <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md w-fit mb-5">
+          <button onClick={() => setView("outreach")}
+            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+              view === "outreach" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`} data-testid="view-outreach">
+            <Send className="h-3.5 w-3.5 inline mr-1" />Outreach
+          </button>
+          <button onClick={() => setView("unsubscribes")}
+            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+              view === "unsubscribes" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`} data-testid="view-unsubscribes">
+            <Mail className="h-3.5 w-3.5 inline mr-1" />Unsubscribes
+          </button>
+        </div>
+
+        {view === "unsubscribes" ? <UnsubscribeList /> : (<>
 
         {!gmailStatus?.authorized ? (
           <div className="mb-4 px-3 py-2 rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-xs inline-flex items-center gap-2"
@@ -476,7 +496,7 @@ export default function EmailOutreachPage() {
           </div>
         )}
 
-        <UnsubscribeList />
+        </>)}
       </div>
     </div>
   );
@@ -484,7 +504,6 @@ export default function EmailOutreachPage() {
 
 function UnsubscribeList() {
   const [data, setData] = useState(null);
-  const [open, setOpen] = useState(false);
 
   const load = async () => {
     try {
@@ -493,7 +512,7 @@ function UnsubscribeList() {
     } catch { }
   };
 
-  useEffect(() => { if (open) load(); }, [open]);
+  useEffect(() => { load(); }, []);
 
   const handleRemove = async (email) => {
     if (!window.confirm(`Re-subscribe ${email}?`)) return;
@@ -504,45 +523,40 @@ function UnsubscribeList() {
     } catch (e) { toast.error(`Failed: ${e.response?.data?.detail || e.message}`); }
   };
 
+  if (!data) return <p className="text-xs text-muted-foreground py-8 text-center">Loading...</p>;
+
   return (
-    <div className="border rounded-lg p-3 bg-secondary/10 mt-6" data-testid="unsubscribe-list">
-      <button onClick={() => setOpen(!open)} className="flex items-center gap-2 text-xs font-medium w-full text-left">
-        <Mail className="h-3.5 w-3.5" />
-        Unsubscribes
-        {data && <span className="text-muted-foreground font-normal ml-1">({data.count})</span>}
-        <ChevronDown className={`h-3.5 w-3.5 ml-auto transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div className="mt-3">
-          {!data ? (
-            <p className="text-xs text-muted-foreground">Loading...</p>
-          ) : data.count === 0 ? (
-            <p className="text-xs text-muted-foreground">No unsubscribes yet.</p>
-          ) : (
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-secondary/50 text-muted-foreground">
-                  <th className="px-3 py-1.5 text-left font-medium">Email</th>
-                  <th className="px-3 py-1.5 text-left font-medium">Date</th>
-                  <th className="px-3 py-1.5 text-right font-medium"></th>
+    <div data-testid="unsubscribe-list">
+      <div className="text-xs text-muted-foreground mb-3">{data.count} unsubscribed email(s)</div>
+      {data.count === 0 ? (
+        <div className="text-center py-12 text-muted-foreground text-sm border border-border rounded-lg">
+          No unsubscribes yet. Recipients can unsubscribe via the link in each email.
+        </div>
+      ) : (
+        <div className="border rounded-lg overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-secondary/50 text-muted-foreground">
+                <th className="px-3 py-2 text-left font-medium">Email</th>
+                <th className="px-3 py-2 text-left font-medium">Unsubscribed</th>
+                <th className="px-3 py-2 text-right font-medium"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.unsubscribes.map((u, i) => (
+                <tr key={i} className="border-t border-border/50 hover:bg-secondary/20">
+                  <td className="px-3 py-2">{u.email}</td>
+                  <td className="px-3 py-2 text-muted-foreground">{u.unsubscribed_at?.slice(0, 10)}</td>
+                  <td className="px-3 py-2 text-right">
+                    <button onClick={() => handleRemove(u.email)}
+                      className="text-[11px] text-accent hover:underline" data-testid={`resub-${u.email}`}>
+                      re-subscribe
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {data.unsubscribes.map((u, i) => (
-                  <tr key={i} className="border-t border-border/50">
-                    <td className="px-3 py-1.5">{u.email}</td>
-                    <td className="px-3 py-1.5 text-muted-foreground">{u.unsubscribed_at?.slice(0, 10)}</td>
-                    <td className="px-3 py-1.5 text-right">
-                      <button onClick={() => handleRemove(u.email)}
-                        className="text-[10px] text-accent hover:underline" data-testid={`resub-${u.email}`}>
-                        re-subscribe
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
