@@ -1115,29 +1115,46 @@ async def get_usage_stats(category: str = None):
 
     lb_cache = _get_lb_cache()
 
-    # Compute model stats from DB matches using aggregation pipeline (no Python iteration)
-    match_query = {"completed": True, "failed": {"$ne": True}, "model_used": {"$exists": True}, "mode": {"$exists": False}}
+    # Compute model stats from DB matches — group by category AND model in one pass
+    # This lets us cache results for ALL categories from a single aggregation
+    all_stats_cached = _get_admin_cached("stats_all_cats", "__precomputed__")
+    if not all_stats_cached:
+        all_cat_model_stats = {}  # {category: {model_key: {matches, input_tokens, output_tokens}}}
+        match_query = {"completed": True, "failed": {"$ne": True}, "model_used": {"$exists": True}, "mode": {"$exists": False}}
+        async for doc in db.matches.aggregate([
+            {"$match": match_query},
+            {"$group": {
+                "_id": {"category": "$primary_category", "provider": "$model_used.provider", "model": "$model_used.model"},
+                "matches": {"$sum": 1},
+                "input_tokens": {"$sum": {"$ifNull": ["$tokens.input_est", 0]}},
+                "output_tokens": {"$sum": {"$ifNull": ["$tokens.output_est", 0]}},
+            }},
+        ]):
+            mid = doc["_id"]
+            if not mid.get("provider"):
+                continue
+            cat = mid.get("category", "__all__")
+            key = f"{mid['provider']}/{mid['model']}"
+            all_cat_model_stats.setdefault(cat, {})[key] = {
+                "matches": doc["matches"],
+                "input_tokens": doc["input_tokens"],
+                "output_tokens": doc["output_tokens"],
+            }
+        _set_admin_cached("stats_all_cats", "__precomputed__", all_cat_model_stats)
+        all_stats_cached = all_cat_model_stats
+
+    # Extract stats for requested category (or sum all)
     if category:
-        match_query["primary_category"] = category
-    model_stats = {}
-    async for doc in db.matches.aggregate([
-        {"$match": match_query},
-        {"$group": {
-            "_id": {"provider": "$model_used.provider", "model": "$model_used.model"},
-            "matches": {"$sum": 1},
-            "input_tokens": {"$sum": {"$ifNull": ["$tokens.input_est", 0]}},
-            "output_tokens": {"$sum": {"$ifNull": ["$tokens.output_est", 0]}},
-        }},
-    ]):
-        mid = doc["_id"]
-        if not mid.get("provider"):
-            continue
-        key = f"{mid['provider']}/{mid['model']}"
-        model_stats[key] = {
-            "matches": doc["matches"],
-            "input_tokens": doc["input_tokens"],
-            "output_tokens": doc["output_tokens"],
-        }
+        model_stats = dict(all_stats_cached.get(category, {}))
+    else:
+        model_stats = {}
+        for cat_stats in all_stats_cached.values():
+            for key, s in cat_stats.items():
+                if key not in model_stats:
+                    model_stats[key] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
+                model_stats[key]["matches"] += s["matches"]
+                model_stats[key]["input_tokens"] += s["input_tokens"]
+                model_stats[key]["output_tokens"] += s["output_tokens"]
 
     # Calculate cost per model
     total_cost = 0.0

@@ -402,6 +402,7 @@ async def _deferred_startup():
         await db.matches.create_index("shared_categories")
         await db.matches.create_index("primary_category")
         await db.matches.create_index([("primary_category", 1), ("completed", 1), ("created_at", -1)], name="cat_completed_recent")
+        await db.matches.create_index([("primary_category", 1), ("completed", 1), ("failed", 1), ("mode", 1)], name="cat_completed_mode")
         await db.matches.create_index("created_at")
         await db.matches.create_index([
             ("primary_category", 1), ("completed", 1), ("failed", 1), ("mode", 1)
