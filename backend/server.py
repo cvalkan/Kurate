@@ -689,7 +689,6 @@ async def _deferred_startup():
 
     # Migration: update settings for new convergence-based architecture
     try:
-        from core.auth import invalidate_settings_cache as _inv_cache
         _settings_doc = await db.settings.find_one({"key": "global"})
         if _settings_doc:
             migration_updates = {}
@@ -711,11 +710,9 @@ async def _deferred_startup():
             # Remove max_matches_per_paper cap — convergence is controlled by CI targets
             if _settings_doc.get("max_matches_per_paper") is not None:
                 await db.settings.update_one({"key": "global"}, {"$unset": {"max_matches_per_paper": ""}})
-                _inv_cache()
                 logger.info("Removed max_matches_per_paper cap")
             if migration_updates:
                 await db.settings.update_one({"key": "global"}, {"$set": migration_updates})
-                _inv_cache()
                 logger.info(f"Migrated settings: {list(migration_updates.keys())}")
     except Exception as e:
         logger.warning(f"Settings migration warning: {e}")

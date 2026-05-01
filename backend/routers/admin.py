@@ -12,7 +12,7 @@ import random
 import time as _time
 import secrets as _secrets
 from core.config import db, logger, DEFAULT_SETTINGS, DEFAULT_EVALUATION_PROMPT, CATEGORIES
-from core.auth import verify_admin, get_settings, invalidate_settings_cache
+from core.auth import verify_admin, get_settings
 from services.scheduler import run_fetch_cycle, run_comparison_round, _get_cat_status, wake_scheduler
 from services.arxiv import fetch_arxiv_papers
 import routers.leaderboard as _lb_mod
@@ -144,7 +144,6 @@ async def update_settings(update: SettingsUpdate):
         {"$set": update_dict},
         upsert=True,
     )
-    invalidate_settings_cache()
     _invalidate_admin_cache()  # Settings change affects progress calculations
     logger.info(f"Admin updated settings: {list(update_dict.keys())}")
     return {"success": True, "updated": list(update_dict.keys())}
@@ -519,7 +518,6 @@ async def toggle_pause():
     settings = await get_settings()
     new_state = not settings.get("paused", False)
     await db.settings.update_one({"key": "global"}, {"$set": {"paused": new_state}}, upsert=True)
-    invalidate_settings_cache()
     _invalidate_admin_cache()  # Global pause affects all categories
     if new_state:
         # Immediately stop any running summary generation
@@ -2151,7 +2149,6 @@ async def add_category(body: CategoryAction):
         {"$set": {"active_categories": active}},
         upsert=True,
     )
-    invalidate_settings_cache()
 
     # Initialize tournament for the new category
     from services.scheduler import init_tournament_registry
@@ -2187,7 +2184,6 @@ async def remove_category(body: CategoryAction):
         {"$set": {"active_categories": active}},
         upsert=True,
     )
-    invalidate_settings_cache()
 
     # Pause the tournament (don't delete data)
     tid = f"cat={cat_id}|mode=standard"
@@ -2219,7 +2215,6 @@ async def reorder_categories(body: dict):
         {"key": "global"},
         {"$set": {"active_categories": new_order}},
     )
-    invalidate_settings_cache()
     _invalidate_admin_cache()
     return {"status": "ok", "active_categories": new_order}
 
@@ -3488,11 +3483,9 @@ async def set_archive_frequency(request: Request):
         archive_config[body["category"]] = body["frequency"]
 
     await db.settings.update_one({"key": "global"}, {"$set": {"archive_frequency": archive_config}})
-    invalidate_settings_cache()
     return {"status": "ok", "archive_frequency": archive_config}
 
     await db.settings.update_one({"key": "global"}, {"$set": {"archive_frequency": archive_config}})
-    invalidate_settings_cache()
     return {"status": "ok", "archive_frequency": archive_config}
 
 
