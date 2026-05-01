@@ -3250,41 +3250,38 @@ async def create_snapshot(request: Request):
 
 
 @router.post("/archive/snapshot-all", dependencies=[Depends(verify_admin)])
-async def create_all_snapshots():
-    """Create archive snapshots for ALL active categories (ignoring day-of-week check)."""
-    from routers.leaderboard import create_archive_snapshot
+async def create_all_snapshots(year: int = None, month: int = None, week: int = None):
+    """Create archive snapshots for all active categories.
+    - No params: creates for the previous period (default behavior)
+    - year+month: creates monthly archives for that specific month
+    - year+week: creates weekly archives for that specific week
+    Respects archive_frequency settings. Idempotent (skips existing)."""
+    from routers.leaderboard import create_archive_snapshot, create_archive_snapshot_for_period
     settings = await get_settings()
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
     archive_config = settings.get("archive_frequency") or {}
     default_freq = archive_config.get("default", "weekly")
     created = 0
-    for cat in active_cats:
-        freq = archive_config.get(cat, default_freq)
-        result = await create_archive_snapshot(cat, freq)
-        if result:
-            created += 1
-    return {"status": "ok", "created": created, "categories": len(active_cats)}
 
-
-@router.post("/archive/create-period", dependencies=[Depends(verify_admin)])
-async def create_archives_for_period(year: int, month: int = None, week: int = None):
-    """Create archives for a specific period (all active categories).
-    Use month= for monthly or week= for weekly."""
-    from routers.leaderboard import create_archive_snapshot_for_period
-    settings = await get_settings()
-    active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
-    archive_config = settings.get("archive_frequency") or {}
-    default_freq = archive_config.get("default", "weekly")
-    created = 0
-    period_type = "monthly" if month else "weekly"
-    for cat in active_cats:
-        cat_freq = archive_config.get(cat, default_freq)
-        if cat_freq != period_type:
-            continue
-        result = await create_archive_snapshot_for_period(cat, period_type, year, week=week, month=month)
-        if result:
-            created += 1
-    return {"status": "ok", "created": created, "period_type": period_type, "year": year, "week": week, "month": month}
+    if year and (month or week):
+        # Specific period requested
+        period_type = "monthly" if month else "weekly"
+        for cat in active_cats:
+            cat_freq = archive_config.get(cat, default_freq)
+            if cat_freq != period_type:
+                continue
+            result = await create_archive_snapshot_for_period(cat, period_type, year, week=week, month=month)
+            if result:
+                created += 1
+        return {"status": "ok", "created": created, "period_type": period_type, "year": year, "week": week, "month": month}
+    else:
+        # Default: previous period
+        for cat in active_cats:
+            freq = archive_config.get(cat, default_freq)
+            result = await create_archive_snapshot(cat, freq)
+            if result:
+                created += 1
+        return {"status": "ok", "created": created, "categories": len(active_cats)}
 
 
 

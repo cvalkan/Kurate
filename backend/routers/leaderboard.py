@@ -1659,17 +1659,15 @@ async def create_archive_snapshot_for_period(category: str, period_type: str, ye
     """Create archive for a specific period (not just the previous one). Used for rebuilding."""
     utc_now = datetime.now(timezone.utc)
 
-    # Check if already exists
+    # Check if already exists (fast pre-check before building the full document)
     if period_type == "weekly" and week:
-        existing = await db.leaderboard_archives.find_one(
-            {"category": category, "year": year, "week": week, "period_type": "weekly"})
+        if await db.leaderboard_archives.find_one(
+            {"category": category, "year": year, "week": week, "period_type": "weekly"}, {"_id": 1}):
+            return None
     elif period_type == "monthly" and month:
-        existing = await db.leaderboard_archives.find_one(
-            {"category": category, "year": year, "month": month, "period_type": "monthly"})
-    else:
-        return None
-    if existing:
-        return None
+        if await db.leaderboard_archives.find_one(
+            {"category": category, "year": year, "month": month, "period_type": "monthly"}, {"_id": 1}):
+            return None
 
     # Build period filter
     if period_type == "monthly":
@@ -1733,7 +1731,12 @@ async def create_archive_snapshot_for_period(category: str, period_type: str, ye
         "leaderboard": frozen_entries,
         "created_at": utc_now.isoformat(),
     }
-    await db.leaderboard_archives.insert_one(doc)
+    # Atomic upsert — prevents duplicates from race conditions
+    unique_filter = {"category": category, "period_type": period_type, "year": year,
+                     "week": doc.get("week"), "month": doc.get("month")}
+    result = await db.leaderboard_archives.update_one(unique_filter, {"$setOnInsert": doc}, upsert=True)
+    if not result.upserted_id:
+        return None  # Already existed
     logger.info(f"Archive snapshot created: {category} {label} ({len(frozen_entries)} papers)")
 
     from core.memlog import log_event
@@ -1767,15 +1770,15 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
         year = last_of_prev_month.year
         month = last_of_prev_month.month
 
-    # Check if this snapshot already exists
+    # Check if this snapshot already exists (fast pre-check)
     if period_type == "weekly":
-        existing = await db.leaderboard_archives.find_one(
-            {"category": category, "year": year, "week": week, "period_type": "weekly"})
+        if await db.leaderboard_archives.find_one(
+            {"category": category, "year": year, "week": week, "period_type": "weekly"}, {"_id": 1}):
+            return None
     else:
-        existing = await db.leaderboard_archives.find_one(
-            {"category": category, "year": year, "month": month, "period_type": "monthly"})
-    if existing:
-        return None  # Already archived
+        if await db.leaderboard_archives.find_one(
+            {"category": category, "year": year, "month": month, "period_type": "monthly"}, {"_id": 1}):
+            return None
 
     # Get papers for this period from rankings DB
     # Use calendar boundaries (not rolling window) to prevent cross-period overlap
