@@ -20,15 +20,23 @@ async def get_defi_papers(
     query = {}
     
     if subset == "ai":
-        ai_terms = ["ai agent", "autonomous agent", "multi-agent", "intelligent agent",
-                     "llm agent", "on-chain agent", "agentic", "agent-based",
-                     "large language model", "llm", "gpt", "chatgpt",
-                     "reinforcement learning", "autonomous trading",
+        # Blockchain & AI (broader — any AI/ML + blockchain)
+        ai_terms = ["artificial intelligence", "machine learning", "deep learning", "neural network",
+                     "reinforcement learning", "llm", "large language model", "gpt", "chatgpt",
+                     "ai agent", "autonomous agent", "multi-agent", "intelligent agent", "agentic",
                      "ai-driven", "ai-powered", "ai-based"]
         query["$or"] = [
             {"title": {"$regex": "|".join(ai_terms), "$options": "i"}},
-            {"abstract": {"$regex": "|".join(ai_terms), "$options": "i"}},
-            {"keywords": {"$regex": "|".join(ai_terms), "$options": "i"}},
+            {"abstract": {"$regex": "|".join(ai_terms[:8]), "$options": "i"}},
+        ]
+    elif subset == "agents":
+        # Blockchain & AI Agents (narrower — specifically agent-focused)
+        agent_terms = ["ai agent", "autonomous agent", "multi-agent", "intelligent agent",
+                       "llm agent", "agentic", "agent-based", "on-chain agent",
+                       "autonomous trading", "automated agent"]
+        query["$or"] = [
+            {"title": {"$regex": "|".join(agent_terms), "$options": "i"}},
+            {"abstract": {"$regex": "|".join(agent_terms), "$options": "i"}},
         ]
     
     if search:
@@ -75,10 +83,16 @@ async def get_defi_stats():
     with_pdf = await db.defi_papers.count_documents({"pdf_url": {"$ne": None, "$ne": ""}})
     with_abstract = await db.defi_papers.count_documents({"abstract": {"$ne": ""}})
 
-    ai_terms_regex = "ai agent|autonomous agent|multi-agent|intelligent agent|llm agent|on-chain agent|agentic|agent-based|large language model|llm|gpt|chatgpt|reinforcement learning|autonomous trading|ai-driven|ai-powered|ai-based"
+    ai_terms_regex = "artificial intelligence|machine learning|deep learning|neural network|reinforcement learning|llm|large language model|gpt|ai agent|autonomous agent|multi-agent|agentic|ai-driven|ai-powered"
     ai_count = await db.defi_papers.count_documents({"$or": [
         {"title": {"$regex": ai_terms_regex, "$options": "i"}},
         {"abstract": {"$regex": ai_terms_regex, "$options": "i"}},
+    ]})
+
+    agent_terms_regex = "ai agent|autonomous agent|multi-agent|intelligent agent|llm agent|agentic|agent-based|on-chain agent|autonomous trading|automated agent"
+    agent_count = await db.defi_papers.count_documents({"$or": [
+        {"title": {"$regex": agent_terms_regex, "$options": "i"}},
+        {"abstract": {"$regex": agent_terms_regex, "$options": "i"}},
     ]})
     # By year
     by_year = {}
@@ -100,6 +114,7 @@ async def get_defi_stats():
     return {
         "total": total,
         "ai_count": ai_count,
+        "agent_count": agent_count,
         "with_pdf": with_pdf,
         "with_abstract": with_abstract,
         "by_year": by_year,

@@ -51,12 +51,13 @@ export default function DefiPage() {
         gap_score: null,
         ts_score: null,
         arxiv_id: p.arxiv_id || null,
-        link: p.url,
+        link: p.pdf_url || p.url || (p.doi ? `https://doi.org/${p.doi}` : null),
         ai_rating: null,
         // DeFi-specific
         cited_by_count: p.cited_by_count,
         pdf_url: p.pdf_url,
         _displayRank: off + i + 1,
+        _external_link: true,
       }));
       if (append) {
         setPapers(prev => [...prev, ...newPapers]);
@@ -108,13 +109,13 @@ export default function DefiPage() {
             className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
               subset === "all" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             }`} data-testid="subset-all">
-            All DeFi ({stats?.total?.toLocaleString() || "..."})
+            Blockchain & AI ({stats?.ai_count?.toLocaleString() || "..."})
           </button>
-          <button onClick={() => setSubset("ai")}
+          <button onClick={() => setSubset("agents")}
             className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-              subset === "ai" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-            }`} data-testid="subset-ai">
-            Blockchain & AI Agents ({stats?.ai_count?.toLocaleString() || "..."})
+              subset === "agents" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`} data-testid="subset-agents">
+            Blockchain & AI Agents ({stats?.agent_count?.toLocaleString() || "..."})
           </button>
         </div>
 

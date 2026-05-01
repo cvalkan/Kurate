@@ -213,10 +213,18 @@ export function LeaderboardTable({
           {bookmarksMode && <div />}
           {!bookmarksMode && <div />}
         </div>
-        {visibleList.map((paper, idx) => (
-          <Link
-            key={paper.id}
-            to={`/paper/${paper.id}`}
+        {visibleList.map((paper, idx) => {
+          const rowProps = paper._external_link && paper.link
+            ? { as: "a", href: paper.link, target: "_blank", rel: "noopener noreferrer" }
+            : { as: Link, to: `/paper/${paper.id}` };
+          const RowTag = paper._external_link && paper.link ? "a" : Link;
+          const rowLinkProps = paper._external_link && paper.link
+            ? { href: paper.link, target: "_blank", rel: "noopener noreferrer" }
+            : { to: `/paper/${paper.id}` };
+          return (
+          <RowTag
+            key={paper.id || idx}
+            {...rowLinkProps}
             className={`${gridBase} py-2 sm:py-3 items-center border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer ${idx < 3 && !debouncedKeyword && (!sortKey || sortKey === "rank") ? "bg-accent/[0.02]" : ""}`}
             style={gridStyle}
             data-testid={`leaderboard-row-${idx}`}
@@ -293,8 +301,9 @@ export function LeaderboardTable({
               </button>
             )}
             {!bookmarksMode && <BookmarkButton paperId={paper.id} bookmarkedIds={bookmarkedIds} onToggle={toggleBookmark} />}
-          </Link>
-        ))}
+          </RowTag>
+        );
+        })}
       </div>
       {/* Unified sentinel: triggers both progressive render and server page loads */}
       {hasMoreToShow && <div ref={sentinelRef} className="py-4 text-center text-xs text-muted-foreground">{loadingMore ? "Loading more..." : ""}</div>}
