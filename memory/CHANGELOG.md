@@ -8,7 +8,13 @@
 - Added `_invalidate_admin_cache(category)` to `run_fetch_cycle()` so `stats` cache refreshes after new data.
 - Fixed `_invalidate_admin_cache` to also clear `__precomputed__` keys (cross-category stats aggregation).
 - Eliminated `_goals_met_cache` entirely: rewrote goal3 check from 45 individual `count_documents` queries to 2 batch `$in` queries, making goals computation fast enough (~50ms) to run fresh every scheduler cycle. Removed `invalidate_goals_cache()` and all 6 call sites.
+- Eliminated `_settings_cache` (5s TTL): `find_one` on indexed key is 0.3ms, cache was unnecessary. Removed `invalidate_settings_cache()` and all 7 call sites.
 - Fixed KeyError on missing `title` field in `status` endpoint (some ranking docs lack denormalized title).
+- Fixed archive dropdown scroll bug: scroll events inside the dropdown no longer close it.
+- Fixed archive search: keyword filtering now works client-side in archive views.
+- Reordered leaderboard columns to: #, Paper, Score, 95% CI, Match, Win %, Rating, Gap, Published.
+- Fixed duplicate LLM calls on "Add Paper": `_pipeline_active` flag prevents scheduler from racing with single-paper pipeline.
+- **Fixed paper fetch gap**: `run_fetch_cycle` now passes `date_from` (based on `last_fetch_at`) to `fetch_arxiv_papers`. In catch-up mode, the fetcher pages through ALL papers since the last fetch (up to 2000) instead of capping at 50. Prevents permanently missed papers in high-volume categories like `cs.AI`.
 
 ## April 22, 2026 (later) — Variant 1 rollout + deployment prep
 - Applied Variant 1 (stacked card layout) to both Medalists view and Category Explorer via new shared `<CandidateCardV1>` component: handle + engagement counts on top, color-coded tweet text in the middle (blue when engaged, muted gray when not), and four 24×24 icon-only action buttons (Like, Follow, QT, Draft) on the bottom.

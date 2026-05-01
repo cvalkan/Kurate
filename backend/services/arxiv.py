@@ -24,9 +24,16 @@ async def fetch_arxiv_papers(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
 ) -> List[dict]:
+    """Fetch papers from arXiv API.
+
+    When date_from is provided (catch-up mode), pages through ALL papers
+    since that date instead of capping at max_results. This ensures no
+    papers are missed between fetches, even for high-volume categories.
+    """
     base_url = "https://export.arxiv.org/api/query"
     query_parts = [f"cat:{category}"]
 
+    catch_up = bool(date_from)
     if date_from or date_to:
         from_str = date_from.replace("-", "") + "0000" if date_from else "190001010000"
         to_str = date_to.replace("-", "") + "2359" if date_to else "209912312359"
@@ -35,12 +42,14 @@ async def fetch_arxiv_papers(
     query = " AND ".join(query_parts)
     collected = []
     start = 0
-    # For niche categories, primary papers may be sparse — paginate to find enough
     batch_size = max(max_results * 3, 150)
-    max_pages = 5  # Safety limit: don't fetch more than 5 pages
+    # In catch-up mode: allow more pages to collect everything since last fetch.
+    # Safety cap at 2000 primary papers to prevent runaway fetches.
+    max_pages = 20 if catch_up else 5
+    hard_cap = 2000 if catch_up else max_results
 
     for page in range(max_pages):
-        if len(collected) >= max_results:
+        if len(collected) >= hard_cap:
             break
 
         params = {
@@ -107,7 +116,7 @@ async def fetch_arxiv_papers(
             seen.add(p["arxiv_id"])
             unique.append(p)
 
-    return unique[:max_results]
+    return unique[:hard_cap]
 
 
 def _parse_arxiv_response(xml_text: str) -> List[dict]:
