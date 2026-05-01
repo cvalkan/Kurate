@@ -1,7 +1,8 @@
 """DeFi papers API — serves the OpenAlex-sourced DeFi/crypto paper collection."""
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 from core.config import db
+from core.auth import verify_admin
 
 router = APIRouter(prefix="/api/defi", tags=["defi"])
 
@@ -80,3 +81,14 @@ async def get_defi_stats():
         "by_year": by_year,
         "top_sources": top_sources,
     }
+
+
+@router.post("/import", dependencies=[Depends(verify_admin)])
+async def import_defi_papers(papers: list[dict]):
+    """Bulk import DeFi papers. Used for one-time data migration."""
+    saved = 0
+    for p in papers:
+        key = {"doi": p["doi"]} if p.get("doi") else {"title": p["title"]}
+        await db.defi_papers.update_one(key, {"$set": p}, upsert=True)
+        saved += 1
+    return {"status": "ok", "saved": saved}
