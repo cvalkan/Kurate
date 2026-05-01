@@ -21,9 +21,9 @@ async def get_defi_papers(
     query = {}
     
     if availability == "pdf":
-        query["pdf_url"] = {"$exists": True, "$ne": None, "$ne": ""}
+        query["pdf_url"] = {"$ne": None}
     elif availability == "abstract_only":
-        query["$or"] = [{"pdf_url": None}, {"pdf_url": ""}, {"pdf_url": {"$exists": False}}]
+        query["pdf_url"] = None
     
     if subset == "ai":
         ai_terms = ["artificial intelligence", "machine learning", "deep learning", "neural network",
