@@ -88,6 +88,8 @@ async def get_defi_stats():
     total = await db.defi_papers.count_documents({})
     with_pdf = await db.defi_papers.count_documents({"pdf_url": {"$ne": None, "$ne": ""}})
     with_abstract = await db.defi_papers.count_documents({"abstract": {"$ne": ""}})
+    pdf_downloaded = await db.defi_papers.count_documents({"pdf_downloaded": True})
+    abstract_only = await db.defi_papers.count_documents({"pdf_downloaded": {"$ne": True}})
 
     ai_terms_regex = "artificial intelligence|machine learning|deep learning|neural network|reinforcement learning|llm|large language model|gpt|ai agent|autonomous agent|multi-agent|agentic|ai-driven|ai-powered"
     ai_count = await db.defi_papers.count_documents({"$or": [
@@ -121,6 +123,8 @@ async def get_defi_stats():
         "total": total,
         "ai_count": ai_count,
         "agent_count": agent_count,
+        "pdf_downloaded": pdf_downloaded,
+        "abstract_only": abstract_only,
         "with_pdf": with_pdf,
         "with_abstract": with_abstract,
         "by_year": by_year,

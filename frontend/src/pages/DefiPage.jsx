@@ -133,11 +133,11 @@ export default function DefiPage() {
           <button onClick={() => setAvailability("pdf")}
             className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
               availability === "pdf" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-            }`} data-testid="avail-pdf">With PDF</button>
+            }`} data-testid="avail-pdf">With PDF ({stats?.pdf_downloaded ?? "..."})</button>
           <button onClick={() => setAvailability("abstract_only")}
             className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
               availability === "abstract_only" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-            }`} data-testid="avail-abstract">Abstract only</button>
+            }`} data-testid="avail-abstract">Abstract only ({stats?.abstract_only ?? "..."})</button>
         </div>
 
         {/* Stats */}
