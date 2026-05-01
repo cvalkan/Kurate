@@ -154,7 +154,7 @@ export default function DefiPage() {
           sortKey={sort}
           sortDir={sortDir}
           onSort={handleSort}
-          showRatingCol={false}
+          showRatingCol={true}
           showGapCol={false}
           scoringMethod="wr"
           isArchive={false}
