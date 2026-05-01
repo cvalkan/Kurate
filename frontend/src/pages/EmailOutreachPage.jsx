@@ -475,7 +475,76 @@ export default function EmailOutreachPage() {
             })}
           </div>
         )}
+
+        <UnsubscribeList />
       </div>
+    </div>
+  );
+}
+
+function UnsubscribeList() {
+  const [data, setData] = useState(null);
+  const [open, setOpen] = useState(false);
+
+  const load = async () => {
+    try {
+      const r = await axios.get(`${API}/api/admin/email-outreach/unsubscribes`, { headers: getAdminHeaders() });
+      setData(r.data);
+    } catch { }
+  };
+
+  useEffect(() => { if (open) load(); }, [open]);
+
+  const handleRemove = async (email) => {
+    if (!window.confirm(`Re-subscribe ${email}?`)) return;
+    try {
+      await axios.delete(`${API}/api/admin/email-outreach/unsubscribes/${encodeURIComponent(email)}`, { headers: getAdminHeaders() });
+      toast.success(`${email} re-subscribed`);
+      load();
+    } catch (e) { toast.error(`Failed: ${e.response?.data?.detail || e.message}`); }
+  };
+
+  return (
+    <div className="border rounded-lg p-3 bg-secondary/10 mt-6" data-testid="unsubscribe-list">
+      <button onClick={() => setOpen(!open)} className="flex items-center gap-2 text-xs font-medium w-full text-left">
+        <Mail className="h-3.5 w-3.5" />
+        Unsubscribes
+        {data && <span className="text-muted-foreground font-normal ml-1">({data.count})</span>}
+        <ChevronDown className={`h-3.5 w-3.5 ml-auto transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="mt-3">
+          {!data ? (
+            <p className="text-xs text-muted-foreground">Loading...</p>
+          ) : data.count === 0 ? (
+            <p className="text-xs text-muted-foreground">No unsubscribes yet.</p>
+          ) : (
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-secondary/50 text-muted-foreground">
+                  <th className="px-3 py-1.5 text-left font-medium">Email</th>
+                  <th className="px-3 py-1.5 text-left font-medium">Date</th>
+                  <th className="px-3 py-1.5 text-right font-medium"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.unsubscribes.map((u, i) => (
+                  <tr key={i} className="border-t border-border/50">
+                    <td className="px-3 py-1.5">{u.email}</td>
+                    <td className="px-3 py-1.5 text-muted-foreground">{u.unsubscribed_at?.slice(0, 10)}</td>
+                    <td className="px-3 py-1.5 text-right">
+                      <button onClick={() => handleRemove(u.email)}
+                        className="text-[10px] text-accent hover:underline" data-testid={`resub-${u.email}`}>
+                        re-subscribe
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
     </div>
   );
 }
