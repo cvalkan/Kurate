@@ -267,6 +267,12 @@ async def _fetch_loop():
         next_due_seconds = float("inf")
         try:
             settings = await get_settings()
+
+            # Respect global pause
+            if settings.get("paused", False):
+                await asyncio.sleep(60)
+                continue
+
             interval_hours = settings.get("fetch_interval_hours", 6)
             now = datetime.now(timezone.utc)
 

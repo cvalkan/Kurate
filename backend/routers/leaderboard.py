@@ -430,9 +430,14 @@ async def _bg_archive_loop():
 
     # First iteration: catch-up mode — create current week/month if missing
     try:
-        log_mem("archive_loop initial catch-up start")
-        await run_archive_snapshots(catch_up=True)
-        log_mem("archive_loop initial catch-up done")
+        from core.auth import get_settings
+        settings = await get_settings()
+        if not settings.get("paused", False):
+            log_mem("archive_loop initial catch-up start")
+            await run_archive_snapshots(catch_up=True)
+            log_mem("archive_loop initial catch-up done")
+        else:
+            log_mem("archive_loop skipped catch-up (system paused)")
     except Exception as e:
         logger.warning(f"Archive snapshot catch-up failed: {e}")
 
@@ -444,6 +449,11 @@ async def _bg_archive_loop():
         await asyncio.sleep(max(sleep_seconds, 3600))
 
         try:
+            from core.auth import get_settings
+            settings = await get_settings()
+            if settings.get("paused", False):
+                log_mem("archive_loop skipped (system paused)")
+                continue
             log_mem("archive_loop daily run start")
             await run_archive_snapshots()
             log_mem("archive_loop daily snapshots done")
