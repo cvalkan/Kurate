@@ -133,21 +133,12 @@ export default function DefiPage() {
           <button onClick={() => setAvailability("pdf")}
             className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
               availability === "pdf" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-            }`} data-testid="avail-pdf">With PDF ({stats?.pdf_downloaded ?? "..."})</button>
+            }`} data-testid="avail-pdf">With PDF</button>
           <button onClick={() => setAvailability("abstract_only")}
             className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
               availability === "abstract_only" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-            }`} data-testid="avail-abstract">Abstract only ({stats?.abstract_only ?? "..."})</button>
+            }`} data-testid="avail-abstract">Abstract only</button>
         </div>
-
-        {/* Stats */}
-        {stats && (
-          <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mb-4">
-            {Object.entries(stats.by_year || {}).sort((a,b) => b[0].localeCompare(a[0])).map(([year, count]) => (
-              <span key={year}>{year}: {count}</span>
-            ))}
-          </div>
-        )}
 
         {/* Search */}
         <div className="flex items-center gap-3 mb-4">
