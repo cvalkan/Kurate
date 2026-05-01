@@ -261,7 +261,21 @@ async def _fetch_loop():
     """Independent loop for fetching papers + generating summaries. Never blocks comparisons.
     Processes ONE category at a time with a cooldown between categories to avoid
     overwhelming the MongoDB connection pool on remote (Atlas) instances."""
+    from core.memlog import log_mem
     await asyncio.sleep(8)  # Let compare loop start first
+
+    while _scheduler_running:
+        try:
+            await _fetch_loop_inner()
+        except Exception as e:
+            import traceback
+            logger.error(f"Fetch loop CRASHED: {e}")
+            log_mem(f"Fetch loop CRASHED: {traceback.format_exc()[-300:]}")
+            await asyncio.sleep(60)  # Back off and retry
+
+
+async def _fetch_loop_inner():
+    from core.memlog import log_mem
 
     while _scheduler_running:
         next_due_seconds = float("inf")
@@ -333,12 +347,12 @@ async def _compare_loop():
     Auto-restarts on crash with exponential backoff (max 5 min)."""
     global _wake_event
     from core.memlog import log_mem
-    await asyncio.sleep(5)
-    log_mem("Compare loop: task started")
 
     restart_count = 0
     while _scheduler_running:
         try:
+            await asyncio.sleep(5)
+            log_mem("Compare loop: task started")
             _compare_loop_diag["loop_alive"] = True
             await _compare_loop_inner()
             break  # Clean exit (scheduler stopped)
@@ -352,7 +366,7 @@ async def _compare_loop():
                 "at": datetime.now(timezone.utc).isoformat(),
                 "restart_count": restart_count,
             }
-            backoff = min(300, 10 * (2 ** min(restart_count - 1, 5)))  # 10s, 20s, 40s, 80s, 160s, 300s
+            backoff = min(300, 10 * (2 ** min(restart_count - 1, 5)))
             log_mem(f"Compare loop CRASHED (restart #{restart_count} in {backoff}s): {traceback.format_exc()[-300:]}")
             logger.error(f"Compare loop CRASHED (restart #{restart_count}): {e}")
             await asyncio.sleep(backoff)
