@@ -28,7 +28,7 @@ export default function DefiPage() {
   }, [search]);
 
   // Map backend sort keys to API params
-  const sortMap = { published: "date", title: "title", comparisons: "citations" };
+  const sortMap = { published: "date", title: "title", comparisons: "citations", ai_rating: "ai_rating" };
   const apiSort = sortMap[sort] || "date";
 
   const load = useCallback(async (append = false) => {
@@ -40,7 +40,7 @@ export default function DefiPage() {
       });
       const newPapers = (r.data.papers || []).map((p, i) => ({
         // Map to LeaderboardTable's expected shape
-        id: p.doi || p.openalex_id || `defi-${off + i}`,
+        id: p.paper_id || p.doi || p.openalex_id || `defi-${off + i}`,
         title: p.title,
         authors: p.authors,
         published: p.publication_date,
@@ -52,13 +52,14 @@ export default function DefiPage() {
         gap_score: null,
         ts_score: null,
         arxiv_id: p.arxiv_id || null,
-        link: p.pdf_url || p.url || (p.doi ? `https://doi.org/${p.doi}` : null),
-        ai_rating: null,
+        link: p.paper_id ? null : (p.pdf_url || p.url || (p.doi ? `https://doi.org/${p.doi}` : null)),
+        ai_rating: p.ai_rating || null,
         // DeFi-specific
         cited_by_count: p.cited_by_count,
         pdf_url: p.pdf_url,
         _displayRank: off + i + 1,
-        _external_link: true,
+        _external_link: !p.paper_id,
+        _paper_id: p.paper_id,
       }));
       if (append) {
         setPapers(prev => {

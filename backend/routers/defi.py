@@ -60,6 +60,7 @@ async def get_defi_papers(
         "date": "publication_date",
         "citations": "cited_by_count",
         "title": "title",
+        "ai_rating": "ai_rating",
     }.get(sort, "publication_date")
     sort_dir = -1 if dir == "desc" else 1
 
@@ -70,7 +71,8 @@ async def get_defi_papers(
         {"_id": 0, "title": 1, "authors": 1, "abstract": 1, "doi": 1,
          "ssrn_id": 1, "arxiv_id": 1, "publication_date": 1, "type": 1,
          "source": 1, "cited_by_count": 1, "keywords": 1, "topics": 1,
-         "url": 1, "openalex_id": 1, "pdf_url": 1},
+         "url": 1, "openalex_id": 1, "pdf_url": 1,
+         "ai_rating": 1, "summary_scores": 1, "paper_id": 1},
     ).sort(sort_field, sort_dir).skip(offset).limit(limit):
         papers.append(doc)
 
