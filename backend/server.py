@@ -302,6 +302,14 @@ async def startup():
     asyncio.create_task(_deferred_startup())
     from core.memlog import log_mem, ensure_ttl_index
     await ensure_ttl_index(db)
+    
+    # Start scheduler loops immediately (don't depend on _deferred_startup completing)
+    try:
+        await start_scheduler()
+        log_mem("Scheduler started")
+    except Exception as e:
+        logger.error(f"start_scheduler failed: {e}")
+    
     log_mem("Server started")
     logger.info("Kurate.org Leaderboard started")
 
@@ -749,8 +757,7 @@ async def _deferred_startup():
     except Exception as e:
         logger.warning(f"Experiment match import warning: {e}")
 
-    await start_scheduler()
-    log_mem("_deferred_startup: after start_scheduler")
+    log_mem("_deferred_startup: complete")
 
     # Retry summary generation for papers that are in rankings but lack summaries
     # (these papers can't be matched until they have summaries)
