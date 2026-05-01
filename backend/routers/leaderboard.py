@@ -1115,22 +1115,62 @@ def _filter_archives_by_frequency(archives, category, settings):
 
 @router.get("/papers/{paper_id}")
 async def get_paper_detail(paper_id: str):
+    import asyncio
+
     paper = await db.papers.find_one({"id": paper_id}, {"_id": 0, "full_text": 0})
     if not paper:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Paper not found")
 
-    # Get all standard matches for this paper (exclude experiments)
-    matches = await db.matches.find(
-        {
-            "completed": True,
-            "mode": {"$exists": False},
-            "$or": [{"paper1_id": paper_id}, {"paper2_id": paper_id}],
-        },
-        {"_id": 0, "revision_superseded": 1, "paper1_id": 1, "paper2_id": 1,
-         "winner_id": 1, "reasoning": 1, "model_used": 1, "created_at": 1,
-         "failed": 1, "id": 1},
-    ).sort("created_at", -1).to_list(500)
+    primary_cat = paper.get("categories", [None])[0]
+
+    # Run all independent queries in parallel
+    async def fetch_matches():
+        return await db.matches.find(
+            {
+                "completed": True,
+                "mode": {"$exists": False},
+                "$or": [{"paper1_id": paper_id}, {"paper2_id": paper_id}],
+            },
+            {"_id": 0, "revision_superseded": 1, "paper1_id": 1, "paper2_id": 1,
+             "winner_id": 1, "reasoning": 1, "model_used": 1, "created_at": 1,
+             "failed": 1, "id": 1},
+        ).sort("created_at", -1).to_list(500)
+
+    async def fetch_ranking():
+        return await db.rankings.find_one(
+            {"paper_id": paper_id},
+            {"_id": 0, "wins": 1, "losses": 1, "comparisons": 1,
+             "score": 1, "rank": 1, "rank_ts": 1, "win_rate": 1, "ci": 1, "wilson_margin": 1,
+             "ts_score": 1, "ts_sigma": 1, "os_score": 1, "os_sigma": 1, "revision_badge": 1}
+        )
+
+    async def fetch_score_range():
+        result = {}
+        if not primary_cat:
+            return result
+        for score_field, min_key, max_key in [
+            ("os_score", "category_os_min", "category_os_max"),
+            ("ts_score", "category_ts_min", "category_ts_max"),
+        ]:
+            pipeline = [
+                {"$match": {"category": primary_cat, score_field: {"$exists": True, "$ne": None}}},
+                {"$group": {"_id": None, "min_val": {"$min": f"${score_field}"}, "max_val": {"$max": f"${score_field}"}}},
+            ]
+            async for agg in db.rankings.aggregate(pipeline):
+                result[min_key] = agg.get("min_val")
+                result[max_key] = agg.get("max_val")
+        return result
+
+    async def fetch_cat_count():
+        if not primary_cat:
+            return 0
+        return await db.rankings.count_documents({"category": primary_cat})
+
+    # All 4 queries run simultaneously
+    matches, ranking_doc, score_range, total_in_cat = await asyncio.gather(
+        fetch_matches(), fetch_ranking(), fetch_score_range(), fetch_cat_count()
+    )
 
     # Get opponent paper titles
     opponent_ids = set()
@@ -1172,14 +1212,7 @@ async def get_paper_detail(paper_id: str):
         else:
             enriched_matches.append(entry)
 
-    # Stats from rankings collection (same source as leaderboard — always in sync)
-    ranking_doc = await db.rankings.find_one(
-        {"paper_id": paper_id},
-        {"_id": 0, "wins": 1, "losses": 1, "comparisons": 1,
-         "score": 1, "rank": 1, "rank_ts": 1, "win_rate": 1, "ci": 1, "wilson_margin": 1,
-         "ts_score": 1, "ts_sigma": 1, "os_score": 1, "os_sigma": 1, "revision_badge": 1}
-    )
-
+    # Stats from rankings collection (ranking_doc fetched in parallel above)
     if ranking_doc:
         stats = {
             "wins": ranking_doc.get("wins", 0),
@@ -1205,9 +1238,7 @@ async def get_paper_detail(paper_id: str):
             if ranking_doc.get(field) is not None:
                 paper[field] = ranking_doc[field]
 
-    # Sibling versions: find all standalone papers sharing the same arxiv_id_base
-    # (new standalone-paper-per-version model). Only returned when there are ≥2
-    # versions — drives the version toggle on the paper page.
+    # Sibling versions
     if paper.get("arxiv_id_base"):
         siblings = []
         async for sib in db.papers.find(
@@ -1226,29 +1257,15 @@ async def get_paper_detail(paper_id: str):
         if len(siblings) >= 2:
             paper["sibling_versions"] = siblings
 
-    # Get category OS score range for CI bar
-    primary_cat = paper.get("categories", [None])[0]
-    if primary_cat:
-        for score_field, min_key, max_key in [
-            ("os_score", "category_os_min", "category_os_max"),
-            ("ts_score", "category_ts_min", "category_ts_max"),
-        ]:
-            pipeline = [
-                {"$match": {"category": primary_cat, score_field: {"$exists": True, "$ne": None}}},
-                {"$group": {"_id": None, "min_val": {"$min": f"${score_field}"}, "max_val": {"$max": f"${score_field}"}}},
-            ]
-            async for agg in db.rankings.aggregate(pipeline):
-                paper[min_key] = agg.get("min_val")
-                paper[max_key] = agg.get("max_val")
+    # Apply score range and category count from parallel results
+    for k, v in score_range.items():
+        paper[k] = v
 
-    # Get current rank and total papers in category
-    # Use TS rank (TrueSkill) — the canonical ranking metric
     if ranking_doc and primary_cat:
         from routers.badges import CATEGORIES as _CAT_NAMES
         rank_ts = ranking_doc.get("rank_ts") or ranking_doc.get("rank")
         if rank_ts:
             paper["current_rank"] = rank_ts
-        total_in_cat = await db.rankings.count_documents({"category": primary_cat})
         paper["total_in_category"] = total_in_cat
         paper["category_name"] = _CAT_NAMES.get(primary_cat, primary_cat)
 
