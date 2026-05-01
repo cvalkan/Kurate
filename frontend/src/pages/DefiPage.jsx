@@ -114,7 +114,7 @@ export default function DefiPage() {
             className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
               subset === "ai" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             }`} data-testid="subset-ai">
-            AI & DeFi ({stats?.ai_count?.toLocaleString() || "..."})
+            Blockchain & AI Agents ({stats?.ai_count?.toLocaleString() || "..."})
           </button>
         </div>
 

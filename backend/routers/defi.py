@@ -20,14 +20,15 @@ async def get_defi_papers(
     query = {}
     
     if subset == "ai":
-        ai_terms = ["artificial intelligence", "machine learning", "deep learning", "neural network",
-                     "ai agent", "autonomous agent", "llm", "large language model", "reinforcement learning",
-                     "transformer", "multi-agent", "intelligent agent", "ai-driven", "ai-based",
-                     "natural language processing", "prediction model", "chatgpt", "gpt"]
+        ai_terms = ["ai agent", "autonomous agent", "multi-agent", "intelligent agent",
+                     "llm agent", "on-chain agent", "agentic", "agent-based",
+                     "large language model", "llm", "gpt", "chatgpt",
+                     "reinforcement learning", "autonomous trading",
+                     "ai-driven", "ai-powered", "ai-based"]
         query["$or"] = [
             {"title": {"$regex": "|".join(ai_terms), "$options": "i"}},
-            {"abstract": {"$regex": "|".join(ai_terms[:8]), "$options": "i"}},
-            {"keywords": {"$regex": "|".join(ai_terms[:8]), "$options": "i"}},
+            {"abstract": {"$regex": "|".join(ai_terms), "$options": "i"}},
+            {"keywords": {"$regex": "|".join(ai_terms), "$options": "i"}},
         ]
     
     if search:
@@ -74,7 +75,7 @@ async def get_defi_stats():
     with_pdf = await db.defi_papers.count_documents({"pdf_url": {"$ne": None, "$ne": ""}})
     with_abstract = await db.defi_papers.count_documents({"abstract": {"$ne": ""}})
 
-    ai_terms_regex = "artificial intelligence|machine learning|deep learning|neural network|ai agent|autonomous agent|llm|large language model|reinforcement learning|multi-agent|intelligent agent"
+    ai_terms_regex = "ai agent|autonomous agent|multi-agent|intelligent agent|llm agent|on-chain agent|agentic|agent-based|large language model|llm|gpt|chatgpt|reinforcement learning|autonomous trading|ai-driven|ai-powered|ai-based"
     ai_count = await db.defi_papers.count_documents({"$or": [
         {"title": {"$regex": ai_terms_regex, "$options": "i"}},
         {"abstract": {"$regex": ai_terms_regex, "$options": "i"}},
