@@ -1294,9 +1294,12 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
             # Load full paper data on-demand (only when actually generating)
             paper = await db.papers.find_one(
                 {"id": paper_id},
-                {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "categories": 1, "summaries": 1}
+                {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1, "categories": 1, "summaries": 1, "_pipeline_active": 1}
             )
             if not paper:
+                return
+            # Skip if single-paper pipeline is already processing this paper
+            if paper.get("_pipeline_active"):
                 return
             # Re-check in case another worker already generated it
             if _get_paper_summary(paper, mk):

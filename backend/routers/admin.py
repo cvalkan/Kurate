@@ -349,6 +349,10 @@ async def _run_single_paper_pipeline(paper_id: str, category: str):
             logger.error(f"[add-paper] Paper {paper_id} not found")
             return
 
+        # Mark paper as being processed by single-paper pipeline — prevents
+        # the scheduler's _generate_paper_summaries from racing with us
+        await db.papers.update_one({"id": paper_id}, {"$set": {"_pipeline_active": True}})
+
         # Step 1: Download PDF
         if paper.get("pdf_link") and not paper.get("full_text"):
             try:
@@ -436,6 +440,8 @@ async def _run_single_paper_pipeline(paper_id: str, category: str):
 
     except Exception as e:
         logger.error(f"[add-paper] Pipeline failed for {paper_id}: {e}")
+    finally:
+        await db.papers.update_one({"id": paper_id}, {"$unset": {"_pipeline_active": ""}})
 
 
 
