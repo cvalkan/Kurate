@@ -198,11 +198,6 @@ async def get_email_medalists(period: str = "weekly:2026-1", top_n: int = 3):
         {"_id": 0, "category": 1, "leaderboard": {"$slice": top_n}, "label": 1},
     ):
         cat = archive["category"]
-        if has_freq_config:
-            default_freq = freq_config.get("default", "weekly")
-            cat_freq = freq_config.get(cat, default_freq)
-            if cat_freq != period_type:
-                continue
 
         for i, p in enumerate(archive.get("leaderboard", [])[:top_n]):
             paper_id = p.get("id")
