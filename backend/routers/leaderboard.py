@@ -1722,6 +1722,8 @@ async def create_archive_snapshot_for_period(category: str, period_type: str, ye
             "arxiv_id": r.get("arxiv_id"),
             "ai_rating": r.get("ai_rating"),
             "gap_score": r.get("gap_score"),
+            "ts_sigma": r.get("ts_sigma"),
+            "gap_score_ts": r.get("gap_score_ts"),
         }
         frozen_entries.append(entry)
 
@@ -1838,6 +1840,8 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
             "arxiv_id": r.get("arxiv_id"),
             "ai_rating": r.get("ai_rating"),
             "gap_score": r.get("gap_score"),
+            "ts_sigma": r.get("ts_sigma"),
+            "gap_score_ts": r.get("gap_score_ts"),
         }
         frozen_entries.append(entry)
 
