@@ -675,30 +675,34 @@ async def get_summary_generation_progress(category: str = "cs.RO"):
 
 @router.get("/status", dependencies=[Depends(verify_admin)])
 async def get_admin_status(category: str = "cs.RO"):
+    cached = _get_admin_cached("status", category)
+    if cached is not None:
+        return cached
+
     lb_cache = _get_lb_cache()
 
-    # All counts — from DB rankings + scheduler
+    # All counts in parallel
+    import asyncio
     cat_scheduler = _get_cat_status(category)
-    total_papers = await db.rankings.count_documents({"category": category})
+
+    total_papers, sched_papers_total, total_matches, ranked_count, cat_matches_sorted = await asyncio.gather(
+        db.rankings.count_documents({"category": category}),
+        db.papers.count_documents({"categories.0": category}),
+        db.matches.count_documents(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
+        ),
+        db.rankings.count_documents({"category": category, "comparisons": {"$gt": 0}}),
+        db.matches.find(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
+            {"_id": 0, "id": 1, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "reasoning": 1, "created_at": 1, "model_used": 1}
+        ).sort("created_at", -1).limit(10).to_list(10),
+    )
+
     sched_papers = cat_scheduler.get("papers_count", 0)
     if not total_papers:
         total_papers = sched_papers
-    # Always use DB for accurate counts (scheduler counters can be stale)
-    sched_papers_total = await db.papers.count_documents({"categories.0": category})
-    total_matches = await db.matches.count_documents(
-        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
-    )
     failed_matches = lb_cache.get("_failed_by_cat", {}).get(category, 0)
-
-    # Unranked from rankings DB
-    ranked_count = await db.rankings.count_documents({"category": category, "comparisons": {"$gt": 0}})
     unranked = total_papers - ranked_count
-
-    # Recent matches from DB
-    cat_matches_sorted = await db.matches.find(
-        {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
-        {"_id": 0, "id": 1, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "reasoning": 1, "created_at": 1, "model_used": 1}
-    ).sort("created_at", -1).limit(10).to_list(10)
 
     # Paper titles from rankings DB, fallback to papers collection
     paper_ids_needed = set()
@@ -746,12 +750,17 @@ async def get_admin_status(category: str = "cs.RO"):
         "scheduler": cat_scheduler,
         "recent_matches": enriched_recent,
     }
+    _set_admin_cached("status", category, result)
     return result
 
 
 @router.get("/progress", dependencies=[Depends(verify_admin)])
 async def get_progress_estimate(category: str = "cs.RO"):
     """Triple-goal progress — always computed from rankings DB (single source of truth)."""
+    cached = _get_admin_cached("progress", category)
+    if cached is not None:
+        return cached
+
     settings = await get_settings()
     global_paused = settings.get("paused", False)
 
@@ -917,9 +926,13 @@ async def get_progress_estimate(category: str = "cs.RO"):
     cat_matches_done = cat_scheduler.get("matches_count", 0)
     if cat_matches_done == 0:
         cat_matches_done = sum(e.get("comparisons", 0) for e in entries) // 2
-    cat_papers_with_pdf = await db.papers.count_documents({"categories.0": category, "full_text": {"$ne": None}})
-    cat_total_in_db = await db.papers.count_documents({"categories.0": category})
-    cat_papers_with_summaries = await db.papers.count_documents({"categories.0": category, "summaries": {"$exists": True, "$ne": {}}})
+    # Parallelize expensive count queries
+    import asyncio
+    cat_papers_with_pdf, cat_total_in_db, cat_papers_with_summaries = await asyncio.gather(
+        db.papers.count_documents({"categories.0": category, "full_text": {"$ne": None}}),
+        db.papers.count_documents({"categories.0": category}),
+        db.papers.count_documents({"categories.0": category, "summaries": {"$exists": True, "$ne": {}}}),
+    )
 
     # Detect pair exhaustion: papers that need more matches but have played all matchable opponents.
     # Uses materialized `unique_opponents` field on rankings (O(1) per paper, no aggregation).
@@ -1003,6 +1016,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     except Exception:
         pass
 
+    _set_admin_cached("progress", category, result)
     return result
 
 
