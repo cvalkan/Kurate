@@ -142,10 +142,19 @@ export default function LeaderboardPage() {
   // Server-side pagination with server-side sorting.
   const PAGE_SIZE = 200;
 
-  // Client-side sorted archive leaderboard
+  // Client-side sorted (and keyword-filtered) archive leaderboard
   const sortedArchiveLeaderboard = useMemo(() => {
     if (!activeArchive?.leaderboard) return null;
-    const data = [...activeArchive.leaderboard];
+    let data = [...activeArchive.leaderboard];
+    // Client-side keyword filter (server-side search is skipped for archives)
+    if (debouncedKeyword) {
+      const q = debouncedKeyword.toLowerCase();
+      data = data.filter(p =>
+        (p.title || "").toLowerCase().includes(q) ||
+        (p.authors || []).some(a => (a || "").toLowerCase().includes(q)) ||
+        (p.arxiv_id || "").toLowerCase().includes(q)
+      );
+    }
     // Default: preserve array order (position = rank, array sorted by score at freeze time)
     // User can click column headers to re-sort by other fields (win_rate, comparisons, etc.)
     if (!sortKey || sortKey === "rank") {
@@ -168,7 +177,7 @@ export default function LeaderboardPage() {
       return dir === "asc" ? va - vb : vb - va;
     });
     return data;
-  }, [activeArchive, sortKey, sortDir]);
+  }, [activeArchive, sortKey, sortDir, debouncedKeyword]);
 
 
   const fetchLeaderboard = useCallback(async () => {
