@@ -1096,11 +1096,18 @@ async def get_leaderboard(
 
 
 def _filter_archives_by_frequency(archives, category, settings):
-    """Return all archives sorted by recency. No frequency filtering —
-    old weekly archives remain visible even if the category later switched to monthly."""
+    """Filter archive list to show only the type configured by admin (weekly or monthly).
+    Old archives from before a frequency switch are hidden from the dropdown."""
+    freq_config = settings.get("archive_frequency") or {}
+    freq = freq_config.get(category, freq_config.get("default", "weekly"))
+    target_type = "monthly" if freq == "monthly" else "weekly"
+
+    filtered = [a for a in archives if a.get("period_type") == target_type]
+
     def sort_key(a):
         return (a.get("year", 0), a.get("week") or a.get("month") or 0)
-    return sorted(archives, key=sort_key, reverse=True)
+    filtered.sort(key=sort_key, reverse=True)
+    return filtered
 
 
 
