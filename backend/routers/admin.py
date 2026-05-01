@@ -3264,12 +3264,11 @@ async def create_all_snapshots(year: int = None, month: int = None, week: int = 
     created = 0
 
     if year and (month or week):
-        # Specific period requested
+        # Specific period requested — create for ALL active categories regardless of frequency setting.
+        # Historical rebuilds shouldn't be filtered by CURRENT frequency config
+        # (a category's frequency may have changed since that period).
         period_type = "monthly" if month else "weekly"
         for cat in active_cats:
-            cat_freq = archive_config.get(cat, default_freq)
-            if cat_freq != period_type:
-                continue
             result = await create_archive_snapshot_for_period(cat, period_type, year, week=week, month=month)
             if result:
                 created += 1
