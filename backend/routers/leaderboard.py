@@ -1703,7 +1703,14 @@ async def create_archive_snapshot_for_period(category: str, period_type: str, ye
 
     rank_query = {"category": category, "is_latest_version": {"$ne": False}}
     rank_query.update(period_filter)
-    source_entries = await db.rankings.find(rank_query, _RANK_PROJ).sort("ts_score", -1).to_list(10000)
+
+    # Determine active scoring method from settings
+    from core.auth import get_settings
+    _settings = await get_settings()
+    scoring = _settings.get("scoring_method", "ts")
+    sort_field = "os_score" if scoring == "os" else "ts_score"
+
+    source_entries = await db.rankings.find(rank_query, _RANK_PROJ).sort(sort_field, -1).to_list(10000)
     if not source_entries:
         return None
 
@@ -1713,7 +1720,7 @@ async def create_archive_snapshot_for_period(category: str, period_type: str, ye
             "id": r.get("paper_id"),
             "title": r.get("title", ""),
             "authors": r.get("authors", []),
-            "score": r.get("ts_score") or r.get("score"),
+            "score": r.get(sort_field) or r.get("score"),
             "wins": r.get("wins"),
             "losses": r.get("losses"),
             "comparisons": r.get("comparisons"),
@@ -1738,7 +1745,7 @@ async def create_archive_snapshot_for_period(category: str, period_type: str, ye
         label = f"{month_names[month]} {year}"
 
     doc = {
-        "category": category, "period_type": period_type, "scoring_method": "ts",
+        "category": category, "period_type": period_type, "scoring_method": scoring,
         "year": year,
         "week": week if period_type == "weekly" else None,
         "month": month if period_type == "monthly" else None,
@@ -1819,7 +1826,14 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
 
     rank_query = {"category": category, "is_latest_version": {"$ne": False}}
     rank_query.update(period_filter)
-    source_entries = await db.rankings.find(rank_query, _RANK_PROJ).sort("ts_score", -1).to_list(10000)
+
+    # Determine active scoring method from settings
+    from core.auth import get_settings
+    _settings = await get_settings()
+    scoring = _settings.get("scoring_method", "ts")
+    sort_field = "os_score" if scoring == "os" else "ts_score"
+
+    source_entries = await db.rankings.find(rank_query, _RANK_PROJ).sort(sort_field, -1).to_list(10000)
     if not source_entries:
         return None
 
@@ -1831,7 +1845,7 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
             "id": r.get("paper_id"),
             "title": r.get("title", ""),
             "authors": r.get("authors", []),
-            "score": r.get("ts_score") or r.get("score"),
+            "score": r.get(sort_field) or r.get("score"),
             "wins": r.get("wins"),
             "losses": r.get("losses"),
             "comparisons": r.get("comparisons"),
@@ -1858,7 +1872,7 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
     doc = {
         "category": category,
         "period_type": period_type,
-        "scoring_method": "ts",
+        "scoring_method": scoring,
         "year": year,
         "week": week if period_type == "weekly" else None,
         "month": month if period_type == "monthly" else None,
