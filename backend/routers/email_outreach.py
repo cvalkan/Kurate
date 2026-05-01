@@ -210,13 +210,21 @@ async def get_email_medalists(period: str = "weekly:2026-1", top_n: int = 3):
             email_doc = await db.author_emails.find_one(
                 {"paper_id": paper_id}, {"_id": 0}
             )
-            # Get all sends for this paper+period
+            # Get all sends for this paper (check current period first, then any period)
             sent_emails = []
             async for s in db.email_sends.find(
                 {"paper_id": paper_id, "period": period},
                 {"_id": 0, "to_email": 1, "sent_at": 1},
             ):
                 sent_emails.append({"to_email": s["to_email"], "sent_at": s["sent_at"]})
+            # If not sent for this period, check if sent for ANY period (archive rebuild may have shifted papers)
+            ever_sent = []
+            if not sent_emails:
+                async for s in db.email_sends.find(
+                    {"paper_id": paper_id},
+                    {"_id": 0, "to_email": 1, "sent_at": 1, "period": 1},
+                ).limit(5):
+                    ever_sent.append({"to_email": s["to_email"], "sent_at": s["sent_at"], "period": s.get("period")})
 
             cached_emails = email_doc.get("emails", []) if email_doc else []
             truly_extracted = email_doc is not None and (len(cached_emails) > 0 or email_doc.get("has_full_text", False))
@@ -233,8 +241,8 @@ async def get_email_medalists(period: str = "weekly:2026-1", top_n: int = 3):
                 "emails": cached_emails,
                 "emails_extracted": truly_extracted,
                 "sent_emails": sent_emails,
-                "already_sent": len(sent_emails) > 0,
-                "sent_at": sent_emails[0]["sent_at"] if sent_emails else None,
+                "already_sent": len(sent_emails) > 0 or len(ever_sent) > 0,
+                "sent_at": (sent_emails[0]["sent_at"] if sent_emails else ever_sent[0]["sent_at"] if ever_sent else None),
             })
 
     # Sort by category then rank
