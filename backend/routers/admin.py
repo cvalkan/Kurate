@@ -3317,8 +3317,21 @@ async def create_all_snapshots(year: int = None, month: int = None, week: int = 
 
 
 @router.delete("/archive/week/{year}/{week}", dependencies=[Depends(verify_admin)])
-async def delete_weekly_archive(year: int, week: int):
-    """Delete all weekly archive snapshots for a specific ISO week."""
+async def delete_weekly_archive(year: int, week: int, force: bool = False):
+    """Delete all weekly archive snapshots for a specific ISO week.
+    Blocks deletion if archives use a different scoring method than current (prevents accidental history rewrite).
+    Use force=true to override."""
+    if not force:
+        settings = await get_settings()
+        current_scoring = settings.get("scoring_method", "ts")
+        sample = await db.leaderboard_archives.find_one(
+            {"period_type": "weekly", "year": year, "week": week},
+            {"_id": 0, "scoring_method": 1})
+        if sample and sample.get("scoring_method") and sample["scoring_method"] != current_scoring:
+            raise HTTPException(400,
+                f"These archives use scoring method '{sample['scoring_method']}' but current is '{current_scoring}'. "
+                f"Rebuilding would rewrite history with a different method. Use force=true to override.")
+
     result = await db.leaderboard_archives.delete_many(
         {"period_type": "weekly", "year": year, "week": week}
     )
@@ -3327,8 +3340,21 @@ async def delete_weekly_archive(year: int, week: int):
 
 
 @router.delete("/archive/month/{year}/{month}", dependencies=[Depends(verify_admin)])
-async def delete_monthly_archive(year: int, month: int):
-    """Delete all monthly archive snapshots for a specific month."""
+async def delete_monthly_archive(year: int, month: int, force: bool = False):
+    """Delete all monthly archive snapshots for a specific month.
+    Blocks deletion if archives use a different scoring method than current.
+    Use force=true to override."""
+    if not force:
+        settings = await get_settings()
+        current_scoring = settings.get("scoring_method", "ts")
+        sample = await db.leaderboard_archives.find_one(
+            {"period_type": "monthly", "year": year, "month": month},
+            {"_id": 0, "scoring_method": 1})
+        if sample and sample.get("scoring_method") and sample["scoring_method"] != current_scoring:
+            raise HTTPException(400,
+                f"These archives use scoring method '{sample['scoring_method']}' but current is '{current_scoring}'. "
+                f"Rebuilding would rewrite history with a different method. Use force=true to override.")
+
     result = await db.leaderboard_archives.delete_many(
         {"period_type": "monthly", "year": year, "month": month}
     )
