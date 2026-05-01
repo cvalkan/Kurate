@@ -11,6 +11,7 @@ import AdminPage from "@/pages/AdminPage";
 import OutreachPage from "@/pages/OutreachPage";
 import OutreachActivityPage from "@/pages/OutreachActivityPage";
 import EmailOutreachPage from "@/pages/EmailOutreachPage";
+import DefiPage from "@/pages/DefiPage";
 import PromptsPage from "@/pages/PromptsPage";
 import AuthCallback from "@/pages/AuthCallback";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
@@ -54,6 +55,7 @@ function AppRouter() {
           <Route path="/admin/outreach" element={<OutreachPage />} />
           <Route path="/admin/outreach/activity" element={<OutreachActivityPage />} />
           <Route path="/admin/outreach/email" element={<EmailOutreachPage />} />
+          <Route path="/defi" element={<DefiPage />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/auth/orcid/callback" element={<OrcidCallbackPage />} />
           <Route path="/badge/:category/:year/:slug/:paperId" element={<BadgePage />} />

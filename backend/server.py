@@ -28,6 +28,7 @@ from routers.congrats import router as congrats_router
 from routers.email_outreach import router as email_outreach_router
 from routers.email_outreach import unsubscribe_router
 from routers.db_explorer import router as db_explorer_router
+from routers.defi import router as defi_router
 from routers.bookmarks import router as bookmarks_router
 from routers.reading_lists import router as reading_lists_router
 from routers.human_ai_benchmark import router as benchmark_router
@@ -153,6 +154,7 @@ app.include_router(congrats_router)
 app.include_router(email_outreach_router)
 app.include_router(unsubscribe_router)
 app.include_router(db_explorer_router)
+app.include_router(defi_router)
 app.include_router(bookmarks_router)
 app.include_router(reading_lists_router)
 app.include_router(benchmark_router)
