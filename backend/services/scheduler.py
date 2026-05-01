@@ -237,7 +237,11 @@ async def start_scheduler():
     _scheduler_running = True
     _wake_event = asyncio.Event()
     # Initialize status for all active categories (dynamic from settings)
-    settings = await get_settings()
+    try:
+        settings = await get_settings()
+    except Exception as e:
+        logger.error(f"start_scheduler: get_settings failed: {e}")
+        settings = {}
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
     for cat_id in active_cats:
         cat_status = _get_cat_status(cat_id)
@@ -351,6 +355,7 @@ async def _compare_loop():
     restart_count = 0
     while _scheduler_running:
         try:
+            log_mem("Compare loop: starting (pre-sleep)")
             await asyncio.sleep(5)
             log_mem("Compare loop: task started")
             _compare_loop_diag["loop_alive"] = True
