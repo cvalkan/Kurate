@@ -21,6 +21,7 @@ export default function DefiPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [stats, setStats] = useState(null);
+  const [subset, setSubset] = useState("all");
   const limit = 50;
 
   // Debounce search
@@ -33,16 +34,16 @@ export default function DefiPage() {
     setLoading(true);
     try {
       const r = await axios.get(`${API}/api/defi/papers`, {
-        params: { sort, dir, limit, offset, search: debouncedSearch },
+        params: { sort, dir, limit, offset, search: debouncedSearch, subset },
       });
       setPapers(r.data.papers || []);
       setTotal(r.data.total || 0);
     } catch { }
     finally { setLoading(false); }
-  }, [sort, dir, offset, debouncedSearch]);
+  }, [sort, dir, offset, debouncedSearch, subset]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setOffset(0); }, [sort, dir, debouncedSearch]);
+  useEffect(() => { setOffset(0); }, [sort, dir, debouncedSearch, subset]);
 
   useEffect(() => {
     axios.get(`${API}/api/defi/stats`).then(r => setStats(r.data)).catch(() => {});
@@ -90,6 +91,22 @@ export default function DefiPage() {
           </p>
         </div>
 
+        {/* Subset toggle */}
+        <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md w-fit mb-5">
+          <button onClick={() => setSubset("all")}
+            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+              subset === "all" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`} data-testid="subset-all">
+            All DeFi ({stats?.total?.toLocaleString() || "..."})
+          </button>
+          <button onClick={() => setSubset("ai")}
+            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+              subset === "ai" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`} data-testid="subset-ai">
+            AI & DeFi ({stats?.ai_count?.toLocaleString() || "..."})
+          </button>
+        </div>
+
         {/* Stats */}
         {stats && (
           <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mb-5">
@@ -119,18 +136,29 @@ export default function DefiPage() {
 
         {/* Table */}
         <div className="border rounded-lg overflow-x-auto" data-testid="defi-table">
-          <table className="w-full text-xs" style={{ minWidth: "800px" }}>
+          <table className="w-full text-xs" style={{ minWidth: "900px", tableLayout: "fixed" }}>
+            <colgroup>
+              <col style={{ width: "35px" }} />
+              <col style={{ width: "40%" }} />
+              <col style={{ width: "80px" }} />
+              <col style={{ width: "110px" }} />
+              <col style={{ width: "50px" }} />
+              <col style={{ width: "50px" }} />
+              <col style={{ width: "45px" }} />
+              <col style={{ width: "45px" }} />
+              <col style={{ width: "40px" }} />
+            </colgroup>
             <thead>
               <tr className="bg-secondary/50 text-xs text-muted-foreground">
-                <th className="px-3 py-2.5 text-left font-medium w-8">#</th>
+                <th className="px-3 py-2.5 text-left font-medium">#</th>
                 <SortHeader field="title">Paper</SortHeader>
-                <SortHeader field="date" className="w-[85px]">Date</SortHeader>
-                <th className="px-3 py-2.5 text-left font-medium w-[120px]">Source</th>
-                <SortHeader field="citations" className="w-[55px]">Cited</SortHeader>
-                <th className="px-3 py-2.5 text-left font-medium w-[55px]">Score</th>
-                <th className="px-3 py-2.5 text-left font-medium w-[45px]">CI</th>
-                <th className="px-3 py-2.5 text-left font-medium w-[45px]">Gap</th>
-                <th className="px-3 py-2.5 text-center font-medium w-[40px]">PDF</th>
+                <SortHeader field="date">Date</SortHeader>
+                <th className="px-3 py-2.5 text-left font-medium">Source</th>
+                <SortHeader field="citations">Cited</SortHeader>
+                <th className="px-3 py-2.5 text-left font-medium">Score</th>
+                <th className="px-3 py-2.5 text-left font-medium">CI</th>
+                <th className="px-3 py-2.5 text-left font-medium">Gap</th>
+                <th className="px-3 py-2.5 text-center font-medium">PDF</th>
               </tr>
             </thead>
             <tbody>
@@ -147,18 +175,11 @@ export default function DefiPage() {
                   <td className="px-3 py-2 text-muted-foreground font-mono">{offset + i + 1}</td>
                   <td className="px-3 py-2">
                     <div className="min-w-0">
-                      <p className="text-xs sm:text-sm font-medium leading-tight line-clamp-2" title={p.title}>{p.title}</p>
+                      <p className="text-xs sm:text-sm font-medium leading-tight truncate" title={p.title}>{p.title}</p>
                       <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 truncate">
                         {(p.authors || []).slice(0, 3).join(", ")}
                         {(p.authors || []).length > 3 && ` +${p.authors.length - 3}`}
                       </p>
-                      {p.keywords?.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {p.keywords.slice(0, 3).map((kw, j) => (
-                            <span key={j} className="text-[9px] px-1 py-0.5 rounded bg-secondary text-muted-foreground">{kw}</span>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   </td>
                   <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{fmtDate(p.publication_date)}</td>

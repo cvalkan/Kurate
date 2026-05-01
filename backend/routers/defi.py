@@ -14,15 +14,32 @@ async def get_defi_papers(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     search: str = Query("", description="Search title/authors/keywords"),
+    subset: str = Query("all", description="Filter: all, ai"),
 ):
-    """List DeFi papers with sorting and search."""
+    """List DeFi papers with sorting and search. subset=ai filters to AI/ML intersection."""
     query = {}
-    if search:
+    
+    if subset == "ai":
+        ai_terms = ["artificial intelligence", "machine learning", "deep learning", "neural network",
+                     "ai agent", "autonomous agent", "llm", "large language model", "reinforcement learning",
+                     "transformer", "multi-agent", "intelligent agent", "ai-driven", "ai-based",
+                     "natural language processing", "prediction model", "chatgpt", "gpt"]
         query["$or"] = [
+            {"title": {"$regex": "|".join(ai_terms), "$options": "i"}},
+            {"abstract": {"$regex": "|".join(ai_terms[:8]), "$options": "i"}},
+            {"keywords": {"$regex": "|".join(ai_terms[:8]), "$options": "i"}},
+        ]
+    
+    if search:
+        search_cond = {"$or": [
             {"title": {"$regex": search, "$options": "i"}},
             {"authors": {"$regex": search, "$options": "i"}},
             {"keywords": {"$regex": search, "$options": "i"}},
-        ]
+        ]}
+        if query:
+            query = {"$and": [query, search_cond]}
+        else:
+            query = search_cond
 
     sort_field = {
         "date": "publication_date",
@@ -57,6 +74,11 @@ async def get_defi_stats():
     with_pdf = await db.defi_papers.count_documents({"pdf_url": {"$ne": None, "$ne": ""}})
     with_abstract = await db.defi_papers.count_documents({"abstract": {"$ne": ""}})
 
+    ai_terms_regex = "artificial intelligence|machine learning|deep learning|neural network|ai agent|autonomous agent|llm|large language model|reinforcement learning|multi-agent|intelligent agent"
+    ai_count = await db.defi_papers.count_documents({"$or": [
+        {"title": {"$regex": ai_terms_regex, "$options": "i"}},
+        {"abstract": {"$regex": ai_terms_regex, "$options": "i"}},
+    ]})
     # By year
     by_year = {}
     async for doc in db.defi_papers.aggregate([
@@ -76,6 +98,7 @@ async def get_defi_stats():
 
     return {
         "total": total,
+        "ai_count": ai_count,
         "with_pdf": with_pdf,
         "with_abstract": with_abstract,
         "by_year": by_year,
