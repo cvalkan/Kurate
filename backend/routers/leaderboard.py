@@ -1655,6 +1655,95 @@ async def get_older_archive(category: str):
 
 
 
+async def create_archive_snapshot_for_period(category: str, period_type: str, year: int, week: int = None, month: int = None):
+    """Create archive for a specific period (not just the previous one). Used for rebuilding."""
+    utc_now = datetime.now(timezone.utc)
+
+    # Check if already exists
+    if period_type == "weekly" and week:
+        existing = await db.leaderboard_archives.find_one(
+            {"category": category, "year": year, "week": week, "period_type": "weekly"})
+    elif period_type == "monthly" and month:
+        existing = await db.leaderboard_archives.find_one(
+            {"category": category, "year": year, "month": month, "period_type": "monthly"})
+    else:
+        return None
+    if existing:
+        return None
+
+    # Build period filter
+    if period_type == "monthly":
+        from calendar import monthrange
+        month_start = f"{year}-{month:02d}-01T00:00:00+00:00"
+        next_m = month + 1 if month < 12 else 1
+        next_y = year if month < 12 else year + 1
+        month_end = f"{next_y}-{next_m:02d}-01T00:00:00+00:00"
+        period_filter = {"published": {"$gte": month_start, "$lt": month_end}}
+    else:
+        from datetime import date
+        week_start_date = date.fromisocalendar(year, week, 1)
+        week_end_date = week_start_date + timedelta(days=7)
+        period_filter = {"published": {
+            "$gte": f"{week_start_date.isoformat()}T00:00:00+00:00",
+            "$lt": f"{week_end_date.isoformat()}T00:00:00+00:00",
+        }}
+
+    rank_query = {"category": category, "is_latest_version": {"$ne": False}}
+    rank_query.update(period_filter)
+    source_entries = await db.rankings.find(rank_query, _RANK_PROJ).sort("ts_score", -1).to_list(10000)
+    if not source_entries:
+        return None
+
+    frozen_entries = []
+    for r in source_entries:
+        entry = {
+            "id": r.get("paper_id"),
+            "title": r.get("title", ""),
+            "authors": r.get("authors", []),
+            "score": r.get("ts_score") or r.get("score"),
+            "wins": r.get("wins"),
+            "losses": r.get("losses"),
+            "comparisons": r.get("comparisons"),
+            "win_rate": r.get("win_rate"),
+            "ci": r.get("ci"),
+            "wilson_margin": r.get("wilson_margin"),
+            "published": r.get("published"),
+            "link": r.get("link"),
+            "arxiv_id": r.get("arxiv_id"),
+            "ai_rating": r.get("ai_rating"),
+            "gap_score": r.get("gap_score"),
+        }
+        frozen_entries.append(entry)
+
+    if period_type == "weekly":
+        label = f"Week {week}, {year}"
+    else:
+        month_names = ["", "January", "February", "March", "April", "May", "June",
+                       "July", "August", "September", "October", "November", "December"]
+        label = f"{month_names[month]} {year}"
+
+    doc = {
+        "category": category, "period_type": period_type, "scoring_method": "ts",
+        "year": year,
+        "week": week if period_type == "weekly" else None,
+        "month": month if period_type == "monthly" else None,
+        "label": label,
+        "paper_count": len(frozen_entries),
+        "match_count": sum(e.get("comparisons") or 0 for e in frozen_entries) // 2,
+        "leaderboard": frozen_entries,
+        "created_at": utc_now.isoformat(),
+    }
+    await db.leaderboard_archives.insert_one(doc)
+    logger.info(f"Archive snapshot created: {category} {label} ({len(frozen_entries)} papers)")
+
+    from core.memlog import log_event
+    await log_event("archive_created", category=category,
+        detail=f"{label} — {len(frozen_entries)} papers",
+        count=len(frozen_entries), label=label, period_type=period_type)
+    return doc
+
+
+
 async def create_archive_snapshot(category: str, period_type: str = "weekly"):
     """Create a frozen leaderboard snapshot for the given category.
     Called by the scheduler at the configured interval.

@@ -3266,6 +3266,29 @@ async def create_all_snapshots():
     return {"status": "ok", "created": created, "categories": len(active_cats)}
 
 
+@router.post("/archive/create-period", dependencies=[Depends(verify_admin)])
+async def create_archives_for_period(year: int, month: int = None, week: int = None):
+    """Create archives for a specific period (all active categories).
+    Use month= for monthly or week= for weekly."""
+    from routers.leaderboard import create_archive_snapshot_for_period
+    settings = await get_settings()
+    active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
+    archive_config = settings.get("archive_frequency") or {}
+    default_freq = archive_config.get("default", "weekly")
+    created = 0
+    period_type = "monthly" if month else "weekly"
+    for cat in active_cats:
+        cat_freq = archive_config.get(cat, default_freq)
+        if cat_freq != period_type:
+            continue
+        result = await create_archive_snapshot_for_period(cat, period_type, year, week=week, month=month)
+        if result:
+            created += 1
+    return {"status": "ok", "created": created, "period_type": period_type, "year": year, "week": week, "month": month}
+
+
+
+
 @router.delete("/archive/week/{year}/{week}", dependencies=[Depends(verify_admin)])
 async def delete_weekly_archive(year: int, week: int):
     """Delete all weekly archive snapshots for a specific ISO week."""
