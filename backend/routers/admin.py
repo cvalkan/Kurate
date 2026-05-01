@@ -146,9 +146,6 @@ async def update_settings(update: SettingsUpdate):
     )
     invalidate_settings_cache()
     _invalidate_admin_cache()  # Settings change affects progress calculations
-    # Goals depend on ci_target, ci_target_general, top_k_focus — invalidate all
-    from services.scheduler import invalidate_goals_cache
-    invalidate_goals_cache()
     logger.info(f"Admin updated settings: {list(update_dict.keys())}")
     return {"success": True, "updated": list(update_dict.keys())}
 
@@ -428,9 +425,8 @@ async def _run_single_paper_pipeline(paper_id: str, category: str):
                     logger.info(f"[add-paper] Ranking inserted for '{paper_fresh['title'][:40]}'")
 
                     from routers.leaderboard import notify_data_changed
-                    from services.scheduler import invalidate_goals_cache, wake_scheduler
+                    from services.scheduler import wake_scheduler
                     notify_data_changed()
-                    invalidate_goals_cache(category)
                     wake_scheduler()
             else:
                 logger.warning(f"[add-paper] Claude thinking summary missing for '{paper.get('title', '')[:40]}' — ranking not inserted")

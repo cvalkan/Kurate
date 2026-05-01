@@ -210,20 +210,15 @@ async def init_tournament_registry():
 
 
 async def update_tournament_stats(category: str, mode: str = "standard"):
-    """Update stats on a tournament document. Uses cached goals result if available."""
+    """Update stats on a tournament document."""
     tid = f"cat={category}|mode={mode}"
     paper_count = _get_cat_status(category).get("papers_count", 0)
     match_count = _get_cat_status(category).get("matches_count", 0)
-    # Use cached goals result — don't trigger fresh computation just for stats
-    cached = _goals_met_cache.get(category)
-    goals_met = cached["result"] if cached else None
     update_fields = {
         "stats.papers": paper_count,
         "stats.matches": match_count,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
-    if goals_met is not None:
-        update_fields["stats.goals_met"] = goals_met
     await db.tournaments.update_one(
         {"tournament_id": tid},
         {"$set": update_fields},
@@ -532,14 +527,6 @@ async def _compare_loop_inner():
             pass  # Periodic re-check: goals might have changed (new papers, pruning, etc.)
 
 
-_goals_met_cache = {}  # {category: {"result": bool, "ts": float, "snapshot": {"papers": int, "matches": int}}}
-_GOALS_CACHE_TTL_UNMET = 60  # seconds — recheck unmet categories periodically
-# Met categories: cached indefinitely until explicitly invalidated by
-# invalidate_goals_cache() (called on new matches, new papers, settings change).
-# Safety net: snapshot of paper/match counts at cache time — if they change,
-# the cache is stale even if no explicit invalidation was called.
-# This protects against future code paths that forget to invalidate.
-
 
 async def _check_goals_met(category: str = "cs.RO") -> bool:
     """Check if ranking has converged for a category.
@@ -552,63 +539,10 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
     Returns True when all goals met. Only considers matchable papers
     (those with summaries that can be compared by LLMs).
     
-    Caching strategy:
-    - Goals MET (True): cached until paper/match counts change or explicit invalidation.
-    - Goals NOT MET (False): cached for 60s. Worst case of stale "not met" is
-      one extra no-op round (no LLM cost — _select_pairs finds no pairs).
-    
-    Safety net: each cached entry stores a snapshot of {papers, matches} at cache time.
-    If the current counts differ, the cache is considered stale — protects against
-    future code paths that mutate data without calling invalidate_goals_cache().
+    No caching — goal3 uses 2 batch $in queries (not 45 individual ones),
+    making the full check fast enough (~50ms) to run on every scheduler cycle.
     """
-    import time as _time
-    cached = _goals_met_cache.get(category)
-    if cached:
-        if cached["result"]:
-            # Goals met — check snapshot for silent data changes
-            snap = cached.get("snapshot", {})
-            cat_status = _get_cat_status(category)
-            current_papers = cat_status.get("papers_count", -1)
-            current_matches = cat_status.get("matches_count", -1)
-            current_rankings = await db.rankings.count_documents({"category": category})
-            if (current_papers == snap.get("papers", -1)
-                    and current_matches == snap.get("matches", -1)
-                    and current_rankings == snap.get("rankings", -1)):
-                return True
-            # Data changed without invalidation — recompute
-            logger.info(f"Goals cache stale for {category}: papers {snap.get('papers')}→{current_papers}, matches {snap.get('matches')}→{current_matches}, rankings {snap.get('rankings')}→{current_rankings}")
-        elif (_time.time() - cached["ts"]) < _GOALS_CACHE_TTL_UNMET:
-            # Goals not met — respect TTL
-            return False
-        # else: unmet cache expired or met cache stale, recompute
-
-    result = await _check_goals_met_impl(category)
-    cat_status = _get_cat_status(category)
-    current_rankings = await db.rankings.count_documents({"category": category})
-    _goals_met_cache[category] = {
-        "result": result,
-        "ts": _time.time(),
-        "snapshot": {
-            "papers": cat_status.get("papers_count", 0),
-            "matches": cat_status.get("matches_count", 0),
-            "rankings": current_rankings,
-        },
-    }
-    return result
-
-
-def invalidate_goals_cache(category: str = None):
-    """Clear goals cache for a category (or all). Call after matches update rankings."""
-    if category:
-        was_cached = category in _goals_met_cache
-        _goals_met_cache.pop(category, None)
-        if was_cached:
-            logger.debug(f"Goals cache invalidated for {category}")
-    else:
-        n = len(_goals_met_cache)
-        _goals_met_cache.clear()
-        if n > 0:
-            logger.info(f"Goals cache cleared (all {n} categories)")
+    return await _check_goals_met_impl(category)
 
 
 async def _check_goals_met_impl(category: str = "cs.RO") -> bool:
@@ -673,20 +607,29 @@ async def _check_goals_met_impl(category: str = "cs.RO") -> bool:
         if margin > ci_target:
             return False
 
-    # Goal 3: Top-K cross-matching — targeted pair queries (at most C(10,2)=45 queries)
-    for i in range(len(top_k_list)):
-        for j in range(i + 1, len(top_k_list)):
-            p1, p2 = top_k_list[i], top_k_list[j]
-            has_match = await db.matches.count_documents({
-                "completed": True, "failed": {"$ne": True}, "primary_category": category,
-                "mode": {"$exists": False}, "revision_superseded": {"$ne": True},
-                "$or": [
-                    {"paper1_id": p1, "paper2_id": p2},
-                    {"paper1_id": p2, "paper2_id": p1},
-                ],
-            }) > 0
-            if not has_match:
-                return False
+    # Goal 3: Top-K cross-matching — 2 batch queries instead of 45 individual ones
+    if top_k_list:
+        top_k_set = set(top_k_list)
+        matched_pairs = set()
+        async for m in db.matches.find(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": category,
+             "mode": {"$exists": False}, "revision_superseded": {"$ne": True},
+             "paper1_id": {"$in": top_k_list}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+        ):
+            if m["paper2_id"] in top_k_set:
+                matched_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
+        async for m in db.matches.find(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": category,
+             "mode": {"$exists": False}, "revision_superseded": {"$ne": True},
+             "paper2_id": {"$in": top_k_list}},
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1},
+        ):
+            if m["paper1_id"] in top_k_set:
+                matched_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
+        total_pairs = len(top_k_list) * (len(top_k_list) - 1) // 2
+        if len(matched_pairs) < total_pairs:
+            return False
 
     return True
 
@@ -807,7 +750,6 @@ async def _handle_revision(paper_id: str, new_arxiv_data: dict, new_version: int
     # --- 4. Invalidate caches ---
     from routers.leaderboard import notify_data_changed
     notify_data_changed()
-    invalidate_goals_cache(category)
 
     logger.info(f"Revision v{new_version} for base {base}: created new paper {new_paper_id} "
                 f"(previous v{existing.get('current_version', 1)} paper {paper_id} frozen)")
@@ -1032,7 +974,6 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         if result["new_papers"] > 0 or result["summaries_generated"] > 0 or result["rankings_inserted"] > 0:
             from routers.leaderboard import notify_data_changed
             notify_data_changed()
-            invalidate_goals_cache(category)
             wake_scheduler()
             # Invalidate admin stats cache (token usage, model breakdown changes with new data)
             from routers.admin import _invalidate_admin_cache
@@ -1732,8 +1673,6 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                 # Invalidate admin progress cache for this category
                 from routers.admin import _invalidate_admin_cache
                 _invalidate_admin_cache(category)
-                # Invalidate goals cache so next cycle re-checks from DB
-                invalidate_goals_cache(category)
                 # Recompute convergence in background (non-blocking)
                 asyncio.create_task(_recompute_convergence_bg(category))
             elif completed == 0 and failed == 0:

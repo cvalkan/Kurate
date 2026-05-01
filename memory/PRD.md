@@ -13,8 +13,9 @@ Full-stack AI paper-judging platform (FastAPI + React + MongoDB) using TrueSkill
 - **Fix**: Differentiated cache strategy — `progress` and `status` endpoints now serve fresh data on every request (no cache). Only expensive/slow-changing endpoints (`stats`, `timeseries`) retain 5-min cache.
 - **`progress` endpoint**: Now queries `db.matches.count_documents()` directly instead of relying on `_category_status` in-memory dict (which could be stale from scheduler lag).
 - **`run_fetch_cycle`**: Now calls `_invalidate_admin_cache(category)` after data changes to clear the `stats` cache.
-- **Performance**: `progress` ~300ms, `status` ~150ms per request — well within acceptable limits for 10-15s polling.
-- **Goals cache bug confirmed**: The `_goals_met_cache` itself was correctly invalidated, but the admin `progress` endpoint was serving the OLD cached response (with `goals_met: true`) for 5 minutes after invalidation. Now fixed by removing caching from that endpoint entirely.
+- **`_invalidate_admin_cache`**: Now also clears `__precomputed__` keys (cross-category stats aggregation was surviving per-category invalidation).
+- **Eliminated `_goals_met_cache`**: Rewrote goal3 from 45 individual `count_documents` to 2 batch `$in` queries. Goals now computed fresh every scheduler cycle (~50ms). Removed `invalidate_goals_cache()` function and all 6 call sites.
+- **Performance**: `progress` ~220ms, `status` ~230ms per request — well within acceptable limits for 10-15s polling.
 
 ### Email Outreach Pipeline
 - **Backend**: `/api/admin/email-outreach/*` — flat medalists list, template CRUD, LLM email extraction with on-demand PDF download, send via Gmail OAuth with inline badge, test-send to roblauko@gmail.com, history tracking
