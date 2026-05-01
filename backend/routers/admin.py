@@ -3315,6 +3315,34 @@ async def create_all_snapshots(year: int = None, month: int = None, week: int = 
 
 
 
+@router.post("/ensure-indexes", dependencies=[Depends(verify_admin)])
+async def ensure_indexes():
+    """Force creation of all required indexes. Safe to call multiple times."""
+    results = []
+    try:
+        await db.papers.create_index("arxiv_id_base", name="arxiv_id_base", sparse=True)
+        results.append("papers.arxiv_id_base: OK")
+    except Exception as e:
+        results.append(f"papers.arxiv_id_base: {e}")
+    try:
+        await db.papers.create_index("categories.0", name="primary_category")
+        results.append("papers.categories.0: OK")
+    except Exception as e:
+        results.append(f"papers.categories.0: {e}")
+    try:
+        await db.matches.create_index([("primary_category", 1), ("completed", 1), ("created_at", -1)], name="cat_completed_recent")
+        results.append("matches.cat_completed_recent: OK")
+    except Exception as e:
+        results.append(f"matches.cat_completed_recent: {e}")
+    try:
+        await db.rankings.create_index([("category", 1), ("os_score", -1)], name="category_1_os_score_-1")
+        results.append("rankings.category_os_score: OK")
+    except Exception as e:
+        results.append(f"rankings.category_os_score: {e}")
+    return {"results": results}
+
+
+
 
 @router.delete("/archive/week/{year}/{week}", dependencies=[Depends(verify_admin)])
 async def delete_weekly_archive(year: int, week: int, force: bool = False):
