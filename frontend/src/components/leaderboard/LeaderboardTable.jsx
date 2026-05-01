@@ -250,6 +250,14 @@ export function LeaderboardTable({
                         v{v}
                       </span>
                     )}
+                    {paper.cited_by_count > 0 && (
+                      <span
+                        className="ml-1.5 inline-flex items-center px-1 py-px text-[9px] sm:text-[10px] rounded bg-blue-50 text-blue-600 border border-blue-200 align-middle"
+                        title={`Cited by ${paper.cited_by_count} papers`}
+                      >
+                        {paper.cited_by_count} cited
+                      </span>
+                    )}
                   </p>
                 );
               })()}
