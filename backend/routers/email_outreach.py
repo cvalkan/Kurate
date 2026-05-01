@@ -30,8 +30,7 @@ DEFAULT_TEMPLATE = {
 
 <p>Kurate ranks preprints using <a href="https://kurate.org/methodology">pairwise tournaments</a> where multiple AI models compare papers head-to-head on scientific impact, including novelty, rigor, and real-world applications. Your paper came out on top.</p>
 
-<p>Your paper's current score card: <a href="https://kurate.org/paper/{{paper_id}}">kurate.org/paper/{{paper_id}}</a><br>
-Full category ranking for {{period}}: <a href="{{leaderboard_url}}">{{leaderboard_url}}</a></p>
+<p>See your paper's <a href="https://kurate.org/paper/{{paper_id}}">current score card</a> and the <a href="{{leaderboard_url}}">full category ranking for {{period}}</a>.</p>
 
 {{badge_html}}
 
@@ -41,7 +40,9 @@ Full category ranking for {{period}}: <a href="{{leaderboard_url}}">{{leaderboar
 
 <p>If the ranking surprises you (positively or negatively), I'd love to hear your take. I'm always refining the methodology and appreciate feedback of all kind.</p>
 
-<p>Best,<br>Robert Lauko<br><a href="https://kurate.org">Kurate.org</a></p>""",
+<p>Best,<br>Robert Lauko<br><a href="https://kurate.org">Kurate.org</a></p>
+
+<p style="font-size:11px;color:#999;margin-top:30px;border-top:1px solid #eee;padding-top:10px;">You received this because your paper ranked in the top 3 on Kurate.org. <a href="{{unsubscribe_url}}" style="color:#999;">Unsubscribe</a></p>""",
 }
 
 
@@ -595,20 +596,26 @@ async def send_outreach_email(body: SendEmailRequest):
         service = build("gmail", "v1", credentials=creds, cache_discovery=False)
         sent_to = []
         for to_email in body.to_emails[:5]:
-            # Personalize greeting: try to match recipient email to an author name
+            # Check unsubscribe blocklist
+            unsub = await db.email_unsubscribes.find_one({"email": to_email.lower()}, {"_id": 1})
+            if unsub:
+                logger.info(f"[email-outreach] Skipping {to_email} (unsubscribed)")
+                continue
+
+            # Personalize greeting and unsubscribe link per recipient
             recipient_name = _match_email_to_author(to_email, authors)
+            import urllib.parse
+            unsubscribe_url = f"https://kurate.org/api/email/unsubscribe?email={urllib.parse.quote(to_email)}"
             variables["author_name"] = recipient_name
+            variables["unsubscribe_url"] = unsubscribe_url
             personalized_body = _render_template(body_tpl, variables)
 
-            # Proper MIME structure for inline images:
-            # multipart/related
-            #   ├── multipart/alternative
-            #   │     └── text/html (references cid:badge)
-            #   └── image/png (Content-ID: <badge>)
             msg = MIMEMultipart("related")
             msg["to"] = to_email
             msg["subject"] = subject
             msg["from"] = "Robert Lauko <robert@kurate.org>"
+            msg["List-Unsubscribe"] = f"<{unsubscribe_url}>"
+            msg["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
 
             msg_alt = MIMEMultipart("alternative")
             msg_alt.attach(MIMEText(personalized_body, "html"))
@@ -819,3 +826,82 @@ async def gmail_auth_url_admin(request: Request):
         "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
     })
     return {"url": url}
+
+
+# --- Public unsubscribe endpoint (no admin auth) ---
+
+unsubscribe_router = APIRouter(prefix="/api/email", tags=["email-unsubscribe"])
+
+
+@unsubscribe_router.get("/unsubscribe")
+async def unsubscribe_page(email: str = ""):
+    """Show a simple unsubscribe confirmation page."""
+    from fastapi.responses import HTMLResponse
+    if not email or "@" not in email:
+        return HTMLResponse("<html><body><h2>Invalid unsubscribe link</h2></body></html>", status_code=400)
+    html = f"""<!DOCTYPE html>
+<html><head><title>Unsubscribe - Kurate.org</title>
+<style>body {{ font-family: -apple-system, sans-serif; max-width: 500px; margin: 80px auto; text-align: center; color: #333; }}
+button {{ background: #333; color: white; border: none; padding: 12px 32px; border-radius: 6px; font-size: 16px; cursor: pointer; }}
+button:hover {{ background: #555; }}</style></head>
+<body>
+<h2>Unsubscribe from Kurate.org emails</h2>
+<p>Click below to unsubscribe <strong>{email}</strong> from future paper ranking notifications.</p>
+<form method="POST" action="/api/email/unsubscribe">
+<input type="hidden" name="email" value="{email}">
+<button type="submit">Unsubscribe</button>
+</form>
+<p style="color:#999;font-size:12px;margin-top:40px;">You'll no longer receive congratulatory emails about paper rankings.</p>
+</body></html>"""
+    return HTMLResponse(html)
+
+
+@unsubscribe_router.post("/unsubscribe")
+async def unsubscribe_confirm(email: str = "", request: Request = None):
+    """Process the unsubscribe. Stores email in blocklist."""
+    from fastapi.responses import HTMLResponse
+    # Handle both form data and query param
+    if not email and request:
+        form = await request.form()
+        email = form.get("email", "")
+    if not email or "@" not in email:
+        return HTMLResponse("<html><body><h2>Invalid email</h2></body></html>", status_code=400)
+
+    email = email.strip().lower()
+    await db.email_unsubscribes.update_one(
+        {"email": email},
+        {"$set": {
+            "email": email,
+            "unsubscribed_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+    logger.info(f"[email-outreach] Unsubscribed: {email}")
+
+    html = """<!DOCTYPE html>
+<html><head><title>Unsubscribed - Kurate.org</title>
+<style>body { font-family: -apple-system, sans-serif; max-width: 500px; margin: 80px auto; text-align: center; color: #333; }</style></head>
+<body>
+<h2>You've been unsubscribed</h2>
+<p>You won't receive any more paper ranking emails from Kurate.org.</p>
+<p style="color:#999;font-size:12px;margin-top:40px;">If this was a mistake, contact robert@kurate.org</p>
+</body></html>"""
+    return HTMLResponse(html)
+
+
+# --- Admin: view unsubscribed list ---
+
+@router.get("/unsubscribes", dependencies=[Depends(verify_admin)])
+async def get_unsubscribes():
+    """List all unsubscribed email addresses."""
+    unsubs = []
+    async for doc in db.email_unsubscribes.find({}, {"_id": 0}).sort("unsubscribed_at", -1):
+        unsubs.append(doc)
+    return {"unsubscribes": unsubs, "count": len(unsubs)}
+
+
+@router.delete("/unsubscribes/{email}", dependencies=[Depends(verify_admin)])
+async def remove_unsubscribe(email: str):
+    """Re-subscribe an email (remove from blocklist)."""
+    result = await db.email_unsubscribes.delete_one({"email": email.lower()})
+    return {"status": "ok", "removed": result.deleted_count}
