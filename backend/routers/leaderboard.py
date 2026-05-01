@@ -1167,9 +1167,28 @@ async def get_paper_detail(paper_id: str):
             return 0
         return await db.rankings.count_documents({"category": primary_cat})
 
-    # All 4 queries run simultaneously
-    matches, ranking_doc, score_range, total_in_cat = await asyncio.gather(
-        fetch_matches(), fetch_ranking(), fetch_score_range(), fetch_cat_count()
+    async def fetch_siblings():
+        if not paper.get("arxiv_id_base"):
+            return []
+        siblings = []
+        async for sib in db.papers.find(
+            {"arxiv_id_base": paper["arxiv_id_base"]},
+            {"_id": 0, "id": 1, "arxiv_id": 1, "current_version": 1,
+             "is_latest_version": 1, "added_at": 1, "frozen_at": 1}
+        ).sort("current_version", 1):
+            siblings.append({
+                "paper_id": sib["id"],
+                "arxiv_id": sib.get("arxiv_id"),
+                "version": sib.get("current_version", 1),
+                "is_latest": sib.get("is_latest_version", True),
+                "added_at": sib.get("added_at"),
+                "frozen_at": sib.get("frozen_at"),
+            })
+        return siblings if len(siblings) >= 2 else []
+
+    # All 5 queries run simultaneously
+    matches, ranking_doc, score_range, total_in_cat, siblings = await asyncio.gather(
+        fetch_matches(), fetch_ranking(), fetch_score_range(), fetch_cat_count(), fetch_siblings()
     )
 
     # Get opponent paper titles
@@ -1238,28 +1257,12 @@ async def get_paper_detail(paper_id: str):
             if ranking_doc.get(field) is not None:
                 paper[field] = ranking_doc[field]
 
-    # Sibling versions
-    if paper.get("arxiv_id_base"):
-        siblings = []
-        async for sib in db.papers.find(
-            {"arxiv_id_base": paper["arxiv_id_base"]},
-            {"_id": 0, "id": 1, "arxiv_id": 1, "current_version": 1,
-             "is_latest_version": 1, "added_at": 1, "frozen_at": 1}
-        ).sort("current_version", 1):
-            siblings.append({
-                "paper_id": sib["id"],
-                "arxiv_id": sib.get("arxiv_id"),
-                "version": sib.get("current_version", 1),
-                "is_latest": sib.get("is_latest_version", True),
-                "added_at": sib.get("added_at"),
-                "frozen_at": sib.get("frozen_at"),
-            })
-        if len(siblings) >= 2:
-            paper["sibling_versions"] = siblings
-
     # Apply score range and category count from parallel results
     for k, v in score_range.items():
         paper[k] = v
+
+    if siblings:
+        paper["sibling_versions"] = siblings
 
     if ranking_doc and primary_cat:
         from routers.badges import CATEGORIES as _CAT_NAMES

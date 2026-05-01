@@ -397,6 +397,7 @@ async def _deferred_startup():
         await db.papers.create_index("published")
         await db.papers.create_index([("categories", 1), ("summaries", 1)], name="categories_summaries")
         await db.papers.create_index("categories.0", name="primary_category")
+        await db.papers.create_index("arxiv_id_base", name="arxiv_id_base", sparse=True)
         await db.matches.create_index("paper1_id")
         await db.matches.create_index("paper2_id")
         await db.matches.create_index("shared_categories")
