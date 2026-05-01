@@ -149,9 +149,9 @@ export function LeaderboardTable({
   cols.push("2.5rem", "1fr"); // # + Paper
   if (showCatCol && !isMobile) cols.push("3.5rem"); // Cat
   cols.push(isMobile ? "3.5rem" : "4rem"); // Score
-  if (!isMobile) cols.push("3.5rem"); // Win%
   if (!isMobile && !isTablet) cols.push("3.5rem"); // CI
   if (!isMobile) cols.push("3rem"); // Match
+  if (!isMobile) cols.push("3.5rem"); // Win%
   if (showRatingCol && !isMobile && !isTablet) cols.push("3rem"); // Rating
   if (showGapCol && !isMobile && !isTablet) cols.push("3rem"); // Gap
   if (!isMobile) cols.push("5.5rem"); // Published
@@ -203,9 +203,9 @@ export function LeaderboardTable({
           <SortHeader label="Paper" sortKey="title" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.title} />
           {showCatCol && !isMobile && <div className="text-center">Cat</div>}
           <SortHeader label={isMobile ? "Score" : scoreLabel} sortKey="score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={scoreTip} />
-          {!isMobile && <SortHeader label={winLabel} sortKey="win_rate" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.win_rate_g : COLUMN_TIPS.win_rate} />}
           {!isMobile && !isTablet && <SortHeader label="95% CI" sortKey="wilson_margin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isTS ? "95% TrueSkill confidence interval (\u00B11.96\u00D7\u03C3) in Elo-scaled score points. Lower = more certain." : isOS ? "95% OpenSkill confidence interval (\u00B11.96\u00D7\u03C3) in Elo-scaled score points. Lower = more certain." : COLUMN_TIPS.wilson_margin} />}
           {!isMobile && <SortHeader label={matchLabel} sortKey="comparisons" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.comparisons_g : COLUMN_TIPS.comparisons} />}
+          {!isMobile && <SortHeader label={winLabel} sortKey="win_rate" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.win_rate_g : COLUMN_TIPS.win_rate} />}
           {showRatingCol && !isMobile && !isTablet && <SortHeader label="Rating" sortKey="ai_rating" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="Single-item AI quality rating (1-10) from Opus 4.6 Thinking." />}
           {showGapCol && !isMobile && !isTablet && <SortHeader label="Gap" sortKey="gap_score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="Difference between tournament rank percentile and AI rating percentile. Positive = tournament ranks the paper higher than the AI rating suggests. Negative = AI rating is more optimistic than tournament performance. Measured in percentile points (e.g., -5.9 means the AI rates the paper ~6 percentile points higher than the tournament does)." />}
           {!isMobile && <SortHeader label="Published" sortKey="published" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={COLUMN_TIPS.published} />}
@@ -280,11 +280,11 @@ export function LeaderboardTable({
               </div>
             )}
             <div className="text-right font-mono text-xs sm:text-sm font-medium">{getScore(paper) || "—"}</div>
-            {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getWinRate(paper) != null ? `${getWinRate(paper)}%` : "—"}</div>}
             {!isMobile && !isTablet && <div className="text-right font-mono text-xs text-muted-foreground">
               {(() => { const wm = getWilsonMargin(paper); return wm != null && wm > 0 ? `\u00B1${wm}${(isTS || isOS) ? "" : "%"}` : "—"; })()}
             </div>}
             {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getComparisons(paper) != null ? getComparisons(paper) : "—"}</div>}
+            {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getWinRate(paper) != null ? `${getWinRate(paper)}%` : "—"}</div>}
             {showRatingCol && !isMobile && !isTablet && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{(typeof paper.ai_rating === "object" && paper.ai_rating ? paper.ai_rating.score : paper.ai_rating) || "—"}</div>}
             {showGapCol && !isMobile && !isTablet && (() => { const gap = isTS ? paper.gap_score_ts : paper.gap_score; return <div className={`text-right font-mono text-[10px] sm:text-xs ${gap > 0 ? "text-emerald-600" : gap < 0 ? "text-red-400" : "text-muted-foreground"}`}>{gap != null ? (gap > 0 ? "+" : "") + gap : "\u2014"}</div>; })()}
             {!isMobile && <div className="text-right text-xs text-muted-foreground">
