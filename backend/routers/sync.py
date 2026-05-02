@@ -5,7 +5,7 @@ Pull:   imports from a remote instance's export endpoints into LOCAL DB.
         DISABLED unless SYNC_PULL_ENABLED=true in .env (never set on production).
 """
 import os
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from typing import Optional
 import asyncio
 import httpx
@@ -139,14 +139,7 @@ def _fetch_remote_page(source_url, token, collection, params):
 
 
 @router.post("/pull", dependencies=[Depends(verify_admin)])
-async def pull_from_remote(
-    source_url: str = "https://kurate.org",
-    source_password: str = "",
-    collections: str = "papers,matches,rankings,tournaments",
-    since: Optional[str] = None,
-    category: Optional[str] = None,
-    dry_run: bool = False,
-):
+async def pull_from_remote(request: Request):
     """Pull data from a remote instance into the LOCAL database.
 
     Disabled unless SYNC_PULL_ENABLED=true is set in .env.
@@ -154,6 +147,14 @@ async def pull_from_remote(
     """
     if not _PULL_ENABLED:
         return {"error": "Pull is disabled on this instance. Set SYNC_PULL_ENABLED=true in .env to enable (never on production)."}
+
+    body = await request.json()
+    source_url = body.get("source_url", "https://kurate.org")
+    source_password = body.get("source_password", "")
+    collections = body.get("collections", "papers,matches,rankings,tournaments")
+    since = body.get("since")
+    category = body.get("category")
+    dry_run = body.get("dry_run", False)
 
     collection_list = [c.strip() for c in collections.split(",") if c.strip() in EXPORT_COLLECTIONS]
     if not collection_list:
