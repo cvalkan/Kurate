@@ -27,7 +27,7 @@ EXPORT_COLLECTIONS = {
     "matches": {"projection": {"_id": 0}, "sort": [("created_at", -1)], "id_field": "id"},
     "rankings": {"projection": {"_id": 0}, "sort": [("updated_at", -1)], "id_field": "paper_id"},
     "tournaments": {"projection": {"_id": 0}, "sort": [("category", 1)], "id_field": "tournament_id"},
-    "leaderboard_archives": {"projection": {"_id": 0}, "sort": [("year", -1), ("week", -1)], "id_field": None},
+    "leaderboard_archives": {"projection": {"_id": 0}, "sort": [("year", -1), ("week", -1)], "id_field": "_composite", "composite_key": ["category", "year", "period_type", "week", "month"]},
     "settings": {"projection": {"_id": 0}, "sort": [("key", 1)], "id_field": "key"},
 }
 
@@ -150,18 +150,24 @@ async def _run_pull_bg(source_url, source_password, collection_list, since, cate
 
                 for doc in docs:
                     try:
-                        if id_field and doc.get(id_field):
-                            result = await db[coll_name].update_one(
-                                {id_field: doc[id_field]},
-                                {"$set": doc},
-                                upsert=True,
-                            )
-                            if result.upserted_id:
-                                inserted += 1
-                            elif result.modified_count > 0:
-                                updated += 1
+                        composite_key = config.get("composite_key")
+                        if composite_key:
+                            filt = {k: doc.get(k) for k in composite_key if doc.get(k) is not None}
+                            if len(filt) >= 2:
+                                r = await db[coll_name].update_one(filt, {"$set": doc}, upsert=True)
+                                if r.upserted_id: inserted += 1
+                                elif r.modified_count > 0: updated += 1
+                                else: skipped += 1
                             else:
-                                skipped += 1
+                                await db[coll_name].insert_one(doc)
+                                inserted += 1
+                        elif id_field and doc.get(id_field):
+                            r = await db[coll_name].update_one(
+                                {id_field: doc[id_field]}, {"$set": doc}, upsert=True,
+                            )
+                            if r.upserted_id: inserted += 1
+                            elif r.modified_count > 0: updated += 1
+                            else: skipped += 1
                         else:
                             await db[coll_name].insert_one(doc)
                             inserted += 1
