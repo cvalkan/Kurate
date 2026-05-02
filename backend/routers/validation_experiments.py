@@ -2499,8 +2499,14 @@ async def judge_comparison_results():
 async def _compute_judge_comparison():
     """Compare judge accuracy and ranking correlation on identical pairs.
 
-    Uses pairs where ALL 4 judges evaluated the same pair on abstract_plus_summary mode.
-    Round-robin simulated by randomly selecting one judge per pair (100 trials).
+    Methodology (revised):
+    - Accuracy: pairwise correctness against average expert scores, with a minimum
+      gap filter (>=0.5) to exclude ambiguous pairs where ground truth is noise.
+    - Ranking (Spearman rho): AI BT ranking from ALL pairs compared against GT
+      ranking = papers sorted by average reviewer score. No gap filter for rho,
+      since the AI ranking uses all available signal and the GT is continuous.
+    - Round-robin simulated by randomly selecting one judge per pair (100 trials).
+    - Majority vote uses the 4-judge consensus.
     """
     import random as _random
     from collections import defaultdict
@@ -2513,6 +2519,7 @@ async def _compute_judge_comparison():
     }
     ALL_JUDGES = ["Opus 4.6", "Opus 4.5", "GPT-5.2", "Gemini 3 Pro"]
     CYCLE_RATES = {"Opus 4.6": 0.61, "Gemini 3 Pro": 1.13, "Opus 4.5": 1.23, "GPT-5.2": 1.68}
+    MIN_GAP = 0.5  # Minimum avg-score gap for accuracy pairs
 
     DATASETS = ["iclr-llm", "iclr-codegen", "iclr-pdes", "iclr-ot", "iclr-fairness",
                  "iclr-protein", "iclr-molecules", "iclr-optimization",
@@ -2531,51 +2538,37 @@ async def _compute_judge_comparison():
         if not papers:
             continue
         paper_lookup = {p["id"]: p for p in papers}
-
-        # Ground truth
         er = build_expert_ratings(papers)
-        em = build_expert_majority(er)
-        total_ep = sum(1 for exp, ratings in er.items()
-                       for i, a in enumerate(ratings) for b in list(ratings)[i+1:]
-                       if ratings[a] != ratings[b])
-        ep = em if len(em) >= max(20, total_ep * 0.1) else {}
-        if not ep:
-            for exp, ratings in er.items():
-                pids = list(ratings.keys())
-                for i in range(len(pids)):
-                    for j in range(i + 1, len(pids)):
-                        a, b = pids[i], pids[j]
-                        if ratings[a] != ratings[b]:
-                            ep[tuple(sorted([a, b]))] = a if ratings[a] > ratings[b] else b
-        if len(ep) < 20:
+
+        # Build average expert scores
+        score_sums = defaultdict(float)
+        score_counts = defaultdict(int)
+        for exp, ratings in er.items():
+            for pid, rating in ratings.items():
+                score_sums[pid] += rating
+                score_counts[pid] += 1
+        avg_scores = {pid: score_sums[pid] / score_counts[pid] for pid in score_sums}
+
+        # GT ranking: sorted by average reviewer score (descending)
+        sorted_by_avg = sorted(avg_scores.items(), key=lambda x: -x[1])
+        gt_rank = {pid: rank for rank, (pid, _) in enumerate(sorted_by_avg, 1)}
+
+        # GT pairwise for accuracy: winner = higher average, filtered by gap
+        pids = list(avg_scores.keys())
+        ep_gapped = {}  # pairs with gap >= MIN_GAP (for accuracy)
+        ep_all = {}     # all pairs (for round-robin/majority rho)
+        for i in range(len(pids)):
+            for j in range(i + 1, len(pids)):
+                a, b = pids[i], pids[j]
+                pair = tuple(sorted([a, b]))
+                diff = avg_scores[a] - avg_scores[b]
+                winner = a if diff > 0 else b
+                ep_all[pair] = winner
+                if abs(diff) >= MIN_GAP:
+                    ep_gapped[pair] = winner
+
+        if len(ep_gapped) < 20:
             continue
-
-        # Individual expert preferences for AI-Human accuracy
-        expert_pair_prefs_j = defaultdict(dict)
-        for exp, ratings in er.items():
-            pids = list(ratings.keys())
-            for i in range(len(pids)):
-                for j in range(i + 1, len(pids)):
-                    a, b = pids[i], pids[j]
-                    if ratings[a] != ratings[b]:
-                        pair = tuple(sorted([a, b]))
-                        expert_pair_prefs_j[pair][exp] = a if ratings[a] > ratings[b] else b
-
-        # Human BT ranking
-        human_matches = []
-        for exp, ratings in er.items():
-            pids = list(ratings.keys())
-            for i in range(len(pids)):
-                for j in range(i + 1, len(pids)):
-                    a, b = pids[i], pids[j]
-                    if ratings[a] != ratings[b]:
-                        human_matches.append({"paper1_id": a, "paper2_id": b,
-                            "winner_id": a if ratings[a] > ratings[b] else b,
-                            "completed": True, "failed": False})
-        h_ids = {m["paper1_id"] for m in human_matches} | {m["paper2_id"] for m in human_matches}
-        h_papers = [p for p in papers if p["id"] in h_ids]
-        gt_lb = await compute_leaderboard_async(h_papers, human_matches)
-        gt_rank = {e["id"]: e["rank"] for e in gt_lb}
 
         # Matches per judge
         judge_verdicts = {j: {} for j in ALL_JUDGES}
@@ -2589,57 +2582,48 @@ async def _compute_judge_comparison():
                 pair = tuple(sorted([m["paper1_id"], m["paper2_id"]]))
                 judge_verdicts[judge][pair] = m["winner_id"]
 
-        # 4-judge intersection with GT
+        # 4-judge intersection
         sets_4 = [set(judge_verdicts[j].keys()) for j in ALL_JUDGES]
         if not all(sets_4):
             continue
-        common = set.intersection(*sets_4) & set(ep.keys())
-        if len(common) < 20:
+        common_all = set.intersection(*sets_4)
+        common_acc = common_all & set(ep_gapped.keys())
+        if len(common_acc) < 20:
             continue
 
-        # Cap at 200 pairs per dataset for balanced comparison
+        # Cap accuracy pairs at 200 for balanced comparison
         MAX_PAIRS_PER_DS = 200
-        if len(common) > MAX_PAIRS_PER_DS:
-            _rng = _random.Random(42 + hash(ds_id))  # deterministic per dataset
-            common = set(_rng.sample(sorted(common), MAX_PAIRS_PER_DS))
+        if len(common_acc) > MAX_PAIRS_PER_DS:
+            _rng = _random.Random(42 + hash(ds_id))
+            common_acc = set(_rng.sample(sorted(common_acc), MAX_PAIRS_PER_DS))
 
-        common_paper_ids = set()
-        for p in common:
-            common_paper_ids.add(p[0])
-            common_paper_ids.add(p[1])
-        common_papers = [paper_lookup[pid] for pid in common_paper_ids if pid in paper_lookup]
+        # Papers involved in ALL pairs (for rho computation)
+        all_paper_ids = set(p for pair in common_all for p in pair)
+        common_papers = [paper_lookup[pid] for pid in all_paper_ids if pid in paper_lookup]
 
-        # Average matches per paper
+        # Average matches per paper (from accuracy pairs)
         paper_match_count = defaultdict(int)
-        for p in common:
+        for p in common_acc:
             paper_match_count[p[0]] += 1
             paper_match_count[p[1]] += 1
         ds_avg_mpp = round(sum(paper_match_count.values()) / max(len(paper_match_count), 1), 1)
 
-        ds_row = {"dataset_id": ds_id, "name": ds_id.replace("iclr-", "ICLR ").replace("-", " ").title(), "pairs": len(common), "avg_mpp": ds_avg_mpp}
+        ds_row = {"dataset_id": ds_id,
+                  "name": ds_id.replace("iclr-", "ICLR ").replace("-", " ").title(),
+                  "acc_pairs": len(common_acc), "rho_pairs": len(common_all),
+                  "avg_mpp": ds_avg_mpp}
 
-        # Per-judge accuracy + rho
+        # Per-judge accuracy (gap-filtered) + rho (all pairs vs avg-score GT)
         for judge in ALL_JUDGES:
             jv = judge_verdicts[judge]
-            correct = sum(1 for p in common if jv.get(p) == ep[p])
+            # Accuracy: gap-filtered pairs
+            correct = sum(1 for p in common_acc if jv.get(p) == ep_gapped[p])
             judge_acc[judge]["correct"] += correct
-            judge_acc[judge]["total"] += len(common)
+            judge_acc[judge]["total"] += len(common_acc)
 
-            # AI-Human accuracy for this judge
-            ah_c = ah_t = 0
-            for p in common:
-                if p in expert_pair_prefs_j:
-                    for exp, winner in expert_pair_prefs_j[p].items():
-                        ah_t += 1
-                        if jv.get(p) == winner:
-                            ah_c += 1
-            judge_acc[judge].setdefault("ah_correct", 0)
-            judge_acc[judge].setdefault("ah_total", 0)
-            judge_acc[judge]["ah_correct"] += ah_c
-            judge_acc[judge]["ah_total"] += ah_t
-
+            # Rho: BT ranking from ALL pairs vs GT = sorted by avg score
             j_matches = [{"paper1_id": p[0], "paper2_id": p[1], "winner_id": jv[p],
-                          "completed": True, "failed": False} for p in common]
+                          "completed": True, "failed": False} for p in common_all]
             ai_lb = await compute_leaderboard_async(common_papers, j_matches)
             ai_rank = {e["id"]: e["rank"] for e in ai_lb}
             shared_ids = sorted(set(ai_rank) & set(gt_rank))
@@ -2650,7 +2634,7 @@ async def _compute_judge_comparison():
                     judge_rhos[judge].append(rho)
 
             key = judge.lower().replace(" ", "").replace(".", "").replace("-", "")
-            ds_row[f"{key}_acc"] = round(correct / len(common) * 100, 1)
+            ds_row[f"{key}_acc"] = round(correct / len(common_acc) * 100, 1)
 
         # Round-robin simulation (100 trials)
         trial_accs = []
@@ -2658,15 +2642,21 @@ async def _compute_judge_comparison():
         for _ in range(100):
             rr_matches_trial = []
             rr_correct_trial = 0
-            for pair in common:
+            for pair in common_acc:
                 judge = _random.choice(ALL_JUDGES)
                 winner = judge_verdicts[judge][pair]
                 rr_matches_trial.append({"paper1_id": pair[0], "paper2_id": pair[1],
                     "winner_id": winner, "completed": True, "failed": False})
-                if winner == ep[pair]:
+                if winner == ep_gapped[pair]:
                     rr_correct_trial += 1
-            trial_accs.append(rr_correct_trial / len(common) * 100)
-            rr_lb = await compute_leaderboard_async(common_papers, rr_matches_trial)
+            trial_accs.append(rr_correct_trial / len(common_acc) * 100)
+            # RR rho: use all common pairs for ranking
+            rr_all_matches = []
+            for pair in common_all:
+                judge = _random.choice(ALL_JUDGES)
+                rr_all_matches.append({"paper1_id": pair[0], "paper2_id": pair[1],
+                    "winner_id": judge_verdicts[judge][pair], "completed": True, "failed": False})
+            rr_lb = await compute_leaderboard_async(common_papers, rr_all_matches)
             rr_rank = {e["id"]: e["rank"] for e in rr_lb}
             shared_ids = sorted(set(rr_rank) & set(gt_rank))
             if len(shared_ids) >= 5:
@@ -2676,27 +2666,33 @@ async def _compute_judge_comparison():
                     trial_rhos.append(rho)
 
         avg_rr_acc = np.mean(trial_accs)
-        rr_acc["correct"] += int(avg_rr_acc * len(common) / 100)
-        rr_acc["total"] += len(common)
+        rr_acc["correct"] += int(avg_rr_acc * len(common_acc) / 100)
+        rr_acc["total"] += len(common_acc)
         if trial_rhos:
             rr_rhos.append(np.mean(trial_rhos))
         ds_row["rr_acc"] = round(avg_rr_acc, 1)
 
         # Majority vote
         mv_correct_ds = 0
-        mv_matches_ds = []
-        for pair in common:
+        mv_all_matches = []
+        for pair in common_acc:
             votes = defaultdict(int)
             for judge in ALL_JUDGES:
                 votes[judge_verdicts[judge][pair]] += 1
             winner = max(votes, key=votes.get)
-            mv_matches_ds.append({"paper1_id": pair[0], "paper2_id": pair[1],
-                "winner_id": winner, "completed": True, "failed": False})
-            if winner == ep[pair]:
+            if winner == ep_gapped[pair]:
                 mv_correct_ds += 1
         mv_acc["correct"] += mv_correct_ds
-        mv_acc["total"] += len(common)
-        mv_lb = await compute_leaderboard_async(common_papers, mv_matches_ds)
+        mv_acc["total"] += len(common_acc)
+        # MV rho from all pairs
+        for pair in common_all:
+            votes = defaultdict(int)
+            for judge in ALL_JUDGES:
+                votes[judge_verdicts[judge][pair]] += 1
+            winner = max(votes, key=votes.get)
+            mv_all_matches.append({"paper1_id": pair[0], "paper2_id": pair[1],
+                "winner_id": winner, "completed": True, "failed": False})
+        mv_lb = await compute_leaderboard_async(common_papers, mv_all_matches)
         mv_rank = {e["id"]: e["rank"] for e in mv_lb}
         shared_ids = sorted(set(mv_rank) & set(gt_rank))
         if len(shared_ids) >= 5:
@@ -2704,35 +2700,28 @@ async def _compute_judge_comparison():
                                             [gt_rank[pid] for pid in shared_ids])
             if not np.isnan(rho):
                 mv_rhos.append(rho)
-        ds_row["mv_acc"] = round(mv_correct_ds / len(common) * 100, 1)
+        ds_row["mv_acc"] = round(mv_correct_ds / len(common_acc) * 100, 1)
 
-        # Rename keys for frontend
         ds_row["opus46_acc"] = ds_row.pop("opus46_acc", None)
         ds_row["opus45_acc"] = ds_row.pop("opus45_acc", None)
         ds_row["gpt52_acc"] = ds_row.pop("gpt52_acc", None)
         ds_row["gemini3pro_acc"] = ds_row.pop("gemini3pro_acc", None)
         per_dataset.append(ds_row)
 
-    total_pairs = judge_acc["Opus 4.6"]["total"]
-    if total_pairs < 50:
+    total_acc_pairs = judge_acc["Opus 4.6"]["total"]
+    if total_acc_pairs < 50:
         return {"status": "no_data"}
 
-    # Pooled avg matches per paper and total papers
     pooled_avg_mpp = round(np.mean([ds["avg_mpp"] for ds in per_dataset if ds.get("avg_mpp")]), 1) if per_dataset else 0
-    total_papers_est = sum(round(2 * ds.get("pairs", 0) / max(ds.get("avg_mpp", 1), 1)) for ds in per_dataset) if per_dataset else 0
-    overall_avg_mpp = round(2 * total_pairs / max(total_papers_est, 1), 1) if total_papers_est else pooled_avg_mpp
 
-    # Build judge results
     judges = []
     for j in ALL_JUDGES:
         s = judge_acc[j]
         rhos = judge_rhos[j]
-        ah_acc_j = round(s.get("ah_correct", 0) / max(s.get("ah_total", 1), 1) * 100, 1)
         judges.append({
             "name": j,
             "cycle_rate": CYCLE_RATES.get(j),
             "accuracy": round(s["correct"] / s["total"] * 100, 1),
-            "ah_accuracy": ah_acc_j,
             "avg_rho": round(np.mean(rhos), 3) if rhos else 0,
             "total_pairs": s["total"],
             "avg_mpp": pooled_avg_mpp,
@@ -2748,10 +2737,10 @@ async def _compute_judge_comparison():
 
     return {
         "status": "ok",
-        "total_pairs": total_pairs,
-        "total_papers": total_papers_est,
-        "avg_matches_per_paper": overall_avg_mpp,
+        "total_pairs": total_acc_pairs,
+        "total_rho_pairs": sum(ds.get("rho_pairs", 0) for ds in per_dataset),
         "n_datasets": len(per_dataset),
+        "min_gap": MIN_GAP,
         "judges": judges,
         "round_robin": {
             "accuracy": round(rr_acc["correct"] / rr_acc["total"] * 100, 1),

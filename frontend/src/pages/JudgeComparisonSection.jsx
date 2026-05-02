@@ -17,7 +17,7 @@ export default function JudgeComparisonSection() {
   if (loading) return <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-secondary/20 rounded-lg animate-pulse" />)}</div>;
   if (!data || data.status === "no_data") return <div className="text-center py-12 text-muted-foreground text-sm">Not enough multi-model data to compare judges. Need pairs evaluated by all 4 judges.</div>;
 
-  const { judges, round_robin, majority_vote, total_pairs, n_datasets, cycle_correlation, per_dataset } = data;
+  const { judges, round_robin, majority_vote, total_pairs, total_rho_pairs, n_datasets, min_gap, cycle_correlation, per_dataset } = data;
 
   const allMethods = [
     ...judges.map(j => ({ ...j, type: "judge" })),
@@ -32,15 +32,15 @@ export default function JudgeComparisonSection() {
     <div className="space-y-6" data-testid="judge-comparison">
       <div className="border border-blue-200 rounded-lg p-4 bg-blue-50/30 text-xs text-blue-900 space-y-2">
         <h3 className="font-medium text-sm flex items-center gap-1.5"><FlaskConical className="h-3.5 w-3.5" /> Experiment Design</h3>
-        <p>Using <strong>{total_pairs.toLocaleString()} pairs</strong> across <strong>{n_datasets} ICLR datasets</strong> where all 4 judge models (Opus 4.6, Opus 4.5, GPT-5.2, Gemini 3 Pro) evaluated the exact same pair with the same summarizer input (Opus 4.5 summaries).</p>
-        <p>This controlled setup enables fair head-to-head comparison of judge accuracy, ranking correlation, and ensemble methods. Round-robin is simulated by randomly selecting one judge per pair (100 trials averaged). Majority vote uses the 4-judge consensus.</p>
+        <p>Using <strong>{(total_rho_pairs || total_pairs).toLocaleString()} pairs</strong> across <strong>{n_datasets} ICLR datasets</strong> where all 4 judge models (Opus 4.6, Opus 4.5, GPT-5.2, Gemini 3 Pro) evaluated the exact same pair with the same summarizer input (Opus 4.5 summaries).</p>
+        <p><strong>Accuracy</strong> is measured on <strong>{total_pairs.toLocaleString()} pairs</strong> where the average reviewer score gap is {"\u2265"}{min_gap || 0.5}, excluding ambiguous close-calls where ground truth is noise. <strong>Ranking correlation</strong> (Spearman {"\u03C1"}) compares each judge's BT ranking (from all pairs) against the ground truth ranking (papers sorted by average reviewer score) — no gap filter, since the GT is a continuous ordering.</p>
       </div>
 
       {/* Main results table */}
       <div className="border border-border rounded-lg overflow-hidden" data-testid="judge-results-table">
         <div className="px-3 py-2 bg-secondary/10 border-b border-border">
           <h3 className="text-xs font-medium flex items-center gap-1.5"><BarChart3 className="h-3 w-3" /> Judge Accuracy & Ranking Correlation</h3>
-          <p className="text-[10px] text-muted-foreground mt-0.5">{total_pairs.toLocaleString()} identical pairs, all judges evaluated each pair</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Accuracy: {total_pairs.toLocaleString()} pairs (gap {"\u2265"}{min_gap || 0.5}) · Rho: all {(total_rho_pairs || total_pairs).toLocaleString()} pairs vs avg-score GT</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -49,9 +49,8 @@ export default function JudgeComparisonSection() {
                 <th className="text-left py-1.5 px-3 font-medium">Method</th>
                 <th className="text-right py-1.5 px-2 font-medium">Cycle Rate</th>
                 <th className="text-right py-1.5 px-2 font-medium">Accuracy</th>
-                <th className="text-right py-1.5 px-2 font-medium">Avg Spearman</th>
-                <th className="text-right py-1.5 px-2 font-medium">Avg M/P</th>
-                <th className="text-right py-1.5 px-2 font-medium">Pairs</th>
+                <th className="text-right py-1.5 px-2 font-medium">Avg Spearman {"\u03C1"}</th>
+                <th className="text-right py-1.5 px-2 font-medium">Acc Pairs</th>
               </tr>
             </thead>
             <tbody>
@@ -62,7 +61,7 @@ export default function JudgeComparisonSection() {
                     {m.type === "ensemble" && <span className="ml-1 text-[9px] text-blue-600 font-normal">(ensemble)</span>}
                   </td>
                   <td className="text-right py-1.5 px-2 font-mono text-muted-foreground">
-                    {m.cycle_rate != null ? `${m.cycle_rate.toFixed(2)}%` : "—"}
+                    {m.cycle_rate != null ? `${m.cycle_rate.toFixed(2)}%` : "\u2014"}
                   </td>
                   <td className="text-right py-1.5 px-2 font-mono">
                     <span className={m.accuracy >= bestAcc - 0.1 ? "text-green-600 font-semibold" : ""}>{m.accuracy.toFixed(1)}%</span>
@@ -70,7 +69,6 @@ export default function JudgeComparisonSection() {
                   <td className="text-right py-1.5 px-2 font-mono">
                     <span className={m.avg_rho >= bestRho - 0.001 ? "text-green-600 font-semibold" : ""}>{m.avg_rho.toFixed(3)}</span>
                   </td>
-                  <td className="text-right py-1.5 px-2 font-mono text-muted-foreground">{m.avg_mpp ?? "—"}</td>
                   <td className="text-right py-1.5 px-2 font-mono text-muted-foreground">{(m.total_pairs || total_pairs).toLocaleString()}</td>
                 </tr>
               ))}
@@ -117,7 +115,7 @@ export default function JudgeComparisonSection() {
               <thead>
                 <tr className="border-b border-border text-[10px]">
                   <th className="text-left py-1.5 px-3 font-medium">Dataset</th>
-                  <th className="text-right py-1.5 px-2 font-medium">Pairs</th>
+                  <th className="text-right py-1.5 px-2 font-medium">Acc Pairs</th>
                   <th className="text-right py-1.5 px-2 font-medium">Opus 4.6</th>
                   <th className="text-right py-1.5 px-2 font-medium">Opus 4.5</th>
                   <th className="text-right py-1.5 px-2 font-medium">GPT-5.2</th>
@@ -132,13 +130,13 @@ export default function JudgeComparisonSection() {
                   const best = Math.max(...vals);
                   const Cell = ({ v }) => (
                     <td className="text-right py-1.5 px-2 font-mono">
-                      {v != null ? <span className={v >= best - 0.1 ? "text-green-600 font-semibold" : ""}>{v.toFixed(1)}%</span> : "—"}
+                      {v != null ? <span className={v >= best - 0.1 ? "text-green-600 font-semibold" : ""}>{v.toFixed(1)}%</span> : "\u2014"}
                     </td>
                   );
                   return (
                     <tr key={ds.dataset_id} className="border-b border-border/30">
                       <td className="py-1.5 px-3 font-medium">{ds.name}</td>
-                      <td className="text-right py-1.5 px-2 font-mono text-muted-foreground">{ds.pairs}</td>
+                      <td className="text-right py-1.5 px-2 font-mono text-muted-foreground">{ds.acc_pairs}</td>
                       <Cell v={ds.opus46_acc} />
                       <Cell v={ds.opus45_acc} />
                       <Cell v={ds.gpt52_acc} />
@@ -158,10 +156,10 @@ export default function JudgeComparisonSection() {
       <div className="border border-amber-200 rounded-lg p-4 bg-amber-50/30 text-xs space-y-2">
         <h3 className="font-medium text-sm text-amber-900">Key Takeaways</h3>
         <ul className="list-disc list-inside text-amber-900 space-y-1">
-          <li><strong>Opus 4.6 is the best single judge</strong> — highest accuracy and ranking correlation</li>
-          <li><strong>Round-robin dilutes quality</strong> — randomly mixing in weaker judges reduces accuracy by ~1.4pp vs Opus 4.6 alone, though ranking correlation (rho) is barely affected</li>
-          <li><strong>Majority vote doesn't help rankings</strong> — higher accuracy than round-robin but slightly worse rho, because it compresses score differences</li>
-          <li><strong>Cycle rate doesn't predict judge quality</strong> — Gemini has fewer cycles than Opus 4.5 but lower accuracy (consistent-but-wrong)</li>
+          <li><strong>Opus 4.6 leads on pairwise accuracy</strong> — best at identifying the stronger paper in clear-cut comparisons (gap {"\u2265"}{min_gap || 0.5})</li>
+          <li><strong>Gemini 3 Pro produces the best overall rankings</strong> — highest Spearman {"\u03C1"} against average expert scores, despite slightly lower pairwise accuracy</li>
+          <li><strong>All judges are remarkably close</strong> — the spread is ~1pp on accuracy and ~0.01 on {"\u03C1"}, suggesting the task is the bottleneck, not the model</li>
+          <li><strong>Ensembles don't help</strong> — both round-robin and majority vote underperform the best single judge on accuracy and {"\u03C1"}</li>
         </ul>
       </div>
     </div>
