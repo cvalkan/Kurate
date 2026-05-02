@@ -75,11 +75,16 @@ function typeColor(ctx) {
 function normalizeRow(doc, source) {
   if (source === "llm") {
     const isFallback = (doc.context || "").includes("fallback");
-    const apiLabel = doc.api_source === "direct" ? "Direct" : isFallback ? "Anthropic" : "Emergent";
+    const model = doc.model || doc.provider || "";
+    const isDirectProvider = model.includes("deepseek") || model.includes("gpt-5.5") || model.includes("gpt-5.4");
+    const apiLabel = doc.api_source ? (doc.api_source === "direct" ? "Direct" : "Emergent")
+      : isDirectProvider ? "Direct"
+      : isFallback ? "Anthropic"
+      : "Emergent";
     return {
       ts: doc.ts,
       type: doc.context || "llm",
-      model: doc.model || doc.provider || "",
+      model,
       api: apiLabel,
       success: doc.success,
       detail: doc.success
