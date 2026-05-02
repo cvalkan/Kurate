@@ -994,6 +994,8 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
             params["api_base"] = proxy_url + "/llm"
             params["custom_llm_provider"] = "openai"
             params["model"] = f"gemini/{model}" if provider == "gemini" else model
+        elif model_info.get("api_base"):
+            params["api_base"] = model_info["api_base"]
         params.update(extra_params)
         return params
 
