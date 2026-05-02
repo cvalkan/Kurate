@@ -23,8 +23,8 @@ _pull_state = {"running": False, "progress": {}, "result": None}
 # ── Export endpoints (read-only) ────────────────────────────────────────────
 
 EXPORT_COLLECTIONS = {
-    "papers": {"projection": {"_id": 0}, "sort": [("added_at", -1)], "id_field": "id"},
-    "matches": {"projection": {"_id": 0}, "sort": [("created_at", -1)], "id_field": "id"},
+    "papers": {"projection": {"_id": 0, "full_text": 0, "summaries": 0}, "sort": [("added_at", -1)], "id_field": "id"},
+    "matches": {"projection": {"_id": 0, "reasoning": 0}, "sort": [("created_at", -1)], "id_field": "id"},
     "rankings": {"projection": {"_id": 0}, "sort": [("updated_at", -1)], "id_field": "paper_id"},
     "tournaments": {"projection": {"_id": 0}, "sort": [("category", 1)], "id_field": "tournament_id"},
     "leaderboard_archives": {"projection": {"_id": 0}, "sort": [("year", -1), ("week", -1)], "id_field": "_composite", "composite_key": ["category", "year", "period_type", "week", "month"]},
@@ -37,7 +37,7 @@ async def export_collection(
     collection: str,
     since: Optional[str] = None,
     skip: int = Query(0, ge=0),
-    limit: int = Query(500, ge=1, le=2000),
+    limit: int = Query(200, ge=1, le=2000),
     category: Optional[str] = None,
 ):
     """Paginated read-only export of a collection."""
