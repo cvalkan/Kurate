@@ -907,6 +907,23 @@ async def _compute_summarizer_ratings():
                 if val and 1.0 <= val <= 10.0:
                     model_data[key][dim].append(round(val, 1))
 
+    # Also compute per-paper subscore average (mean of all 5 dims for each paper)
+    for key in MODELS:
+        vals = model_data[key]
+        subscore_avgs = []
+        # Zip across dimensions: for each paper that has all 5 dims, compute mean
+        n_papers = len(vals["score"])
+        for i in range(n_papers):
+            dim_vals = []
+            for dim in DIMS:
+                if i < len(vals[dim]):
+                    dim_vals.append(vals[dim][i])
+            if len(dim_vals) == len(DIMS):
+                subscore_avgs.append(round(sum(dim_vals) / len(dim_vals), 2))
+        vals["subscore_avg"] = subscore_avgs
+
+    ALL_DIMS = ["score", "subscore_avg", "significance", "rigor", "novelty", "clarity"]
+
     result_models = []
     for key, meta in MODELS.items():
         scores = model_data[key]
@@ -914,7 +931,7 @@ async def _compute_summarizer_ratings():
         if n == 0:
             continue
         dims = {}
-        for dim in DIMS:
+        for dim in ALL_DIMS:
             vals = scores[dim]
             if not vals:
                 continue
@@ -936,4 +953,4 @@ async def _compute_summarizer_ratings():
             "dims": dims,
         })
 
-    return {"status": "ok", "models": result_models, "dimensions": DIMS}
+    return {"status": "ok", "models": result_models, "dimensions": ALL_DIMS}

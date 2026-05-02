@@ -6,6 +6,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
 
 const DIM_LABELS = {
   score: "Overall Score",
+  subscore_avg: "Subscore Average",
   significance: "Significance",
   rigor: "Rigor",
   novelty: "Novelty",
@@ -14,6 +15,7 @@ const DIM_LABELS = {
 
 const DIM_COLORS = {
   score: "#3b82f6",
+  subscore_avg: "#6366f1",
   significance: "#f59e0b",
   rigor: "#ef4444",
   novelty: "#8b5cf6",
@@ -82,60 +84,6 @@ function DistChart({ dim, rawValues, stats, color, step }) {
   );
 }
 
-function AverageSubScoreChart({ models, dimensions }) {
-  const data = dimensions.map(dim => {
-    const row = { dim: DIM_LABELS[dim] || dim };
-    for (const m of models) {
-      const d = m.dims[dim];
-      row[m.label] = d ? d.mean : 0;
-    }
-    return row;
-  });
-
-  return (
-    <div className="border border-border rounded-lg p-4 bg-card" data-testid="avg-subscore-chart">
-      <h3 className="text-sm font-semibold mb-3">Average Sub-Scores by Model</h3>
-      <div className="h-[220px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-            <XAxis type="number" domain={[0, 10]} ticks={[0, 2, 4, 6, 8, 10]} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-            <YAxis dataKey="dim" type="category" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={90} />
-            <Tooltip
-              content={({ active, payload, label }) => {
-                if (!active || !payload?.length) return null;
-                return (
-                  <div className="rounded border border-border bg-popover p-2 shadow text-xs">
-                    <div className="font-medium mb-1">{label}</div>
-                    {payload.map((entry, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-                        <span className="text-muted-foreground">{entry.name}</span>
-                        <span className="font-mono font-medium ml-auto">{entry.value.toFixed(2)}</span>
-                      </div>
-                    ))}
-                  </div>
-                );
-              }}
-            />
-            {models.map(m => (
-              <Bar key={m.label} dataKey={m.label} fill={m.color} opacity={0.8} radius={[0, 3, 3, 0]} barSize={10} />
-            ))}
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="flex items-center justify-center gap-4 mt-2">
-        {models.map(m => (
-          <div key={m.label} className="flex items-center gap-1.5 text-[10px]">
-            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: m.color }} />
-            <span className="text-muted-foreground">{m.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function StatCard({ dim, stats, color }) {
   return (
     <div className="border border-border rounded-lg p-3 bg-card text-center" data-testid={`stat-${dim}`}>
@@ -181,11 +129,6 @@ export default function SummarizerRatingSection() {
           Each paper receives a 1-10 score across 5 dimensions from a single LLM call.
         </p>
       </div>
-
-      {/* Average sub-score comparison */}
-      <AverageSubScoreChart models={data.models} dimensions={data.dimensions} />
-
-      <hr className="border-border" />
 
       {/* Model selector */}
       <div className="flex items-center gap-1 p-1 bg-secondary/50 rounded-lg w-fit flex-wrap" data-testid="model-tabs">
