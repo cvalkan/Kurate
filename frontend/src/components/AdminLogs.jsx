@@ -38,6 +38,7 @@ const STATUSES = [
 const APIS = [
   { value: "all", label: "All APIs" },
   { value: "emergent", label: "Emergent" },
+  { value: "direct", label: "Direct" },
   { value: "anthropic", label: "Anthropic" },
 ];
 
@@ -74,11 +75,12 @@ function typeColor(ctx) {
 function normalizeRow(doc, source) {
   if (source === "llm") {
     const isFallback = (doc.context || "").includes("fallback");
+    const apiLabel = doc.api_source === "direct" ? "Direct" : isFallback ? "Anthropic" : "Emergent";
     return {
       ts: doc.ts,
       type: doc.context || "llm",
       model: doc.model || doc.provider || "",
-      api: isFallback ? "Anthropic" : "Emergent",
+      api: apiLabel,
       success: doc.success,
       detail: doc.success
         ? `${doc.paper ? doc.paper + " — " : ""}in=${(doc.input_tokens || 0).toLocaleString()} out=${(doc.output_tokens || 0).toLocaleString()}${doc.thinking_tokens ? ` think=${doc.thinking_tokens.toLocaleString()}` : ""}`
@@ -166,6 +168,7 @@ export function AdminLogs() {
     if (status === "success") result = result.filter(r => r.success === true);
     if (status === "failed") result = result.filter(r => r.success === false);
     if (api === "emergent") result = result.filter(r => r.api === "Emergent");
+    if (api === "direct") result = result.filter(r => r.api === "Direct");
     if (api === "anthropic") result = result.filter(r => r.api === "Anthropic");
     if (search.trim()) {
       const q = search.toLowerCase();

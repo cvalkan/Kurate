@@ -47,7 +47,7 @@ async def _log_llm_error(provider: str, model: str, error: str, context: str = "
 
 async def track_llm_usage(provider: str, model: str, context: str, success: bool,
                           input_tokens: int = 0, output_tokens: int = 0, thinking_tokens: int = 0,
-                          paper_title: str = ""):
+                          paper_title: str = "", api_source: str = ""):
     """Track every LLM call (successful or failed) in a single collection.
     Used for cost accounting across all call sites."""
     try:
@@ -63,6 +63,8 @@ async def track_llm_usage(provider: str, model: str, context: str, success: bool
         }
         if paper_title:
             doc["paper"] = paper_title[:100]
+        if api_source:
+            doc["api_source"] = api_source
         await db.llm_usage.insert_one(doc)
     except Exception:
         pass
@@ -959,6 +961,8 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
     extra_params = model_info.get("extra_params", {})
     # Allow custom API key (e.g., for models not yet on Emergent proxy)
     api_key = model_info.get("api_key") or EMERGENT_LLM_KEY
+    is_emergent_key = api_key and api_key.startswith("sk-emergent")
+    api_source = "emergent" if is_emergent_key else "direct"
 
     full_text = paper.get("full_text", "")
     abstract = paper.get("abstract", "")
@@ -1047,7 +1051,8 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
                 await track_llm_usage(provider, model, context="summary", success=True, paper_title=paper.get('title', ''),
                                       input_tokens=tokens.get("input", 0),
                                       output_tokens=tokens.get("output", 0),
-                                      thinking_tokens=tokens.get("thinking", 0))
+                                      thinking_tokens=tokens.get("thinking", 0),
+                                      api_source=api_source)
                 return {
                     "summary": summary_text,
                     "model_used": {"provider": provider, "model": model},
