@@ -23,7 +23,7 @@ _pull_state = {"running": False, "progress": {}, "result": None}
 # ── Export endpoints (read-only) ────────────────────────────────────────────
 
 EXPORT_COLLECTIONS = {
-    "papers": {"projection": {"_id": 0, "full_text": 0, "summaries": 0}, "sort": [("added_at", -1)], "id_field": "id"},
+    "papers": {"projection": {"_id": 0, "full_text": 0}, "sort": [("added_at", -1)], "id_field": "id"},
     "matches": {"projection": {"_id": 0}, "sort": [("created_at", -1)], "id_field": "id"},
     "rankings": {"projection": {"_id": 0}, "sort": [("updated_at", -1)], "id_field": "paper_id"},
     "tournaments": {"projection": {"_id": 0}, "sort": [("category", 1)], "id_field": "tournament_id"},
