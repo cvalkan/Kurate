@@ -5,19 +5,44 @@ load_dotenv('/app/backend/.env')
 import sys
 sys.path.insert(0, '/app/backend')
 
+import litellm
 from core.config import db
-from services.llm import generate_precomparison_impact_summary, parse_ratings_from_summary
+from services.llm import IMPACT_ASSESSMENT_PROMPT, parse_ratings_from_summary, track_llm_usage
 from datetime import datetime, timezone
 
 ANTHROPIC_KEY = os.environ["ANTHROPIC_API_KEY"]
-MODEL_INFO = {
-    "provider": "anthropic",
-    "model": "claude-opus-4-7",
-    "api_key": ANTHROPIC_KEY,
-    "extra_params": {"extra_body": {"thinking": {"type": "enabled", "budget_tokens": 10000}}},
-}
+MODEL = "claude-opus-4-7-20260416"
 SUMMARY_KEY = "anthropic:claude-opus-4-7:thinking"
 PARALLEL = 15
+
+async def gen_summary(paper):
+    """Call Anthropic directly — no Emergent proxy."""
+    abstract = paper.get("abstract", "")
+    full_text = paper.get("full_text", "")
+    content = f"Abstract: {abstract}\n\nFull Paper Text:\n{full_text}"
+
+    response = await litellm.acompletion(
+        model=f"anthropic/{MODEL}",
+        messages=[
+            {"role": "system", "content": IMPACT_ASSESSMENT_PROMPT["system_prompt"]},
+            {"role": "user", "content": content},
+        ],
+        api_key=ANTHROPIC_KEY,
+        extra_body={"thinking": {"type": "enabled", "budget_tokens": 10000}},
+    )
+
+    text = response.choices[0].message.content
+    usage = response.usage
+    tokens = {
+        "input": getattr(usage, "prompt_tokens", 0) or 0,
+        "output": getattr(usage, "completion_tokens", 0) or 0,
+    }
+    details = getattr(usage, "completion_tokens_details", None)
+    if details:
+        tokens["thinking"] = getattr(details, "reasoning_tokens", 0) or 0
+
+    return text, tokens
+
 
 async def run():
     paper_ids = []
@@ -50,25 +75,30 @@ async def run():
             if check:
                 return
             try:
-                result = await generate_precomparison_impact_summary(paper, model_override=MODEL_INFO)
-                if result and result.get("summary") and len(result["summary"]) > 50:
+                summary_text, tokens = await gen_summary(paper)
+                if summary_text and len(summary_text) > 50:
                     update = {
-                        f"summaries.{SUMMARY_KEY}": result["summary"],
+                        f"summaries.{SUMMARY_KEY}": summary_text,
                         f"summary_dates.{SUMMARY_KEY}": datetime.now(timezone.utc).isoformat(),
+                        f"summary_tokens.{SUMMARY_KEY}": tokens,
                     }
-                    if result.get("tokens"):
-                        update[f"summary_tokens.{SUMMARY_KEY}"] = result["tokens"]
-                    ratings = parse_ratings_from_summary(result["summary"])
+                    ratings = parse_ratings_from_summary(summary_text)
                     if ratings:
                         update["ai_ratings_by_model.claude47"] = ratings
                     await db.papers.update_one({"id": paper_id}, {"$set": update})
+                    await track_llm_usage("anthropic", MODEL, context="summary", success=True,
+                                          paper_title=paper.get("title", "")[:80],
+                                          input_tokens=tokens.get("input", 0),
+                                          output_tokens=tokens.get("output", 0),
+                                          thinking_tokens=tokens.get("thinking", 0),
+                                          api_source="direct")
                     generated += 1
                 else:
                     failed += 1
             except Exception as e:
                 failed += 1
                 if failed <= 5:
-                    print(f"  Error: {str(e)[:100]}", flush=True)
+                    print(f"  Error: {str(e)[:150]}", flush=True)
 
             done = generated + failed
             if done % 25 == 0 or done == total:

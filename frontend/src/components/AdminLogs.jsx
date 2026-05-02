@@ -118,7 +118,11 @@ function normalizeRow(doc, source) {
       ts: doc.ts,
       type,
       model: doc.model || "",
-      api: isFallback ? "Anthropic" : "Emergent",
+      api: doc.api_source === "direct" ? "Direct"
+        : doc.api_source === "emergent" ? "Emergent"
+        : isFallback ? "Anthropic"
+        : (doc.model || "").match(/claude|gemini|opus/) ? "Emergent"
+        : "Direct",
       success: false,
       detail: `${doc.paper ? doc.paper + " — " : ""}${doc.error || doc.error_type || "Unknown error"}`,
       isError: true,
