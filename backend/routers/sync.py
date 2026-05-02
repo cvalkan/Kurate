@@ -1,11 +1,14 @@
-"""Admin endpoints for exporting and importing collection data between environments.
+"""Admin endpoints for syncing data between environments.
 
-Export: paginated read of papers/matches/rankings/tournaments (admin-authed).
-Import: pulls delta from a remote instance's export endpoints into local DB.
+Export: paginated read of collections (admin-authed, read-only).
+Import: pulls delta from a remote instance's export endpoints into LOCAL DB.
+
+Safety: the import endpoint only WRITES to the local DB. It authenticates
+with the remote as a read-only client. There is no "push" or "write to remote"
+capability — production data can never be overwritten by this API.
 """
 from fastapi import APIRouter, Depends, Query
 from typing import Optional
-from datetime import datetime, timezone
 import asyncio
 import httpx
 from core.config import db, logger
@@ -13,7 +16,7 @@ from core.auth import verify_admin
 
 router = APIRouter(prefix="/api/admin/sync")
 
-# ── Export endpoints (serve data to other environments) ─────────────────────
+# ── Export endpoints (read-only, serve data to other environments) ──────────
 
 EXPORT_COLLECTIONS = {
     "papers": {
@@ -57,24 +60,22 @@ async def export_collection(
     limit: int = Query(500, ge=1, le=2000),
     category: Optional[str] = None,
 ):
-    """Paginated export of a collection. Use `since` (ISO timestamp) for delta sync."""
+    """Paginated read-only export of a collection. Use `since` for delta sync."""
     if collection not in EXPORT_COLLECTIONS:
         return {"error": f"Unknown collection. Available: {list(EXPORT_COLLECTIONS.keys())}"}
 
     config = EXPORT_COLLECTIONS[collection]
     query = {}
 
-    # Delta filter: only docs added/updated after `since`
     if since:
         date_fields = ["added_at", "updated_at", "created_at"]
         or_clauses = [{f: {"$gte": since}} for f in date_fields]
         query["$or"] = or_clauses
 
-    # Category filter
     if category:
         if collection == "papers":
             query["categories.0"] = category
-        elif collection in ("matches",):
+        elif collection == "matches":
             query["primary_category"] = category
         elif collection in ("rankings", "tournaments"):
             query["category"] = category
@@ -97,17 +98,17 @@ async def export_collection(
 
 @router.get("/export-stats", dependencies=[Depends(verify_admin)])
 async def export_stats():
-    """Quick overview of collection sizes for planning imports."""
+    """Collection sizes for planning imports."""
     stats = {}
     for name in EXPORT_COLLECTIONS:
         stats[name] = await db[name].count_documents({})
     return {"collections": stats}
 
 
-# ── Import endpoint (pull from remote) ──────────────────────────────────────
+# ── Import: pull from remote into LOCAL DB (never writes to remote) ─────────
 
-@router.post("/import", dependencies=[Depends(verify_admin)])
-async def import_from_remote(
+@router.post("/pull", dependencies=[Depends(verify_admin)])
+async def pull_from_remote(
     source_url: str = "https://kurate.org",
     source_password: str = "",
     collections: str = "papers,matches,rankings,tournaments",
@@ -115,16 +116,12 @@ async def import_from_remote(
     category: Optional[str] = None,
     dry_run: bool = False,
 ):
-    """Pull data from a remote instance's export endpoints into local DB.
+    """Pull data from a remote instance into the LOCAL database.
     
-    - source_url: base URL of the remote instance (e.g. https://kurate.org)
-    - source_password: admin password for the remote instance
-    - collections: comma-separated list of collections to sync
-    - since: ISO timestamp for delta sync (only import newer docs)
-    - category: optional category filter
-    - dry_run: if True, just count what would be imported without writing
+    This is strictly one-directional: reads from remote, writes to local.
+    The remote instance is only accessed via its read-only export endpoints.
     """
-    # Authenticate with remote
+    # Authenticate with remote (read-only access)
     async with httpx.AsyncClient(timeout=30) as client:
         try:
             login_res = await client.post(
@@ -198,14 +195,14 @@ async def import_from_remote(
                             except Exception as e:
                                 errors += 1
                                 if errors <= 3:
-                                    logger.warning(f"Sync import error ({coll_name}): {e}")
+                                    logger.warning(f"Sync pull error ({coll_name}): {e}")
                     else:
-                        inserted = total_remote  # In dry_run, just report total
+                        inserted = total_remote
 
                     if not data["has_more"]:
                         break
                     skip += page_size
-                    await asyncio.sleep(0.5)  # Rate limit
+                    await asyncio.sleep(0.5)
 
             results[coll_name] = {
                 "remote_total": total_remote,
@@ -214,19 +211,19 @@ async def import_from_remote(
                 "skipped": skipped,
                 "errors": errors,
             }
-            logger.info(f"Sync {coll_name}: {inserted} inserted, {updated} updated, {skipped} unchanged, {errors} errors (from {total_remote} remote docs)")
+            logger.info(f"Sync pull {coll_name}: {inserted} inserted, {updated} updated, {skipped} unchanged, {errors} errors (from {total_remote} remote)")
 
         except Exception as e:
             results[coll_name] = {"error": str(e)[:200]}
-            logger.error(f"Sync {coll_name} failed: {e}")
+            logger.error(f"Sync pull {coll_name} failed: {e}")
 
-    # Notify leaderboard cache to refresh after import
     if not dry_run and any(r.get("inserted", 0) > 0 or r.get("updated", 0) > 0 for r in results.values()):
         from routers.leaderboard import notify_data_changed
         notify_data_changed()
 
     return {
         "source": source_url,
+        "direction": "remote → local (read-only pull)",
         "collections": results,
         "since": since,
         "category": category,
