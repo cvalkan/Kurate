@@ -29,22 +29,15 @@ const RESOLUTIONS = [
   { value: 1.0, label: "1.0" },
 ];
 
-function buildHist(values, step) {
-  const lo = 1, hi = 10;
-  const buckets = [];
-  for (let b = lo; b < hi + step / 2; b = Math.round((b + step) * 100) / 100) buckets.push(b);
-  const counts = new Array(buckets.length - 1).fill(0);
-  for (const v of values) {
-    for (let i = 0; i < counts.length; i++) {
-      if (v >= buckets[i] && v < buckets[i + 1]) { counts[i]++; break; }
-      if (i === counts.length - 1 && v >= buckets[i]) { counts[i]++; break; }
-    }
-  }
-  return buckets.map((b, i) => i < counts.length ? { bucket: b, count: counts[i] } : null).filter(Boolean);
-}
 
-function DistChart({ dim, rawValues, stats, color, step }) {
-  const data = useMemo(() => buildHist(rawValues, step), [rawValues, step]);
+function DistChart({ dim, stats, color, step }) {
+  const stepKey = step === 0.1 ? "tenth" : step === 0.25 ? "quarter" : step === 0.5 ? "half" : "whole";
+  const hist = stats.hists?.[stepKey];
+
+  const data = useMemo(() => {
+    if (!hist) return [];
+    return hist.buckets.slice(0, -1).map((b, i) => ({ bucket: b, count: hist.counts[i] }));
+  }, [hist]);
 
   return (
     <div className="border border-border rounded-lg p-3 bg-card" data-testid={`dist-${dim}`}>
@@ -176,7 +169,6 @@ export default function SummarizerRatingSection() {
               return (
                 <DistChart
                   key={dim} dim={dim}
-                  rawValues={stats.raw || []}
                   stats={stats}
                   color={displayColor}
                   step={step}

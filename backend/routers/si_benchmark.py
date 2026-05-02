@@ -936,6 +936,17 @@ async def _compute_summarizer_ratings():
             if not vals:
                 continue
             arr = np.array(vals)
+            # Pre-compute histograms at all resolutions server-side
+            # to avoid sending raw arrays (saves memory and bandwidth)
+            hists = {}
+            for step_name, step in [("tenth", 0.1), ("quarter", 0.25), ("half", 0.5), ("whole", 1.0)]:
+                buckets = []
+                b = 1.0
+                while b < 10.0 + step / 2:
+                    buckets.append(round(b, 2))
+                    b = round(b + step, 2)
+                h, _ = np.histogram(vals, bins=buckets)
+                hists[step_name] = {"buckets": buckets, "counts": h.tolist()}
             dims[dim] = {
                 "mean": round(float(arr.mean()), 2),
                 "median": round(float(np.median(arr)), 1),
@@ -943,7 +954,7 @@ async def _compute_summarizer_ratings():
                 "min": round(float(arr.min()), 1),
                 "max": round(float(arr.max()), 1),
                 "n": len(vals),
-                "raw": vals,
+                "hists": hists,
             }
         result_models.append({
             "key": key,
