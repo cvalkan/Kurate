@@ -827,6 +827,7 @@ async def _staggered_startup_tasks():
     # OpenSkill caches are only refreshed via admin buttons — no auto-prewarm on startup.
     # Summary bias caches are lightweight and safe to prewarm.
     asyncio.create_task(_prewarm_summary_bias_caches())
+    asyncio.create_task(_prewarm_summarizer_ratings())
 
 
 
@@ -837,11 +838,21 @@ async def _prewarm_all_experiment_caches():
     To update: run admin precompute-experiments on preview, deploy the new JSON files.
     """
     await asyncio.sleep(3)
-    # JSON files already loaded in startup(). Nothing else to do.
-    # The unified-benchmark and human-ai-benchmark caches are populated
-    # by load_precomputed() which was called synchronously in startup().
     logger.info("All experiment caches loaded from precomputed JSON (no computation)")
     app.state.prewarm_status = {"done": True, "step": ""}
+
+
+async def _prewarm_summarizer_ratings():
+    """Prewarm summarizer rating distributions cache on startup."""
+    await asyncio.sleep(5)
+    try:
+        from routers.si_benchmark import _compute_summarizer_ratings, _summarizer_rating_cache
+        result = await _compute_summarizer_ratings()
+        _summarizer_rating_cache["data"] = result
+        n_models = len(result.get("models", []))
+        logger.info(f"Summarizer rating cache warmed ({n_models} models)")
+    except Exception as e:
+        logger.warning(f"Summarizer rating prewarm failed: {e}")
 
 
 async def _prewarm_summary_bias_caches():

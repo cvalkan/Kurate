@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, ReferenceLine } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, ReferenceLine, Tooltip } from "recharts";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -20,28 +20,36 @@ const DIM_COLORS = {
   clarity: "#10b981",
 };
 
-function DistChart({ dim, stats, color, resolution }) {
-  const hist = resolution === "quarter" ? stats.hist_quarter : stats.hist_half;
-  if (!hist) return null;
+const RESOLUTIONS = [
+  { value: 0.1, label: "0.1" },
+  { value: 0.25, label: "0.25" },
+  { value: 0.5, label: "0.5" },
+  { value: 1.0, label: "1.0" },
+];
 
-  const data = [];
-  for (let i = 0; i < hist.counts.length; i++) {
-    const lo = hist.buckets[i];
-    const hi = hist.buckets[i + 1];
-    if (lo === undefined || hi === undefined) continue;
-    data.push({
-      bucket: `${lo.toFixed(resolution === "quarter" ? 2 : 1)}`,
-      label: lo,
-      count: hist.counts[i],
-    });
+function buildHist(values, step) {
+  const lo = 1, hi = 10;
+  const buckets = [];
+  for (let b = lo; b < hi + step / 2; b = Math.round((b + step) * 100) / 100) buckets.push(b);
+  const counts = new Array(buckets.length - 1).fill(0);
+  for (const v of values) {
+    for (let i = 0; i < counts.length; i++) {
+      if (v >= buckets[i] && v < buckets[i + 1]) { counts[i]++; break; }
+      if (i === counts.length - 1 && v >= buckets[i]) { counts[i]++; break; }
+    }
   }
+  return buckets.map((b, i) => i < counts.length ? { bucket: b, count: counts[i] } : null).filter(Boolean);
+}
+
+function DistChart({ dim, rawValues, stats, color, step }) {
+  const data = useMemo(() => buildHist(rawValues, step), [rawValues, step]);
 
   return (
     <div className="border border-border rounded-lg p-3 bg-card" data-testid={`dist-${dim}`}>
       <div className="flex items-baseline justify-between mb-1">
         <span className="text-sm font-semibold" style={{ color }}>{DIM_LABELS[dim] || dim}</span>
         <span className="text-[10px] text-muted-foreground font-mono">
-          {stats.mean} avg, {stats.median} med (n={stats.n.toLocaleString()})
+          {stats.mean} avg, {stats.median} med, {"\u03C3"}={stats.std} (n={stats.n.toLocaleString()})
         </span>
       </div>
       <div className="h-[140px]">
@@ -49,15 +57,80 @@ function DistChart({ dim, stats, color, resolution }) {
           <BarChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
             <XAxis
-              dataKey="label" type="number"
+              dataKey="bucket" type="number"
               domain={[1, 10]} ticks={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
               tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))"
             />
             <YAxis tick={{ fontSize: 9 }} stroke="hsl(var(--muted-foreground))" width={30} />
+            <Tooltip
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const d = payload[0]?.payload;
+                return (
+                  <div className="rounded border border-border bg-popover p-1.5 shadow text-[10px]">
+                    <span className="font-mono">{d.bucket.toFixed(step < 0.5 ? 2 : 1)}: {d.count}</span>
+                  </div>
+                );
+              }}
+            />
             <ReferenceLine x={stats.mean} stroke={color} strokeDasharray="4 4" strokeWidth={1.5} />
             <Bar dataKey="count" fill={color} opacity={0.7} radius={[2, 2, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function AverageSubScoreChart({ models, dimensions }) {
+  const data = dimensions.map(dim => {
+    const row = { dim: DIM_LABELS[dim] || dim };
+    for (const m of models) {
+      const d = m.dims[dim];
+      row[m.label] = d ? d.mean : 0;
+    }
+    return row;
+  });
+
+  return (
+    <div className="border border-border rounded-lg p-4 bg-card" data-testid="avg-subscore-chart">
+      <h3 className="text-sm font-semibold mb-3">Average Sub-Scores by Model</h3>
+      <div className="h-[220px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+            <XAxis type="number" domain={[0, 10]} ticks={[0, 2, 4, 6, 8, 10]} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+            <YAxis dataKey="dim" type="category" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={90} />
+            <Tooltip
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                return (
+                  <div className="rounded border border-border bg-popover p-2 shadow text-xs">
+                    <div className="font-medium mb-1">{label}</div>
+                    {payload.map((entry, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                        <span className="text-muted-foreground">{entry.name}</span>
+                        <span className="font-mono font-medium ml-auto">{entry.value.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              }}
+            />
+            {models.map(m => (
+              <Bar key={m.label} dataKey={m.label} fill={m.color} opacity={0.8} radius={[0, 3, 3, 0]} barSize={10} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="flex items-center justify-center gap-4 mt-2">
+        {models.map(m => (
+          <div key={m.label} className="flex items-center gap-1.5 text-[10px]">
+            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: m.color }} />
+            <span className="text-muted-foreground">{m.label}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -79,7 +152,7 @@ export default function SummarizerRatingSection() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedModel, setSelectedModel] = useState(null);
-  const [resolution, setResolution] = useState("half");
+  const [step, setStep] = useState(0.5);
 
   useEffect(() => {
     axios.get(`${API}/api/validation/summarizer-rating-distributions`)
@@ -88,57 +161,14 @@ export default function SummarizerRatingSection() {
   }, []);
 
   const activeModel = useMemo(() => {
-    if (!data) return null;
-    if (!selectedModel) return null;
+    if (!data || !selectedModel) return null;
     return data.models.find(m => m.key === selectedModel);
   }, [data, selectedModel]);
 
-  // Aggregate "All Models" by averaging histograms
-  const allModelsAgg = useMemo(() => {
-    if (!data || !data.models.length) return null;
-    const dims = {};
-    for (const dim of data.dimensions) {
-      const allVals = [];
-      for (const model of data.models) {
-        const d = model.dims[dim];
-        if (!d) continue;
-        // Reconstruct values from histogram (approximate)
-        const hist = resolution === "quarter" ? d.hist_quarter : d.hist_half;
-        if (!hist) continue;
-        for (let i = 0; i < hist.counts.length; i++) {
-          const mid = (hist.buckets[i] + hist.buckets[i + 1]) / 2;
-          for (let j = 0; j < hist.counts[i]; j++) allVals.push(mid);
-        }
-      }
-      if (!allVals.length) continue;
-      const mean = allVals.reduce((a, b) => a + b, 0) / allVals.length;
-      const sorted = [...allVals].sort((a, b) => a - b);
-      const median = sorted[Math.floor(sorted.length / 2)];
-      const std = Math.sqrt(allVals.reduce((s, v) => s + (v - mean) ** 2, 0) / allVals.length);
-      const buckets = resolution === "quarter"
-        ? Array.from({ length: 37 }, (_, i) => Math.round((1 + i * 0.25) * 100) / 100)
-        : Array.from({ length: 19 }, (_, i) => Math.round((1 + i * 0.5) * 10) / 10);
-      const counts = new Array(buckets.length - 1).fill(0);
-      for (const v of allVals) {
-        for (let i = 0; i < counts.length; i++) {
-          if (v >= buckets[i] && v < buckets[i + 1]) { counts[i]++; break; }
-        }
-      }
-      dims[dim] = {
-        mean: Math.round(mean * 100) / 100,
-        median: Math.round(median * 10) / 10,
-        std: Math.round(std * 100) / 100,
-        n: allVals.length,
-        [`hist_${resolution}`]: { buckets, counts },
-      };
-    }
-    return { dims };
-  }, [data, resolution]);
-
   if (loading) return <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-32 bg-secondary/20 rounded-lg animate-pulse" />)}</div>;
-  if (!data || data.models.length === 0) return <div className="text-center py-12 text-muted-foreground text-sm">No summarizer rating data available.</div>;
+  if (!data || !data.models?.length) return <div className="text-center py-12 text-muted-foreground text-sm">No summarizer rating data available.</div>;
 
-  const display = activeModel || allModelsAgg;
+  const display = activeModel;
   const displayColor = activeModel ? activeModel.color : "#6b7280";
   const totalPapers = data.models.reduce((max, m) => Math.max(max, m.n), 0);
 
@@ -152,20 +182,17 @@ export default function SummarizerRatingSection() {
         </p>
       </div>
 
+      {/* Average sub-score comparison */}
+      <AverageSubScoreChart models={data.models} dimensions={data.dimensions} />
+
       <hr className="border-border" />
 
       {/* Model selector */}
-      <div className="flex items-center gap-1 p-1 bg-secondary/50 rounded-lg w-fit" data-testid="model-tabs">
-        <button
-          onClick={() => setSelectedModel(null)}
-          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${!selectedModel ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-        >
-          All Models
-        </button>
+      <div className="flex items-center gap-1 p-1 bg-secondary/50 rounded-lg w-fit flex-wrap" data-testid="model-tabs">
         {data.models.map(m => (
           <button
             key={m.key}
-            onClick={() => setSelectedModel(m.key)}
+            onClick={() => setSelectedModel(selectedModel === m.key ? null : m.key)}
             className={`px-3 py-1.5 rounded-md text-xs transition-colors ${selectedModel === m.key ? "bg-background shadow font-medium" : "text-muted-foreground hover:text-foreground"}`}
           >
             <span style={{ color: selectedModel === m.key ? m.color : undefined }}>
@@ -178,49 +205,50 @@ export default function SummarizerRatingSection() {
 
       {/* Resolution toggle */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium">Score Distribution</h3>
-        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-          <input
-            type="checkbox"
-            checked={resolution === "quarter"}
-            onChange={e => setResolution(e.target.checked ? "quarter" : "half")}
-            className="rounded"
-          />
-          Full resolution (0.25 steps)
-        </label>
+        <h3 className="text-sm font-medium">
+          {display ? `${display.label} — Per-Dimension Distributions` : "Select a model above"}
+        </h3>
+        {display && (
+          <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md">
+            {RESOLUTIONS.map(r => (
+              <button
+                key={r.value}
+                onClick={() => setStep(r.value)}
+                className={`px-2 py-1 rounded text-[10px] font-mono transition-colors ${step === r.value ? "bg-background shadow text-foreground font-medium" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Distribution charts */}
       {display && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {data.dimensions.map(dim => {
-            const stats = display.dims[dim];
-            if (!stats) return null;
-            return (
-              <DistChart
-                key={dim} dim={dim} stats={stats}
-                color={activeModel ? displayColor : DIM_COLORS[dim]}
-                resolution={resolution}
-              />
-            );
-          })}
-        </div>
-      )}
-
-      {/* Summary stat cards */}
-      {display && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-          {data.dimensions.map(dim => {
-            const stats = display.dims[dim];
-            if (!stats) return null;
-            return (
-              <StatCard
-                key={dim} dim={dim} stats={stats}
-                color={activeModel ? displayColor : DIM_COLORS[dim]}
-              />
-            );
-          })}
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {data.dimensions.map(dim => {
+              const stats = display.dims[dim];
+              if (!stats) return null;
+              return (
+                <DistChart
+                  key={dim} dim={dim}
+                  rawValues={stats.raw || []}
+                  stats={stats}
+                  color={displayColor}
+                  step={step}
+                />
+              );
+            })}
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            {data.dimensions.map(dim => {
+              const stats = display.dims[dim];
+              if (!stats) return null;
+              return <StatCard key={dim} dim={dim} stats={stats} color={displayColor} />;
+            })}
+          </div>
+        </>
       )}
     </div>
   );
