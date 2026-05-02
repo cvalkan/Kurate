@@ -1154,13 +1154,15 @@ def _summary_model_key(model_info: dict) -> str:
 _SUMMARY_KEY_FALLBACKS = {
     "anthropic:claude-opus-4-6:thinking": [
         # No fallbacks — all papers must have Claude Opus 4.6 thinking summary.
-        # Non-thinking and legacy models produce different quality assessments,
-        # breaking comparability and fairness in the tournament.
     ],
     "anthropic:claude-opus-4-6": [
         "anthropic:claude-opus-4-5-20251101",
         "openai:gpt-5_2",
         "gemini:gemini-3-pro-preview",
+    ],
+    # GPT-5.5 accepts existing GPT-5.2 summaries — don't re-summarize old papers
+    "openai:gpt-5_5": [
+        "openai:gpt-5_2",
     ],
 }
 
