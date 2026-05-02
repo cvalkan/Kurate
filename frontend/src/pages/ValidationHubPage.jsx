@@ -22,6 +22,7 @@ import MultiAspectSection from "./MultiAspectSection";
 import SummarizerABSection from "./SummarizerABSection";
 import AssessorEvaluatorSection from "./AssessorEvaluatorSection";
 import JudgeComparisonSection from "./JudgeComparisonSection";
+import SummarizerRatingSection from "./SummarizerRatingSection";
 import ModelCorrelationSection from "./ModelCorrelationSection";
 import CycleAnalysisSection from "./CycleAnalysisSection";
 import SamePairsSection from "./SamePairsSection";
@@ -222,6 +223,7 @@ export default function ValidationHubPage() {
       "exp-unified-stan": { title: "PW vs SI — Standalone GT", desc: "Head-to-head comparison of pairwise judges vs single-item scoring on the exact same pairs. Standalone GT (eLife, MIDL, Qeios, ResearchHub)." },
       "exp-judge-comparison": { title: "Accuracy by Judge", desc: "Which LLM is the best judge? Head-to-head comparison of accuracy, ranking correlation, and ensemble methods on identical pairs (4 judges x 9 datasets x 200 pairs)." },
       "exp-summarizer-cross": { title: "Accuracy by Summarizer", desc: "How does the choice of summarizer model (GPT-5.2, Gemini 3 Pro, Opus 4.5/4.6) affect tournament accuracy? Same-pair comparison across 12 ICLR and eLife datasets." },
+      "exp-summarizer-ratings": { title: "Summarizer Rating Distributions", desc: "How do different summarizer models rate the same papers? Score distributions across 5 dimensions for GPT-5.2, GPT-5.5, Claude 4.6, and DeepSeek V4-Pro." },
       "exp-assessor-evaluator": { title: "Summarizer × Judge Matrix", desc: "Full interaction matrix: which model should write the summary vs. judge the comparison? 5 summarizers × 4 judge strategies on identical pairs." },
       "exp-consistency": { title: "Verdict Stability", desc: "Controlled comparison: how often does the same pair get a different verdict under different models or formats?" },
       "exp-cycle-analysis": { title: "Intransitive Cycles", desc: "Condorcet paradox analysis: how often does A>B, B>C, but C>A? By model, format, and dataset." },
@@ -347,8 +349,9 @@ export default function ValidationHubPage() {
           {/* Experiments */}
           
             <CollapsibleGroup label="Experiments" icon={FlaskRound} defaultOpen={selected?.startsWith("exp-") && !selected.includes("benchmark") && !selected.includes("unified") && selected !== "exp-ai-ranking-quality"}>
-              <CollapsibleGroup label="Summarizer Quality" defaultOpen={selected === "exp-summarizer-cross" || selected === "exp-summarizer-ab" || selected === "exp-thinking-overview"}>
+              <CollapsibleGroup label="Summarizer Quality" defaultOpen={selected === "exp-summarizer-cross" || selected === "exp-summarizer-ab" || selected === "exp-thinking-overview" || selected === "exp-summarizer-ratings"}>
                 <NavItem item={{ id: "exp-summarizer-cross", label: "Accuracy by Summarizer", sub: "GPT vs Gemini vs Opus" }} selected={selected} onSelect={setSelected} />
+                <NavItem item={{ id: "exp-summarizer-ratings", label: "Rating Distributions", sub: "4 models × 5 dimensions" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-summarizer-ab", label: "Opus 4.5 vs 4.6", sub: "A/B test" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-thinking-overview", label: "Extended Thinking", sub: "Thinking budget effect" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
@@ -440,6 +443,7 @@ export default function ValidationHubPage() {
           {selected === "exp-summarizer-cross" && <SummarizerABSection />}
           {selected === "exp-assessor-evaluator" && <AssessorEvaluatorSection />}
           {selected === "exp-judge-comparison" && <JudgeComparisonSection />}
+          {selected === "exp-summarizer-ratings" && <SummarizerRatingSection />}
           {selected === "exp-human-ai-benchmark" && <HumanAIBenchmarkSection />}
           {selected === "exp-human-ai-benchmark-unfiltered" && <HumanAIBenchmarkUnfilteredSection />}
           {selected === "exp-human-ai-benchmark-fixed" && <HumanAIBenchmarkFixedSection />}

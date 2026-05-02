@@ -857,3 +857,86 @@ async def _compute_si_benchmark(gt_type: str = "stan"):
         },
         "per_dataset": per_dataset,
     }
+
+
+
+@router.get("/summarizer-rating-distributions")
+async def summarizer_rating_distributions():
+    """Rating distributions from production summarizer models (GPT-5.2, GPT-5.5, Claude 4.6, DeepSeek V4-Pro).
+    
+    Uses papers that have GPT-5.5 summaries (the test set from the model upgrade).
+    Parses score + sub-dimensions from each model's summary text.
+    """
+    from services.llm import parse_ratings_from_summary
+
+    MODELS = {
+        "openai:gpt-5_2": {"label": "GPT-5.2", "color": "#3b82f6"},
+        "openai:gpt-5_5": {"label": "GPT-5.5", "color": "#8b5cf6"},
+        "anthropic:claude-opus-4-6:thinking": {"label": "Claude Opus 4.6", "color": "#ef4444"},
+        "deepseek:deepseek-v4-pro": {"label": "DeepSeek V4-Pro", "color": "#10b981"},
+    }
+    DIMS = ["score", "significance", "rigor", "novelty", "clarity"]
+
+    model_data = {key: {dim: [] for dim in DIMS} for key in MODELS}
+
+    async for doc in db.papers.find(
+        {"summaries.openai:gpt-5_5": {"$exists": True}},
+        {"_id": 0, "summaries": 1},
+    ):
+        sums = doc.get("summaries") or {}
+        for key in MODELS:
+            s = sums.get(key, "")
+            if not s:
+                continue
+            r = parse_ratings_from_summary(s)
+            if not r or not r.get("score"):
+                continue
+            for dim in DIMS:
+                val = r.get(dim)
+                if val and 1.0 <= val <= 10.0:
+                    model_data[key][dim].append(val)
+
+    # Build response
+    result_models = []
+    for key, meta in MODELS.items():
+        scores = model_data[key]
+        n = len(scores["score"])
+        if n == 0:
+            continue
+        dims = {}
+        for dim in DIMS:
+            vals = scores[dim]
+            if not vals:
+                continue
+            arr = np.array(vals)
+            # 0.5-wide buckets from 1 to 10
+            buckets_half = [i / 2 for i in range(2, 21)]
+            hist_half, _ = np.histogram(vals, bins=buckets_half)
+            # 0.25-wide buckets from 1 to 10
+            buckets_quarter = [i / 4 for i in range(4, 41)]
+            hist_quarter, _ = np.histogram(vals, bins=buckets_quarter)
+            dims[dim] = {
+                "mean": round(float(arr.mean()), 2),
+                "median": round(float(np.median(arr)), 1),
+                "std": round(float(arr.std()), 2),
+                "min": round(float(arr.min()), 1),
+                "max": round(float(arr.max()), 1),
+                "n": len(vals),
+                "hist_half": {
+                    "buckets": [round(b, 1) for b in buckets_half],
+                    "counts": hist_half.tolist(),
+                },
+                "hist_quarter": {
+                    "buckets": [round(b, 2) for b in buckets_quarter],
+                    "counts": hist_quarter.tolist(),
+                },
+            }
+        result_models.append({
+            "key": key,
+            "label": meta["label"],
+            "color": meta["color"],
+            "n": n,
+            "dims": dims,
+        })
+
+    return {"status": "ok", "models": result_models, "dimensions": DIMS}
