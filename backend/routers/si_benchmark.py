@@ -885,6 +885,7 @@ async def _compute_summarizer_ratings():
         "openai:gpt-5_5": {"label": "GPT-5.5", "color": "#8b5cf6"},
         "anthropic:claude-opus-4-6:thinking": {"label": "Claude Opus 4.6", "color": "#ef4444"},
         "deepseek:deepseek-v4-pro": {"label": "DeepSeek V4-Pro", "color": "#10b981"},
+        "openai:kimi-k2_6": {"label": "Kimi K2.6", "color": "#f59e0b"},
     }
     DIMS = ["score", "significance", "rigor", "novelty", "clarity"]
 
