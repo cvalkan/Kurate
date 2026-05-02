@@ -1050,7 +1050,7 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
                                       thinking_tokens=tokens.get("thinking", 0))
                 return {
                     "summary": summary_text,
-                    "model_used": model_info,
+                    "model_used": {"provider": provider, "model": model},
                     "char_count": len(summary_text),
                     "word_count": len(summary_text.split()),
                     "tokens": tokens,

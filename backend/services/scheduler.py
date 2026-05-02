@@ -1,4 +1,5 @@
 import asyncio
+import os
 import re
 import uuid
 import secrets
@@ -1096,13 +1097,15 @@ async def _download_pending_pdfs(category: str = None, force: bool = False):
     return downloaded
 
 
+_OPENAI_DIRECT_KEY = os.environ.get("OPENAI_API_KEY_GPT54") or os.environ.get("OPENAI_API_KEY_DIRECT")
+
 # --- Summary model configuration ---
 # Models used to GENERATE summaries (Claude uses thinking mode for higher quality)
 _SUMMARY_GENERATION_MODELS = [
     {"provider": "anthropic", "model": "claude-opus-4-6",
      "extra_params": {"extra_body": {"thinking": {"type": "enabled", "budget_tokens": 10000}}},
      "key_suffix": "thinking"},
-    {"provider": "openai", "model": "gpt-5.2"},
+    {"provider": "openai", "model": "gpt-5.5", "api_key": _OPENAI_DIRECT_KEY},
     {"provider": "gemini", "model": "gemini-3-pro-preview"},
 ]
 
@@ -1112,7 +1115,7 @@ _SUMMARY_GENERATION_MODELS = [
 _SUMMARY_MODELS = {
     "claude": {"provider": "anthropic", "model": "claude-opus-4-6", "key_suffix": "thinking"},
     "gemini": {"provider": "gemini", "model": "gemini-3-pro-preview"},
-    "gpt": {"provider": "openai", "model": "gpt-5.2"},
+    "gpt": {"provider": "openai", "model": "gpt-5.5", "api_key": _OPENAI_DIRECT_KEY},
 }
 _summary_rr_counter = 0
 
