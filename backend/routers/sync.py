@@ -1,10 +1,12 @@
 """Admin endpoints for syncing data between environments.
 
 Export: paginated read of collections (admin-authed, read-only). Available everywhere.
+       Uses cursor-based pagination (keyset) to avoid O(N) skip on large collections.
 Pull:   imports from a remote instance's export endpoints into LOCAL DB.
         DISABLED unless SYNC_PULL_ENABLED=true in .env (never set on production).
         Runs in the background; poll /pull-status for progress.
 """
+import gc
 import os
 from fastapi import APIRouter, Depends, Query, Request
 from typing import Optional
@@ -17,18 +19,40 @@ router = APIRouter(prefix="/api/admin/sync")
 
 _PULL_ENABLED = os.environ.get("SYNC_PULL_ENABLED", "").lower() == "true"
 
-# Background pull state
 _pull_state = {"running": False, "progress": {}, "result": None}
 
-# ── Export endpoints (read-only) ────────────────────────────────────────────
-
 EXPORT_COLLECTIONS = {
-    "papers": {"projection": {"_id": 0, "full_text": 0}, "sort": [("added_at", -1)], "id_field": "id"},
-    "matches": {"projection": {"_id": 0}, "sort": [("created_at", -1)], "id_field": "id"},
-    "rankings": {"projection": {"_id": 0}, "sort": [("updated_at", -1)], "id_field": "paper_id"},
-    "tournaments": {"projection": {"_id": 0}, "sort": [("category", 1)], "id_field": "tournament_id"},
-    "leaderboard_archives": {"projection": {"_id": 0}, "sort": [("year", -1), ("week", -1)], "id_field": "_composite", "composite_key": ["category", "year", "period_type", "week", "month"]},
-    "settings": {"projection": {"_id": 0}, "sort": [("key", 1)], "id_field": "key"},
+    "papers": {
+        "projection": {"_id": 0, "full_text": 0},
+        "sort_field": "added_at", "sort_dir": -1,
+        "id_field": "id",
+    },
+    "matches": {
+        "projection": {"_id": 0},
+        "sort_field": "created_at", "sort_dir": -1,
+        "id_field": "id",
+    },
+    "rankings": {
+        "projection": {"_id": 0},
+        "sort_field": "updated_at", "sort_dir": -1,
+        "id_field": "paper_id",
+    },
+    "tournaments": {
+        "projection": {"_id": 0},
+        "sort_field": "category", "sort_dir": 1,
+        "id_field": "tournament_id",
+    },
+    "leaderboard_archives": {
+        "projection": {"_id": 0},
+        "sort_field": "year", "sort_dir": -1,
+        "id_field": "_composite",
+        "composite_key": ["category", "year", "period_type", "week", "month"],
+    },
+    "settings": {
+        "projection": {"_id": 0},
+        "sort_field": "key", "sort_dir": 1,
+        "id_field": "key",
+    },
 }
 
 
@@ -36,19 +60,28 @@ EXPORT_COLLECTIONS = {
 async def export_collection(
     collection: str,
     since: Optional[str] = None,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(200, ge=1, le=2000),
+    cursor: Optional[str] = None,
+    limit: int = Query(200, ge=1, le=1000),
     category: Optional[str] = None,
 ):
-    """Paginated read-only export of a collection."""
+    """Paginated export using cursor-based keyset pagination.
+    
+    First call: omit `cursor`. Response includes `next_cursor`.
+    Next calls: pass `cursor=<next_cursor>` from previous response.
+    This is O(1) per page regardless of collection size (no skip).
+    """
     if collection not in EXPORT_COLLECTIONS:
         return {"error": f"Unknown collection. Available: {list(EXPORT_COLLECTIONS.keys())}"}
 
     config = EXPORT_COLLECTIONS[collection]
+    sort_field = config["sort_field"]
+    sort_dir = config["sort_dir"]
     query = {}
+
     if since:
         or_clauses = [{f: {"$gte": since}} for f in ["added_at", "updated_at", "created_at"]]
         query["$or"] = or_clauses
+
     if category:
         if collection == "papers":
             query["categories.0"] = category
@@ -57,15 +90,41 @@ async def export_collection(
         elif collection in ("rankings", "tournaments"):
             query["category"] = category
 
-    coll = db[collection]
-    total = await coll.count_documents(query)
-    docs = await coll.find(query, config["projection"]).sort(config["sort"]).skip(skip).limit(limit).to_list(length=limit)
+    # Cursor-based pagination: continue from where last page ended
+    if cursor:
+        op = "$lt" if sort_dir == -1 else "$gt"
+        query[sort_field] = {op: cursor}
 
-    return {
-        "collection": collection, "total": total,
-        "skip": skip, "limit": limit, "count": len(docs),
-        "has_more": skip + len(docs) < total, "docs": docs,
+    coll = db[collection]
+    # Only count total on first page (no cursor) to avoid repeated expensive counts
+    total = await coll.count_documents(query) if not cursor else None
+
+    docs = await coll.find(query, config["projection"]).sort(
+        sort_field, sort_dir
+    ).limit(limit).to_list(length=limit)
+
+    # Build next_cursor from last doc's sort field
+    next_cursor = None
+    if docs and len(docs) == limit:
+        last_val = docs[-1].get(sort_field)
+        if last_val is not None:
+            next_cursor = last_val if isinstance(last_val, str) else str(last_val)
+
+    result = {
+        "collection": collection,
+        "count": len(docs),
+        "has_more": len(docs) == limit,
+        "next_cursor": next_cursor,
+        "docs": docs,
     }
+    if total is not None:
+        result["total"] = total
+
+    # Force GC after serving large pages to prevent RSS fragmentation
+    if len(docs) >= 100:
+        gc.collect()
+
+    return result
 
 
 @router.get("/export-stats", dependencies=[Depends(verify_admin)])
@@ -96,7 +155,7 @@ def _login_remote(source_url, password):
 
 def _fetch_remote_page(source_url, token, collection, params):
     import subprocess, json, urllib.parse
-    qs = urllib.parse.urlencode(params)
+    qs = urllib.parse.urlencode({k: v for k, v in params.items() if v is not None})
     url = f"{source_url}/api/admin/sync/export/{collection}?{qs}"
     result = subprocess.run(
         ["curl", "-s", url, "-H", f"X-Admin-Token: {token}"],
@@ -108,7 +167,6 @@ def _fetch_remote_page(source_url, token, collection, params):
 
 
 async def _run_pull_bg(source_url, source_password, collection_list, since, category):
-    """Background pull task."""
     global _pull_state
     _pull_state = {"running": True, "progress": {}, "result": None,
                    "started_at": datetime.now(timezone.utc).isoformat()}
@@ -123,26 +181,32 @@ async def _run_pull_bg(source_url, source_password, collection_list, since, cate
     for coll_name in collection_list:
         config = EXPORT_COLLECTIONS[coll_name]
         id_field = config["id_field"]
+        composite_key = config.get("composite_key")
         inserted = updated = skipped = errors = 0
         total_remote = 0
-        skip = 0
         page_size = 500
+        next_cursor = None
+        fetched = 0
 
         _pull_state["progress"][coll_name] = {"status": "pulling", "fetched": 0, "total": 0}
 
         try:
             while True:
-                params = {"skip": skip, "limit": page_size}
+                params = {"limit": page_size}
                 if since:
                     params["since"] = since
                 if category:
                     params["category"] = category
+                if next_cursor:
+                    params["cursor"] = next_cursor
 
                 data = await asyncio.to_thread(
                     _fetch_remote_page, source_url, token, coll_name, params
                 )
-                total_remote = data["total"]
-                docs = data["docs"]
+                if data.get("total"):
+                    total_remote = data["total"]
+                docs = data.get("docs", [])
+                next_cursor = data.get("next_cursor")
                 _pull_state["progress"][coll_name]["total"] = total_remote
 
                 if not docs:
@@ -150,7 +214,6 @@ async def _run_pull_bg(source_url, source_password, collection_list, since, cate
 
                 for doc in docs:
                     try:
-                        composite_key = config.get("composite_key")
                         if composite_key:
                             filt = {k: doc.get(k) for k in composite_key if doc.get(k) is not None}
                             if len(filt) >= 2:
@@ -161,7 +224,7 @@ async def _run_pull_bg(source_url, source_password, collection_list, since, cate
                             else:
                                 await db[coll_name].insert_one(doc)
                                 inserted += 1
-                        elif id_field and doc.get(id_field):
+                        elif id_field and id_field != "_composite" and doc.get(id_field):
                             r = await db[coll_name].update_one(
                                 {id_field: doc[id_field]}, {"$set": doc}, upsert=True,
                             )
@@ -176,19 +239,20 @@ async def _run_pull_bg(source_url, source_password, collection_list, since, cate
                         if errors <= 3:
                             logger.warning(f"Sync pull error ({coll_name}): {e}")
 
-                _pull_state["progress"][coll_name]["fetched"] = skip + len(docs)
+                fetched += len(docs)
+                _pull_state["progress"][coll_name]["fetched"] = fetched
 
-                if not data["has_more"]:
+                if not data.get("has_more") or not next_cursor:
                     break
-                skip += page_size
                 await asyncio.sleep(0.2)
 
             results[coll_name] = {
-                "remote_total": total_remote, "inserted": inserted,
-                "updated": updated, "skipped": skipped, "errors": errors,
+                "remote_total": total_remote or fetched,
+                "inserted": inserted, "updated": updated,
+                "skipped": skipped, "errors": errors,
             }
             _pull_state["progress"][coll_name]["status"] = "done"
-            logger.info(f"Sync pull {coll_name}: {inserted} ins, {updated} upd, {skipped} skip, {errors} err (from {total_remote})")
+            logger.info(f"Sync pull {coll_name}: {inserted} ins, {updated} upd, {skipped} skip, {errors} err")
 
         except Exception as e:
             results[coll_name] = {"error": str(e)[:200]}
@@ -232,5 +296,4 @@ async def pull_from_remote(request: Request):
 
 @router.get("/pull-status", dependencies=[Depends(verify_admin)])
 async def pull_status():
-    """Poll this to check background pull progress."""
     return _pull_state
