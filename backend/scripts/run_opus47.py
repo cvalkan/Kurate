@@ -11,7 +11,7 @@ from services.llm import IMPACT_ASSESSMENT_PROMPT, parse_ratings_from_summary, t
 from datetime import datetime, timezone
 
 ANTHROPIC_KEY = os.environ["ANTHROPIC_API_KEY"]
-MODEL = "claude-opus-4-7-20260416"
+MODEL = "claude-opus-4-7"
 SUMMARY_KEY = "anthropic:claude-opus-4-7:thinking"
 PARALLEL = 15
 
@@ -28,7 +28,8 @@ async def gen_summary(paper):
             {"role": "user", "content": content},
         ],
         api_key=ANTHROPIC_KEY,
-        extra_body={"thinking": {"type": "enabled", "budget_tokens": 10000}},
+        thinking={"type": "adaptive"},
+        max_tokens=18000,
     )
 
     text = response.choices[0].message.content
