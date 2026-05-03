@@ -382,11 +382,12 @@ export default function PaperPage() {
       </Helmet>
       <button onClick={() => {
         const cat = paper.categories?.[0];
-        if (cat) navigate(`/?cat=${cat}&period=all`);
+        if (cat === "defi") navigate("/defi");
+        else if (cat) navigate(`/?cat=${cat}&period=all`);
         else navigate(-1);
       }} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors" data-testid="back-link">
         <ArrowLeft className="h-4 w-4" />
-        Back to Leaderboard
+        {paper.categories?.[0] === "defi" ? "Back to DeFi Leaderboard" : "Back to Leaderboard"}
       </button>
 
       {/* Paper Header */}

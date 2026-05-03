@@ -12,7 +12,7 @@ export default function DefiPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [sort, setSort] = useState("published");
+  const [sort, setSort] = useState("score");
   const [sortDir, setSortDir] = useState("desc");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
