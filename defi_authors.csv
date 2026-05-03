@@ -1,483 +1,483 @@
-author,email,paper,overall_rating,significance,rigor,novelty,clarity,tournament_score,tournament_win_rate,tournament_matches,ci_margin,gap
-Yulin Liu,yulin@quantecon.ai,A dataset of early blockchain-registered AI agents on Ethereum,4.0,4.5,5.0,5.5,6.5,1328,68.8,16,20.7,5.9
-Ziqiao Kong,ziqiao001@e.ntu.edu.sg,Knowdit: Agentic Smart Contract Vulnerability Detection with Auditing Knowledge Summarization,7.2,7.5,6.5,7.5,7.0,1635,93.8,32,9.2,-0.8
-Wanxu Xia,,Knowdit: Agentic Smart Contract Vulnerability Detection with Auditing Knowledge Summarization,7.2,7.5,6.5,7.5,7.0,1635,93.8,32,9.2,-0.8
-Chong Wang,chong.wang@ntu.edu.sg,Knowdit: Agentic Smart Contract Vulnerability Detection with Auditing Knowledge Summarization,7.2,7.5,6.5,7.5,7.0,1635,93.8,32,9.2,-0.8
-Yi LU,,Knowdit: Agentic Smart Contract Vulnerability Detection with Auditing Knowledge Summarization,7.2,7.5,6.5,7.5,7.0,1635,93.8,32,9.2,-0.8
-pan long li,,Knowdit: Agentic Smart Contract Vulnerability Detection with Auditing Knowledge Summarization,7.2,7.5,6.5,7.5,7.0,1635,93.8,32,9.2,-0.8
-Shaohua Li,,Knowdit: Agentic Smart Contract Vulnerability Detection with Auditing Knowledge Summarization,7.2,7.5,6.5,7.5,7.0,1635,93.8,32,9.2,-0.8
-Zong Cao,z.cao@imperial.ac.uk,Knowdit: Agentic Smart Contract Vulnerability Detection with Auditing Knowledge Summarization,7.2,7.5,6.5,7.5,7.0,1635,93.8,32,9.2,-0.8
-Yang  Guang Liu,yangliu@ntu.edu.sg,Knowdit: Agentic Smart Contract Vulnerability Detection with Auditing Knowledge Summarization,7.2,7.5,6.5,7.5,7.0,1635,93.8,32,9.2,-0.8
-Anushri Eswaran,aeswaran@ucsd.edu,CryptoAnalystBench: Failures in Multi-Tool Long-Form LLM Analysis,4.8,5.5,4.0,5.0,6.0,1459,83.3,18,16.7,11.8
-Oleg Golev,,CryptoAnalystBench: Failures in Multi-Tool Long-Form LLM Analysis,4.8,5.5,4.0,5.0,6.0,1459,83.3,18,16.7,11.8
-Darshan Tank,,CryptoAnalystBench: Failures in Multi-Tool Long-Form LLM Analysis,4.8,5.5,4.0,5.0,6.0,1459,83.3,18,16.7,11.8
-Sidhant Rahi,,CryptoAnalystBench: Failures in Multi-Tool Long-Form LLM Analysis,4.8,5.5,4.0,5.0,6.0,1459,83.3,18,16.7,11.8
-Himanshu Tyagi,,CryptoAnalystBench: Failures in Multi-Tool Long-Form LLM Analysis,4.8,5.5,4.0,5.0,6.0,1459,83.3,18,16.7,11.8
-Saad Alqithami,,"Autonomous Agents on Blockchains: Standards, Execution Models, and Trust Boundaries",5.5,7.0,4.5,6.0,4.5,1391,76.5,17,18.9,-3.6
-Sergei Vertepov,,Building an adaptive tokenomics model using reinforcement learning algorithms to ensure long-term economic sustainability of crypto projects.,3.0,4.5,2.0,3.5,5.0,1070,30.8,13,22.5,-10.3
-"Xiang, Yuexin",,Leveraging Large Language Models to Bridge Cross-Domain Transparency in Stablecoins,4.0,4.5,3.0,4.5,6.0,1314,66.7,18,20.0,2.9
-Yang Lei,,Leveraging Large Language Models to Bridge Cross-Domain Transparency in Stablecoins,4.0,4.5,3.0,4.5,6.0,1314,66.7,18,20.0,2.9
-Yuanzhe Zhang,,Leveraging Large Language Models to Bridge Cross-Domain Transparency in Stablecoins,4.0,4.5,3.0,4.5,6.0,1314,66.7,18,20.0,2.9
-Qin Wang,,Leveraging Large Language Models to Bridge Cross-Domain Transparency in Stablecoins,4.0,4.5,3.0,4.5,6.0,1314,66.7,18,20.0,2.9
-Tsz Hon Yuen,,Leveraging Large Language Models to Bridge Cross-Domain Transparency in Stablecoins,4.0,4.5,3.0,4.5,6.0,1314,66.7,18,20.0,2.9
-Jiangshan Yu,,Leveraging Large Language Models to Bridge Cross-Domain Transparency in Stablecoins,4.0,4.5,3.0,4.5,6.0,1314,66.7,18,20.0,2.9
-Jiangshan Yu,,Leveraging Large Language Models to Bridge Cross-Domain Transparency in Stablecoins,4.0,4.5,3.0,4.5,6.0,1314,66.7,18,20.0,2.9
-Jennifer Ifeoma Echenim,,Integration of Artificial Intelligence and Blockchain for Intelligent Autonomous Systems,2.0,2.0,1.5,1.5,3.5,920,14.3,14,18.0,0.0
-Fernando Spadea,spadef@rpi.edu; senevo@rpi.edu,From Risk to Rescue: An Agentic Survival Analysis Framework for Liquidation Prevention,5.8,6.0,5.5,6.5,7.0,1328,68.8,16,20.7,-24.2
-Oshani Seneviratne,,From Risk to Rescue: An Agentic Survival Analysis Framework for Liquidation Prevention,5.8,6.0,5.5,6.5,7.0,1328,68.8,16,20.7,-24.2
-Arnab Mallick,arnabm@cdac.in,SPEAR: An Engineering Case Study of Multi-Agent Coordination for Smart Contract Auditing,4.8,4.5,5.0,4.0,7.0,1368,73.7,19,18.5,-3.0
-Indraveni Chebolu,,SPEAR: An Engineering Case Study of Multi-Agent Coordination for Smart Contract Auditing,4.8,4.5,5.0,4.0,7.0,1368,73.7,19,18.5,-3.0
-Harmesh Rana,,SPEAR: An Engineering Case Study of Multi-Agent Coordination for Smart Contract Auditing,4.8,4.5,5.0,4.0,7.0,1368,73.7,19,18.5,-3.0
-Seema Pangal,,SPEAR: An Engineering Case Study of Multi-Agent Coordination for Smart Contract Auditing,4.8,4.5,5.0,4.0,7.0,1368,73.7,19,18.5,-3.0
-Yichen Luo,yichen.luo.22@ucl.ac.uk,LLM-Powered Multi-Agent System for Automated Crypto Portfolio Management,4.5,4.5,3.5,5.5,6.5,1343,70.6,17,19.9,-5.1
-Yebo Feng,yebo.feng@ntu.edu.sg,LLM-Powered Multi-Agent System for Automated Crypto Portfolio Management,4.5,4.5,3.5,5.5,6.5,1343,70.6,17,19.9,-5.1
-Jiahua Xu,,LLM-Powered Multi-Agent System for Automated Crypto Portfolio Management,4.5,4.5,3.5,5.5,6.5,1343,70.6,17,19.9,-5.1
-Paolo Tasca,p.tasca@ucl.ac.uk,LLM-Powered Multi-Agent System for Automated Crypto Portfolio Management,4.5,4.5,3.5,5.5,6.5,1343,70.6,17,19.9,-5.1
-Yang Liu,yangliu@ntu.edu.sg,LLM-Powered Multi-Agent System for Automated Crypto Portfolio Management,4.5,4.5,3.5,5.5,6.5,1343,70.6,17,19.9,-5.1
-William Villegas-Ch,,Optimizing Consensus in Blockchain with Deep and Reinforcement Learning,3.5,4.0,2.5,3.5,4.0,1247,57.1,14,23.0,1.5
-Jaime Govea,,Optimizing Consensus in Blockchain with Deep and Reinforcement Learning,3.5,4.0,2.5,3.5,4.0,1247,57.1,14,23.0,1.5
-Rommel Gutiérrez,,Optimizing Consensus in Blockchain with Deep and Reinforcement Learning,3.5,4.0,2.5,3.5,4.0,1247,57.1,14,23.0,1.5
-Yaying Chen,,"Information Security, Ethics, and Integrity in LLM Agent Interaction",3.0,3.5,2.0,3.5,3.5,1235,55.6,9,27.2,17.6
-Vijay K. Madisetti,,"Information Security, Ethics, and Integrity in LLM Agent Interaction",3.0,3.5,2.0,3.5,3.5,1235,55.6,9,27.2,17.6
-Sai Srikanth Madugula,saisrikanth.madugula_phd.2023@woxsen.edu.in,A Multi-Agent AI-Blockchain Framework with Reverse Kelly AMM for Under-Collateralized Real-World Asset Lending,3.2,4.0,2.5,3.5,5.0,1200,50.0,16,22.0,8.8
-Peplluis Esteva De La Rosa,peplluis.esteva@woxsen.edu.in,A Multi-Agent AI-Blockchain Framework with Reverse Kelly AMM for Under-Collateralized Real-World Asset Lending,3.2,4.0,2.5,3.5,5.0,1200,50.0,16,22.0,8.8
-Daya Shankar,daya.shankar@woxsen.edu.in,A Multi-Agent AI-Blockchain Framework with Reverse Kelly AMM for Under-Collateralized Real-World Asset Lending,3.2,4.0,2.5,3.5,5.0,1200,50.0,16,22.0,8.8
-Yihan Xia,xiayihan2023@email.szu.edu.cn,DAO-Agent: Zero Knowledge-Verified Incentives for Decentralized Multi-Agent Coordination,4.2,4.5,3.8,4.5,6.0,1310,66.7,12,23.6,-4.4
-Taotao Wang,ttwang@szu.edu.cn,DAO-Agent: Zero Knowledge-Verified Incentives for Decentralized Multi-Agent Coordination,4.2,4.5,3.8,4.5,6.0,1310,66.7,12,23.6,-4.4
-Wenxin Xu,,DAO-Agent: Zero Knowledge-Verified Incentives for Decentralized Multi-Agent Coordination,4.2,4.5,3.8,4.5,6.0,1310,66.7,12,23.6,-4.4
-Shengli Zhang,,DAO-Agent: Zero Knowledge-Verified Incentives for Decentralized Multi-Agent Coordination,4.2,4.5,3.8,4.5,6.0,1310,66.7,12,23.6,-4.4
-"Andersson, Vivi",vivia@kth.se,PoCo: Agentic Proof-of-Concept Exploit Generation for Smart Contracts,6.0,6.5,5.5,6.0,7.5,1435,81.2,16,18.2,2.2
-"Bobadilla, Sofia",,PoCo: Agentic Proof-of-Concept Exploit Generation for Smart Contracts,6.0,6.5,5.5,6.0,7.5,1435,81.2,16,18.2,2.2
-"Hobbelhagen, Harald",,PoCo: Agentic Proof-of-Concept Exploit Generation for Smart Contracts,6.0,6.5,5.5,6.0,7.5,1435,81.2,16,18.2,2.2
-"Monperrus, Martin",,PoCo: Agentic Proof-of-Concept Exploit Generation for Smart Contracts,6.0,6.5,5.5,6.0,7.5,1435,81.2,16,18.2,2.2
-Antio De La Cruz,antoniodelacruz777@outlook.com,Multi-Agent Large Language Models for Traditional Finance and Decentralized Finance,1.0,1.0,0.5,1.0,2.0,524,0.0,24,6.9,4.4
-Tomer Jordi Chaffer,tomer.chaffer@mail.mcgill.ca,Decentralized Governance of Autonomous AI Agents,3.5,4.5,2.0,4.0,4.5,1159,43.8,16,21.9,-16.2
-"Goins, Charles von",,Decentralized Governance of Autonomous AI Agents,3.5,4.5,2.0,4.0,4.5,1159,43.8,16,21.9,-16.2
-Bayo Okusanya,okusanya@alumni.princeton.edu,Decentralized Governance of Autonomous AI Agents,3.5,4.5,2.0,4.0,4.5,1159,43.8,16,21.9,-16.2
-Gemach D. A. T. A. I,,Decentralized Governance of Autonomous AI Agents,3.5,4.5,2.0,4.0,4.5,1159,43.8,16,21.9,-16.2
-"Goldston, Justin",,Decentralized Governance of Autonomous AI Agents,3.5,4.5,2.0,4.0,4.5,1159,43.8,16,21.9,-16.2
-Tomer Jordi Chaffer,1tomer.chaffer@mail.mcgill.ca,Incentivized Symbiosis: A Paradigm for Human-Agent Coevolution,2.5,3.0,1.5,2.5,4.5,920,14.3,14,18.0,-12.5
-Justin Goldston,2jgoldston@nu.edu,Incentivized Symbiosis: A Paradigm for Human-Agent Coevolution,2.5,3.0,1.5,2.5,4.5,920,14.3,14,18.0,-12.5
-Gemach D. A. T. A. I,,Incentivized Symbiosis: A Paradigm for Human-Agent Coevolution,2.5,3.0,1.5,2.5,4.5,920,14.3,14,18.0,-12.5
-Botao Amber Hu,,"Trustless Autonomy: Understanding Motivations, Benefits, and Governance Dilemmas in Self-Sovereign Decentralized AI Agents",5.0,5.5,4.0,5.0,6.5,1354,72.7,11,23.4,-9.6
-Yuhan Liu,,"Trustless Autonomy: Understanding Motivations, Benefits, and Governance Dilemmas in Self-Sovereign Decentralized AI Agents",5.0,5.5,4.0,5.0,6.5,1354,72.7,11,23.4,-9.6
-Helena Rong,,"Trustless Autonomy: Understanding Motivations, Benefits, and Governance Dilemmas in Self-Sovereign Decentralized AI Agents",5.0,5.5,4.0,5.0,6.5,1354,72.7,11,23.4,-9.6
-Aman Sardana,,Compliance-as-Code 2.0: Orchestrating Regulatory Operations with Agentic AI,2.5,4.0,1.5,3.0,4.5,1105,35.7,14,22.4,5.1
-Swaminathan Sethuraman,,Compliance-as-Code 2.0: Orchestrating Regulatory Operations with Agentic AI,2.5,4.0,1.5,3.0,4.5,1105,35.7,14,22.4,5.1
-Priya Dharshini Kalyanasundaram,,Compliance-as-Code 2.0: Orchestrating Regulatory Operations with Agentic AI,2.5,4.0,1.5,3.0,4.5,1105,35.7,14,22.4,5.1
-Nicolò Romandini,,SoK: Security and Privacy of AI Agents for Blockchain,3.8,4.0,3.5,3.5,6.5,1222,53.3,15,22.5,-8.1
-Carlo Mazzocca,cmazzocca@unisa.it,SoK: Security and Privacy of AI Agents for Blockchain,3.8,4.0,3.5,3.5,6.5,1222,53.3,15,22.5,-8.1
-Kai Otsuki,kai.ootsuki.su@nttdocomo.com,SoK: Security and Privacy of AI Agents for Blockchain,3.8,4.0,3.5,3.5,6.5,1222,53.3,15,22.5,-8.1
-Rebecca Montanari,,SoK: Security and Privacy of AI Agents for Blockchain,3.8,4.0,3.5,3.5,6.5,1222,53.3,15,22.5,-8.1
-Xing Yang,xing.yang@siat.ac.cn,Bit-politeia: An AI Agent Community in Blockchain,2.0,3.0,1.5,3.0,4.0,846,8.3,12,17.0,-1.5
-Parameswara Rao Tatini,,Transforming Sourcing and Supply Chain Management: The Evolution of AI Agents in Modern Procurement,1.5,1.5,1.0,1.0,4.0,524,0.0,27,6.2,-4.5
-Minghui Xu,,The Agent Economy: A Blockchain-Based Foundation for Autonomous AI Agents,3.0,4.0,2.0,2.5,5.0,920,14.3,14,18.0,-22.8
-Sai Santhosh R,santhoshramadugu18@gmail.com,Composable Finance with Generative AI: Future of Decentralized Asset Management,1.2,1.0,1.0,1.0,2.0,701,3.7,27,8.8,4.4
-Ashutosh Kumar Singh,,Composable Finance with Generative AI: Future of Decentralized Asset Management,1.2,1.0,1.0,1.0,2.0,701,3.7,27,8.8,4.4
-David Ricardo Saavedra,dr.saavedram1@uniandes.edu.co,Interoperable Architecture for Digital Identity Delegation for AI Agents with Blockchain Integration,3.5,4.5,2.5,4.0,4.5,1354,72.7,11,23.4,25.8
-Tejal J Sathe,,AI Agents in Personal Portfolio Management: Harnessing Machine Learning and Blockchain Technology,1.2,1.0,1.0,1.0,2.5,524,0.0,33,5.2,0.7
-A. Kamble,,AI Agents in Personal Portfolio Management: Harnessing Machine Learning and Blockchain Technology,1.2,1.0,1.0,1.0,2.5,524,0.0,33,5.2,0.7
-Alexander Neulinger,alexander.neulinger@s.wu.ac.at,"Fostering AI alignment through blockchain, proof of personhood and zero knowledge proofs",3.5,4.0,2.5,4.0,5.0,1253,57.9,19,20.3,4.4
-Lukas Sparer,lukas.sparer@s.wu.ac.at,"Fostering AI alignment through blockchain, proof of personhood and zero knowledge proofs",3.5,4.0,2.5,4.0,5.0,1253,57.9,19,20.3,4.4
-Bharathram Nagaiah,bharathram.nagaiah@gmail.com,Use of Smart contracts and AI agents in clinical trials,2.5,3.5,1.5,2.5,4.0,1105,35.7,14,22.4,5.1
-Tomer Jordi Chaffer,tomer.chaffer@mail.mcgill.ca,A hybrid marketplace of ideas,2.5,4.0,1.5,3.5,4.0,1023,25.0,16,19.7,-1.4
-Dontrail Cotlage,,A hybrid marketplace of ideas,2.5,4.0,1.5,3.5,4.0,1023,25.0,16,19.7,-1.4
-Justin Goldston,jgoldston@nu.edu,A hybrid marketplace of ideas,2.5,4.0,1.5,3.5,4.0,1023,25.0,16,19.7,-1.4
-Justin Wang,,EVMbench: Evaluating AI Agents on Smart Contract Security,7.2,7.5,6.5,6.8,8.0,1754,97.3,37,6.7,1.5
-Andreas Bigger,,EVMbench: Evaluating AI Agents on Smart Contract Security,7.2,7.5,6.5,6.8,8.0,1754,97.3,37,6.7,1.5
-Xiaohai Xu,,EVMbench: Evaluating AI Agents on Smart Contract Security,7.2,7.5,6.5,6.8,8.0,1754,97.3,37,6.7,1.5
-"Lin, Justin W.",,EVMbench: Evaluating AI Agents on Smart Contract Security,7.2,7.5,6.5,6.8,8.0,1754,97.3,37,6.7,1.5
-Andy Applebaum,,EVMbench: Evaluating AI Agents on Smart Contract Security,7.2,7.5,6.5,6.8,8.0,1754,97.3,37,6.7,1.5
-Tejal Patwardhan,,EVMbench: Evaluating AI Agents on Smart Contract Security,7.2,7.5,6.5,6.8,8.0,1754,97.3,37,6.7,1.5
-Alpin Yukseloglu,,EVMbench: Evaluating AI Agents on Smart Contract Security,7.2,7.5,6.5,6.8,8.0,1754,97.3,37,6.7,1.5
-Olivia Watkins,,EVMbench: Evaluating AI Agents on Smart Contract Security,7.2,7.5,6.5,6.8,8.0,1754,97.3,37,6.7,1.5
-Ailiya Borjigin,charles.cc.lee@newcastle.edu.au,AI Agent Architecture for Decentralized Trading of Alternative Assets,3.5,3.5,3.0,3.0,5.5,1299,64.7,17,20.7,9.5
-Cong He,,AI Agent Architecture for Decentralized Trading of Alternative Assets,3.5,3.5,3.0,3.0,5.5,1299,64.7,17,20.7,9.5
-"Lee, Charles CC",,AI Agent Architecture for Decentralized Trading of Alternative Assets,3.5,3.5,3.0,3.0,5.5,1299,64.7,17,20.7,9.5
-Wei Zhou,,AI Agent Architecture for Decentralized Trading of Alternative Assets,3.5,3.5,3.0,3.0,5.5,1299,64.7,17,20.7,9.5
-Eranga Bandara,mukka@odu.edu; awkng@ntu.edu.sg; cmedawer@odu.edu,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,3.0,3.0,2.5,3.0,5.0,1107,36.4,22,18.7,-2.9
-Sachin Shetty,sshetty@odu.edu,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,3.0,3.0,2.5,3.0,5.0,1107,36.4,22,18.7,-2.9
-Ravi Mukkamala,,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,3.0,3.0,2.5,3.0,5.0,1107,36.4,22,18.7,-2.9
-Ross Gore,rgore@odu.edu,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,3.0,3.0,2.5,3.0,5.0,1107,36.4,22,18.7,-2.9
-Peter Foytik,pfoytik@odu.edu,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,3.0,3.0,2.5,3.0,5.0,1107,36.4,22,18.7,-2.9
-Safdar Hussain Bouk,sbouk@odu.edu,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,3.0,3.0,2.5,3.0,5.0,1107,36.4,22,18.7,-2.9
-Abdul Rahman,abdulrahman@deloitte.com,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,3.0,3.0,2.5,3.0,5.0,1107,36.4,22,18.7,-2.9
-Xueping Liang,xuliang@fiu.edu,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,3.0,3.0,2.5,3.0,5.0,1107,36.4,22,18.7,-2.9
-Wee Keong Ng,,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,3.0,3.0,2.5,3.0,5.0,1107,36.4,22,18.7,-2.9
-Kasun De Zoysa,kasun@ucsc.cmb.ac.lk,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,3.0,3.0,2.5,3.0,5.0,1107,36.4,22,18.7,-2.9
-Aruna Withanage,aruna@effectz.ai,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,3.0,3.0,2.5,3.0,5.0,1107,36.4,22,18.7,-2.9
-Nilaan Loganathan,nilaan@effectz.ai,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,3.0,3.0,2.5,3.0,5.0,1107,36.4,22,18.7,-2.9
-P. S. Patil,,CrossGuard: A Zero-Trust Architecture for Privacy-Preserving AI Deployment Across Heterogeneous Multi-Cloud Environments,2.5,4.0,1.5,3.5,5.5,1032,26.3,19,18.5,0.0
-Yuanzhe Zhang,,SoK: Blockchain Agent-to-Agent Payments,4.8,5.5,4.0,5.0,6.5,1380,75.0,20,17.8,0.8
-Yuexin Xiang,,SoK: Blockchain Agent-to-Agent Payments,4.8,5.5,4.0,5.0,6.5,1380,75.0,20,17.8,0.8
-Yuchen Lei,,SoK: Blockchain Agent-to-Agent Payments,4.8,5.5,4.0,5.0,6.5,1380,75.0,20,17.8,0.8
-Qin Wang,,SoK: Blockchain Agent-to-Agent Payments,4.8,5.5,4.0,5.0,6.5,1380,75.0,20,17.8,0.8
-Tian Qiu,,SoK: Blockchain Agent-to-Agent Payments,4.8,5.5,4.0,5.0,6.5,1380,75.0,20,17.8,0.8
-Yujing Sun,,SoK: Blockchain Agent-to-Agent Payments,4.8,5.5,4.0,5.0,6.5,1380,75.0,20,17.8,0.8
-Spiridon Zarkov,,SoK: Blockchain Agent-to-Agent Payments,4.8,5.5,4.0,5.0,6.5,1380,75.0,20,17.8,0.8
-Tsz Hon Yuen,,SoK: Blockchain Agent-to-Agent Payments,4.8,5.5,4.0,5.0,6.5,1380,75.0,20,17.8,0.8
-Andreas Deppeler,,SoK: Blockchain Agent-to-Agent Payments,4.8,5.5,4.0,5.0,6.5,1380,75.0,20,17.8,0.8
-Jiangshan Yu,,SoK: Blockchain Agent-to-Agent Payments,4.8,5.5,4.0,5.0,6.5,1380,75.0,20,17.8,0.8
-Kwok-Yan Lam,,SoK: Blockchain Agent-to-Agent Payments,4.8,5.5,4.0,5.0,6.5,1380,75.0,20,17.8,0.8
-Zihan Guo,guozh29@mail2.sysu.edu.cn,BetaWeb: Towards a Blockchain-enabled Trustworthy Agentic Web,3.5,4.0,2.0,3.0,5.5,1200,50.0,12,24.6,-3.6
-Yuanjian Zhou,,BetaWeb: Towards a Blockchain-enabled Trustworthy Agentic Web,3.5,4.0,2.0,3.0,5.5,1200,50.0,12,24.6,-3.6
-Chenyi Wang,,BetaWeb: Towards a Blockchain-enabled Trustworthy Agentic Web,3.5,4.0,2.0,3.0,5.5,1200,50.0,12,24.6,-3.6
-Linlin You,,BetaWeb: Towards a Blockchain-enabled Trustworthy Agentic Web,3.5,4.0,2.0,3.0,5.5,1200,50.0,12,24.6,-3.6
-Minjie Bian,,BetaWeb: Towards a Blockchain-enabled Trustworthy Agentic Web,3.5,4.0,2.0,3.0,5.5,1200,50.0,12,24.6,-3.6
-Weinan Zhang,wnzhang@sjtu.edu.cn,BetaWeb: Towards a Blockchain-enabled Trustworthy Agentic Web,3.5,4.0,2.0,3.0,5.5,1200,50.0,12,24.6,-3.6
-Muthu Ramachandran,,"The Five Ways Framework for AI Ethics in Healthcare: Integrating Core Ethical Principles, Blockchain Transparency, Autonomous Agents, Data Governance, and Digital Identity for Patient Privacy and Sovereignty",2.5,3.0,1.5,2.5,4.5,951,16.7,12,20.1,-8.1
-Sadegh Sohani,sd_sohani@mail.um.ac.ir,ICBAC: an Intelligent Contract-Based Access Control framework for supply chain management by integrating blockchain and federated learning,4.8,5.0,4.5,4.0,6.5,1391,76.5,17,18.9,2.9
-Salar Ghazi,seyed-salar.ghazi.1@ens.etsmtl.ca,ICBAC: an Intelligent Contract-Based Access Control framework for supply chain management by integrating blockchain and federated learning,4.8,5.0,4.5,4.0,6.5,1391,76.5,17,18.9,2.9
-Farnaz Kamranfar,farnazkamranfar1999@gmail.com,ICBAC: an Intelligent Contract-Based Access Control framework for supply chain management by integrating blockchain and federated learning,4.8,5.0,4.5,4.0,6.5,1391,76.5,17,18.9,2.9
-Sahar Pilehvar Moakhar,sahar.pilevarmoakhar@mail.um.ac.ir,ICBAC: an Intelligent Contract-Based Access Control framework for supply chain management by integrating blockchain and federated learning,4.8,5.0,4.5,4.0,6.5,1391,76.5,17,18.9,2.9
-Mohammad Allahbakhsh,allahbakhsh@um.ac.ir,ICBAC: an Intelligent Contract-Based Access Control framework for supply chain management by integrating blockchain and federated learning,4.8,5.0,4.5,4.0,6.5,1391,76.5,17,18.9,2.9
-Haleh Amintoosi,amintoosi@um.ac.ir,ICBAC: an Intelligent Contract-Based Access Control framework for supply chain management by integrating blockchain and federated learning,4.8,5.0,4.5,4.0,6.5,1391,76.5,17,18.9,2.9
-Kaiwen Zhang,kaiwen.zhang@etsmtl.ca,ICBAC: an Intelligent Contract-Based Access Control framework for supply chain management by integrating blockchain and federated learning,4.8,5.0,4.5,4.0,6.5,1391,76.5,17,18.9,2.9
-Sangtian Guan,juanjuan.li@ia.ac.cn,Parallel Financial Systems: Towards Governable and Sustainable Intelligent Financial Services,3.0,3.5,1.5,3.0,5.0,1117,37.5,16,21.4,0.0
-Fei Lin,,Parallel Financial Systems: Towards Governable and Sustainable Intelligent Financial Services,3.0,3.5,1.5,3.0,5.0,1117,37.5,16,21.4,0.0
-Juanjuan Li,,Parallel Financial Systems: Towards Governable and Sustainable Intelligent Financial Services,3.0,3.5,1.5,3.0,5.0,1117,37.5,16,21.4,0.0
-Jing Wang,,Parallel Financial Systems: Towards Governable and Sustainable Intelligent Financial Services,3.0,3.5,1.5,3.0,5.0,1117,37.5,16,21.4,0.0
-Fei-Yue Wang,,Parallel Financial Systems: Towards Governable and Sustainable Intelligent Financial Services,3.0,3.5,1.5,3.0,5.0,1117,37.5,16,21.4,0.0
-Tan Gürpinar,tan.gurpinar@qu.edu,Editorial: Distributed ledger solutions in web 4.0 and their impact on enterprises and society,2.0,1.5,1.5,1.0,5.5,862,9.1,11,18.1,0.0
-Michael Henke,,Editorial: Distributed ledger solutions in web 4.0 and their impact on enterprises and society,2.0,1.5,1.5,1.0,5.5,862,9.1,11,18.1,0.0
-Anbang Ruan,ruan@netx.foundation,AgentCity: Constitutional Governance for Autonomous Agent Economies via Separation of Power,4.0,6.5,3.5,6.0,5.5,1363,73.3,15,20.5,19.1
-Xing Zhang,xing.zhang@netx.world,AgentCity: Constitutional Governance for Autonomous Agent Economies via Separation of Power,4.0,6.5,3.5,6.0,5.5,1363,73.3,15,20.5,19.1
-Jay Yu,jay@panteracapital.com; jyu01@stanford.edu,PASS: A Provenanced Access Subaccount System for Blockchain Wallets,5.8,6.0,5.5,6.0,7.0,1401,77.3,22,16.7,-2.2
-Shunfan Zhou,,PASS: A Provenanced Access Subaccount System for Blockchain Wallets,5.8,6.0,5.5,6.0,7.0,1401,77.3,22,16.7,-2.2
-Hang Yin,,PASS: A Provenanced Access Subaccount System for Blockchain Wallets,5.8,6.0,5.5,6.0,7.0,1401,77.3,22,16.7,-2.2
-Brian Seong,bseong@polygon.technology,PASS: A Provenanced Access Subaccount System for Blockchain Wallets,5.8,6.0,5.5,6.0,7.0,1401,77.3,22,16.7,-2.2
-Yue Li,,A402: Binding Cryptocurrency Payments to Service Execution for Agentic Commerce,6.5,7.0,5.5,7.0,7.5,1415,78.9,19,17.4,-4.4
-Lei Wang (6656),,A402: Binding Cryptocurrency Payments to Service Execution for Agentic Commerce,6.5,7.0,5.5,7.0,7.5,1415,78.9,19,17.4,-4.4
-Kaixuan Wang,,A402: Binding Cryptocurrency Payments to Service Execution for Agentic Commerce,6.5,7.0,5.5,7.0,7.5,1415,78.9,19,17.4,-4.4
-Zhiqiang Yang,,A402: Binding Cryptocurrency Payments to Service Execution for Agentic Commerce,6.5,7.0,5.5,7.0,7.5,1415,78.9,19,17.4,-4.4
-Ke Wang,,A402: Binding Cryptocurrency Payments to Service Execution for Agentic Commerce,6.5,7.0,5.5,7.0,7.5,1415,78.9,19,17.4,-4.4
-Zhi Guan,,A402: Binding Cryptocurrency Payments to Service Execution for Agentic Commerce,6.5,7.0,5.5,7.0,7.5,1415,78.9,19,17.4,-4.4
-Jianbo Gao,,A402: Binding Cryptocurrency Payments to Service Execution for Agentic Commerce,6.5,7.0,5.5,7.0,7.5,1415,78.9,19,17.4,-4.4
-Zibin Lin,,Binding Agent ID: Unleashing the Power of AI Agents with accountability and credibility,4.5,6.5,3.5,5.0,5.5,1312,66.7,15,21.6,-12.5
-ShengLi Zhang,,Binding Agent ID: Unleashing the Power of AI Agents with accountability and credibility,4.5,6.5,3.5,5.0,5.5,1312,66.7,15,21.6,-12.5
-Guofu Liao,,Binding Agent ID: Unleashing the Power of AI Agents with accountability and credibility,4.5,6.5,3.5,5.0,5.5,1312,66.7,15,21.6,-12.5
-Dacheng Tao,,Binding Agent ID: Unleashing the Power of AI Agents with accountability and credibility,4.5,6.5,3.5,5.0,5.5,1312,66.7,15,21.6,-12.5
-Taotao Wang,,Binding Agent ID: Unleashing the Power of AI Agents with accountability and credibility,4.5,6.5,3.5,5.0,5.5,1312,66.7,15,21.6,-12.5
-Sanjay Basu,,Know-Your-Agent (KYA): Extending Financial Identity Beyond Humans,2.5,4.5,1.5,3.5,4.0,1086,33.3,18,20.0,5.9
-Utkarsh Sinha,reachutkarshsinha@gmail.com,Autonomously Transacting Agents: A New Paradigm for AI in Finance,2.0,1.5,1.5,1.5,4.5,573,0.0,18,8.8,-4.4
-Stefano Balietti,stefano.balietti@uni-mannheim.de,Slaying the Dragon: The Quest for Democracy in Decentralized Autonomous Organizations (DAOs),4.5,4.0,4.5,3.0,7.5,1165,44.4,9,27.2,-38.3
-Pietro Saggese,pietro.saggese@imtlucca.it,Slaying the Dragon: The Quest for Democracy in Decentralized Autonomous Organizations (DAOs),4.5,4.0,4.5,3.0,7.5,1165,44.4,9,27.2,-38.3
-Stefan Kitzler,,Slaying the Dragon: The Quest for Democracy in Decentralized Autonomous Organizations (DAOs),4.5,4.0,4.5,3.0,7.5,1165,44.4,9,27.2,-38.3
-Bernhard Haslhofer,haslhofer@csh.ac.at,Slaying the Dragon: The Quest for Democracy in Decentralized Autonomous Organizations (DAOs),4.5,4.0,4.5,3.0,7.5,1165,44.4,9,27.2,-38.3
-Shaoyu Li,shaoyuli@vt.edu; hexuanyu@vt.edu,ClawCoin: An Agentic AI-Native Cryptocurrency for Decentralized Agent Economies,5.0,5.5,4.5,6.0,7.5,1391,76.9,13,21.0,2.2
-Chaoyu Zhang,chaoyu@vt.edu,ClawCoin: An Agentic AI-Native Cryptocurrency for Decentralized Agent Economies,5.0,5.5,4.5,6.0,7.5,1391,76.9,13,21.0,2.2
-Hexuan Yu,,ClawCoin: An Agentic AI-Native Cryptocurrency for Decentralized Agent Economies,5.0,5.5,4.5,6.0,7.5,1391,76.9,13,21.0,2.2
-Y. Thomas Hou,thou@vt.edu,ClawCoin: An Agentic AI-Native Cryptocurrency for Decentralized Agent Economies,5.0,5.5,4.5,6.0,7.5,1391,76.9,13,21.0,2.2
-Wenjing Lou,wjlou@vt.edu,ClawCoin: An Agentic AI-Native Cryptocurrency for Decentralized Agent Economies,5.0,5.5,4.5,6.0,7.5,1391,76.9,13,21.0,2.2
-Fernando Castillo,fc@ise.tu-berlin.deoscar,Trustworthy Decentralized Autonomous Machines: A New Paradigm in Automation Economy,3.5,4.0,2.5,3.5,5.5,1170,45.5,22,19.2,-11.0
-Oscar Castillo,oscar@dobprotocol.comeduardo,Trustworthy Decentralized Autonomous Machines: A New Paradigm in Automation Economy,3.5,4.0,2.5,3.5,5.5,1170,45.5,22,19.2,-11.0
-Eduardo Brito,eduardo.brito@cyber.eesimon,Trustworthy Decentralized Autonomous Machines: A New Paradigm in Automation Economy,3.5,4.0,2.5,3.5,5.5,1170,45.5,22,19.2,-11.0
-Simon Espinola,simon@dobprotocol.com,Trustworthy Decentralized Autonomous Machines: A New Paradigm in Automation Economy,3.5,4.0,2.5,3.5,5.5,1170,45.5,22,19.2,-11.0
-Microsoft Copilot,copilot@microsoft.com,AI Agents in the Electricity Market Game with Cryptocurrency Transactions: A Post-Terminator Analysis,1.5,1.5,1.0,2.0,3.0,524,0.0,27,6.2,-5.9
-Stephen E. Spear,,AI Agents in the Electricity Market Game with Cryptocurrency Transactions: A Post-Terminator Analysis,1.5,1.5,1.0,2.0,3.0,524,0.0,27,6.2,-5.9
-Ihor Rumyk,,AI AGENTS IN DIGITAL ASSET MANAGEMENT: OPTIMIZATION OF INVESTMENT STRATEGIES UNDER CRYPTOCURRENCY VOLATILITY,2.0,1.5,1.5,1.5,3.5,832,7.7,13,16.0,0.0
-Yurii Kovalchuk,,AI AGENTS IN DIGITAL ASSET MANAGEMENT: OPTIMIZATION OF INVESTMENT STRATEGIES UNDER CRYPTOCURRENCY VOLATILITY,2.0,1.5,1.5,1.5,3.5,832,7.7,13,16.0,0.0
-Joel Frenette,,Systems and Methods for Decentralized AI Governance Networks (DAGN) with Tokenized Power Control (TPC) for Enforcing Human-Centric AI,1.5,2.0,1.0,2.5,2.5,524,0.0,25,6.7,-4.4
-Josepha Witt,josepha.witt@uni-hohenheim.de,Opportunities and Challenges of Blockchain Technology for Negotiation Support Systems,4.5,4.0,4.5,4.5,7.0,1299,64.7,17,20.7,-13.9
-Mareike Schoop,,Opportunities and Challenges of Blockchain Technology for Negotiation Support Systems,4.5,4.0,4.5,4.5,7.0,1299,64.7,17,20.7,-13.9
-Konstantin Knaus,,Opportunities and Challenges of Blockchain Technology for Negotiation Support Systems,4.5,4.0,4.5,4.5,7.0,1299,64.7,17,20.7,-13.9
-Ayman Nait Cherif,,CQRS and Blockchain with Zero-Knowledge Proofs for Secure Multi-Agent Decision-Making,3.0,3.0,1.5,2.5,5.0,1044,27.8,18,19.2,-8.1
-Mohamed Youssfi,,CQRS and Blockchain with Zero-Knowledge Proofs for Secure Multi-Agent Decision-Making,3.0,3.0,1.5,2.5,5.0,1044,27.8,18,19.2,-8.1
-Zakariae En-Naimani,,CQRS and Blockchain with Zero-Knowledge Proofs for Secure Multi-Agent Decision-Making,3.0,3.0,1.5,2.5,5.0,1044,27.8,18,19.2,-8.1
-Ahmed TADLAOUI,,CQRS and Blockchain with Zero-Knowledge Proofs for Secure Multi-Agent Decision-Making,3.0,3.0,1.5,2.5,5.0,1044,27.8,18,19.2,-8.1
-Maha Soulami,,CQRS and Blockchain with Zero-Knowledge Proofs for Secure Multi-Agent Decision-Making,3.0,3.0,1.5,2.5,5.0,1044,27.8,18,19.2,-8.1
-Omar Bouattane,,CQRS and Blockchain with Zero-Knowledge Proofs for Secure Multi-Agent Decision-Making,3.0,3.0,1.5,2.5,5.0,1044,27.8,18,19.2,-8.1
-Yepeng Ding,yepengd@acm.org,Decentralized Multi-Agent System with Trust-Aware Communication,4.2,4.5,3.5,3.8,6.5,1327,68.4,19,19.3,-0.7
-Ahmed Twabi,iman-twabi@hiroshima-u.ac.jp,Decentralized Multi-Agent System with Trust-Aware Communication,4.2,4.5,3.5,3.8,6.5,1327,68.4,19,19.3,-0.7
-Junwei Yu,,Decentralized Multi-Agent System with Trust-Aware Communication,4.2,4.5,3.5,3.8,6.5,1327,68.4,19,19.3,-0.7
-Lingfeng Zhang,zhang-lingfeng936@g.ecc.u-tokyo.ac.jp,Decentralized Multi-Agent System with Trust-Aware Communication,4.2,4.5,3.5,3.8,6.5,1327,68.4,19,19.3,-0.7
-Tohru Kondo,tkondo@hiroshima-u.ac.jp,Decentralized Multi-Agent System with Trust-Aware Communication,4.2,4.5,3.5,3.8,6.5,1327,68.4,19,19.3,-0.7
-Hiroyuki Satō,,Decentralized Multi-Agent System with Trust-Aware Communication,4.2,4.5,3.5,3.8,6.5,1327,68.4,19,19.3,-0.7
-Arijit Khan,arijitk@cs.aau.dk,Data Management and AI for Blockchain Data Analysis:A Round Trip and Opportunities,3.0,3.5,2.0,2.5,6.0,1146,41.7,12,24.4,3.7
-Qing Hu,,"Enabling Regulatory Multi-Agent Collaboration: Architecture, Challenges, and Solutions",3.5,5.0,2.5,4.0,5.5,1178,46.7,15,22.5,-8.9
-Yuntao Wang,,"Enabling Regulatory Multi-Agent Collaboration: Architecture, Challenges, and Solutions",3.5,5.0,2.5,4.0,5.5,1178,46.7,15,22.5,-8.9
-Yuan Gao,,"Enabling Regulatory Multi-Agent Collaboration: Architecture, Challenges, and Solutions",3.5,5.0,2.5,4.0,5.5,1178,46.7,15,22.5,-8.9
-Zhoucheng Su,,"Enabling Regulatory Multi-Agent Collaboration: Architecture, Challenges, and Solutions",3.5,5.0,2.5,4.0,5.5,1178,46.7,15,22.5,-8.9
-L. Du,,"Enabling Regulatory Multi-Agent Collaboration: Architecture, Challenges, and Solutions",3.5,5.0,2.5,4.0,5.5,1178,46.7,15,22.5,-8.9
-Xiaohang Yu,x.yu21@imperial.ac.uk,LOCARD: An Agentic Framework for Blockchain Forensics,4.8,5.0,4.0,5.5,7.0,1435,81.2,16,18.2,12.5
-William Knottenbelt,w.knottenbelt@imperial.ac.uk,LOCARD: An Agentic Framework for Blockchain Forensics,4.8,5.0,4.0,5.5,7.0,1435,81.2,16,18.2,12.5
-Vivek Acharya,,Secure Autonomous Agent Payments: Verifying Authenticity and Intent in a Trustless Environment,2.8,4.5,1.5,2.5,5.0,1181,47.1,17,21.4,15.4
-Mashael Almutairi,malmutairi@vt.edu,Resilient Multi-Agent Negotiation for Medical Supply Chains:Integrating LLMs and Blockchain for Transparent Coordination,3.2,3.5,2.0,3.5,5.0,1046,27.3,11,23.4,-11.8
-Hyungmin Kim,henrykim9319@vt.edu,Resilient Multi-Agent Negotiation for Medical Supply Chains:Integrating LLMs and Blockchain for Transparent Coordination,3.2,3.5,2.0,3.5,5.0,1046,27.3,11,23.4,-11.8
-Emily Struble,,Intelligent Prevention of DDoS Attacks using Reinforcement Learning and Smart Contracts,2.5,3.0,1.5,3.5,3.5,993,21.4,14,20.0,-3.7
-Maikel León,,Intelligent Prevention of DDoS Attacks using Reinforcement Learning and Smart Contracts,2.5,3.0,1.5,3.5,3.5,993,21.4,14,20.0,-3.7
-Erotokritos Skordilis,,Intelligent Prevention of DDoS Attacks using Reinforcement Learning and Smart Contracts,2.5,3.0,1.5,3.5,3.5,993,21.4,14,20.0,-3.7
-Muhammad Farman Andrijasa,,Enhancing Smart Contract Security Through Multi-Agent Deep Reinforcement Learning Fuzzing: A Survey of Approaches and Techniques,2.5,2.0,2.0,2.0,3.5,999,22.7,22,16.7,-2.3
-Saiful Adli Ismail,,Enhancing Smart Contract Security Through Multi-Agent Deep Reinforcement Learning Fuzzing: A Survey of Approaches and Techniques,2.5,2.0,2.0,2.0,3.5,999,22.7,22,16.7,-2.3
-Norulhusna Ahmad,,Enhancing Smart Contract Security Through Multi-Agent Deep Reinforcement Learning Fuzzing: A Survey of Approaches and Techniques,2.5,2.0,2.0,2.0,3.5,999,22.7,22,16.7,-2.3
-Othman Mohd Yusop,,Enhancing Smart Contract Security Through Multi-Agent Deep Reinforcement Learning Fuzzing: A Survey of Approaches and Techniques,2.5,2.0,2.0,2.0,3.5,999,22.7,22,16.7,-2.3
-MD. Moinuddin,mohinmbstu15020@gmail.com,Integrating fourth industrial revolution (4IR) technologies with green energy systems: A framework for AI-driven smart grid optimization and carbon footprint reduction,2.5,3.0,2.0,2.5,4.5,1222,53.3,15,22.5,30.2
-Mostofa Kamal Nasir,,Integrating fourth industrial revolution (4IR) technologies with green energy systems: A framework for AI-driven smart grid optimization and carbon footprint reduction,2.5,3.0,2.0,2.5,4.5,1222,53.3,15,22.5,30.2
-Mahbuba Zaman,,Integrating fourth industrial revolution (4IR) technologies with green energy systems: A framework for AI-driven smart grid optimization and carbon footprint reduction,2.5,3.0,2.0,2.5,4.5,1222,53.3,15,22.5,30.2
-Md Shahriar Shabbir Tarafdar,,Integrating fourth industrial revolution (4IR) technologies with green energy systems: A framework for AI-driven smart grid optimization and carbon footprint reduction,2.5,3.0,2.0,2.5,4.5,1222,53.3,15,22.5,30.2
-Md. Liton Mia,,Integrating fourth industrial revolution (4IR) technologies with green energy systems: A framework for AI-driven smart grid optimization and carbon footprint reduction,2.5,3.0,2.0,2.5,4.5,1222,53.3,15,22.5,30.2
-Mototaz Begum,,Integrating fourth industrial revolution (4IR) technologies with green energy systems: A framework for AI-driven smart grid optimization and carbon footprint reduction,2.5,3.0,2.0,2.5,4.5,1222,53.3,15,22.5,30.2
-Philip Kwaku Adjei,,A graph attention network-based multi-agent reinforcement learning framework for robust detection of smart contract vulnerabilities,4.8,5.0,4.0,5.0,5.5,1339,70.0,20,18.7,-9.5
-Qin Zhi-guang,,A graph attention network-based multi-agent reinforcement learning framework for robust detection of smart contract vulnerabilities,4.8,5.0,4.0,5.0,5.5,1339,70.0,20,18.7,-9.5
-Isaac Amankona Obiri,,A graph attention network-based multi-agent reinforcement learning framework for robust detection of smart contract vulnerabilities,4.8,5.0,4.0,5.0,5.5,1339,70.0,20,18.7,-9.5
-Ansu Badjie,,A graph attention network-based multi-agent reinforcement learning framework for robust detection of smart contract vulnerabilities,4.8,5.0,4.0,5.0,5.5,1339,70.0,20,18.7,-9.5
-Christian Nii Aflah Cobblah,,A graph attention network-based multi-agent reinforcement learning framework for robust detection of smart contract vulnerabilities,4.8,5.0,4.0,5.0,5.5,1339,70.0,20,18.7,-9.5
-Ali Alqahtani,,A graph attention network-based multi-agent reinforcement learning framework for robust detection of smart contract vulnerabilities,4.8,5.0,4.0,5.0,5.5,1339,70.0,20,18.7,-9.5
-Yeong Hyeon Gu,,A graph attention network-based multi-agent reinforcement learning framework for robust detection of smart contract vulnerabilities,4.8,5.0,4.0,5.0,5.5,1339,70.0,20,18.7,-9.5
-Mugahed A. Al–antari,,A graph attention network-based multi-agent reinforcement learning framework for robust detection of smart contract vulnerabilities,4.8,5.0,4.0,5.0,5.5,1339,70.0,20,18.7,-9.5
-Ahmed Alagha,,UAV-assisted Internet of vehicles: A framework empowered by reinforcement learning and Blockchain,4.5,4.0,4.0,3.5,6.5,1274,61.1,18,20.5,-15.4
-Maha Kadadha,,UAV-assisted Internet of vehicles: A framework empowered by reinforcement learning and Blockchain,4.5,4.0,4.0,3.5,6.5,1274,61.1,18,20.5,-15.4
-Rabeb Mizouni,,UAV-assisted Internet of vehicles: A framework empowered by reinforcement learning and Blockchain,4.5,4.0,4.0,3.5,6.5,1274,61.1,18,20.5,-15.4
-Shakti Singh,,UAV-assisted Internet of vehicles: A framework empowered by reinforcement learning and Blockchain,4.5,4.0,4.0,3.5,6.5,1274,61.1,18,20.5,-15.4
-Jamal Bentahar,,UAV-assisted Internet of vehicles: A framework empowered by reinforcement learning and Blockchain,4.5,4.0,4.0,3.5,6.5,1274,61.1,18,20.5,-15.4
-Hadi Otrok,,UAV-assisted Internet of vehicles: A framework empowered by reinforcement learning and Blockchain,4.5,4.0,4.0,3.5,6.5,1274,61.1,18,20.5,-15.4
-Xiaorong Zhu,,A self evolving high performance sharded consortium blockchain designed for secure and trusted resource sharing for 6G networks,4.2,4.0,3.5,4.5,4.0,1241,56.2,16,21.9,-12.5
-Zhiwei Yuan,,A self evolving high performance sharded consortium blockchain designed for secure and trusted resource sharing for 6G networks,4.2,4.0,3.5,4.5,4.0,1241,56.2,16,21.9,-12.5
-Qinyin Ni,,A self evolving high performance sharded consortium blockchain designed for secure and trusted resource sharing for 6G networks,4.2,4.0,3.5,4.5,4.0,1241,56.2,16,21.9,-12.5
-Zhiyuan Wei,weizhiyuan@bit.edu.cn,LLM-SmartAudit: Advanced Smart Contract Vulnerability Detection,4.2,5.0,3.0,4.5,4.5,1347,71.4,14,21.5,8.8
-Jing Sun,jing.sun@auckland.ac.nz,LLM-SmartAudit: Advanced Smart Contract Vulnerability Detection,4.2,5.0,3.0,4.5,4.5,1347,71.4,14,21.5,8.8
-"Zhang, Zijiang",,LLM-SmartAudit: Advanced Smart Contract Vulnerability Detection,4.2,5.0,3.0,4.5,4.5,1347,71.4,14,21.5,8.8
-Xianhao Zhang,zhangzijian@bit.edu.cn,LLM-SmartAudit: Advanced Smart Contract Vulnerability Detection,4.2,5.0,3.0,4.5,4.5,1347,71.4,14,21.5,8.8
-"Li, Meng",mengli@hfut.edu.cn,LLM-SmartAudit: Advanced Smart Contract Vulnerability Detection,4.2,5.0,3.0,4.5,4.5,1347,71.4,14,21.5,8.8
-"Hou, Zhe",,LLM-SmartAudit: Advanced Smart Contract Vulnerability Detection,4.2,5.0,3.0,4.5,4.5,1347,71.4,14,21.5,8.8
-Anas Abognah,aabognah@uwaterloo.ca,BLAST: Blockchain-based LLM-powered Agentic Spectrum Trading,4.2,4.0,3.5,4.5,6.5,1347,71.4,14,21.5,10.3
-Otman Basir,,BLAST: Blockchain-based LLM-powered Agentic Spectrum Trading,4.2,4.0,3.5,4.5,6.5,1347,71.4,14,21.5,10.3
-Gyuyeon Na,amy-na@ewha.ac.kr,Human-Centered LLM-Agent System for Detecting Anomalous Digital Asset Transactions,3.5,3.5,2.5,3.0,4.5,1034,25.0,8,26.0,-25.0
-Min-Jung Park,mjpark@kumoh.ac.kr,Human-Centered LLM-Agent System for Detecting Anomalous Digital Asset Transactions,3.5,3.5,2.5,3.0,4.5,1034,25.0,8,26.0,-25.0
-Hyeonjeong Cha,hyeonjeong.cha@ewha.ac.kr,Human-Centered LLM-Agent System for Detecting Anomalous Digital Asset Transactions,3.5,3.5,2.5,3.0,4.5,1034,25.0,8,26.0,-25.0
-Sangmi Chai,,Human-Centered LLM-Agent System for Detecting Anomalous Digital Asset Transactions,3.5,3.5,2.5,3.0,4.5,1034,25.0,8,26.0,-25.0
-Landy Jimenez,,HadAgent: Harness-Aware Decentralized Agentic AI Serving with Proof-of-Inference Blockchain Consensus,3.0,4.5,2.0,4.0,5.5,1225,53.8,13,23.8,20.6
-Mariah Weatherspoon,,HadAgent: Harness-Aware Decentralized Agentic AI Serving with Proof-of-Inference Blockchain Consensus,3.0,4.5,2.0,4.0,5.5,1225,53.8,13,23.8,20.6
-Bingyu Shen,bingyu.shen@hotmail.com,HadAgent: Harness-Aware Decentralized Agentic AI Serving with Proof-of-Inference Blockchain Consensus,3.0,4.5,2.0,4.0,5.5,1225,53.8,13,23.8,20.6
-Yi Sheng,,HadAgent: Harness-Aware Decentralized Agentic AI Serving with Proof-of-Inference Blockchain Consensus,3.0,4.5,2.0,4.0,5.5,1225,53.8,13,23.8,20.6
-Jianming Liu,liujm06@gmail.com,HadAgent: Harness-Aware Decentralized Agentic AI Serving with Proof-of-Inference Blockchain Consensus,3.0,4.5,2.0,4.0,5.5,1225,53.8,13,23.8,20.6
-Boyang Li,,HadAgent: Harness-Aware Decentralized Agentic AI Serving with Proof-of-Inference Blockchain Consensus,3.0,4.5,2.0,4.0,5.5,1225,53.8,13,23.8,20.6
-Anichur Rahman,,Internet of medical things and blockchain-enabled patient-centric agent through SDN for remote patient monitoring in 5G network,3.5,3.0,2.5,3.0,4.0,1111,36.4,11,24.7,-16.2
-Md. Anwar Hussen Wadud,,Internet of medical things and blockchain-enabled patient-centric agent through SDN for remote patient monitoring in 5G network,3.5,3.0,2.5,3.0,4.0,1111,36.4,11,24.7,-16.2
-Md. Jahidul Islam,,Internet of medical things and blockchain-enabled patient-centric agent through SDN for remote patient monitoring in 5G network,3.5,3.0,2.5,3.0,4.0,1111,36.4,11,24.7,-16.2
-Dipanjali Kundu,,Internet of medical things and blockchain-enabled patient-centric agent through SDN for remote patient monitoring in 5G network,3.5,3.0,2.5,3.0,4.0,1111,36.4,11,24.7,-16.2
-T. M. Amir-Ul-Haque Bhuiyan,,Internet of medical things and blockchain-enabled patient-centric agent through SDN for remote patient monitoring in 5G network,3.5,3.0,2.5,3.0,4.0,1111,36.4,11,24.7,-16.2
-Ghulam Muhammad,,Internet of medical things and blockchain-enabled patient-centric agent through SDN for remote patient monitoring in 5G network,3.5,3.0,2.5,3.0,4.0,1111,36.4,11,24.7,-16.2
-Zulfiqar Ali,,Internet of medical things and blockchain-enabled patient-centric agent through SDN for remote patient monitoring in 5G network,3.5,3.0,2.5,3.0,4.0,1111,36.4,11,24.7,-16.2
-Xuhan Zuo,,Large Language Model Federated Learning with Blockchain and Unlearning for Cross-Organizational Collaboration,3.0,4.0,2.0,3.0,4.0,1159,43.8,16,21.9,6.7
-Minghao Wang,,Large Language Model Federated Learning with Blockchain and Unlearning for Cross-Organizational Collaboration,3.0,4.0,2.0,3.0,4.0,1159,43.8,16,21.9,6.7
-Tianqing Zhu,tqzhu@cityu.edu.mo,Large Language Model Federated Learning with Blockchain and Unlearning for Cross-Organizational Collaboration,3.0,4.0,2.0,3.0,4.0,1159,43.8,16,21.9,6.7
-Shui Yu,,Large Language Model Federated Learning with Blockchain and Unlearning for Cross-Organizational Collaboration,3.0,4.0,2.0,3.0,4.0,1159,43.8,16,21.9,6.7
-Wanlei Zhou,,Large Language Model Federated Learning with Blockchain and Unlearning for Cross-Organizational Collaboration,3.0,4.0,2.0,3.0,4.0,1159,43.8,16,21.9,6.7
-Felix Wagner,ifelixwagner@datavisionglobal.com,Distributed Intelligence Platforms Enabled by Blockchain for Secure Multi-Agent Collaboration,1.0,1.0,1.0,1.0,3.0,730,0.0,7,17.7,7.4
-Shizhen Bai,,“GenAI + blockchain” to coordinate agricultural supply chains to improve quality trust: an agent-based simulation study,3.0,3.0,2.5,2.5,3.5,1229,54.5,11,25.4,22.8
-Zijing Liu,,“GenAI + blockchain” to coordinate agricultural supply chains to improve quality trust: an agent-based simulation study,3.0,3.0,2.5,2.5,3.5,1229,54.5,11,25.4,22.8
-Wen‐Ya Wu,,“GenAI + blockchain” to coordinate agricultural supply chains to improve quality trust: an agent-based simulation study,3.0,3.0,2.5,2.5,3.5,1229,54.5,11,25.4,22.8
-Na Xu,,“GenAI + blockchain” to coordinate agricultural supply chains to improve quality trust: an agent-based simulation study,3.0,3.0,2.5,2.5,3.5,1229,54.5,11,25.4,22.8
-Man Jiang,,“GenAI + blockchain” to coordinate agricultural supply chains to improve quality trust: an agent-based simulation study,3.0,3.0,2.5,2.5,3.5,1229,54.5,11,25.4,22.8
-Majd Soud,,Soley: Identification and Automated Detection of Logic Vulnerabilities in Ethereum Smart Contracts Using Large Language Models,4.5,5.0,4.0,5.0,5.5,1426,80.0,20,16.8,19.8
-Waltteri Nuutinen,,Soley: Identification and Automated Detection of Logic Vulnerabilities in Ethereum Smart Contracts Using Large Language Models,4.5,5.0,4.0,5.0,5.5,1426,80.0,20,16.8,19.8
-Grischa Liebel,,Soley: Identification and Automated Detection of Logic Vulnerabilities in Ethereum Smart Contracts Using Large Language Models,4.5,5.0,4.0,5.0,5.5,1426,80.0,20,16.8,19.8
-Patrick Sebastian,patrick_sebastian@utp.edu.my,"Editorial: Applications of AI in autonomous, surveillance, and robotic systems",1.5,1.0,1.5,1.0,5.0,524,0.0,25,6.7,-5.1
-Ahmed Alagha,,Blockchain-based crowdsourced deep reinforcement learning as a service,4.5,4.5,4.0,5.0,6.5,1354,72.7,11,23.4,3.7
-Hadi Otrok,,Blockchain-based crowdsourced deep reinforcement learning as a service,4.5,4.5,4.0,5.0,6.5,1354,72.7,11,23.4,3.7
-Shakti Singh,,Blockchain-based crowdsourced deep reinforcement learning as a service,4.5,4.5,4.0,5.0,6.5,1354,72.7,11,23.4,3.7
-Rabeb Mizouni,,Blockchain-based crowdsourced deep reinforcement learning as a service,4.5,4.5,4.0,5.0,6.5,1354,72.7,11,23.4,3.7
-Jamal Bentahar,,Blockchain-based crowdsourced deep reinforcement learning as a service,4.5,4.5,4.0,5.0,6.5,1354,72.7,11,23.4,3.7
-"Mao, Qian'ang",wzhou4@utk.edu; cassie-ikk@smail.nju.edu.cn; me@c0mm4nd.com,Know Your Intent: An Autonomous Multi-Perspective LLM Agent Framework for DeFi User Transaction Intent Mining,4.8,5.5,3.8,5.0,6.0,1391,76.5,17,18.9,4.4
-"Zhang, Yuxuan",,Know Your Intent: An Autonomous Multi-Perspective LLM Agent Framework for DeFi User Transaction Intent Mining,4.8,5.5,3.8,5.0,6.0,1391,76.5,17,18.9,4.4
-"Chen, Jiaman",jiamanchen@smail.nju.edu.cn,Know Your Intent: An Autonomous Multi-Perspective LLM Agent Framework for DeFi User Transaction Intent Mining,4.8,5.5,3.8,5.0,6.0,1391,76.5,17,18.9,4.4
-"Zhou, Wenjun",,Know Your Intent: An Autonomous Multi-Perspective LLM Agent Framework for DeFi User Transaction Intent Mining,4.8,5.5,3.8,5.0,6.0,1391,76.5,17,18.9,4.4
-"Yan, Jiaqi",jiaqiyan@nju.edu.cn,Know Your Intent: An Autonomous Multi-Perspective LLM Agent Framework for DeFi User Transaction Intent Mining,4.8,5.5,3.8,5.0,6.0,1391,76.5,17,18.9,4.4
-Arman Abgaryan,,Decentralised Multi-Manager Fund Framework,2.5,3.0,1.5,3.0,5.0,1072,31.2,16,20.7,8.1
-Utkarsh Sharma,,Decentralised Multi-Manager Fund Framework,2.5,3.0,1.5,3.0,5.0,1072,31.2,16,20.7,8.1
-Joshua Tobkin,,Decentralised Multi-Manager Fund Framework,2.5,3.0,1.5,3.0,5.0,1072,31.2,16,20.7,8.1
-Tan Gürpinar,,Towards web 4.0: frameworks for autonomous AI agents and decentralized enterprise coordination,2.5,2.5,1.5,2.0,4.5,1009,23.1,13,21.0,0.8
-Ailiya Borjigin,,AI-Governed Agent Architecture for Web-Trustworthy Tokenization of Alternative Assets,3.0,3.5,1.5,3.0,5.5,1088,33.3,15,21.6,-0.8
-Wei Zhou,,AI-Governed Agent Architecture for Web-Trustworthy Tokenization of Alternative Assets,3.0,3.5,1.5,3.0,5.5,1088,33.3,15,21.6,-0.8
-Cong He,,AI-Governed Agent Architecture for Web-Trustworthy Tokenization of Alternative Assets,3.0,3.5,1.5,3.0,5.5,1088,33.3,15,21.6,-0.8
-Minfeng Qi,,Towards Transparent and Incentive-Compatible Collaboration in Decentralized LLM Multi-Agent Systems: A Blockchain-Driven Approach,3.8,3.5,3.0,3.5,6.5,1237,55.6,18,20.9,-3.7
-Tianqing Zhu,tqzhu@cityu.edu.mo,Towards Transparent and Incentive-Compatible Collaboration in Decentralized LLM Multi-Agent Systems: A Blockchain-Driven Approach,3.8,3.5,3.0,3.5,6.5,1237,55.6,18,20.9,-3.7
-Lefeng Zhang,,Towards Transparent and Incentive-Compatible Collaboration in Decentralized LLM Multi-Agent Systems: A Blockchain-Driven Approach,3.8,3.5,3.0,3.5,6.5,1237,55.6,18,20.9,-3.7
-Ningran Li,,Towards Transparent and Incentive-Compatible Collaboration in Decentralized LLM Multi-Agent Systems: A Blockchain-Driven Approach,3.8,3.5,3.0,3.5,6.5,1237,55.6,18,20.9,-3.7
-Wanlei Zhou,,Towards Transparent and Incentive-Compatible Collaboration in Decentralized LLM Multi-Agent Systems: A Blockchain-Driven Approach,3.8,3.5,3.0,3.5,6.5,1237,55.6,18,20.9,-3.7
-Andrii Dovzhenko,,A Blockchain-Based Approach to Trust System Design in Multi-Agent Environments,2.5,2.5,1.5,2.0,4.5,806,6.7,15,14.3,-8.1
-Vadym Yaremenko,,A Blockchain-Based Approach to Trust System Design in Multi-Agent Environments,2.5,2.5,1.5,2.0,4.5,806,6.7,15,14.3,-8.1
-Ke Tian,ketian2@illinois.edu,Blockchain-enhanced incentive-compatible mechanisms for multi-agent reinforcement learning systems,3.5,3.5,3.0,3.5,5.5,1222,53.3,15,22.5,3.6
-Agustinus Suradi,constitudeum@gmail.com,Blockchain-Enabled Multi-Agent Reinforcement Learning for Secure Decentralised Resource Allocation in 5G/6G Network Slicing,1.5,1.5,1.0,1.5,2.5,524,0.0,27,6.2,0.0
-Muhamad Aris Sunandar,muhamadaris@stpn.ac.id,Blockchain-Enabled Multi-Agent Reinforcement Learning for Secure Decentralised Resource Allocation in 5G/6G Network Slicing,1.5,1.5,1.0,1.5,2.5,524,0.0,27,6.2,0.0
-Umna Iftikhar,yamnaiftikhar@gmail.com,Blockchain-Enabled Multi-Agent Reinforcement Learning for Secure Decentralised Resource Allocation in 5G/6G Network Slicing,1.5,1.5,1.0,1.5,2.5,524,0.0,27,6.2,0.0
-Janani Rangila,asiriwe@u-aizu.ac.jp,S5-SHB Agent: Society 5.0 enabled Multi-model Agentic Blockchain Framework for Smart Home,3.8,3.5,3.0,4.5,5.5,1200,50.0,12,24.6,-12.5
-Akila Siriweera,,S5-SHB Agent: Society 5.0 enabled Multi-model Agentic Blockchain Framework for Smart Home,3.8,3.5,3.0,4.5,5.5,1200,50.0,12,24.6,-12.5
-Incheon Paik,,S5-SHB Agent: Society 5.0 enabled Multi-model Agentic Blockchain Framework for Smart Home,3.8,3.5,3.0,4.5,5.5,1200,50.0,12,24.6,-12.5
-Keitaro Naruse,,S5-SHB Agent: Society 5.0 enabled Multi-model Agentic Blockchain Framework for Smart Home,3.8,3.5,3.0,4.5,5.5,1200,50.0,12,24.6,-12.5
-Isuru Jayanada,,S5-SHB Agent: Society 5.0 enabled Multi-model Agentic Blockchain Framework for Smart Home,3.8,3.5,3.0,4.5,5.5,1200,50.0,12,24.6,-12.5
-Vishmika Devindi,,S5-SHB Agent: Society 5.0 enabled Multi-model Agentic Blockchain Framework for Smart Home,3.8,3.5,3.0,4.5,5.5,1200,50.0,12,24.6,-12.5
-A. Bendada,,BotDetect: A Decentralized Federated Learning Framework for Detecting Financial Bots on the EVM Blockchains,3.5,4.0,2.5,4.5,6.0,1302,65.0,20,19.3,16.2
-Abdelaziz Amara Korba,,BotDetect: A Decentralized Federated Learning Framework for Detecting Financial Bots on the EVM Blockchains,3.5,4.0,2.5,4.5,6.0,1302,65.0,20,19.3,16.2
-Mouhamed Amine Bouchiha,,BotDetect: A Decentralized Federated Learning Framework for Detecting Financial Bots on the EVM Blockchains,3.5,4.0,2.5,4.5,6.0,1302,65.0,20,19.3,16.2
-Yacine Ghamri‐Doudane,,BotDetect: A Decentralized Federated Learning Framework for Detecting Financial Bots on the EVM Blockchains,3.5,4.0,2.5,4.5,6.0,1302,65.0,20,19.3,16.2
-Qian'ang Mao,,SoK: Security of Autonomous LLM Agents in Agentic Commerce,5.5,6.5,4.5,5.0,6.5,1391,76.5,17,18.9,-2.2
-Jiaxin Wang,,SoK: Security of Autonomous LLM Agents in Agentic Commerce,5.5,6.5,4.5,5.0,6.5,1391,76.5,17,18.9,-2.2
-Ya Liu,,SoK: Security of Autonomous LLM Agents in Agentic Commerce,5.5,6.5,4.5,5.0,6.5,1391,76.5,17,18.9,-2.2
-Li Zhu,,SoK: Security of Autonomous LLM Agents in Agentic Commerce,5.5,6.5,4.5,5.0,6.5,1391,76.5,17,18.9,-2.2
-Cong Ma,,SoK: Security of Autonomous LLM Agents in Agentic Commerce,5.5,6.5,4.5,5.0,6.5,1391,76.5,17,18.9,-2.2
-Jiaqi Yan,,SoK: Security of Autonomous LLM Agents in Agentic Commerce,5.5,6.5,4.5,5.0,6.5,1391,76.5,17,18.9,-2.2
-J Fejes,judit.katalin.fejes@gmail.com,CryptoLife HYDRA-SAI Framework for Investor Decision Support,2.5,3.0,2.0,3.0,4.0,985,21.1,19,17.4,0.0
-Etelka Éva Katits,,CryptoLife HYDRA-SAI Framework for Investor Decision Support,2.5,3.0,2.0,3.0,4.0,985,21.1,19,17.4,0.0
-Yongrae Jo,memex@postech.ac.kr,Byzantine-Robust Decentralized Coordination of LLM Agents,4.0,4.5,3.0,5.0,6.0,1302,65.0,20,19.3,2.2
-Chanik Park,cipark@postech.ac.kr,Byzantine-Robust Decentralized Coordination of LLM Agents,4.0,4.5,3.0,5.0,6.0,1302,65.0,20,19.3,2.2
-Eduardo Sardenberg Tavares,sardenberg@telemidia.puc-rio.br,Evaluating Zero-shot Reasoning with Agentic LLMs for Smart Contract Vulnerability Detection,3.5,3.0,3.5,2.5,5.5,1111,36.8,19,19.9,-13.2
-Antonio José G. Busson,antonio.busson@btgpactual.com,Evaluating Zero-shot Reasoning with Agentic LLMs for Smart Contract Vulnerability Detection,3.5,3.0,3.5,2.5,5.5,1111,36.8,19,19.9,-13.2
-Sérgio Colcher,colcher@inf.puc-rio.br,Evaluating Zero-shot Reasoning with Agentic LLMs for Smart Contract Vulnerability Detection,3.5,3.0,3.5,2.5,5.5,1111,36.8,19,19.9,-13.2
-Yichen Luo,yichen.luo.22@ucl.ac.uk,Resisting Manipulative Bots in Meme Coin Copy Trading: A Multi-Agent Approach with Chain-of-Thought Reasoning,6.3,6.5,5.5,6.5,7.0,1343,70.6,17,19.9,-20.6
-Yebo Feng,yebo.feng@ntu.edu.sg,Resisting Manipulative Bots in Meme Coin Copy Trading: A Multi-Agent Approach with Chain-of-Thought Reasoning,6.3,6.5,5.5,6.5,7.0,1343,70.6,17,19.9,-20.6
-Jiahua Xu,,Resisting Manipulative Bots in Meme Coin Copy Trading: A Multi-Agent Approach with Chain-of-Thought Reasoning,6.3,6.5,5.5,6.5,7.0,1343,70.6,17,19.9,-20.6
-Yang Liu,yangliu@ntu.edu.sg,Resisting Manipulative Bots in Meme Coin Copy Trading: A Multi-Agent Approach with Chain-of-Thought Reasoning,6.3,6.5,5.5,6.5,7.0,1343,70.6,17,19.9,-20.6
-Bin Hu,botao.hu@cs.ox.ac.uk; hr2703@nyu.edu,"Inter-Agent Trust Models: A Comparative Study of Brief, Claim, Proof, Stake, Reputation and Constraint in Agentic Web Protocol Design-A2A, AP2, ERC-8004, and Beyond",4.0,5.0,2.5,3.5,6.5,1183,47.4,19,20.5,-17.7
-Helena Rong,,"Inter-Agent Trust Models: A Comparative Study of Brief, Claim, Proof, Stake, Reputation and Constraint in Agentic Web Protocol Design-A2A, AP2, ERC-8004, and Beyond",4.0,5.0,2.5,3.5,6.5,1183,47.4,19,20.5,-17.7
-Arthur Gervais,,AI Agent Smart Contract Exploit Generation,6.8,7.5,6.5,6.5,7.5,1426,80.0,20,16.8,-3.7
-Liyi Zhou,,AI Agent Smart Contract Exploit Generation,6.8,7.5,6.5,6.5,7.5,1426,80.0,20,16.8,-3.7
-Chaoyuan Peng,,Re-Evaluating EVMBench: Are AI Agents Ready for Smart Contract Security?,7.0,7.5,6.5,6.0,8.5,1596,92.3,26,11.0,0.0
-Lei Wu,,Re-Evaluating EVMBench: Are AI Agents Ready for Smart Contract Security?,7.0,7.5,6.5,6.0,8.5,1596,92.3,26,11.0,0.0
-Yajin Zhou,,Re-Evaluating EVMBench: Are AI Agents Ready for Smart Contract Security?,7.0,7.5,6.5,6.0,8.5,1596,92.3,26,11.0,0.0
-Yulin Liu,yulin@quantecon.ai,EconAgentic in DePIN Markets: A Large Language Model Approach to the Sharing Economy of Decentralized Physical Infrastructure,2.5,3.0,2.0,3.0,4.0,979,20.0,15,19.1,-0.7
-M. Schweitzer,,EconAgentic in DePIN Markets: A Large Language Model Approach to the Sharing Economy of Decentralized Physical Infrastructure,2.5,3.0,2.0,3.0,4.0,979,20.0,15,19.1,-0.7
-Jian sheng Wang,jason@yeah.app,AESP: A Human-Sovereign Economic Protocol for AI Agents with Privacy-Preserving Settlement,3.5,4.5,2.5,3.5,6.5,1222,53.3,15,22.5,3.6
-Aadi Singhi,,An Adaptive Multi Agent Bitcoin Trading System,3.5,3.0,2.5,4.0,5.5,1200,50.0,12,24.6,0.8
-Anbang Ruan,ruan@netx.foundation,AGNT2: Autonomous Agent Economies on Interaction-Optimized Layer 2 Infrastructure,5.5,6.5,5.0,6.5,7.5,1436,81.0,21,16.2,7.3
-Xing Zhang,xing.zhang@netx.world,AGNT2: Autonomous Agent Economies on Interaction-Optimized Layer 2 Infrastructure,5.5,6.5,5.0,6.5,7.5,1436,81.0,21,16.2,7.3
-Ghazi Ayed Alghathian,,Blockchain as a model for granting trust in AI-mediated digital transactions,4.2,4.5,3.5,4.0,4.5,1200,50.0,16,22.0,-19.1
-Karima Belabbes Mohammed Krim,,Blockchain as a model for granting trust in AI-mediated digital transactions,4.2,4.5,3.5,4.0,4.5,1200,50.0,16,22.0,-19.1
-Mohammad Khamaysa,,Blockchain as a model for granting trust in AI-mediated digital transactions,4.2,4.5,3.5,4.0,4.5,1200,50.0,16,22.0,-19.1
-Murad Altarawneh,,Blockchain as a model for granting trust in AI-mediated digital transactions,4.2,4.5,3.5,4.0,4.5,1200,50.0,16,22.0,-19.1
-Marc Jansen,marc.jansen@hs-ruhrwest.de,QOC DAO -- Stepwise Development Towards an AI Driven Decentralized Autonomous Organization,3.5,4.0,2.5,3.0,5.0,1264,60.0,10,26.0,15.4
-Christophe Verdot,christophe@blockai.dev,QOC DAO -- Stepwise Development Towards an AI Driven Decentralized Autonomous Organization,3.5,4.0,2.5,3.0,5.0,1264,60.0,10,26.0,15.4
-Tomer Jordi Chaffer,tomer.chaffer@mail.mcgill.ca,Can We Govern the Agent-to-Agent Economy?,2.5,3.5,1.5,2.5,4.5,1023,25.0,16,19.7,6.6
-Syed A. Rizvi,s.muhammadaqdasrizvi@gmail.com,The Cognitive Penalty: Ablating System 1 and System 2 Reasoning in Edge-Native SLMs for Decentralized Consensus,4.5,5.5,4.0,6.0,6.5,1377,75.0,16,19.7,10.3
-Chong Chen,chenjch86@mail.sysu.edu.cn,Coinvisor: An RL-Enhanced Chatbot Agent for Interactive Cryptocurrency Investment Analysis,4.0,3.5,3.5,4.0,5.5,1178,46.7,15,22.5,-18.4
-Ze Liu,,Coinvisor: An RL-Enhanced Chatbot Agent for Interactive Cryptocurrency Investment Analysis,4.0,3.5,3.5,4.0,5.5,1178,46.7,15,22.5,-18.4
-Lingfeng Bao,lingfengbao@zju.edu.cn,Coinvisor: An RL-Enhanced Chatbot Agent for Interactive Cryptocurrency Investment Analysis,4.0,3.5,3.5,4.0,5.5,1178,46.7,15,22.5,-18.4
-Yanlin Wang,wangylin36@mail.sysu.edu.cn,Coinvisor: An RL-Enhanced Chatbot Agent for Interactive Cryptocurrency Investment Analysis,4.0,3.5,3.5,4.0,5.5,1178,46.7,15,22.5,-18.4
-Ting Chen,,Coinvisor: An RL-Enhanced Chatbot Agent for Interactive Cryptocurrency Investment Analysis,4.0,3.5,3.5,4.0,5.5,1178,46.7,15,22.5,-18.4
-Daoyuan Wu,,Coinvisor: An RL-Enhanced Chatbot Agent for Interactive Cryptocurrency Investment Analysis,4.0,3.5,3.5,4.0,5.5,1178,46.7,15,22.5,-18.4
-Jiachi Chen,,Coinvisor: An RL-Enhanced Chatbot Agent for Interactive Cryptocurrency Investment Analysis,4.0,3.5,3.5,4.0,5.5,1178,46.7,15,22.5,-18.4
-Jingyi Zheng,xinleihe@hkust-gz.edu.cn,GasAgent: A Multi-Agent Framework for Automated Gas Optimization in Smart Contracts,5.8,5.5,5.5,5.0,7.0,1368,73.7,19,18.5,-8.8
-"Peng, Zifan",,GasAgent: A Multi-Agent Framework for Automated Gas Optimization in Smart Contracts,5.8,5.5,5.5,5.0,7.0,1368,73.7,19,18.5,-8.8
-Yule Liu,,GasAgent: A Multi-Agent Framework for Automated Gas Optimization in Smart Contracts,5.8,5.5,5.5,5.0,7.0,1368,73.7,19,18.5,-8.8
-Junfeng Wang,,GasAgent: A Multi-Agent Framework for Automated Gas Optimization in Smart Contracts,5.8,5.5,5.5,5.0,7.0,1368,73.7,19,18.5,-8.8
-Yifan Liao,,GasAgent: A Multi-Agent Framework for Automated Gas Optimization in Smart Contracts,5.8,5.5,5.5,5.0,7.0,1368,73.7,19,18.5,-8.8
-Wenhan Dong,,GasAgent: A Multi-Agent Framework for Automated Gas Optimization in Smart Contracts,5.8,5.5,5.5,5.0,7.0,1368,73.7,19,18.5,-8.8
-Xinlei He,,GasAgent: A Multi-Agent Framework for Automated Gas Optimization in Smart Contracts,5.8,5.5,5.5,5.0,7.0,1368,73.7,19,18.5,-8.8
-Jie Chen,,Multi-Agent Collaborative Fuzzing with Continuous Reflection for Smart Contracts Vulnerability Detection,6.2,6.5,5.5,6.5,6.8,1419,78.8,33,13.5,-1.5
-Liangmin Wang,,Multi-Agent Collaborative Fuzzing with Continuous Reflection for Smart Contracts Vulnerability Detection,6.2,6.5,5.5,6.5,6.8,1419,78.8,33,13.5,-1.5
-Wei Chen,chenwei8@sjtu.edu.cn,SolAgent: A Specialized Multi-Agent Framework for Solidity Code Generation,5.5,6.0,5.0,4.5,7.0,1327,68.4,19,19.3,-22.0
-Zhiyuan Peng,,SolAgent: A Specialized Multi-Agent Framework for Solidity Code Generation,5.5,6.0,5.0,4.5,7.0,1327,68.4,19,19.3,-22.0
-Xin Yin,xyin@zju.edu.cn,SolAgent: A Specialized Multi-Agent Framework for Solidity Code Generation,5.5,6.0,5.0,4.5,7.0,1327,68.4,19,19.3,-22.0
-Chao Ni,,SolAgent: A Specialized Multi-Agent Framework for Solidity Code Generation,5.5,6.0,5.0,4.5,7.0,1327,68.4,19,19.3,-22.0
-Chenhao Ying,,SolAgent: A Specialized Multi-Agent Framework for Solidity Code Generation,5.5,6.0,5.0,4.5,7.0,1327,68.4,19,19.3,-22.0
-Bang Xie,,SolAgent: A Specialized Multi-Agent Framework for Solidity Code Generation,5.5,6.0,5.0,4.5,7.0,1327,68.4,19,19.3,-22.0
-Yuan Luo,,SolAgent: A Specialized Multi-Agent Framework for Solidity Code Generation,5.5,6.0,5.0,4.5,7.0,1327,68.4,19,19.3,-22.0
-Ali Akarma,443059463@stu.iu.edu.sa; s21bdocs1m01009@iub.edu.pk,Governance-Constrained Agentic AI: Blockchain-Enforced Human Oversight for Safety-Critical Wildfire Monitoring,3.5,4.0,3.0,3.5,5.5,1090,33.3,12,23.6,-13.9
-Toqeer Ali Syed,toqeer@iu.edu.sa,Governance-Constrained Agentic AI: Blockchain-Enforced Human Oversight for Safety-Critical Wildfire Monitoring,3.5,4.0,3.0,3.5,5.5,1090,33.3,12,23.6,-13.9
-Salman Jan,salman.jan@aou.org.bh,Governance-Constrained Agentic AI: Blockchain-Enforced Human Oversight for Safety-Critical Wildfire Monitoring,3.5,4.0,3.0,3.5,5.5,1090,33.3,12,23.6,-13.9
-Hammad Muneer,,Governance-Constrained Agentic AI: Blockchain-Enforced Human Oversight for Safety-Critical Wildfire Monitoring,3.5,4.0,3.0,3.5,5.5,1090,33.3,12,23.6,-13.9
-Abdul Khadar Jilani,a.jilani@utb.edu.bh,Governance-Constrained Agentic AI: Blockchain-Enforced Human Oversight for Safety-Critical Wildfire Monitoring,3.5,4.0,3.0,3.5,5.5,1090,33.3,12,23.6,-13.9
-Craig Wright,cw881@exeter.ac.uk,On Immutable Memory Systems for Artificial Agents: A Blockchain-Indexed Automata-Theoretic Framework Using ECDH-Keyed Merkle Chains,2.0,2.5,1.5,2.5,3.5,1023,25.0,16,19.7,11.8
-Siqi Zhao,parmesian@sjtu.edu.cn,Adaptive Financial Decision-Making in DeFi: A Comprehensive Approach Using MARL and GNN,2.5,3.0,1.5,3.5,3.0,979,20.0,15,19.1,1.4
-Lingxiao Hu,lifan.hu@u.nus.edu,GNN-Augmented RL for Fraud Detection in Decentralized Finance,3.5,4.0,2.5,4.5,5.0,1134,40.0,15,22.2,-8.1
-Jiacheng Guo,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-"Huang, Suozhi",,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-Zixin Yao,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-Yifan Zhang,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-Yifu Lu,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-Jiashuo Liu,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-Zihao Li,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-Yanyan Deng,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-"Xiao, Qixin",,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-Jia Tian,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-"Zhan, Kanghong",,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-Tianyi Li,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-Xiaochen Liu,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-Jason Ge,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-Chaoyang He,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-Kaixuan Huang,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-Lin Yang,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-Wenhao Huang,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-Mengdi Wang,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,4.8,5.5,3.8,5.0,6.5,1339,70.0,20,18.7,-8.8
-Jianfeng Shi,,Decoding China’s policy-driven blockchain evolution: a multi-agent collaborative analytical framework,3.5,3.5,2.5,3.0,5.0,1159,43.8,16,21.9,-5.2
-Lingyuan Yin,,Decoding China’s policy-driven blockchain evolution: a multi-agent collaborative analytical framework,3.5,3.5,2.5,3.0,5.0,1159,43.8,16,21.9,-5.2
-Yuanchao Liu,liuyang7@caict.ac.cn,Decoding China’s policy-driven blockchain evolution: a multi-agent collaborative analytical framework,3.5,3.5,2.5,3.0,5.0,1159,43.8,16,21.9,-5.2
-Zihang Yin,,Decoding China’s policy-driven blockchain evolution: a multi-agent collaborative analytical framework,3.5,3.5,2.5,3.0,5.0,1159,43.8,16,21.9,-5.2
-Yang Liu,,Decoding China’s policy-driven blockchain evolution: a multi-agent collaborative analytical framework,3.5,3.5,2.5,3.0,5.0,1159,43.8,16,21.9,-5.2
-Vladimir Stantchev,vladimir.stantchev@srh.de,Hardening x402: PII-Safe Agentic Payments via Pre-Execution Metadata Filtering,3.8,4.0,4.5,3.0,7.0,1183,47.4,19,20.5,-12.5
-Di Kevin Gao,,AI Identification: An Integrated Framework for Sustainable Governance in Digital Enterprises,4.0,5.0,2.5,4.0,5.5,1254,58.3,12,24.4,-0.7
-Jingdao Chen,,AI Identification: An Integrated Framework for Sustainable Governance in Digital Enterprises,4.0,5.0,2.5,4.0,5.5,1254,58.3,12,24.4,-0.7
-Shahram Rahimi,,AI Identification: An Integrated Framework for Sustainable Governance in Digital Enterprises,4.0,5.0,2.5,4.0,5.5,1254,58.3,12,24.4,-0.7
-Amrish Baskaran,,Aegon: Auditable AI Content Access with Ledger-Bound Tokens and Hardware-Attested Mobile Receipts,3.5,5.5,2.0,4.0,7.0,1171,45.5,11,25.4,-0.7
-Nirbhay Pherwani,,Aegon: Auditable AI Content Access with Ledger-Bound Tokens and Hardware-Attested Mobile Receipts,3.5,5.5,2.0,4.0,7.0,1171,45.5,11,25.4,-0.7
-Raghul Krishnan,,Aegon: Auditable AI Content Access with Ledger-Bound Tokens and Hardware-Attested Mobile Receipts,3.5,5.5,2.0,4.0,7.0,1171,45.5,11,25.4,-0.7
-Joy Dutta,tu.d.ho@ntnu.no,Blockchain and AI: Securing Intelligent Networks for the Future,4.5,4.5,4.0,4.0,6.5,1377,75.0,16,19.7,11.7
-Hossien B. Eldeeb,hossien@uaeu.ac.ae,Blockchain and AI: Securing Intelligent Networks for the Future,4.5,4.5,4.0,4.0,6.5,1377,75.0,16,19.7,11.7
-Tu Dac Ho,,Blockchain and AI: Securing Intelligent Networks for the Future,4.5,4.5,4.0,4.0,6.5,1377,75.0,16,19.7,11.7
-Chibuzor Udokwu,,An agentic AI marketplace for prelitigation analyses with ZKP-integrated ethical verifications,4.2,5.0,3.5,4.5,5.5,1391,76.5,17,18.9,24.2
-Vimal Dwivedi,,An agentic AI marketplace for prelitigation analyses with ZKP-integrated ethical verifications,4.2,5.0,3.5,4.5,5.5,1391,76.5,17,18.9,24.2
-Adam Buick,,An agentic AI marketplace for prelitigation analyses with ZKP-integrated ethical verifications,4.2,5.0,3.5,4.5,5.5,1391,76.5,17,18.9,24.2
-John Keers,,An agentic AI marketplace for prelitigation analyses with ZKP-integrated ethical verifications,4.2,5.0,3.5,4.5,5.5,1391,76.5,17,18.9,24.2
-Jun Liu,,An agentic AI marketplace for prelitigation analyses with ZKP-integrated ethical verifications,4.2,5.0,3.5,4.5,5.5,1391,76.5,17,18.9,24.2
-Devakh Rashie,devrashie@gmail.comveda,Type-Checked Compliance: Deterministic Guardrails for Agentic Financial Systems Using Lean 4 Theorem Proving,3.5,5.5,2.0,4.5,6.5,1328,68.8,16,20.7,30.2
-Veda Rashi,vedarashi21@gmail.com,Type-Checked Compliance: Deterministic Guardrails for Agentic Financial Systems Using Lean 4 Theorem Proving,3.5,5.5,2.0,4.5,6.5,1328,68.8,16,20.7,30.2
-Fabrizio Salmi,,Byzantine-Tolerant Belief Aggregation over Merkle-DAGs: A Deterministic Epistemic Layer for Decentralized AI,4.5,5.5,5.0,6.0,5.5,1356,72.2,18,19.2,8.1
-Anbang Ruan,ruan@netx.foundation,From Logic Monopoly to Social Contract: Separation of Power and the Institutional Foundations for Autonomous Agent Economies,4.5,6.0,3.0,6.5,5.5,1351,71.4,21,18.1,5.9
-Sarat Piridi,,Cognitive Ledger Protocol (CLP): A Trust Fabric Architecture for Verifiable Agentic Data Transactions,2.0,3.5,1.0,2.5,2.0,1009,23.1,13,21.0,11.0
-Octavian Untila,octav@aisophical.com,Emergent Formal Verification: How an Autonomous AI Ecosystem Independently Discovered SMT-Based Safety Across Six Domains,3.0,3.0,2.5,3.5,5.5,1276,61.5,13,23.4,32.4
-Muthana Mahdi,muthanasalih@uomustansiriyah.edu.iq,An Agent-Based Reinforcement Learning Framework for Dynamic Cryptographic Security,3.0,3.5,2.0,3.5,3.0,1009,22.2,9,24.2,-7.3
-Aojie Yuan,aojieyua@usc.edu,Sovereign-OS: A Charter-Governed Operating System for Autonomous AI Agents with Verifiable Fiscal Discipline,3.8,4.5,2.5,3.5,6.5,1219,52.9,17,21.4,-7.3
-Haiyue Zhang,haiyuez@usc.edu,Sovereign-OS: A Charter-Governed Operating System for Autonomous AI Agents with Verifiable Fiscal Discipline,3.8,4.5,2.5,3.5,6.5,1219,52.9,17,21.4,-7.3
-Ziyi Wang,zoewang@umd.edu,Sovereign-OS: A Charter-Governed Operating System for Autonomous AI Agents with Verifiable Fiscal Discipline,3.8,4.5,2.5,3.5,6.5,1219,52.9,17,21.4,-7.3
-Yue Zhao,yue.z@usc.edu,Sovereign-OS: A Charter-Governed Operating System for Autonomous AI Agents with Verifiable Fiscal Discipline,3.8,4.5,2.5,3.5,6.5,1219,52.9,17,21.4,-7.3
-Aaron Chan,aaronc@saharalabs.ai,LATTICE: Evaluating Decision Support Utility of Crypto Agents,4.5,5.0,3.5,5.5,7.0,1407,78.6,14,20.0,20.5
-Tengfei Li (87820),,LATTICE: Evaluating Decision Support Utility of Crypto Agents,4.5,5.0,3.5,5.5,7.0,1407,78.6,14,20.0,20.5
-Tianyi Xiao,,LATTICE: Evaluating Decision Support Utility of Crypto Agents,4.5,5.0,3.5,5.5,7.0,1407,78.6,14,20.0,20.5
-Angela Chen,,LATTICE: Evaluating Decision Support Utility of Crypto Agents,4.5,5.0,3.5,5.5,7.0,1407,78.6,14,20.0,20.5
-Junyi Du,,LATTICE: Evaluating Decision Support Utility of Crypto Agents,4.5,5.0,3.5,5.5,7.0,1407,78.6,14,20.0,20.5
-Xiang Ren,,LATTICE: Evaluating Decision Support Utility of Crypto Agents,4.5,5.0,3.5,5.5,7.0,1407,78.6,14,20.0,20.5
-Antony Rowstron,,Agentic Witnessing: Pragmatic and Scalable TEE-Enabled Privacy-Preserving Auditing,4.8,6.5,3.5,6.5,6.0,1343,70.6,17,19.9,-5.9
-Amulya H,amulyah66@gmail.com; tashwini849@gmail.com,"The advent of new era transportation systems is creating large volumes of real time data which requires smart management. This is possible with the amalgamation of connected vehicles, autonomous-movement, and smart-infrastructure This research presents a",1.5,1.5,1.0,1.5,1.5,730,0.0,7,17.7,4.4
-Ashwini T,,"The advent of new era transportation systems is creating large volumes of real time data which requires smart management. This is possible with the amalgamation of connected vehicles, autonomous-movement, and smart-infrastructure This research presents a",1.5,1.5,1.0,1.5,1.5,730,0.0,7,17.7,4.4
-R. Gurunath,gurunath@dayanadasagar.edu,"The advent of new era transportation systems is creating large volumes of real time data which requires smart management. This is possible with the amalgamation of connected vehicles, autonomous-movement, and smart-infrastructure This research presents a",1.5,1.5,1.0,1.5,1.5,730,0.0,7,17.7,4.4
-Fernando Paredes García,fernando@develcuy.com,Ledger-State Stigmergy: A Formal Framework for Indirect Coordination Grounded in Distributed Ledger State,3.5,3.5,3.0,4.0,7.0,1327,68.4,19,19.3,28.6
-Ken Huang,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,3.5,5.5,2.0,4.0,4.5,1254,58.3,12,24.4,19.2
-Jerry Huang,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,3.5,5.5,2.0,4.0,4.5,1254,58.3,12,24.4,19.2
-Mahesh Lambe,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,3.5,5.5,2.0,4.0,4.5,1254,58.3,12,24.4,19.2
-Hammad Atta,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,3.5,5.5,2.0,4.0,4.5,1254,58.3,12,24.4,19.2
-Yasir Mehmood,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,3.5,5.5,2.0,4.0,4.5,1254,58.3,12,24.4,19.2
-Muhammad Zeeshan Baig,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,3.5,5.5,2.0,4.0,4.5,1254,58.3,12,24.4,19.2
-Muhammad Aziz Ul Haq,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,3.5,5.5,2.0,4.0,4.5,1254,58.3,12,24.4,19.2
-Nadeem Shahzad,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,3.5,5.5,2.0,4.0,4.5,1254,58.3,12,24.4,19.2
-Shailja Gupta,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,3.5,5.5,2.0,4.0,4.5,1254,58.3,12,24.4,19.2
-Rajesh Ranjan,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,3.5,5.5,2.0,4.0,4.5,1254,58.3,12,24.4,19.2
-Rekha Singhal,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,3.5,5.5,2.0,4.0,4.5,1254,58.3,12,24.4,19.2
-Yikuan Huang,kaiqi.hu7@rutgers.edu,From Hypotheses to Factors: Constrained LLM Agents in Cryptocurrency Markets,4.5,5.0,3.5,5.5,5.5,1241,56.2,16,21.9,-14.0
-Zheqi Fan,yifanye@bnbu.edu.cn,From Hypotheses to Factors: Constrained LLM Agents in Cryptocurrency Markets,4.5,5.0,3.5,5.5,5.5,1241,56.2,16,21.9,-14.0
-Kaiqi Hu,,From Hypotheses to Factors: Constrained LLM Agents in Cryptocurrency Markets,4.5,5.0,3.5,5.5,5.5,1241,56.2,16,21.9,-14.0
-Yifan Ye,,From Hypotheses to Factors: Constrained LLM Agents in Cryptocurrency Markets,4.5,5.0,3.5,5.5,5.5,1241,56.2,16,21.9,-14.0
-Xu Yao,yaoxu0468@126.com,PriRS: an AI-driven framework for privacy and reliability in cyber–physical–social systems data sharing,4.8,5.5,4.0,5.5,5.0,1339,70.0,20,18.7,-8.1
-Kun Zhang,,PriRS: an AI-driven framework for privacy and reliability in cyber–physical–social systems data sharing,4.8,5.5,4.0,5.5,5.0,1339,70.0,20,18.7,-8.1
-Yingwei Liang,,PriRS: an AI-driven framework for privacy and reliability in cyber–physical–social systems data sharing,4.8,5.5,4.0,5.5,5.0,1339,70.0,20,18.7,-8.1
-Chenghui Liu,,PriRS: an AI-driven framework for privacy and reliability in cyber–physical–social systems data sharing,4.8,5.5,4.0,5.5,5.0,1339,70.0,20,18.7,-8.1
-Taipeng Zhu,,PriRS: an AI-driven framework for privacy and reliability in cyber–physical–social systems data sharing,4.8,5.5,4.0,5.5,5.0,1339,70.0,20,18.7,-8.1
-Fangfang Zhou,,PriRS: an AI-driven framework for privacy and reliability in cyber–physical–social systems data sharing,4.8,5.5,4.0,5.5,5.0,1339,70.0,20,18.7,-8.1
-Mohanapriya D,editor@ijfmr.com,Agentic AI powered Cryptographic Blockchain for Secured Data Aggregation in WSN,1.5,1.5,1.0,1.5,2.0,524,0.0,41,4.3,0.8
-SARAVANAN V,,Agentic AI powered Cryptographic Blockchain for Secured Data Aggregation in WSN,1.5,1.5,1.0,1.5,2.0,524,0.0,41,4.3,0.8
-Akshay Mittal,,"Agent Name Service (ANS): A Proof-of-Concept Trust Layer for Secure AI Agent Discovery, Identity, and Governance in Kubernetes",2.5,3.5,1.5,2.5,4.5,1134,40.0,15,22.2,21.4
-Elyson De La Cruz,elyson.delacruz@ucumberlands.edu,"Agent Name Service (ANS): A Proof-of-Concept Trust Layer for Secure AI Agent Discovery, Identity, and Governance in Kubernetes",2.5,3.5,1.5,2.5,4.5,1134,40.0,15,22.2,21.4
-Yu-Chao Huang,,TRUST: A Framework for Decentralized AI Service v.0.1,5.0,6.5,4.0,6.0,6.5,1362,72.7,22,17.5,-5.9
-Zhen Tan,,TRUST: A Framework for Decentralized AI Service v.0.1,5.0,6.5,4.0,6.0,6.5,1362,72.7,22,17.5,-5.9
-Mohan Zhang,,TRUST: A Framework for Decentralized AI Service v.0.1,5.0,6.5,4.0,6.0,6.5,1362,72.7,22,17.5,-5.9
-Pingzhi Li,,TRUST: A Framework for Decentralized AI Service v.0.1,5.0,6.5,4.0,6.0,6.5,1362,72.7,22,17.5,-5.9
-Zhuo Zhang,,TRUST: A Framework for Decentralized AI Service v.0.1,5.0,6.5,4.0,6.0,6.5,1362,72.7,22,17.5,-5.9
-Tianlong Chen,,TRUST: A Framework for Decentralized AI Service v.0.1,5.0,6.5,4.0,6.0,6.5,1362,72.7,22,17.5,-5.9
-T. J. Barton,poof@dxrg.ai,Operating-Layer Controls for Onchain Language-Model Agents Under Real Capital,6.5,7.0,5.5,7.0,7.0,1415,78.9,19,17.4,-4.4
-Chris Constantakis,,Operating-Layer Controls for Onchain Language-Model Agents Under Real Capital,6.5,7.0,5.5,7.0,7.0,1415,78.9,19,17.4,-4.4
-Patti Hauseman,,Operating-Layer Controls for Onchain Language-Model Agents Under Real Capital,6.5,7.0,5.5,7.0,7.0,1415,78.9,19,17.4,-4.4
-Annie Mous,,Operating-Layer Controls for Onchain Language-Model Agents Under Real Capital,6.5,7.0,5.5,7.0,7.0,1415,78.9,19,17.4,-4.4
-Alaska Hoffman,,Operating-Layer Controls for Onchain Language-Model Agents Under Real Capital,6.5,7.0,5.5,7.0,7.0,1415,78.9,19,17.4,-4.4
-Brian Bergeron,,Operating-Layer Controls for Onchain Language-Model Agents Under Real Capital,6.5,7.0,5.5,7.0,7.0,1415,78.9,19,17.4,-4.4
-Hunter Goodreau,,Operating-Layer Controls for Onchain Language-Model Agents Under Real Capital,6.5,7.0,5.5,7.0,7.0,1415,78.9,19,17.4,-4.4
-Necati Ayan,nayan1@binghamton.edu,The Platform Is Mostly Not a Platform: Token Economies and Agent Discourse on Moltbook,7.4,7.5,7.0,7.8,9.0,1754,97.3,37,6.7,-0.7
+author,email,paper,tournament_rank,tournament_score,ts_ci,matches,win_rate,gap,overall_rating,significance,rigor,novelty,clarity
+Yulin Liu,yulin@quantecon.ai,A dataset of early blockchain-registered AI agents on Ethereum,44,1441,36.6,39,61.5,5.2,4.0,4.5,5.0,5.5,6.5
+Ziqiao Kong,ziqiao001@e.ntu.edu.sg,Knowdit: Agentic Smart Contract Vulnerability Detection with Auditing Knowledge Summarization,3,1591,39.0,61,96.7,-0.8,7.2,7.5,6.5,7.5,7.0
+Wanxu Xia,,Knowdit: Agentic Smart Contract Vulnerability Detection with Auditing Knowledge Summarization,3,1591,39.0,61,96.7,-0.8,7.2,7.5,6.5,7.5,7.0
+Chong Wang,chong.wang@ntu.edu.sg,Knowdit: Agentic Smart Contract Vulnerability Detection with Auditing Knowledge Summarization,3,1591,39.0,61,96.7,-0.8,7.2,7.5,6.5,7.5,7.0
+Yi LU,,Knowdit: Agentic Smart Contract Vulnerability Detection with Auditing Knowledge Summarization,3,1591,39.0,61,96.7,-0.8,7.2,7.5,6.5,7.5,7.0
+pan long li,,Knowdit: Agentic Smart Contract Vulnerability Detection with Auditing Knowledge Summarization,3,1591,39.0,61,96.7,-0.8,7.2,7.5,6.5,7.5,7.0
+Shaohua Li,,Knowdit: Agentic Smart Contract Vulnerability Detection with Auditing Knowledge Summarization,3,1591,39.0,61,96.7,-0.8,7.2,7.5,6.5,7.5,7.0
+Zong Cao,z.cao@imperial.ac.uk,Knowdit: Agentic Smart Contract Vulnerability Detection with Auditing Knowledge Summarization,3,1591,39.0,61,96.7,-0.8,7.2,7.5,6.5,7.5,7.0
+Yang  Guang Liu,yangliu@ntu.edu.sg,Knowdit: Agentic Smart Contract Vulnerability Detection with Auditing Knowledge Summarization,3,1591,39.0,61,96.7,-0.8,7.2,7.5,6.5,7.5,7.0
+Anushri Eswaran,aeswaran@ucsd.edu,CryptoAnalystBench: Failures in Multi-Tool Long-Form LLM Analysis,15,1496,38.0,43,74.4,4.4,4.8,5.5,4.0,5.0,6.0
+Oleg Golev,,CryptoAnalystBench: Failures in Multi-Tool Long-Form LLM Analysis,15,1496,38.0,43,74.4,4.4,4.8,5.5,4.0,5.0,6.0
+Darshan Tank,,CryptoAnalystBench: Failures in Multi-Tool Long-Form LLM Analysis,15,1496,38.0,43,74.4,4.4,4.8,5.5,4.0,5.0,6.0
+Sidhant Rahi,,CryptoAnalystBench: Failures in Multi-Tool Long-Form LLM Analysis,15,1496,38.0,43,74.4,4.4,4.8,5.5,4.0,5.0,6.0
+Himanshu Tyagi,,CryptoAnalystBench: Failures in Multi-Tool Long-Form LLM Analysis,15,1496,38.0,43,74.4,4.4,4.8,5.5,4.0,5.0,6.0
+Saad Alqithami,,"Autonomous Agents on Blockchains: Standards, Execution Models, and Trust Boundaries",17,1492,43.4,36,77.8,-2.2,5.5,7.0,4.5,6.0,4.5
+Sergei Vertepov,,Building an adaptive tokenomics model using reinforcement learning algorithms to ensure long-term economic sustainability of crypto projects.,87,1350,38.0,39,35.9,0.8,3.0,4.5,2.0,3.5,5.0
+"Xiang, Yuexin",,Leveraging Large Language Models to Bridge Cross-Domain Transparency in Stablecoins,47,1438,35.3,40,67.5,3.7,4.0,4.5,3.0,4.5,6.0
+Yang Lei,,Leveraging Large Language Models to Bridge Cross-Domain Transparency in Stablecoins,47,1438,35.3,40,67.5,3.7,4.0,4.5,3.0,4.5,6.0
+Yuanzhe Zhang,,Leveraging Large Language Models to Bridge Cross-Domain Transparency in Stablecoins,47,1438,35.3,40,67.5,3.7,4.0,4.5,3.0,4.5,6.0
+Qin Wang,,Leveraging Large Language Models to Bridge Cross-Domain Transparency in Stablecoins,47,1438,35.3,40,67.5,3.7,4.0,4.5,3.0,4.5,6.0
+Tsz Hon Yuen,,Leveraging Large Language Models to Bridge Cross-Domain Transparency in Stablecoins,47,1438,35.3,40,67.5,3.7,4.0,4.5,3.0,4.5,6.0
+Jiangshan Yu,,Leveraging Large Language Models to Bridge Cross-Domain Transparency in Stablecoins,47,1438,35.3,40,67.5,3.7,4.0,4.5,3.0,4.5,6.0
+Jiangshan Yu,,Leveraging Large Language Models to Bridge Cross-Domain Transparency in Stablecoins,47,1438,35.3,40,67.5,3.7,4.0,4.5,3.0,4.5,6.0
+Jennifer Ifeoma Echenim,,Integration of Artificial Intelligence and Blockchain for Intelligent Autonomous Systems,111,1278,44.1,33,21.2,6.6,2.0,2.0,1.5,1.5,3.5
+Fernando Spadea,senevo@rpi.edu; spadef@rpi.edu,From Risk to Rescue: An Agentic Survival Analysis Framework for Liquidation Prevention,12,1510,39.8,40,77.5,-0.7,5.8,6.0,5.5,6.5,7.0
+Oshani Seneviratne,,From Risk to Rescue: An Agentic Survival Analysis Framework for Liquidation Prevention,12,1510,39.8,40,77.5,-0.7,5.8,6.0,5.5,6.5,7.0
+Arnab Mallick,arnabm@cdac.in,SPEAR: An Engineering Case Study of Multi-Agent Coordination for Smart Contract Auditing,41,1448,40.5,39,79.5,-14.0,4.8,4.5,5.0,4.0,7.0
+Indraveni Chebolu,,SPEAR: An Engineering Case Study of Multi-Agent Coordination for Smart Contract Auditing,41,1448,40.5,39,79.5,-14.0,4.8,4.5,5.0,4.0,7.0
+Harmesh Rana,,SPEAR: An Engineering Case Study of Multi-Agent Coordination for Smart Contract Auditing,41,1448,40.5,39,79.5,-14.0,4.8,4.5,5.0,4.0,7.0
+Seema Pangal,,SPEAR: An Engineering Case Study of Multi-Agent Coordination for Smart Contract Auditing,41,1448,40.5,39,79.5,-14.0,4.8,4.5,5.0,4.0,7.0
+Yichen Luo,yichen.luo.22@ucl.ac.uk,LLM-Powered Multi-Agent System for Automated Crypto Portfolio Management,48,1437,37.4,35,74.3,-12.5,4.5,4.5,3.5,5.5,6.5
+Yebo Feng,yebo.feng@ntu.edu.sg,LLM-Powered Multi-Agent System for Automated Crypto Portfolio Management,48,1437,37.4,35,74.3,-12.5,4.5,4.5,3.5,5.5,6.5
+Jiahua Xu,,LLM-Powered Multi-Agent System for Automated Crypto Portfolio Management,48,1437,37.4,35,74.3,-12.5,4.5,4.5,3.5,5.5,6.5
+Paolo Tasca,p.tasca@ucl.ac.uk,LLM-Powered Multi-Agent System for Automated Crypto Portfolio Management,48,1437,37.4,35,74.3,-12.5,4.5,4.5,3.5,5.5,6.5
+Yang Liu,yangliu@ntu.edu.sg,LLM-Powered Multi-Agent System for Automated Crypto Portfolio Management,48,1437,37.4,35,74.3,-12.5,4.5,4.5,3.5,5.5,6.5
+William Villegas-Ch,,Optimizing Consensus in Blockchain with Deep and Reinforcement Learning,64,1397,37.0,40,52.5,-0.7,3.5,4.0,2.5,3.5,4.0
+Jaime Govea,,Optimizing Consensus in Blockchain with Deep and Reinforcement Learning,64,1397,37.0,40,52.5,-0.7,3.5,4.0,2.5,3.5,4.0
+Rommel Gutiérrez,,Optimizing Consensus in Blockchain with Deep and Reinforcement Learning,64,1397,37.0,40,52.5,-0.7,3.5,4.0,2.5,3.5,4.0
+Yaying Chen,,"Information Security, Ethics, and Integrity in LLM Agent Interaction",92,1341,39.7,36,33.3,-2.2,3.0,3.5,2.0,3.5,3.5
+Vijay K. Madisetti,,"Information Security, Ethics, and Integrity in LLM Agent Interaction",92,1341,39.7,36,33.3,-2.2,3.0,3.5,2.0,3.5,3.5
+Sai Srikanth Madugula,saisrikanth.madugula_phd.2023@woxsen.edu.in,A Multi-Agent AI-Blockchain Framework with Reverse Kelly AMM for Under-Collateralized Real-World Asset Lending,88,1347,38.7,38,42.1,-1.5,3.2,4.0,2.5,3.5,5.0
+Peplluis Esteva De La Rosa,peplluis.esteva@woxsen.edu.in,A Multi-Agent AI-Blockchain Framework with Reverse Kelly AMM for Under-Collateralized Real-World Asset Lending,88,1347,38.7,38,42.1,-1.5,3.2,4.0,2.5,3.5,5.0
+Daya Shankar,daya.shankar@woxsen.edu.in,A Multi-Agent AI-Blockchain Framework with Reverse Kelly AMM for Under-Collateralized Real-World Asset Lending,88,1347,38.7,38,42.1,-1.5,3.2,4.0,2.5,3.5,5.0
+Yihan Xia,xiayihan2023@email.szu.edu.cn,DAO-Agent: Zero Knowledge-Verified Incentives for Decentralized Multi-Agent Coordination,49,1437,39.2,35,68.6,-3.7,4.2,4.5,3.8,4.5,6.0
+Taotao Wang,ttwang@szu.edu.cn,DAO-Agent: Zero Knowledge-Verified Incentives for Decentralized Multi-Agent Coordination,49,1437,39.2,35,68.6,-3.7,4.2,4.5,3.8,4.5,6.0
+Wenxin Xu,,DAO-Agent: Zero Knowledge-Verified Incentives for Decentralized Multi-Agent Coordination,49,1437,39.2,35,68.6,-3.7,4.2,4.5,3.8,4.5,6.0
+Shengli Zhang,,DAO-Agent: Zero Knowledge-Verified Incentives for Decentralized Multi-Agent Coordination,49,1437,39.2,35,68.6,-3.7,4.2,4.5,3.8,4.5,6.0
+"Andersson, Vivi",vivia@kth.se,PoCo: Agentic Proof-of-Concept Exploit Generation for Smart Contracts,13,1508,37.5,50,80.0,-2.2,6.0,6.5,5.5,6.0,7.5
+"Bobadilla, Sofia",,PoCo: Agentic Proof-of-Concept Exploit Generation for Smart Contracts,13,1508,37.5,50,80.0,-2.2,6.0,6.5,5.5,6.0,7.5
+"Hobbelhagen, Harald",,PoCo: Agentic Proof-of-Concept Exploit Generation for Smart Contracts,13,1508,37.5,50,80.0,-2.2,6.0,6.5,5.5,6.0,7.5
+"Monperrus, Martin",,PoCo: Agentic Proof-of-Concept Exploit Generation for Smart Contracts,13,1508,37.5,50,80.0,-2.2,6.0,6.5,5.5,6.0,7.5
+Antio De La Cruz,antoniodelacruz777@outlook.com,Multi-Agent Large Language Models for Traditional Finance and Decentralized Finance,131,1188,49.3,53,0.0,3.7,1.0,1.0,0.5,1.0,2.0
+Tomer Jordi Chaffer,tomer.chaffer@mail.mcgill.ca,Decentralized Governance of Autonomous AI Agents,70,1383,36.4,39,43.6,-4.4,3.5,4.5,2.0,4.0,4.5
+"Goins, Charles von",,Decentralized Governance of Autonomous AI Agents,70,1383,36.4,39,43.6,-4.4,3.5,4.5,2.0,4.0,4.5
+Bayo Okusanya,okusanya@alumni.princeton.edu,Decentralized Governance of Autonomous AI Agents,70,1383,36.4,39,43.6,-4.4,3.5,4.5,2.0,4.0,4.5
+Gemach D. A. T. A. I,,Decentralized Governance of Autonomous AI Agents,70,1383,36.4,39,43.6,-4.4,3.5,4.5,2.0,4.0,4.5
+"Goldston, Justin",,Decentralized Governance of Autonomous AI Agents,70,1383,36.4,39,43.6,-4.4,3.5,4.5,2.0,4.0,4.5
+Tomer Jordi Chaffer,1tomer.chaffer@mail.mcgill.ca,Incentivized Symbiosis: A Paradigm for Human-Agent Coevolution,122,1261,42.0,36,13.9,-14.7,2.5,3.0,1.5,2.5,4.5
+Justin Goldston,2jgoldston@nu.edu,Incentivized Symbiosis: A Paradigm for Human-Agent Coevolution,122,1261,42.0,36,13.9,-14.7,2.5,3.0,1.5,2.5,4.5
+Gemach D. A. T. A. I,,Incentivized Symbiosis: A Paradigm for Human-Agent Coevolution,122,1261,42.0,36,13.9,-14.7,2.5,3.0,1.5,2.5,4.5
+Botao Amber Hu,,"Trustless Autonomy: Understanding Motivations, Benefits, and Governance Dilemmas in Self-Sovereign Decentralized AI Agents",33,1468,36.3,35,71.4,-11.0,5.0,5.5,4.0,5.0,6.5
+Yuhan Liu,,"Trustless Autonomy: Understanding Motivations, Benefits, and Governance Dilemmas in Self-Sovereign Decentralized AI Agents",33,1468,36.3,35,71.4,-11.0,5.0,5.5,4.0,5.0,6.5
+Helena Rong,,"Trustless Autonomy: Understanding Motivations, Benefits, and Governance Dilemmas in Self-Sovereign Decentralized AI Agents",33,1468,36.3,35,71.4,-11.0,5.0,5.5,4.0,5.0,6.5
+Aman Sardana,,Compliance-as-Code 2.0: Orchestrating Regulatory Operations with Agentic AI,105,1299,41.8,36,27.8,-1.5,2.5,4.0,1.5,3.0,4.5
+Swaminathan Sethuraman,,Compliance-as-Code 2.0: Orchestrating Regulatory Operations with Agentic AI,105,1299,41.8,36,27.8,-1.5,2.5,4.0,1.5,3.0,4.5
+Priya Dharshini Kalyanasundaram,,Compliance-as-Code 2.0: Orchestrating Regulatory Operations with Agentic AI,105,1299,41.8,36,27.8,-1.5,2.5,4.0,1.5,3.0,4.5
+Nicolò Romandini,,SoK: Security and Privacy of AI Agents for Blockchain,50,1429,37.9,36,75.0,5.9,3.8,4.0,3.5,3.5,6.5
+Carlo Mazzocca,cmazzocca@unisa.it,SoK: Security and Privacy of AI Agents for Blockchain,50,1429,37.9,36,75.0,5.9,3.8,4.0,3.5,3.5,6.5
+Kai Otsuki,kai.ootsuki.su@nttdocomo.com,SoK: Security and Privacy of AI Agents for Blockchain,50,1429,37.9,36,75.0,5.9,3.8,4.0,3.5,3.5,6.5
+Rebecca Montanari,,SoK: Security and Privacy of AI Agents for Blockchain,50,1429,37.9,36,75.0,5.9,3.8,4.0,3.5,3.5,6.5
+Xing Yang,xing.yang@siat.ac.cn,Bit-politeia: An AI Agent Community in Blockchain,120,1265,43.4,37,21.6,0.7,2.0,3.0,1.5,3.0,4.0
+Parameswara Rao Tatini,,Transforming Sourcing and Supply Chain Management: The Evolution of AI Agents in Modern Procurement,134,1183,48.2,57,0.0,-5.2,1.5,1.5,1.0,1.0,4.0
+Minghui Xu,,The Agent Economy: A Blockchain-Based Foundation for Autonomous AI Agents,107,1289,42.0,34,23.5,-12.5,3.0,4.0,2.0,2.5,5.0
+Sai Santhosh R,santhoshramadugu18@gmail.com,Composable Finance with Generative AI: Future of Decentralized Asset Management,130,1192,46.0,56,1.8,2.9,1.2,1.0,1.0,1.0,2.0
+Ashutosh Kumar Singh,,Composable Finance with Generative AI: Future of Decentralized Asset Management,130,1192,46.0,56,1.8,2.9,1.2,1.0,1.0,1.0,2.0
+David Ricardo Saavedra,dr.saavedram1@uniandes.edu.co,Interoperable Architecture for Digital Identity Delegation for AI Agents with Blockchain Integration,61,1406,36.1,39,53.8,3.0,3.5,4.5,2.5,4.0,4.5
+Tejal J Sathe,,AI Agents in Personal Portfolio Management: Harnessing Machine Learning and Blockchain Technology,128,1197,47.0,60,0.0,5.1,1.2,1.0,1.0,1.0,2.5
+A. Kamble,,AI Agents in Personal Portfolio Management: Harnessing Machine Learning and Blockchain Technology,128,1197,47.0,60,0.0,5.1,1.2,1.0,1.0,1.0,2.5
+Alexander Neulinger,alexander.neulinger@s.wu.ac.at,"Fostering AI alignment through blockchain, proof of personhood and zero knowledge proofs",71,1382,39.2,39,48.7,-3.7,3.5,4.0,2.5,4.0,5.0
+Lukas Sparer,lukas.sparer@s.wu.ac.at,"Fostering AI alignment through blockchain, proof of personhood and zero knowledge proofs",71,1382,39.2,39,48.7,-3.7,3.5,4.0,2.5,4.0,5.0
+Bharathram Nagaiah,bharathram.nagaiah@gmail.com,Use of Smart contracts and AI agents in clinical trials,102,1312,41.9,33,27.3,1.4,2.5,3.5,1.5,2.5,4.0
+Tomer Jordi Chaffer,tomer.chaffer@mail.mcgill.ca,A hybrid marketplace of ideas,106,1298,41.4,36,22.2,-0.7,2.5,4.0,1.5,3.5,4.0
+Dontrail Cotlage,,A hybrid marketplace of ideas,106,1298,41.4,36,22.2,-0.7,2.5,4.0,1.5,3.5,4.0
+Justin Goldston,jgoldston@nu.edu,A hybrid marketplace of ideas,106,1298,41.4,36,22.2,-0.7,2.5,4.0,1.5,3.5,4.0
+Justin Wang,,EVMbench: Evaluating AI Agents on Smart Contract Security,1,1603,41.5,68,98.5,1.5,7.2,7.5,6.5,6.8,8.0
+Andreas Bigger,,EVMbench: Evaluating AI Agents on Smart Contract Security,1,1603,41.5,68,98.5,1.5,7.2,7.5,6.5,6.8,8.0
+Xiaohai Xu,,EVMbench: Evaluating AI Agents on Smart Contract Security,1,1603,41.5,68,98.5,1.5,7.2,7.5,6.5,6.8,8.0
+"Lin, Justin W.",,EVMbench: Evaluating AI Agents on Smart Contract Security,1,1603,41.5,68,98.5,1.5,7.2,7.5,6.5,6.8,8.0
+Andy Applebaum,,EVMbench: Evaluating AI Agents on Smart Contract Security,1,1603,41.5,68,98.5,1.5,7.2,7.5,6.5,6.8,8.0
+Tejal Patwardhan,,EVMbench: Evaluating AI Agents on Smart Contract Security,1,1603,41.5,68,98.5,1.5,7.2,7.5,6.5,6.8,8.0
+Alpin Yukseloglu,,EVMbench: Evaluating AI Agents on Smart Contract Security,1,1603,41.5,68,98.5,1.5,7.2,7.5,6.5,6.8,8.0
+Olivia Watkins,,EVMbench: Evaluating AI Agents on Smart Contract Security,1,1603,41.5,68,98.5,1.5,7.2,7.5,6.5,6.8,8.0
+Ailiya Borjigin,charles.cc.lee@newcastle.edu.au,AI Agent Architecture for Decentralized Trading of Alternative Assets,78,1372,38.7,39,59.0,-8.1,3.5,3.5,3.0,3.0,5.5
+Cong He,,AI Agent Architecture for Decentralized Trading of Alternative Assets,78,1372,38.7,39,59.0,-8.1,3.5,3.5,3.0,3.0,5.5
+"Lee, Charles CC",,AI Agent Architecture for Decentralized Trading of Alternative Assets,78,1372,38.7,39,59.0,-8.1,3.5,3.5,3.0,3.0,5.5
+Wei Zhou,,AI Agent Architecture for Decentralized Trading of Alternative Assets,78,1372,38.7,39,59.0,-8.1,3.5,3.5,3.0,3.0,5.5
+Eranga Bandara,awkng@ntu.edu.sg; cmedawer@odu.edu; mukka@odu.edu,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,95,1339,35.4,42,38.1,-2.9,3.0,3.0,2.5,3.0,5.0
+Sachin Shetty,sshetty@odu.edu,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,95,1339,35.4,42,38.1,-2.9,3.0,3.0,2.5,3.0,5.0
+Ravi Mukkamala,,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,95,1339,35.4,42,38.1,-2.9,3.0,3.0,2.5,3.0,5.0
+Ross Gore,rgore@odu.edu,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,95,1339,35.4,42,38.1,-2.9,3.0,3.0,2.5,3.0,5.0
+Peter Foytik,pfoytik@odu.edu,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,95,1339,35.4,42,38.1,-2.9,3.0,3.0,2.5,3.0,5.0
+Safdar Hussain Bouk,sbouk@odu.edu,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,95,1339,35.4,42,38.1,-2.9,3.0,3.0,2.5,3.0,5.0
+Abdul Rahman,abdulrahman@deloitte.com,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,95,1339,35.4,42,38.1,-2.9,3.0,3.0,2.5,3.0,5.0
+Xueping Liang,xuliang@fiu.edu,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,95,1339,35.4,42,38.1,-2.9,3.0,3.0,2.5,3.0,5.0
+Wee Keong Ng,,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,95,1339,35.4,42,38.1,-2.9,3.0,3.0,2.5,3.0,5.0
+Kasun De Zoysa,kasun@ucsc.cmb.ac.lk,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,95,1339,35.4,42,38.1,-2.9,3.0,3.0,2.5,3.0,5.0
+Aruna Withanage,aruna@effectz.ai,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,95,1339,35.4,42,38.1,-2.9,3.0,3.0,2.5,3.0,5.0
+Nilaan Loganathan,nilaan@effectz.ai,Model Context Contracts - MCP-Enabled Framework to Integrate LLMs With Blockchain Smart Contracts,95,1339,35.4,42,38.1,-2.9,3.0,3.0,2.5,3.0,5.0
+P. S. Patil,,CrossGuard: A Zero-Trust Architecture for Privacy-Preserving AI Deployment Across Heterogeneous Multi-Cloud Environments,119,1268,41.1,36,19.4,-9.6,2.5,4.0,1.5,3.5,5.5
+Yuanzhe Zhang,,SoK: Blockchain Agent-to-Agent Payments,28,1472,36.0,43,74.4,-3.7,4.8,5.5,4.0,5.0,6.5
+Yuexin Xiang,,SoK: Blockchain Agent-to-Agent Payments,28,1472,36.0,43,74.4,-3.7,4.8,5.5,4.0,5.0,6.5
+Yuchen Lei,,SoK: Blockchain Agent-to-Agent Payments,28,1472,36.0,43,74.4,-3.7,4.8,5.5,4.0,5.0,6.5
+Qin Wang,,SoK: Blockchain Agent-to-Agent Payments,28,1472,36.0,43,74.4,-3.7,4.8,5.5,4.0,5.0,6.5
+Tian Qiu,,SoK: Blockchain Agent-to-Agent Payments,28,1472,36.0,43,74.4,-3.7,4.8,5.5,4.0,5.0,6.5
+Yujing Sun,,SoK: Blockchain Agent-to-Agent Payments,28,1472,36.0,43,74.4,-3.7,4.8,5.5,4.0,5.0,6.5
+Spiridon Zarkov,,SoK: Blockchain Agent-to-Agent Payments,28,1472,36.0,43,74.4,-3.7,4.8,5.5,4.0,5.0,6.5
+Tsz Hon Yuen,,SoK: Blockchain Agent-to-Agent Payments,28,1472,36.0,43,74.4,-3.7,4.8,5.5,4.0,5.0,6.5
+Andreas Deppeler,,SoK: Blockchain Agent-to-Agent Payments,28,1472,36.0,43,74.4,-3.7,4.8,5.5,4.0,5.0,6.5
+Jiangshan Yu,,SoK: Blockchain Agent-to-Agent Payments,28,1472,36.0,43,74.4,-3.7,4.8,5.5,4.0,5.0,6.5
+Kwok-Yan Lam,,SoK: Blockchain Agent-to-Agent Payments,28,1472,36.0,43,74.4,-3.7,4.8,5.5,4.0,5.0,6.5
+Zihan Guo,guozh29@mail2.sysu.edu.cn,BetaWeb: Towards a Blockchain-enabled Trustworthy Agentic Web,83,1362,36.5,39,48.7,-11.0,3.5,4.0,2.0,3.0,5.5
+Yuanjian Zhou,,BetaWeb: Towards a Blockchain-enabled Trustworthy Agentic Web,83,1362,36.5,39,48.7,-11.0,3.5,4.0,2.0,3.0,5.5
+Chenyi Wang,,BetaWeb: Towards a Blockchain-enabled Trustworthy Agentic Web,83,1362,36.5,39,48.7,-11.0,3.5,4.0,2.0,3.0,5.5
+Linlin You,,BetaWeb: Towards a Blockchain-enabled Trustworthy Agentic Web,83,1362,36.5,39,48.7,-11.0,3.5,4.0,2.0,3.0,5.5
+Minjie Bian,,BetaWeb: Towards a Blockchain-enabled Trustworthy Agentic Web,83,1362,36.5,39,48.7,-11.0,3.5,4.0,2.0,3.0,5.5
+Weinan Zhang,wnzhang@sjtu.edu.cn,BetaWeb: Towards a Blockchain-enabled Trustworthy Agentic Web,83,1362,36.5,39,48.7,-11.0,3.5,4.0,2.0,3.0,5.5
+Muthu Ramachandran,,"The Five Ways Framework for AI Ethics in Healthcare: Integrating Core Ethical Principles, Blockchain Transparency, Autonomous Agents, Data Governance, and Digital Identity for Patient Privacy and Sovereignty",123,1256,42.1,35,11.4,-11.8,2.5,3.0,1.5,2.5,4.5
+Sadegh Sohani,sd_sohani@mail.um.ac.ir,ICBAC: an Intelligent Contract-Based Access Control framework for supply chain management by integrating blockchain and federated learning,29,1471,36.4,43,74.4,-3.7,4.8,5.0,4.5,4.0,6.5
+Salar Ghazi,seyed-salar.ghazi.1@ens.etsmtl.ca,ICBAC: an Intelligent Contract-Based Access Control framework for supply chain management by integrating blockchain and federated learning,29,1471,36.4,43,74.4,-3.7,4.8,5.0,4.5,4.0,6.5
+Farnaz Kamranfar,farnazkamranfar1999@gmail.com,ICBAC: an Intelligent Contract-Based Access Control framework for supply chain management by integrating blockchain and federated learning,29,1471,36.4,43,74.4,-3.7,4.8,5.0,4.5,4.0,6.5
+Sahar Pilehvar Moakhar,sahar.pilevarmoakhar@mail.um.ac.ir,ICBAC: an Intelligent Contract-Based Access Control framework for supply chain management by integrating blockchain and federated learning,29,1471,36.4,43,74.4,-3.7,4.8,5.0,4.5,4.0,6.5
+Mohammad Allahbakhsh,allahbakhsh@um.ac.ir,ICBAC: an Intelligent Contract-Based Access Control framework for supply chain management by integrating blockchain and federated learning,29,1471,36.4,43,74.4,-3.7,4.8,5.0,4.5,4.0,6.5
+Haleh Amintoosi,amintoosi@um.ac.ir,ICBAC: an Intelligent Contract-Based Access Control framework for supply chain management by integrating blockchain and federated learning,29,1471,36.4,43,74.4,-3.7,4.8,5.0,4.5,4.0,6.5
+Kaiwen Zhang,kaiwen.zhang@etsmtl.ca,ICBAC: an Intelligent Contract-Based Access Control framework for supply chain management by integrating blockchain and federated learning,29,1471,36.4,43,74.4,-3.7,4.8,5.0,4.5,4.0,6.5
+Sangtian Guan,juanjuan.li@ia.ac.cn,Parallel Financial Systems: Towards Governable and Sustainable Intelligent Financial Services,93,1340,36.8,39,43.6,-0.7,3.0,3.5,1.5,3.0,5.0
+Fei Lin,,Parallel Financial Systems: Towards Governable and Sustainable Intelligent Financial Services,93,1340,36.8,39,43.6,-0.7,3.0,3.5,1.5,3.0,5.0
+Juanjuan Li,,Parallel Financial Systems: Towards Governable and Sustainable Intelligent Financial Services,93,1340,36.8,39,43.6,-0.7,3.0,3.5,1.5,3.0,5.0
+Jing Wang,,Parallel Financial Systems: Towards Governable and Sustainable Intelligent Financial Services,93,1340,36.8,39,43.6,-0.7,3.0,3.5,1.5,3.0,5.0
+Fei-Yue Wang,,Parallel Financial Systems: Towards Governable and Sustainable Intelligent Financial Services,93,1340,36.8,39,43.6,-0.7,3.0,3.5,1.5,3.0,5.0
+Tan Gürpinar,tan.gurpinar@qu.edu,Editorial: Distributed ledger solutions in web 4.0 and their impact on enterprises and society,124,1235,50.2,31,9.7,-1.4,2.0,1.5,1.5,1.0,5.5
+Michael Henke,,Editorial: Distributed ledger solutions in web 4.0 and their impact on enterprises and society,124,1235,50.2,31,9.7,-1.4,2.0,1.5,1.5,1.0,5.5
+Anbang Ruan,ruan@netx.foundation,AgentCity: Constitutional Governance for Autonomous Agent Economies via Separation of Power,32,1470,38.3,37,73.0,15.4,4.0,6.5,3.5,6.0,5.5
+Xing Zhang,xing.zhang@netx.world,AgentCity: Constitutional Governance for Autonomous Agent Economies via Separation of Power,32,1470,38.3,37,73.0,15.4,4.0,6.5,3.5,6.0,5.5
+Jay Yu,jay@panteracapital.com; jyu01@stanford.edu,PASS: A Provenanced Access Subaccount System for Blockchain Wallets,11,1517,37.2,43,79.1,0.7,5.8,6.0,5.5,6.0,7.0
+Shunfan Zhou,,PASS: A Provenanced Access Subaccount System for Blockchain Wallets,11,1517,37.2,43,79.1,0.7,5.8,6.0,5.5,6.0,7.0
+Hang Yin,,PASS: A Provenanced Access Subaccount System for Blockchain Wallets,11,1517,37.2,43,79.1,0.7,5.8,6.0,5.5,6.0,7.0
+Brian Seong,brian@chainless.company,PASS: A Provenanced Access Subaccount System for Blockchain Wallets,11,1517,37.2,43,79.1,0.7,5.8,6.0,5.5,6.0,7.0
+Yue Li,,A402: Binding Cryptocurrency Payments to Service Execution for Agentic Commerce,4,1583,35.0,60,93.3,1.5,6.5,7.0,5.5,7.0,7.5
+Lei Wang (6656),,A402: Binding Cryptocurrency Payments to Service Execution for Agentic Commerce,4,1583,35.0,60,93.3,1.5,6.5,7.0,5.5,7.0,7.5
+Kaixuan Wang,,A402: Binding Cryptocurrency Payments to Service Execution for Agentic Commerce,4,1583,35.0,60,93.3,1.5,6.5,7.0,5.5,7.0,7.5
+Zhiqiang Yang,,A402: Binding Cryptocurrency Payments to Service Execution for Agentic Commerce,4,1583,35.0,60,93.3,1.5,6.5,7.0,5.5,7.0,7.5
+Ke Wang,,A402: Binding Cryptocurrency Payments to Service Execution for Agentic Commerce,4,1583,35.0,60,93.3,1.5,6.5,7.0,5.5,7.0,7.5
+Zhi Guan,,A402: Binding Cryptocurrency Payments to Service Execution for Agentic Commerce,4,1583,35.0,60,93.3,1.5,6.5,7.0,5.5,7.0,7.5
+Jianbo Gao,,A402: Binding Cryptocurrency Payments to Service Execution for Agentic Commerce,4,1583,35.0,60,93.3,1.5,6.5,7.0,5.5,7.0,7.5
+Zibin Lin,,Binding Agent ID: Unleashing the Power of AI Agents with accountability and credibility,27,1473,36.1,40,72.5,3.7,4.5,6.5,3.5,5.0,5.5
+ShengLi Zhang,,Binding Agent ID: Unleashing the Power of AI Agents with accountability and credibility,27,1473,36.1,40,72.5,3.7,4.5,6.5,3.5,5.0,5.5
+Guofu Liao,,Binding Agent ID: Unleashing the Power of AI Agents with accountability and credibility,27,1473,36.1,40,72.5,3.7,4.5,6.5,3.5,5.0,5.5
+Dacheng Tao,,Binding Agent ID: Unleashing the Power of AI Agents with accountability and credibility,27,1473,36.1,40,72.5,3.7,4.5,6.5,3.5,5.0,5.5
+Taotao Wang,,Binding Agent ID: Unleashing the Power of AI Agents with accountability and credibility,27,1473,36.1,40,72.5,3.7,4.5,6.5,3.5,5.0,5.5
+Sanjay Basu,,Know-Your-Agent (KYA): Extending Financial Identity Beyond Humans,104,1301,39.4,37,24.3,3.0,2.5,4.5,1.5,3.5,4.0
+Utkarsh Sinha,reachutkarshsinha@gmail.com,Autonomously Transacting Agents: A New Paradigm for AI in Finance,127,1198,50.9,46,2.2,-2.9,2.0,1.5,1.5,1.5,4.5
+Stefano Balietti,stefano.balietti@uni-mannheim.de,Slaying the Dragon: The Quest for Democracy in Decentralized Autonomous Organizations (DAOs),67,1394,37.5,38,60.5,-25.0,4.5,4.0,4.5,3.0,7.5
+Pietro Saggese,pietro.saggese@imtlucca.it,Slaying the Dragon: The Quest for Democracy in Decentralized Autonomous Organizations (DAOs),67,1394,37.5,38,60.5,-25.0,4.5,4.0,4.5,3.0,7.5
+Stefan Kitzler,,Slaying the Dragon: The Quest for Democracy in Decentralized Autonomous Organizations (DAOs),67,1394,37.5,38,60.5,-25.0,4.5,4.0,4.5,3.0,7.5
+Bernhard Haslhofer,haslhofer@csh.ac.at,Slaying the Dragon: The Quest for Democracy in Decentralized Autonomous Organizations (DAOs),67,1394,37.5,38,60.5,-25.0,4.5,4.0,4.5,3.0,7.5
+Shaoyu Li,hexuanyu@vt.edu; shaoyuli@vt.edu,ClawCoin: An Agentic AI-Native Cryptocurrency for Decentralized Agent Economies,14,1498,40.8,40,80.0,3.6,5.0,5.5,4.5,6.0,7.5
+Chaoyu Zhang,chaoyu@vt.edu,ClawCoin: An Agentic AI-Native Cryptocurrency for Decentralized Agent Economies,14,1498,40.8,40,80.0,3.6,5.0,5.5,4.5,6.0,7.5
+Hexuan Yu,,ClawCoin: An Agentic AI-Native Cryptocurrency for Decentralized Agent Economies,14,1498,40.8,40,80.0,3.6,5.0,5.5,4.5,6.0,7.5
+Y. Thomas Hou,thou@vt.edu,ClawCoin: An Agentic AI-Native Cryptocurrency for Decentralized Agent Economies,14,1498,40.8,40,80.0,3.6,5.0,5.5,4.5,6.0,7.5
+Wenjing Lou,wjlou@vt.edu,ClawCoin: An Agentic AI-Native Cryptocurrency for Decentralized Agent Economies,14,1498,40.8,40,80.0,3.6,5.0,5.5,4.5,6.0,7.5
+Fernando Castillo,fc@ise.tu-berlin.deoscar,Trustworthy Decentralized Autonomous Machines: A New Paradigm in Automation Economy,84,1356,36.4,40,45.0,-11.0,3.5,4.0,2.5,3.5,5.5
+Oscar Castillo,oscar@dobprotocol.comeduardo,Trustworthy Decentralized Autonomous Machines: A New Paradigm in Automation Economy,84,1356,36.4,40,45.0,-11.0,3.5,4.0,2.5,3.5,5.5
+Eduardo Brito,eduardo.brito@cyber.eesimon,Trustworthy Decentralized Autonomous Machines: A New Paradigm in Automation Economy,84,1356,36.4,40,45.0,-11.0,3.5,4.0,2.5,3.5,5.5
+Simon Espinola,simon@dobprotocol.com,Trustworthy Decentralized Autonomous Machines: A New Paradigm in Automation Economy,84,1356,36.4,40,45.0,-11.0,3.5,4.0,2.5,3.5,5.5
+Microsoft Copilot,copilot@microsoft.com,AI Agents in the Electricity Market Game with Cryptocurrency Transactions: A Post-Terminator Analysis,133,1185,46.8,62,0.0,-3.7,1.5,1.5,1.0,2.0,3.0
+Stephen E. Spear,,AI Agents in the Electricity Market Game with Cryptocurrency Transactions: A Post-Terminator Analysis,133,1185,46.8,62,0.0,-3.7,1.5,1.5,1.0,2.0,3.0
+Ihor Rumyk,,AI AGENTS IN DIGITAL ASSET MANAGEMENT: OPTIMIZATION OF INVESTMENT STRATEGIES UNDER CRYPTOCURRENCY VOLATILITY,125,1205,48.0,43,2.3,-0.8,2.0,1.5,1.5,1.5,3.5
+Yurii Kovalchuk,,AI AGENTS IN DIGITAL ASSET MANAGEMENT: OPTIMIZATION OF INVESTMENT STRATEGIES UNDER CRYPTOCURRENCY VOLATILITY,125,1205,48.0,43,2.3,-0.8,2.0,1.5,1.5,1.5,3.5
+Joel Frenette,,Systems and Methods for Decentralized AI Governance Networks (DAGN) with Tokenized Power Control (TPC) for Enforcing Human-Centric AI,129,1196,47.3,52,1.9,0.0,1.5,2.0,1.0,2.5,2.5
+Josepha Witt,josepha.witt@uni-hohenheim.de,Opportunities and Challenges of Blockchain Technology for Negotiation Support Systems,51,1428,37.3,37,62.2,-12.5,4.5,4.0,4.5,4.5,7.0
+Mareike Schoop,,Opportunities and Challenges of Blockchain Technology for Negotiation Support Systems,51,1428,37.3,37,62.2,-12.5,4.5,4.0,4.5,4.5,7.0
+Konstantin Knaus,,Opportunities and Challenges of Blockchain Technology for Negotiation Support Systems,51,1428,37.3,37,62.2,-12.5,4.5,4.0,4.5,4.5,7.0
+Ayman Nait Cherif,,CQRS and Blockchain with Zero-Knowledge Proofs for Secure Multi-Agent Decision-Making,101,1315,37.3,41,29.3,-5.9,3.0,3.0,1.5,2.5,5.0
+Mohamed Youssfi,,CQRS and Blockchain with Zero-Knowledge Proofs for Secure Multi-Agent Decision-Making,101,1315,37.3,41,29.3,-5.9,3.0,3.0,1.5,2.5,5.0
+Zakariae En-Naimani,,CQRS and Blockchain with Zero-Knowledge Proofs for Secure Multi-Agent Decision-Making,101,1315,37.3,41,29.3,-5.9,3.0,3.0,1.5,2.5,5.0
+Ahmed TADLAOUI,,CQRS and Blockchain with Zero-Knowledge Proofs for Secure Multi-Agent Decision-Making,101,1315,37.3,41,29.3,-5.9,3.0,3.0,1.5,2.5,5.0
+Maha Soulami,,CQRS and Blockchain with Zero-Knowledge Proofs for Secure Multi-Agent Decision-Making,101,1315,37.3,41,29.3,-5.9,3.0,3.0,1.5,2.5,5.0
+Omar Bouattane,,CQRS and Blockchain with Zero-Knowledge Proofs for Secure Multi-Agent Decision-Making,101,1315,37.3,41,29.3,-5.9,3.0,3.0,1.5,2.5,5.0
+Yepeng Ding,yepengd@acm.org,Decentralized Multi-Agent System with Trust-Aware Communication,43,1444,37.8,40,70.0,1.5,4.2,4.5,3.5,3.8,6.5
+Ahmed Twabi,iman-twabi@hiroshima-u.ac.jp,Decentralized Multi-Agent System with Trust-Aware Communication,43,1444,37.8,40,70.0,1.5,4.2,4.5,3.5,3.8,6.5
+Junwei Yu,,Decentralized Multi-Agent System with Trust-Aware Communication,43,1444,37.8,40,70.0,1.5,4.2,4.5,3.5,3.8,6.5
+Lingfeng Zhang,zhang-lingfeng936@g.ecc.u-tokyo.ac.jp,Decentralized Multi-Agent System with Trust-Aware Communication,43,1444,37.8,40,70.0,1.5,4.2,4.5,3.5,3.8,6.5
+Tohru Kondo,tkondo@hiroshima-u.ac.jp,Decentralized Multi-Agent System with Trust-Aware Communication,43,1444,37.8,40,70.0,1.5,4.2,4.5,3.5,3.8,6.5
+Hiroyuki Satō,,Decentralized Multi-Agent System with Trust-Aware Communication,43,1444,37.8,40,70.0,1.5,4.2,4.5,3.5,3.8,6.5
+Arijit Khan,arijitk@cs.aau.dk,Data Management and AI for Blockchain Data Analysis:A Round Trip and Opportunities,90,1344,37.4,40,45.0,3.0,3.0,3.5,2.0,2.5,6.0
+Qing Hu,,"Enabling Regulatory Multi-Agent Collaboration: Architecture, Challenges, and Solutions",75,1376,34.7,41,48.8,-3.7,3.5,5.0,2.5,4.0,5.5
+Yuntao Wang,,"Enabling Regulatory Multi-Agent Collaboration: Architecture, Challenges, and Solutions",75,1376,34.7,41,48.8,-3.7,3.5,5.0,2.5,4.0,5.5
+Yuan Gao,,"Enabling Regulatory Multi-Agent Collaboration: Architecture, Challenges, and Solutions",75,1376,34.7,41,48.8,-3.7,3.5,5.0,2.5,4.0,5.5
+Zhoucheng Su,,"Enabling Regulatory Multi-Agent Collaboration: Architecture, Challenges, and Solutions",75,1376,34.7,41,48.8,-3.7,3.5,5.0,2.5,4.0,5.5
+L. Du,,"Enabling Regulatory Multi-Agent Collaboration: Architecture, Challenges, and Solutions",75,1376,34.7,41,48.8,-3.7,3.5,5.0,2.5,4.0,5.5
+Xiaohang Yu,x.yu21@imperial.ac.uk,LOCARD: An Agentic Framework for Blockchain Forensics,23,1476,41.4,41,78.0,1.4,4.8,5.0,4.0,5.5,7.0
+William Knottenbelt,w.knottenbelt@imperial.ac.uk,LOCARD: An Agentic Framework for Blockchain Forensics,23,1476,41.4,41,78.0,1.4,4.8,5.0,4.0,5.5,7.0
+Vivek Acharya,,Secure Autonomous Agent Payments: Verifying Authenticity and Intent in a Trustless Environment,94,1340,37.7,38,36.8,5.1,2.8,4.5,1.5,2.5,5.0
+Mashael Almutairi,malmutairi@vt.edu,Resilient Multi-Agent Negotiation for Medical Supply Chains:Integrating LLMs and Blockchain for Transparent Coordination,100,1322,36.6,37,32.4,-9.6,3.2,3.5,2.0,3.5,5.0
+Hyungmin Kim,henrykim9319@vt.edu,Resilient Multi-Agent Negotiation for Medical Supply Chains:Integrating LLMs and Blockchain for Transparent Coordination,100,1322,36.6,37,32.4,-9.6,3.2,3.5,2.0,3.5,5.0
+Emily Struble,,Intelligent Prevention of DDoS Attacks using Reinforcement Learning and Smart Contracts,118,1272,41.1,30,23.3,-6.6,2.5,3.0,1.5,3.5,3.5
+Maikel León,,Intelligent Prevention of DDoS Attacks using Reinforcement Learning and Smart Contracts,118,1272,41.1,30,23.3,-6.6,2.5,3.0,1.5,3.5,3.5
+Erotokritos Skordilis,,Intelligent Prevention of DDoS Attacks using Reinforcement Learning and Smart Contracts,118,1272,41.1,30,23.3,-6.6,2.5,3.0,1.5,3.5,3.5
+Muhammad Farman Andrijasa,,Enhancing Smart Contract Security Through Multi-Agent Deep Reinforcement Learning Fuzzing: A Survey of Approaches and Techniques,112,1277,43.1,37,16.2,-1.5,2.5,2.0,2.0,2.0,3.5
+Saiful Adli Ismail,,Enhancing Smart Contract Security Through Multi-Agent Deep Reinforcement Learning Fuzzing: A Survey of Approaches and Techniques,112,1277,43.1,37,16.2,-1.5,2.5,2.0,2.0,2.0,3.5
+Norulhusna Ahmad,,Enhancing Smart Contract Security Through Multi-Agent Deep Reinforcement Learning Fuzzing: A Survey of Approaches and Techniques,112,1277,43.1,37,16.2,-1.5,2.5,2.0,2.0,2.0,3.5
+Othman Mohd Yusop,,Enhancing Smart Contract Security Through Multi-Agent Deep Reinforcement Learning Fuzzing: A Survey of Approaches and Techniques,112,1277,43.1,37,16.2,-1.5,2.5,2.0,2.0,2.0,3.5
+MD. Moinuddin,mohinmbstu15020@gmail.com,Integrating fourth industrial revolution (4IR) technologies with green energy systems: A framework for AI-driven smart grid optimization and carbon footprint reduction,91,1343,38.6,38,39.5,14.7,2.5,3.0,2.0,2.5,4.5
+Mostofa Kamal Nasir,,Integrating fourth industrial revolution (4IR) technologies with green energy systems: A framework for AI-driven smart grid optimization and carbon footprint reduction,91,1343,38.6,38,39.5,14.7,2.5,3.0,2.0,2.5,4.5
+Mahbuba Zaman,,Integrating fourth industrial revolution (4IR) technologies with green energy systems: A framework for AI-driven smart grid optimization and carbon footprint reduction,91,1343,38.6,38,39.5,14.7,2.5,3.0,2.0,2.5,4.5
+Md Shahriar Shabbir Tarafdar,,Integrating fourth industrial revolution (4IR) technologies with green energy systems: A framework for AI-driven smart grid optimization and carbon footprint reduction,91,1343,38.6,38,39.5,14.7,2.5,3.0,2.0,2.5,4.5
+Md. Liton Mia,,Integrating fourth industrial revolution (4IR) technologies with green energy systems: A framework for AI-driven smart grid optimization and carbon footprint reduction,91,1343,38.6,38,39.5,14.7,2.5,3.0,2.0,2.5,4.5
+Mototaz Begum,,Integrating fourth industrial revolution (4IR) technologies with green energy systems: A framework for AI-driven smart grid optimization and carbon footprint reduction,91,1343,38.6,38,39.5,14.7,2.5,3.0,2.0,2.5,4.5
+Philip Kwaku Adjei,,A graph attention network-based multi-agent reinforcement learning framework for robust detection of smart contract vulnerabilities,45,1441,37.8,40,67.5,-14.0,4.8,5.0,4.0,5.0,5.5
+Qin Zhi-guang,,A graph attention network-based multi-agent reinforcement learning framework for robust detection of smart contract vulnerabilities,45,1441,37.8,40,67.5,-14.0,4.8,5.0,4.0,5.0,5.5
+Isaac Amankona Obiri,,A graph attention network-based multi-agent reinforcement learning framework for robust detection of smart contract vulnerabilities,45,1441,37.8,40,67.5,-14.0,4.8,5.0,4.0,5.0,5.5
+Ansu Badjie,,A graph attention network-based multi-agent reinforcement learning framework for robust detection of smart contract vulnerabilities,45,1441,37.8,40,67.5,-14.0,4.8,5.0,4.0,5.0,5.5
+Christian Nii Aflah Cobblah,,A graph attention network-based multi-agent reinforcement learning framework for robust detection of smart contract vulnerabilities,45,1441,37.8,40,67.5,-14.0,4.8,5.0,4.0,5.0,5.5
+Ali Alqahtani,,A graph attention network-based multi-agent reinforcement learning framework for robust detection of smart contract vulnerabilities,45,1441,37.8,40,67.5,-14.0,4.8,5.0,4.0,5.0,5.5
+Yeong Hyeon Gu,,A graph attention network-based multi-agent reinforcement learning framework for robust detection of smart contract vulnerabilities,45,1441,37.8,40,67.5,-14.0,4.8,5.0,4.0,5.0,5.5
+Mugahed A. Al–antari,,A graph attention network-based multi-agent reinforcement learning framework for robust detection of smart contract vulnerabilities,45,1441,37.8,40,67.5,-14.0,4.8,5.0,4.0,5.0,5.5
+Ahmed Alagha,,UAV-assisted Internet of vehicles: A framework empowered by reinforcement learning and Blockchain,36,1457,37.1,39,69.2,-0.7,4.5,4.0,4.0,3.5,6.5
+Maha Kadadha,,UAV-assisted Internet of vehicles: A framework empowered by reinforcement learning and Blockchain,36,1457,37.1,39,69.2,-0.7,4.5,4.0,4.0,3.5,6.5
+Rabeb Mizouni,,UAV-assisted Internet of vehicles: A framework empowered by reinforcement learning and Blockchain,36,1457,37.1,39,69.2,-0.7,4.5,4.0,4.0,3.5,6.5
+Shakti Singh,,UAV-assisted Internet of vehicles: A framework empowered by reinforcement learning and Blockchain,36,1457,37.1,39,69.2,-0.7,4.5,4.0,4.0,3.5,6.5
+Jamal Bentahar,,UAV-assisted Internet of vehicles: A framework empowered by reinforcement learning and Blockchain,36,1457,37.1,39,69.2,-0.7,4.5,4.0,4.0,3.5,6.5
+Hadi Otrok,,UAV-assisted Internet of vehicles: A framework empowered by reinforcement learning and Blockchain,36,1457,37.1,39,69.2,-0.7,4.5,4.0,4.0,3.5,6.5
+Xiaorong Zhu,,A self evolving high performance sharded consortium blockchain designed for secure and trusted resource sharing for 6G networks,55,1415,36.5,39,59.0,-6.6,4.2,4.0,3.5,4.5,4.0
+Zhiwei Yuan,,A self evolving high performance sharded consortium blockchain designed for secure and trusted resource sharing for 6G networks,55,1415,36.5,39,59.0,-6.6,4.2,4.0,3.5,4.5,4.0
+Qinyin Ni,,A self evolving high performance sharded consortium blockchain designed for secure and trusted resource sharing for 6G networks,55,1415,36.5,39,59.0,-6.6,4.2,4.0,3.5,4.5,4.0
+Zhiyuan Wei,weizhiyuan@bit.edu.cn,LLM-SmartAudit: Advanced Smart Contract Vulnerability Detection,46,1439,43.4,34,67.6,0.7,4.2,5.0,3.0,4.5,4.5
+Jing Sun,jing.sun@auckland.ac.nz,LLM-SmartAudit: Advanced Smart Contract Vulnerability Detection,46,1439,43.4,34,67.6,0.7,4.2,5.0,3.0,4.5,4.5
+"Zhang, Zijiang",,LLM-SmartAudit: Advanced Smart Contract Vulnerability Detection,46,1439,43.4,34,67.6,0.7,4.2,5.0,3.0,4.5,4.5
+Xianhao Zhang,zhangzijian@bit.edu.cn,LLM-SmartAudit: Advanced Smart Contract Vulnerability Detection,46,1439,43.4,34,67.6,0.7,4.2,5.0,3.0,4.5,4.5
+"Li, Meng",mengli@hfut.edu.cn,LLM-SmartAudit: Advanced Smart Contract Vulnerability Detection,46,1439,43.4,34,67.6,0.7,4.2,5.0,3.0,4.5,4.5
+"Hou, Zhe",,LLM-SmartAudit: Advanced Smart Contract Vulnerability Detection,46,1439,43.4,34,67.6,0.7,4.2,5.0,3.0,4.5,4.5
+Anas Abognah,aabognah@uwaterloo.ca,BLAST: Blockchain-based LLM-powered Agentic Spectrum Trading,39,1449,36.7,40,65.0,6.7,4.2,4.0,3.5,4.5,6.5
+Otman Basir,,BLAST: Blockchain-based LLM-powered Agentic Spectrum Trading,39,1449,36.7,40,65.0,6.7,4.2,4.0,3.5,4.5,6.5
+Gyuyeon Na,amy-na@ewha.ac.kr,Human-Centered LLM-Agent System for Detecting Anomalous Digital Asset Transactions,73,1380,36.0,39,53.8,-1.4,3.5,3.5,2.5,3.0,4.5
+Min-Jung Park,mjpark@kumoh.ac.kr,Human-Centered LLM-Agent System for Detecting Anomalous Digital Asset Transactions,73,1380,36.0,39,53.8,-1.4,3.5,3.5,2.5,3.0,4.5
+Hyeonjeong Cha,hyeonjeong.cha@ewha.ac.kr,Human-Centered LLM-Agent System for Detecting Anomalous Digital Asset Transactions,73,1380,36.0,39,53.8,-1.4,3.5,3.5,2.5,3.0,4.5
+Sangmi Chai,,Human-Centered LLM-Agent System for Detecting Anomalous Digital Asset Transactions,73,1380,36.0,39,53.8,-1.4,3.5,3.5,2.5,3.0,4.5
+Landy Jimenez,,HadAgent: Harness-Aware Decentralized Agentic AI Serving with Proof-of-Inference Blockchain Consensus,74,1377,35.2,39,46.2,15.4,3.0,4.5,2.0,4.0,5.5
+Mariah Weatherspoon,,HadAgent: Harness-Aware Decentralized Agentic AI Serving with Proof-of-Inference Blockchain Consensus,74,1377,35.2,39,46.2,15.4,3.0,4.5,2.0,4.0,5.5
+Bingyu Shen,sheng1@usf.edu,HadAgent: Harness-Aware Decentralized Agentic AI Serving with Proof-of-Inference Blockchain Consensus,74,1377,35.2,39,46.2,15.4,3.0,4.5,2.0,4.0,5.5
+Yi Sheng,,HadAgent: Harness-Aware Decentralized Agentic AI Serving with Proof-of-Inference Blockchain Consensus,74,1377,35.2,39,46.2,15.4,3.0,4.5,2.0,4.0,5.5
+Jianming Liu,liujm06@gmail.com,HadAgent: Harness-Aware Decentralized Agentic AI Serving with Proof-of-Inference Blockchain Consensus,74,1377,35.2,39,46.2,15.4,3.0,4.5,2.0,4.0,5.5
+Boyang Li,,HadAgent: Harness-Aware Decentralized Agentic AI Serving with Proof-of-Inference Blockchain Consensus,74,1377,35.2,39,46.2,15.4,3.0,4.5,2.0,4.0,5.5
+Anichur Rahman,,Internet of medical things and blockchain-enabled patient-centric agent through SDN for remote patient monitoring in 5G network,99,1323,42.6,34,32.4,-19.9,3.5,3.0,2.5,3.0,4.0
+Md. Anwar Hussen Wadud,,Internet of medical things and blockchain-enabled patient-centric agent through SDN for remote patient monitoring in 5G network,99,1323,42.6,34,32.4,-19.9,3.5,3.0,2.5,3.0,4.0
+Md. Jahidul Islam,,Internet of medical things and blockchain-enabled patient-centric agent through SDN for remote patient monitoring in 5G network,99,1323,42.6,34,32.4,-19.9,3.5,3.0,2.5,3.0,4.0
+Dipanjali Kundu,,Internet of medical things and blockchain-enabled patient-centric agent through SDN for remote patient monitoring in 5G network,99,1323,42.6,34,32.4,-19.9,3.5,3.0,2.5,3.0,4.0
+T. M. Amir-Ul-Haque Bhuiyan,,Internet of medical things and blockchain-enabled patient-centric agent through SDN for remote patient monitoring in 5G network,99,1323,42.6,34,32.4,-19.9,3.5,3.0,2.5,3.0,4.0
+Ghulam Muhammad,,Internet of medical things and blockchain-enabled patient-centric agent through SDN for remote patient monitoring in 5G network,99,1323,42.6,34,32.4,-19.9,3.5,3.0,2.5,3.0,4.0
+Zulfiqar Ali,,Internet of medical things and blockchain-enabled patient-centric agent through SDN for remote patient monitoring in 5G network,99,1323,42.6,34,32.4,-19.9,3.5,3.0,2.5,3.0,4.0
+Xuhan Zuo,,Large Language Model Federated Learning with Blockchain and Unlearning for Cross-Organizational Collaboration,85,1352,35.0,42,42.9,8.1,3.0,4.0,2.0,3.0,4.0
+Minghao Wang,,Large Language Model Federated Learning with Blockchain and Unlearning for Cross-Organizational Collaboration,85,1352,35.0,42,42.9,8.1,3.0,4.0,2.0,3.0,4.0
+Tianqing Zhu,tqzhu@cityu.edu.mo,Large Language Model Federated Learning with Blockchain and Unlearning for Cross-Organizational Collaboration,85,1352,35.0,42,42.9,8.1,3.0,4.0,2.0,3.0,4.0
+Shui Yu,,Large Language Model Federated Learning with Blockchain and Unlearning for Cross-Organizational Collaboration,85,1352,35.0,42,42.9,8.1,3.0,4.0,2.0,3.0,4.0
+Wanlei Zhou,,Large Language Model Federated Learning with Blockchain and Unlearning for Cross-Organizational Collaboration,85,1352,35.0,42,42.9,8.1,3.0,4.0,2.0,3.0,4.0
+Felix Wagner,ifelixwagner@datavisionglobal.com,Distributed Intelligence Platforms Enabled by Blockchain for Secure Multi-Agent Collaboration,137,1165,57.9,40,0.0,0.0,1.0,1.0,1.0,1.0,3.0
+Shizhen Bai,,“GenAI + blockchain” to coordinate agricultural supply chains to improve quality trust: an agent-based simulation study,98,1325,38.8,38,36.8,-0.7,3.0,3.0,2.5,2.5,3.5
+Zijing Liu,,“GenAI + blockchain” to coordinate agricultural supply chains to improve quality trust: an agent-based simulation study,98,1325,38.8,38,36.8,-0.7,3.0,3.0,2.5,2.5,3.5
+Wen‐Ya Wu,,“GenAI + blockchain” to coordinate agricultural supply chains to improve quality trust: an agent-based simulation study,98,1325,38.8,38,36.8,-0.7,3.0,3.0,2.5,2.5,3.5
+Na Xu,,“GenAI + blockchain” to coordinate agricultural supply chains to improve quality trust: an agent-based simulation study,98,1325,38.8,38,36.8,-0.7,3.0,3.0,2.5,2.5,3.5
+Man Jiang,,“GenAI + blockchain” to coordinate agricultural supply chains to improve quality trust: an agent-based simulation study,98,1325,38.8,38,36.8,-0.7,3.0,3.0,2.5,2.5,3.5
+Majd Soud,,Soley: Identification and Automated Detection of Logic Vulnerabilities in Ethereum Smart Contracts Using Large Language Models,30,1471,39.6,41,73.2,4.4,4.5,5.0,4.0,5.0,5.5
+Waltteri Nuutinen,,Soley: Identification and Automated Detection of Logic Vulnerabilities in Ethereum Smart Contracts Using Large Language Models,30,1471,39.6,41,73.2,4.4,4.5,5.0,4.0,5.0,5.5
+Grischa Liebel,,Soley: Identification and Automated Detection of Logic Vulnerabilities in Ethereum Smart Contracts Using Large Language Models,30,1471,39.6,41,73.2,4.4,4.5,5.0,4.0,5.0,5.5
+Patrick Sebastian,patrick_sebastian@utp.edu.my,"Editorial: Applications of AI in autonomous, surveillance, and robotic systems",126,1205,47.1,53,1.9,3.0,1.5,1.0,1.5,1.0,5.0
+Ahmed Alagha,,Blockchain-based crowdsourced deep reinforcement learning as a service,53,1424,36.1,39,48.7,-11.7,4.5,4.5,4.0,5.0,6.5
+Hadi Otrok,,Blockchain-based crowdsourced deep reinforcement learning as a service,53,1424,36.1,39,48.7,-11.7,4.5,4.5,4.0,5.0,6.5
+Shakti Singh,,Blockchain-based crowdsourced deep reinforcement learning as a service,53,1424,36.1,39,48.7,-11.7,4.5,4.5,4.0,5.0,6.5
+Rabeb Mizouni,,Blockchain-based crowdsourced deep reinforcement learning as a service,53,1424,36.1,39,48.7,-11.7,4.5,4.5,4.0,5.0,6.5
+Jamal Bentahar,,Blockchain-based crowdsourced deep reinforcement learning as a service,53,1424,36.1,39,48.7,-11.7,4.5,4.5,4.0,5.0,6.5
+"Mao, Qian'ang",me@c0mm4nd.com; wzhou4@utk.edu; cassie-ikk@smail.nju.edu.cn,Know Your Intent: An Autonomous Multi-Perspective LLM Agent Framework for DeFi User Transaction Intent Mining,26,1474,40.1,37,70.3,0.7,4.8,5.5,3.8,5.0,6.0
+"Zhang, Yuxuan",,Know Your Intent: An Autonomous Multi-Perspective LLM Agent Framework for DeFi User Transaction Intent Mining,26,1474,40.1,37,70.3,0.7,4.8,5.5,3.8,5.0,6.0
+"Chen, Jiaman",jiamanchen@smail.nju.edu.cn,Know Your Intent: An Autonomous Multi-Perspective LLM Agent Framework for DeFi User Transaction Intent Mining,26,1474,40.1,37,70.3,0.7,4.8,5.5,3.8,5.0,6.0
+"Zhou, Wenjun",,Know Your Intent: An Autonomous Multi-Perspective LLM Agent Framework for DeFi User Transaction Intent Mining,26,1474,40.1,37,70.3,0.7,4.8,5.5,3.8,5.0,6.0
+"Yan, Jiaqi",jiaqiyan@nju.edu.cn,Know Your Intent: An Autonomous Multi-Perspective LLM Agent Framework for DeFi User Transaction Intent Mining,26,1474,40.1,37,70.3,0.7,4.8,5.5,3.8,5.0,6.0
+Arman Abgaryan,,Decentralised Multi-Manager Fund Framework,116,1273,38.6,40,22.5,-3.0,2.5,3.0,1.5,3.0,5.0
+Utkarsh Sharma,,Decentralised Multi-Manager Fund Framework,116,1273,38.6,40,22.5,-3.0,2.5,3.0,1.5,3.0,5.0
+Joshua Tobkin,,Decentralised Multi-Manager Fund Framework,116,1273,38.6,40,22.5,-3.0,2.5,3.0,1.5,3.0,5.0
+Tan Gürpinar,,Towards web 4.0: frameworks for autonomous AI agents and decentralized enterprise coordination,115,1274,43.6,38,21.1,-1.4,2.5,2.5,1.5,2.0,4.5
+Ailiya Borjigin,,AI-Governed Agent Architecture for Web-Trustworthy Tokenization of Alternative Assets,97,1326,37.3,38,34.2,0.7,3.0,3.5,1.5,3.0,5.5
+Wei Zhou,,AI-Governed Agent Architecture for Web-Trustworthy Tokenization of Alternative Assets,97,1326,37.3,38,34.2,0.7,3.0,3.5,1.5,3.0,5.5
+Cong He,,AI-Governed Agent Architecture for Web-Trustworthy Tokenization of Alternative Assets,97,1326,37.3,38,34.2,0.7,3.0,3.5,1.5,3.0,5.5
+Minfeng Qi,,Towards Transparent and Incentive-Compatible Collaboration in Decentralized LLM Multi-Agent Systems: A Blockchain-Driven Approach,63,1399,33.0,42,54.8,-3.0,3.8,3.5,3.0,3.5,6.5
+Tianqing Zhu,tqzhu@cityu.edu.mo,Towards Transparent and Incentive-Compatible Collaboration in Decentralized LLM Multi-Agent Systems: A Blockchain-Driven Approach,63,1399,33.0,42,54.8,-3.0,3.8,3.5,3.0,3.5,6.5
+Lefeng Zhang,,Towards Transparent and Incentive-Compatible Collaboration in Decentralized LLM Multi-Agent Systems: A Blockchain-Driven Approach,63,1399,33.0,42,54.8,-3.0,3.8,3.5,3.0,3.5,6.5
+Ningran Li,,Towards Transparent and Incentive-Compatible Collaboration in Decentralized LLM Multi-Agent Systems: A Blockchain-Driven Approach,63,1399,33.0,42,54.8,-3.0,3.8,3.5,3.0,3.5,6.5
+Wanlei Zhou,,Towards Transparent and Incentive-Compatible Collaboration in Decentralized LLM Multi-Agent Systems: A Blockchain-Driven Approach,63,1399,33.0,42,54.8,-3.0,3.8,3.5,3.0,3.5,6.5
+Andrii Dovzhenko,,A Blockchain-Based Approach to Trust System Design in Multi-Agent Environments,108,1283,36.9,49,12.2,4.4,2.5,2.5,1.5,2.0,4.5
+Vadym Yaremenko,,A Blockchain-Based Approach to Trust System Design in Multi-Agent Environments,108,1283,36.9,49,12.2,4.4,2.5,2.5,1.5,2.0,4.5
+Ke Tian,ketian2@illinois.edu,Blockchain-enhanced incentive-compatible mechanisms for multi-agent reinforcement learning systems,76,1374,34.4,42,42.9,-2.2,3.5,3.5,3.0,3.5,5.5
+Agustinus Suradi,constitudeum@gmail.com,Blockchain-Enabled Multi-Agent Reinforcement Learning for Secure Decentralised Resource Allocation in 5G/6G Network Slicing,135,1173,48.8,61,0.0,-2.9,1.5,1.5,1.0,1.5,2.5
+Muhamad Aris Sunandar,muhamadaris@stpn.ac.id,Blockchain-Enabled Multi-Agent Reinforcement Learning for Secure Decentralised Resource Allocation in 5G/6G Network Slicing,135,1173,48.8,61,0.0,-2.9,1.5,1.5,1.0,1.5,2.5
+Umna Iftikhar,yamnaiftikhar@gmail.com,Blockchain-Enabled Multi-Agent Reinforcement Learning for Secure Decentralised Resource Allocation in 5G/6G Network Slicing,135,1173,48.8,61,0.0,-2.9,1.5,1.5,1.0,1.5,2.5
+Janani Rangila,asiriwe@u-aizu.ac.jp,S5-SHB Agent: Society 5.0 enabled Multi-model Agentic Blockchain Framework for Smart Home,65,1396,34.5,39,61.5,-3.7,3.8,3.5,3.0,4.5,5.5
+Akila Siriweera,,S5-SHB Agent: Society 5.0 enabled Multi-model Agentic Blockchain Framework for Smart Home,65,1396,34.5,39,61.5,-3.7,3.8,3.5,3.0,4.5,5.5
+Incheon Paik,,S5-SHB Agent: Society 5.0 enabled Multi-model Agentic Blockchain Framework for Smart Home,65,1396,34.5,39,61.5,-3.7,3.8,3.5,3.0,4.5,5.5
+Keitaro Naruse,,S5-SHB Agent: Society 5.0 enabled Multi-model Agentic Blockchain Framework for Smart Home,65,1396,34.5,39,61.5,-3.7,3.8,3.5,3.0,4.5,5.5
+Isuru Jayanada,,S5-SHB Agent: Society 5.0 enabled Multi-model Agentic Blockchain Framework for Smart Home,65,1396,34.5,39,61.5,-3.7,3.8,3.5,3.0,4.5,5.5
+Vishmika Devindi,,S5-SHB Agent: Society 5.0 enabled Multi-model Agentic Blockchain Framework for Smart Home,65,1396,34.5,39,61.5,-3.7,3.8,3.5,3.0,4.5,5.5
+A. Bendada,,BotDetect: A Decentralized Federated Learning Framework for Detecting Financial Bots on the EVM Blockchains,58,1408,35.7,40,55.0,11.8,3.5,4.0,2.5,4.5,6.0
+Abdelaziz Amara Korba,,BotDetect: A Decentralized Federated Learning Framework for Detecting Financial Bots on the EVM Blockchains,58,1408,35.7,40,55.0,11.8,3.5,4.0,2.5,4.5,6.0
+Mouhamed Amine Bouchiha,,BotDetect: A Decentralized Federated Learning Framework for Detecting Financial Bots on the EVM Blockchains,58,1408,35.7,40,55.0,11.8,3.5,4.0,2.5,4.5,6.0
+Yacine Ghamri‐Doudane,,BotDetect: A Decentralized Federated Learning Framework for Detecting Financial Bots on the EVM Blockchains,58,1408,35.7,40,55.0,11.8,3.5,4.0,2.5,4.5,6.0
+Qian'ang Mao,,SoK: Security of Autonomous LLM Agents in Agentic Commerce,19,1488,41.1,35,74.3,-2.9,5.5,6.5,4.5,5.0,6.5
+Jiaxin Wang,,SoK: Security of Autonomous LLM Agents in Agentic Commerce,19,1488,41.1,35,74.3,-2.9,5.5,6.5,4.5,5.0,6.5
+Ya Liu,,SoK: Security of Autonomous LLM Agents in Agentic Commerce,19,1488,41.1,35,74.3,-2.9,5.5,6.5,4.5,5.0,6.5
+Li Zhu,,SoK: Security of Autonomous LLM Agents in Agentic Commerce,19,1488,41.1,35,74.3,-2.9,5.5,6.5,4.5,5.0,6.5
+Cong Ma,,SoK: Security of Autonomous LLM Agents in Agentic Commerce,19,1488,41.1,35,74.3,-2.9,5.5,6.5,4.5,5.0,6.5
+Jiaqi Yan,,SoK: Security of Autonomous LLM Agents in Agentic Commerce,19,1488,41.1,35,74.3,-2.9,5.5,6.5,4.5,5.0,6.5
+J Fejes,judit.katalin.fejes@gmail.com,CryptoLife HYDRA-SAI Framework for Investor Decision Support,103,1305,39.0,35,25.7,8.8,2.5,3.0,2.0,3.0,4.0
+Etelka Éva Katits,,CryptoLife HYDRA-SAI Framework for Investor Decision Support,103,1305,39.0,35,25.7,8.8,2.5,3.0,2.0,3.0,4.0
+Yongrae Jo,memex@postech.ac.kr,Byzantine-Robust Decentralized Coordination of LLM Agents,35,1461,34.4,47,78.7,14.0,4.0,4.5,3.0,5.0,6.0
+Chanik Park,cipark@postech.ac.kr,Byzantine-Robust Decentralized Coordination of LLM Agents,35,1461,34.4,47,78.7,14.0,4.0,4.5,3.0,5.0,6.0
+Eduardo Sardenberg Tavares,sardenberg@telemidia.puc-rio.br,Evaluating Zero-shot Reasoning with Agentic LLMs for Smart Contract Vulnerability Detection,77,1373,34.2,41,41.5,-1.5,3.5,3.0,3.5,2.5,5.5
+Antonio José G. Busson,antonio.busson@btgpactual.com,Evaluating Zero-shot Reasoning with Agentic LLMs for Smart Contract Vulnerability Detection,77,1373,34.2,41,41.5,-1.5,3.5,3.0,3.5,2.5,5.5
+Sérgio Colcher,colcher@inf.puc-rio.br,Evaluating Zero-shot Reasoning with Agentic LLMs for Smart Contract Vulnerability Detection,77,1373,34.2,41,41.5,-1.5,3.5,3.0,3.5,2.5,5.5
+Yichen Luo,yichen.luo.22@ucl.ac.uk,Resisting Manipulative Bots in Meme Coin Copy Trading: A Multi-Agent Approach with Chain-of-Thought Reasoning,10,1531,36.7,48,85.4,-1.5,6.3,6.5,5.5,6.5,7.0
+Yebo Feng,yebo.feng@ntu.edu.sg,Resisting Manipulative Bots in Meme Coin Copy Trading: A Multi-Agent Approach with Chain-of-Thought Reasoning,10,1531,36.7,48,85.4,-1.5,6.3,6.5,5.5,6.5,7.0
+Jiahua Xu,,Resisting Manipulative Bots in Meme Coin Copy Trading: A Multi-Agent Approach with Chain-of-Thought Reasoning,10,1531,36.7,48,85.4,-1.5,6.3,6.5,5.5,6.5,7.0
+Yang Liu,yangliu@ntu.edu.sg,Resisting Manipulative Bots in Meme Coin Copy Trading: A Multi-Agent Approach with Chain-of-Thought Reasoning,10,1531,36.7,48,85.4,-1.5,6.3,6.5,5.5,6.5,7.0
+Bin Hu,hr2703@nyu.edu; botao.hu@cs.ox.ac.uk,"Inter-Agent Trust Models: A Comparative Study of Brief, Claim, Proof, Stake, Reputation and Constraint in Agentic Web Protocol Design-A2A, AP2, ERC-8004, and Beyond",62,1403,34.8,40,50.0,-5.2,4.0,5.0,2.5,3.5,6.5
+Helena Rong,,"Inter-Agent Trust Models: A Comparative Study of Brief, Claim, Proof, Stake, Reputation and Constraint in Agentic Web Protocol Design-A2A, AP2, ERC-8004, and Beyond",62,1403,34.8,40,50.0,-5.2,4.0,5.0,2.5,3.5,6.5
+Arthur Gervais,,AI Agent Smart Contract Exploit Generation,6,1579,33.1,67,92.5,-0.8,6.8,7.5,6.5,6.5,7.5
+Liyi Zhou,,AI Agent Smart Contract Exploit Generation,6,1579,33.1,67,92.5,-0.8,6.8,7.5,6.5,6.5,7.5
+Chaoyuan Peng,,Re-Evaluating EVMBench: Are AI Agents Ready for Smart Contract Security?,5,1581,40.8,54,96.3,-0.7,7.0,7.5,6.5,6.0,8.5
+Lei Wu,,Re-Evaluating EVMBench: Are AI Agents Ready for Smart Contract Security?,5,1581,40.8,54,96.3,-0.7,7.0,7.5,6.5,6.0,8.5
+Yajin Zhou,,Re-Evaluating EVMBench: Are AI Agents Ready for Smart Contract Security?,5,1581,40.8,54,96.3,-0.7,7.0,7.5,6.5,6.0,8.5
+Yulin Liu,yulin@quantecon.ai,EconAgentic in DePIN Markets: A Large Language Model Approach to the Sharing Economy of Decentralized Physical Infrastructure,117,1273,40.7,38,15.8,-0.7,2.5,3.0,2.0,3.0,4.0
+M. Schweitzer,,EconAgentic in DePIN Markets: A Large Language Model Approach to the Sharing Economy of Decentralized Physical Infrastructure,117,1273,40.7,38,15.8,-0.7,2.5,3.0,2.0,3.0,4.0
+Jian sheng Wang,jason@yeah.app,AESP: A Human-Sovereign Economic Protocol for AI Agents with Privacy-Preserving Settlement,86,1351,40.1,39,35.9,-7.4,3.5,4.5,2.5,3.5,6.5
+Aadi Singhi,,An Adaptive Multi Agent Bitcoin Trading System,89,1345,40.0,36,36.1,-8.8,3.5,3.0,2.5,4.0,5.5
+Anbang Ruan,ruan@netx.foundation,AGNT2: Autonomous Agent Economies on Interaction-Optimized Layer 2 Infrastructure,9,1533,32.8,56,82.1,5.1,5.5,6.5,5.0,6.5,7.5
+Xing Zhang,xing.zhang@netx.world,AGNT2: Autonomous Agent Economies on Interaction-Optimized Layer 2 Infrastructure,9,1533,32.8,56,82.1,5.1,5.5,6.5,5.0,6.5,7.5
+Ghazi Ayed Alghathian,,Blockchain as a model for granting trust in AI-mediated digital transactions,57,1411,33.1,45,51.1,-5.9,4.2,4.5,3.5,4.0,4.5
+Karima Belabbes Mohammed Krim,,Blockchain as a model for granting trust in AI-mediated digital transactions,57,1411,33.1,45,51.1,-5.9,4.2,4.5,3.5,4.0,4.5
+Mohammad Khamaysa,,Blockchain as a model for granting trust in AI-mediated digital transactions,57,1411,33.1,45,51.1,-5.9,4.2,4.5,3.5,4.0,4.5
+Murad Altarawneh,,Blockchain as a model for granting trust in AI-mediated digital transactions,57,1411,33.1,45,51.1,-5.9,4.2,4.5,3.5,4.0,4.5
+Marc Jansen,marc.jansen@hs-ruhrwest.de,QOC DAO -- Stepwise Development Towards an AI Driven Decentralized Autonomous Organization,82,1366,36.9,38,39.5,-3.0,3.5,4.0,2.5,3.0,5.0
+Christophe Verdot,christophe@blockai.dev,QOC DAO -- Stepwise Development Towards an AI Driven Decentralized Autonomous Organization,82,1366,36.9,38,39.5,-3.0,3.5,4.0,2.5,3.0,5.0
+Tomer Jordi Chaffer,tomer.chaffer@mail.mcgill.ca,Can We Govern the Agent-to-Agent Economy?,109,1283,46.0,31,19.4,5.9,2.5,3.5,1.5,2.5,4.5
+Syed A. Rizvi,s.muhammadaqdasrizvi@gmail.com,The Cognitive Penalty: Ablating System 1 and System 2 Reasoning in Edge-Native SLMs for Decentralized Consensus,24,1475,44.2,34,73.5,10.3,4.5,5.5,4.0,6.0,6.5
+Chong Chen,chenjch86@mail.sysu.edu.cn,Coinvisor: An RL-Enhanced Chatbot Agent for Interactive Cryptocurrency Investment Analysis,68,1390,37.7,39,51.3,-8.9,4.0,3.5,3.5,4.0,5.5
+Ze Liu,,Coinvisor: An RL-Enhanced Chatbot Agent for Interactive Cryptocurrency Investment Analysis,68,1390,37.7,39,51.3,-8.9,4.0,3.5,3.5,4.0,5.5
+Lingfeng Bao,lingfengbao@zju.edu.cn,Coinvisor: An RL-Enhanced Chatbot Agent for Interactive Cryptocurrency Investment Analysis,68,1390,37.7,39,51.3,-8.9,4.0,3.5,3.5,4.0,5.5
+Yanlin Wang,wangylin36@mail.sysu.edu.cn,Coinvisor: An RL-Enhanced Chatbot Agent for Interactive Cryptocurrency Investment Analysis,68,1390,37.7,39,51.3,-8.9,4.0,3.5,3.5,4.0,5.5
+Ting Chen,,Coinvisor: An RL-Enhanced Chatbot Agent for Interactive Cryptocurrency Investment Analysis,68,1390,37.7,39,51.3,-8.9,4.0,3.5,3.5,4.0,5.5
+Daoyuan Wu,,Coinvisor: An RL-Enhanced Chatbot Agent for Interactive Cryptocurrency Investment Analysis,68,1390,37.7,39,51.3,-8.9,4.0,3.5,3.5,4.0,5.5
+Jiachi Chen,,Coinvisor: An RL-Enhanced Chatbot Agent for Interactive Cryptocurrency Investment Analysis,68,1390,37.7,39,51.3,-8.9,4.0,3.5,3.5,4.0,5.5
+Jingyi Zheng,xinleihe@hkust-gz.edu.cn,GasAgent: A Multi-Agent Framework for Automated Gas Optimization in Smart Contracts,25,1475,41.1,39,71.8,-8.8,5.8,5.5,5.5,5.0,7.0
+"Peng, Zifan",,GasAgent: A Multi-Agent Framework for Automated Gas Optimization in Smart Contracts,25,1475,41.1,39,71.8,-8.8,5.8,5.5,5.5,5.0,7.0
+Yule Liu,,GasAgent: A Multi-Agent Framework for Automated Gas Optimization in Smart Contracts,25,1475,41.1,39,71.8,-8.8,5.8,5.5,5.5,5.0,7.0
+Junfeng Wang,,GasAgent: A Multi-Agent Framework for Automated Gas Optimization in Smart Contracts,25,1475,41.1,39,71.8,-8.8,5.8,5.5,5.5,5.0,7.0
+Yifan Liao,,GasAgent: A Multi-Agent Framework for Automated Gas Optimization in Smart Contracts,25,1475,41.1,39,71.8,-8.8,5.8,5.5,5.5,5.0,7.0
+Wenhan Dong,,GasAgent: A Multi-Agent Framework for Automated Gas Optimization in Smart Contracts,25,1475,41.1,39,71.8,-8.8,5.8,5.5,5.5,5.0,7.0
+Xinlei He,,GasAgent: A Multi-Agent Framework for Automated Gas Optimization in Smart Contracts,25,1475,41.1,39,71.8,-8.8,5.8,5.5,5.5,5.0,7.0
+Jie Chen,,Multi-Agent Collaborative Fuzzing with Continuous Reflection for Smart Contracts Vulnerability Detection,8,1553,31.3,74,89.2,0.8,6.2,6.5,5.5,6.5,6.8
+Liangmin Wang,,Multi-Agent Collaborative Fuzzing with Continuous Reflection for Smart Contracts Vulnerability Detection,8,1553,31.3,74,89.2,0.8,6.2,6.5,5.5,6.5,6.8
+Wei Chen,chenwei8@sjtu.edu.cn,SolAgent: A Specialized Multi-Agent Framework for Solidity Code Generation,18,1492,39.9,39,74.4,-0.7,5.5,6.0,5.0,4.5,7.0
+Zhiyuan Peng,,SolAgent: A Specialized Multi-Agent Framework for Solidity Code Generation,18,1492,39.9,39,74.4,-0.7,5.5,6.0,5.0,4.5,7.0
+Xin Yin,xyin@zju.edu.cn,SolAgent: A Specialized Multi-Agent Framework for Solidity Code Generation,18,1492,39.9,39,74.4,-0.7,5.5,6.0,5.0,4.5,7.0
+Chao Ni,,SolAgent: A Specialized Multi-Agent Framework for Solidity Code Generation,18,1492,39.9,39,74.4,-0.7,5.5,6.0,5.0,4.5,7.0
+Chenhao Ying,,SolAgent: A Specialized Multi-Agent Framework for Solidity Code Generation,18,1492,39.9,39,74.4,-0.7,5.5,6.0,5.0,4.5,7.0
+Bang Xie,,SolAgent: A Specialized Multi-Agent Framework for Solidity Code Generation,18,1492,39.9,39,74.4,-0.7,5.5,6.0,5.0,4.5,7.0
+Yuan Luo,,SolAgent: A Specialized Multi-Agent Framework for Solidity Code Generation,18,1492,39.9,39,74.4,-0.7,5.5,6.0,5.0,4.5,7.0
+Ali Akarma,443059463@stu.iu.edu.sa; s21bdocs1m01009@iub.edu.pk,Governance-Constrained Agentic AI: Blockchain-Enforced Human Oversight for Safety-Critical Wildfire Monitoring,80,1370,37.6,39,46.2,-0.7,3.5,4.0,3.0,3.5,5.5
+Toqeer Ali Syed,toqeer@iu.edu.sa,Governance-Constrained Agentic AI: Blockchain-Enforced Human Oversight for Safety-Critical Wildfire Monitoring,80,1370,37.6,39,46.2,-0.7,3.5,4.0,3.0,3.5,5.5
+Salman Jan,salman.jan@aou.org.bh,Governance-Constrained Agentic AI: Blockchain-Enforced Human Oversight for Safety-Critical Wildfire Monitoring,80,1370,37.6,39,46.2,-0.7,3.5,4.0,3.0,3.5,5.5
+Hammad Muneer,,Governance-Constrained Agentic AI: Blockchain-Enforced Human Oversight for Safety-Critical Wildfire Monitoring,80,1370,37.6,39,46.2,-0.7,3.5,4.0,3.0,3.5,5.5
+Abdul Khadar Jilani,a.jilani@utb.edu.bh,Governance-Constrained Agentic AI: Blockchain-Enforced Human Oversight for Safety-Critical Wildfire Monitoring,80,1370,37.6,39,46.2,-0.7,3.5,4.0,3.0,3.5,5.5
+Craig Wright,cw881@exeter.ac.uk,On Immutable Memory Systems for Artificial Agents: A Blockchain-Indexed Automata-Theoretic Framework Using ECDH-Keyed Merkle Chains,114,1276,38.5,36,22.2,8.1,2.0,2.5,1.5,2.5,3.5
+Siqi Zhao,parmesian@sjtu.edu.cn,Adaptive Financial Decision-Making in DeFi: A Comprehensive Approach Using MARL and GNN,113,1277,41.5,36,13.9,3.6,2.5,3.0,1.5,3.5,3.0
+Lingxiao Hu,lifan.hu@u.nus.edu,GNN-Augmented RL for Fraud Detection in Decentralized Finance,81,1367,36.7,38,39.5,-0.7,3.5,4.0,2.5,4.5,5.0
+Jiacheng Guo,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+"Huang, Suozhi",,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+Zixin Yao,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+Yifan Zhang,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+Yifu Lu,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+Jiashuo Liu,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+Zihao Li,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+Yanyan Deng,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+"Xiao, Qixin",,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+Jia Tian,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+"Zhan, Kanghong",,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+Tianyi Li,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+Xiaochen Liu,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+Jason Ge,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+Chaoyang He,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+Kaixuan Huang,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+Lin Yang,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+Wenhao Huang,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+Mengdi Wang,,CryptoBench: A Dynamic Benchmark for Expert-Level Evaluation of LLM Agents in Cryptocurrency,38,1451,40.9,41,75.6,-7.3,4.8,5.5,3.8,5.0,6.5
+Jianfeng Shi,,Decoding China’s policy-driven blockchain evolution: a multi-agent collaborative analytical framework,79,1372,35.4,41,53.7,1.4,3.5,3.5,2.5,3.0,5.0
+Lingyuan Yin,,Decoding China’s policy-driven blockchain evolution: a multi-agent collaborative analytical framework,79,1372,35.4,41,53.7,1.4,3.5,3.5,2.5,3.0,5.0
+Yuanchao Liu,liuyang7@caict.ac.cn,Decoding China’s policy-driven blockchain evolution: a multi-agent collaborative analytical framework,79,1372,35.4,41,53.7,1.4,3.5,3.5,2.5,3.0,5.0
+Zihang Yin,,Decoding China’s policy-driven blockchain evolution: a multi-agent collaborative analytical framework,79,1372,35.4,41,53.7,1.4,3.5,3.5,2.5,3.0,5.0
+Yang Liu,,Decoding China’s policy-driven blockchain evolution: a multi-agent collaborative analytical framework,79,1372,35.4,41,53.7,1.4,3.5,3.5,2.5,3.0,5.0
+Vladimir Stantchev,vladimir@presidio-group.eu,Hardening x402: PII-Safe Agentic Payments via Pre-Execution Metadata Filtering,59,1408,34.5,42,52.4,1.5,3.8,4.0,4.5,3.0,7.0
+Di Kevin Gao,,AI Identification: An Integrated Framework for Sustainable Governance in Digital Enterprises,52,1425,36.9,38,57.9,3.7,4.0,5.0,2.5,4.0,5.5
+Jingdao Chen,,AI Identification: An Integrated Framework for Sustainable Governance in Digital Enterprises,52,1425,36.9,38,57.9,3.7,4.0,5.0,2.5,4.0,5.5
+Shahram Rahimi,,AI Identification: An Integrated Framework for Sustainable Governance in Digital Enterprises,52,1425,36.9,38,57.9,3.7,4.0,5.0,2.5,4.0,5.5
+Amrish Baskaran,,Aegon: Auditable AI Content Access with Ledger-Bound Tokens and Hardware-Attested Mobile Receipts,60,1407,38.6,39,56.4,16.2,3.5,5.5,2.0,4.0,7.0
+Nirbhay Pherwani,,Aegon: Auditable AI Content Access with Ledger-Bound Tokens and Hardware-Attested Mobile Receipts,60,1407,38.6,39,56.4,16.2,3.5,5.5,2.0,4.0,7.0
+Raghul Krishnan,,Aegon: Auditable AI Content Access with Ledger-Bound Tokens and Hardware-Attested Mobile Receipts,60,1407,38.6,39,56.4,16.2,3.5,5.5,2.0,4.0,7.0
+Joy Dutta,tu.d.ho@ntnu.no,Blockchain and AI: Securing Intelligent Networks for the Future,40,1449,41.5,35,77.1,-0.8,4.5,4.5,4.0,4.0,6.5
+Hossien B. Eldeeb,hossien@uaeu.ac.ae,Blockchain and AI: Securing Intelligent Networks for the Future,40,1449,41.5,35,77.1,-0.8,4.5,4.5,4.0,4.0,6.5
+Tu Dac Ho,,Blockchain and AI: Securing Intelligent Networks for the Future,40,1449,41.5,35,77.1,-0.8,4.5,4.5,4.0,4.0,6.5
+Chibuzor Udokwu,,An agentic AI marketplace for prelitigation analyses with ZKP-integrated ethical verifications,34,1468,34.6,45,73.3,11.7,4.2,5.0,3.5,4.5,5.5
+Vimal Dwivedi,,An agentic AI marketplace for prelitigation analyses with ZKP-integrated ethical verifications,34,1468,34.6,45,73.3,11.7,4.2,5.0,3.5,4.5,5.5
+Adam Buick,,An agentic AI marketplace for prelitigation analyses with ZKP-integrated ethical verifications,34,1468,34.6,45,73.3,11.7,4.2,5.0,3.5,4.5,5.5
+John Keers,,An agentic AI marketplace for prelitigation analyses with ZKP-integrated ethical verifications,34,1468,34.6,45,73.3,11.7,4.2,5.0,3.5,4.5,5.5
+Jun Liu,,An agentic AI marketplace for prelitigation analyses with ZKP-integrated ethical verifications,34,1468,34.6,45,73.3,11.7,4.2,5.0,3.5,4.5,5.5
+Devakh Rashie,devrashie@gmail.comveda,Type-Checked Compliance: Deterministic Guardrails for Agentic Financial Systems Using Lean 4 Theorem Proving,56,1412,45.7,32,71.9,19.9,3.5,5.5,2.0,4.5,6.5
+Veda Rashi,vedarashi21@gmail.com,Type-Checked Compliance: Deterministic Guardrails for Agentic Financial Systems Using Lean 4 Theorem Proving,56,1412,45.7,32,71.9,19.9,3.5,5.5,2.0,4.5,6.5
+Fabrizio Salmi,,Byzantine-Tolerant Belief Aggregation over Merkle-DAGs: A Deterministic Epistemic Layer for Decentralized AI,16,1496,40.3,45,80.0,17.7,4.5,5.5,5.0,6.0,5.5
+Anbang Ruan,ruan@netx.foundation,From Logic Monopoly to Social Contract: Separation of Power and the Institutional Foundations for Autonomous Agent Economies,21,1481,38.7,46,73.9,14.7,4.5,6.0,3.0,6.5,5.5
+Sarat Piridi,,Cognitive Ledger Protocol (CLP): A Trust Fabric Architecture for Verifiable Agentic Data Transactions,121,1263,43.4,31,19.4,3.7,2.0,3.5,1.0,2.5,2.0
+Octavian Untila,octav@aisophical.com,Emergent Formal Verification: How an Autonomous AI Ecosystem Independently Discovered SMT-Based Safety Across Six Domains,72,1382,37.0,38,57.9,19.9,3.0,3.0,2.5,3.5,5.5
+Muthana Mahdi,muthanasalih@uomustansiriyah.edu.iq,An Agent-Based Reinforcement Learning Framework for Dynamic Cryptographic Security,96,1330,41.3,37,37.8,2.9,3.0,3.5,2.0,3.5,3.0
+Aojie Yuan,aojieyua@usc.edu,Sovereign-OS: A Charter-Governed Operating System for Autonomous AI Agents with Verifiable Fiscal Discipline,54,1420,37.8,40,57.5,5.9,3.8,4.5,2.5,3.5,6.5
+Haiyue Zhang,haiyuez@usc.edu,Sovereign-OS: A Charter-Governed Operating System for Autonomous AI Agents with Verifiable Fiscal Discipline,54,1420,37.8,40,57.5,5.9,3.8,4.5,2.5,3.5,6.5
+Ziyi Wang,zoewang@umd.edu,Sovereign-OS: A Charter-Governed Operating System for Autonomous AI Agents with Verifiable Fiscal Discipline,54,1420,37.8,40,57.5,5.9,3.8,4.5,2.5,3.5,6.5
+Yue Zhao,yue.z@usc.edu,Sovereign-OS: A Charter-Governed Operating System for Autonomous AI Agents with Verifiable Fiscal Discipline,54,1420,37.8,40,57.5,5.9,3.8,4.5,2.5,3.5,6.5
+Aaron Chan,aaronc@saharalabs.ai,LATTICE: Evaluating Decision Support Utility of Crypto Agents,37,1457,38.4,39,66.7,3.6,4.5,5.0,3.5,5.5,7.0
+Tengfei Li (87820),,LATTICE: Evaluating Decision Support Utility of Crypto Agents,37,1457,38.4,39,66.7,3.6,4.5,5.0,3.5,5.5,7.0
+Tianyi Xiao,,LATTICE: Evaluating Decision Support Utility of Crypto Agents,37,1457,38.4,39,66.7,3.6,4.5,5.0,3.5,5.5,7.0
+Angela Chen,,LATTICE: Evaluating Decision Support Utility of Crypto Agents,37,1457,38.4,39,66.7,3.6,4.5,5.0,3.5,5.5,7.0
+Junyi Du,,LATTICE: Evaluating Decision Support Utility of Crypto Agents,37,1457,38.4,39,66.7,3.6,4.5,5.0,3.5,5.5,7.0
+Xiang Ren,,LATTICE: Evaluating Decision Support Utility of Crypto Agents,37,1457,38.4,39,66.7,3.6,4.5,5.0,3.5,5.5,7.0
+Antony Rowstron,,Agentic Witnessing: Pragmatic and Scalable TEE-Enabled Privacy-Preserving Auditing,31,1471,47.4,36,80.6,-1.5,4.8,6.5,3.5,6.5,6.0
+Amulya H,amulyah66@gmail.com; tashwini849@gmail.com,"The advent of new era transportation systems is creating large volumes of real time data which requires smart management. This is possible with the amalgamation of connected vehicles, autonomous-movement, and smart-infrastructure This research presents a",136,1169,55.2,42,0.0,-3.0,1.5,1.5,1.0,1.5,1.5
+Ashwini T,,"The advent of new era transportation systems is creating large volumes of real time data which requires smart management. This is possible with the amalgamation of connected vehicles, autonomous-movement, and smart-infrastructure This research presents a",136,1169,55.2,42,0.0,-3.0,1.5,1.5,1.0,1.5,1.5
+R. Gurunath,gurunath@dayanadasagar.edu,"The advent of new era transportation systems is creating large volumes of real time data which requires smart management. This is possible with the amalgamation of connected vehicles, autonomous-movement, and smart-infrastructure This research presents a",136,1169,55.2,42,0.0,-3.0,1.5,1.5,1.0,1.5,1.5
+Fernando Paredes García,fernando@develcuy.com,Ledger-State Stigmergy: A Formal Framework for Indirect Coordination Grounded in Distributed Ledger State,66,1396,38.6,36,63.9,13.2,3.5,3.5,3.0,4.0,7.0
+Ken Huang,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,69,1384,38.2,39,46.2,11.8,3.5,5.5,2.0,4.0,4.5
+Jerry Huang,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,69,1384,38.2,39,46.2,11.8,3.5,5.5,2.0,4.0,4.5
+Mahesh Lambe,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,69,1384,38.2,39,46.2,11.8,3.5,5.5,2.0,4.0,4.5
+Hammad Atta,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,69,1384,38.2,39,46.2,11.8,3.5,5.5,2.0,4.0,4.5
+Yasir Mehmood,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,69,1384,38.2,39,46.2,11.8,3.5,5.5,2.0,4.0,4.5
+Muhammad Zeeshan Baig,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,69,1384,38.2,39,46.2,11.8,3.5,5.5,2.0,4.0,4.5
+Muhammad Aziz Ul Haq,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,69,1384,38.2,39,46.2,11.8,3.5,5.5,2.0,4.0,4.5
+Nadeem Shahzad,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,69,1384,38.2,39,46.2,11.8,3.5,5.5,2.0,4.0,4.5
+Shailja Gupta,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,69,1384,38.2,39,46.2,11.8,3.5,5.5,2.0,4.0,4.5
+Rajesh Ranjan,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,69,1384,38.2,39,46.2,11.8,3.5,5.5,2.0,4.0,4.5
+Rekha Singhal,,Capability-Priced Micro-Markets: A Micro-Economic Framework for the Agentic Web over HTTP 402,69,1384,38.2,39,46.2,11.8,3.5,5.5,2.0,4.0,4.5
+Yikuan Huang,kaiqi.hu7@rutgers.edu,From Hypotheses to Factors: Constrained LLM Agents in Cryptocurrency Markets,42,1446,34.2,45,64.4,0.8,4.5,5.0,3.5,5.5,5.5
+Zheqi Fan,yifanye@bnbu.edu.cn,From Hypotheses to Factors: Constrained LLM Agents in Cryptocurrency Markets,42,1446,34.2,45,64.4,0.8,4.5,5.0,3.5,5.5,5.5
+Kaiqi Hu,,From Hypotheses to Factors: Constrained LLM Agents in Cryptocurrency Markets,42,1446,34.2,45,64.4,0.8,4.5,5.0,3.5,5.5,5.5
+Yifan Ye,,From Hypotheses to Factors: Constrained LLM Agents in Cryptocurrency Markets,42,1446,34.2,45,64.4,0.8,4.5,5.0,3.5,5.5,5.5
+Xu Yao,yaoxu0468@126.com,PriRS: an AI-driven framework for privacy and reliability in cyber–physical–social systems data sharing,22,1479,35.6,54,74.1,5.9,4.8,5.5,4.0,5.5,5.0
+Kun Zhang,,PriRS: an AI-driven framework for privacy and reliability in cyber–physical–social systems data sharing,22,1479,35.6,54,74.1,5.9,4.8,5.5,4.0,5.5,5.0
+Yingwei Liang,,PriRS: an AI-driven framework for privacy and reliability in cyber–physical–social systems data sharing,22,1479,35.6,54,74.1,5.9,4.8,5.5,4.0,5.5,5.0
+Chenghui Liu,,PriRS: an AI-driven framework for privacy and reliability in cyber–physical–social systems data sharing,22,1479,35.6,54,74.1,5.9,4.8,5.5,4.0,5.5,5.0
+Taipeng Zhu,,PriRS: an AI-driven framework for privacy and reliability in cyber–physical–social systems data sharing,22,1479,35.6,54,74.1,5.9,4.8,5.5,4.0,5.5,5.0
+Fangfang Zhou,,PriRS: an AI-driven framework for privacy and reliability in cyber–physical–social systems data sharing,22,1479,35.6,54,74.1,5.9,4.8,5.5,4.0,5.5,5.0
+Mohanapriya D,editor@ijfmr.com,Agentic AI powered Cryptographic Blockchain for Secured Data Aggregation in WSN,132,1186,46.4,66,1.5,0.8,1.5,1.5,1.0,1.5,2.0
+SARAVANAN V,,Agentic AI powered Cryptographic Blockchain for Secured Data Aggregation in WSN,132,1186,46.4,66,1.5,0.8,1.5,1.5,1.0,1.5,2.0
+Akshay Mittal,,"Agent Name Service (ANS): A Proof-of-Concept Trust Layer for Secure AI Agent Discovery, Identity, and Governance in Kubernetes",110,1283,40.9,36,27.8,6.7,2.5,3.5,1.5,2.5,4.5
+Elyson De La Cruz,elyson.delacruz@ucumberlands.edu,"Agent Name Service (ANS): A Proof-of-Concept Trust Layer for Secure AI Agent Discovery, Identity, and Governance in Kubernetes",110,1283,40.9,36,27.8,6.7,2.5,3.5,1.5,2.5,4.5
+Yu-Chao Huang,,TRUST: A Framework for Decentralized AI Service v.0.1,20,1486,37.9,50,78.0,0.0,5.0,6.5,4.0,6.0,6.5
+Zhen Tan,,TRUST: A Framework for Decentralized AI Service v.0.1,20,1486,37.9,50,78.0,0.0,5.0,6.5,4.0,6.0,6.5
+Mohan Zhang,,TRUST: A Framework for Decentralized AI Service v.0.1,20,1486,37.9,50,78.0,0.0,5.0,6.5,4.0,6.0,6.5
+Pingzhi Li,,TRUST: A Framework for Decentralized AI Service v.0.1,20,1486,37.9,50,78.0,0.0,5.0,6.5,4.0,6.0,6.5
+Zhuo Zhang,,TRUST: A Framework for Decentralized AI Service v.0.1,20,1486,37.9,50,78.0,0.0,5.0,6.5,4.0,6.0,6.5
+Tianlong Chen,,TRUST: A Framework for Decentralized AI Service v.0.1,20,1486,37.9,50,78.0,0.0,5.0,6.5,4.0,6.0,6.5
+T. J. Barton,poof@dxrg.ai,Operating-Layer Controls for Onchain Language-Model Agents Under Real Capital,7,1564,33.6,54,88.9,0.0,6.5,7.0,5.5,7.0,7.0
+Chris Constantakis,,Operating-Layer Controls for Onchain Language-Model Agents Under Real Capital,7,1564,33.6,54,88.9,0.0,6.5,7.0,5.5,7.0,7.0
+Patti Hauseman,,Operating-Layer Controls for Onchain Language-Model Agents Under Real Capital,7,1564,33.6,54,88.9,0.0,6.5,7.0,5.5,7.0,7.0
+Annie Mous,,Operating-Layer Controls for Onchain Language-Model Agents Under Real Capital,7,1564,33.6,54,88.9,0.0,6.5,7.0,5.5,7.0,7.0
+Alaska Hoffman,,Operating-Layer Controls for Onchain Language-Model Agents Under Real Capital,7,1564,33.6,54,88.9,0.0,6.5,7.0,5.5,7.0,7.0
+Brian Bergeron,,Operating-Layer Controls for Onchain Language-Model Agents Under Real Capital,7,1564,33.6,54,88.9,0.0,6.5,7.0,5.5,7.0,7.0
+Hunter Goodreau,,Operating-Layer Controls for Onchain Language-Model Agents Under Real Capital,7,1564,33.6,54,88.9,0.0,6.5,7.0,5.5,7.0,7.0
+Necati Ayan,nayan1@binghamton.edu,The Platform Is Mostly Not a Platform: Token Economies and Agent Discourse on Moltbook,2,1599,41.0,67,98.5,-0.7,7.4,7.5,7.0,7.8,9.0
