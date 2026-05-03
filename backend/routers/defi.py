@@ -64,6 +64,10 @@ async def get_defi_papers(
         "citations": "cited_by_count",
         "title": "title",
         "ai_rating": "ai_rating",
+        "score": "tournament_score",
+        "win_rate": "tournament_win_rate",
+        "matches": "tournament_comparisons",
+        "ci": "tournament_wilson_margin",
     }.get(sort, "publication_date")
     sort_dir = -1 if dir == "desc" else 1
 

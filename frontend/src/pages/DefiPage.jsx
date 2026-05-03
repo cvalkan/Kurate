@@ -28,7 +28,7 @@ export default function DefiPage() {
   }, [search]);
 
   // Map backend sort keys to API params
-  const sortMap = { published: "date", title: "title", comparisons: "citations", ai_rating: "ai_rating" };
+  const sortMap = { published: "date", title: "title", comparisons: "matches", ai_rating: "ai_rating", score: "score", win_rate: "win_rate", wilson_margin: "ci" };
   const apiSort = sortMap[sort] || "date";
 
   const load = useCallback(async (append = false) => {
