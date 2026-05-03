@@ -424,6 +424,42 @@ export default function PaperPage() {
               <ExternalLink className="h-3 w-3" />
             </a>
           )}
+          {!paper.arxiv_id && paper.doi && (
+            <a
+              href={`https://doi.org/${paper.doi}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+              data-testid="doi-link"
+            >
+              DOI:{paper.doi}
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+          {!paper.arxiv_id && !paper.doi && paper.link && (
+            <a
+              href={paper.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+              data-testid="paper-link"
+            >
+              View paper
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+          {paper.pdf_link && (
+            <a
+              href={paper.pdf_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-accent hover:underline"
+              data-testid="pdf-link"
+            >
+              PDF
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
           <VersionToggle
             currentId={paper.id}
             currentVersion={paper.current_version}
