@@ -1124,6 +1124,22 @@ async def get_paper_detail(paper_id: str):
 
     primary_cat = paper.get("categories", [None])[0]
 
+    # For DeFi papers, enrich with link/doi from defi_papers if missing
+    is_defi = primary_cat and (primary_cat == "defi" or primary_cat.startswith("defi."))
+    if is_defi and not paper.get("link") and not paper.get("doi"):
+        defi_doc = await db.defi_papers.find_one(
+            {"paper_id": paper_id},
+            {"_id": 0, "pdf_url": 1, "url": 1, "doi": 1, "openalex_id": 1}
+        )
+        if defi_doc:
+            if defi_doc.get("doi"):
+                paper["doi"] = defi_doc["doi"]
+                paper["link"] = f"https://doi.org/{defi_doc['doi']}"
+            if defi_doc.get("pdf_url"):
+                paper["pdf_link"] = defi_doc["pdf_url"]
+            if defi_doc.get("url"):
+                paper["link"] = paper.get("link") or defi_doc["url"]
+
     # Run all independent queries in parallel
     async def fetch_matches():
         return await db.matches.find(
