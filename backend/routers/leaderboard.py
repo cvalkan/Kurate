@@ -1148,13 +1148,14 @@ async def get_paper_detail(paper_id: str):
         if not ranking and (primary_cat == "defi" or (primary_cat and primary_cat.startswith("defi."))):
             ranking = await db.defi_rankings.find_one(
                 {"id": paper_id},
-                {"_id": 0, "wins": 1, "losses": 1, "comparisons": 1,
-                 "ts_score": 1, "ts_mu": 1, "ts_sigma": 1, "ts_ci": 1,
-                 "win_rate": 1, "rank": 1, "gap_score": 1}
+                {"_id": 0}
             )
             if ranking:
-                ranking["score"] = ranking.get("ts_score")
-                ranking["wilson_margin"] = ranking.get("ts_ci")
+                ranking["score"] = ranking.get("ts_score") or ranking.get("score")
+                if not ranking.get("wilson_margin") and ranking.get("ts_ci"):
+                    ranking["wilson_margin"] = ranking.get("ts_ci")
+                if not ranking.get("ts_score") and ranking.get("score"):
+                    ranking["ts_score"] = ranking.get("score")
         return ranking
 
     async def fetch_score_range():
@@ -1165,6 +1166,8 @@ async def get_paper_detail(paper_id: str):
         rank_coll = db.defi_rankings if is_defi else db.rankings
         cat_filter = {} if is_defi else {"category": primary_cat}
         for score_field, min_key, max_key in [
+            ("score", "category_ts_min", "category_ts_max"),
+        ] if is_defi else [
             ("os_score", "category_os_min", "category_os_max"),
             ("ts_score", "category_ts_min", "category_ts_max"),
         ]:
