@@ -21,9 +21,9 @@ PARALLEL = 15
 CI_TARGET = 10       # Top-K CI margin target
 CI_TARGET_GENERAL = 15  # General papers CI margin target
 TOP_K = 10
-MAX_PAIRS_PER_ROUND = 80
-MAX_NEW_PER_PAPER = 3
-MAX_ROUNDS = 15
+MAX_PAIRS_PER_ROUND = 120
+MAX_NEW_PER_PAPER = 5
+MAX_ROUNDS = 50
 CALIBRATION_RATIO = 50  # % of pairs that are needy-vs-established
 
 async def load_papers():
