@@ -1138,26 +1138,41 @@ async def get_paper_detail(paper_id: str):
         ).sort("created_at", -1).to_list(500)
 
     async def fetch_ranking():
-        return await db.rankings.find_one(
+        ranking = await db.rankings.find_one(
             {"paper_id": paper_id},
             {"_id": 0, "wins": 1, "losses": 1, "comparisons": 1,
              "score": 1, "rank": 1, "rank_ts": 1, "win_rate": 1, "ci": 1, "wilson_margin": 1,
              "ts_score": 1, "ts_sigma": 1, "os_score": 1, "os_sigma": 1, "revision_badge": 1}
         )
+        # Fallback to defi_rankings for DeFi papers
+        if not ranking and (primary_cat == "defi" or (primary_cat and primary_cat.startswith("defi."))):
+            ranking = await db.defi_rankings.find_one(
+                {"id": paper_id},
+                {"_id": 0, "wins": 1, "losses": 1, "comparisons": 1,
+                 "ts_score": 1, "ts_mu": 1, "ts_sigma": 1, "ts_ci": 1,
+                 "win_rate": 1, "rank": 1, "gap_score": 1}
+            )
+            if ranking:
+                ranking["score"] = ranking.get("ts_score")
+                ranking["wilson_margin"] = ranking.get("ts_ci")
+        return ranking
 
     async def fetch_score_range():
         result = {}
         if not primary_cat:
             return result
+        is_defi = primary_cat == "defi" or primary_cat.startswith("defi.")
+        rank_coll = db.defi_rankings if is_defi else db.rankings
+        cat_filter = {} if is_defi else {"category": primary_cat}
         for score_field, min_key, max_key in [
             ("os_score", "category_os_min", "category_os_max"),
             ("ts_score", "category_ts_min", "category_ts_max"),
         ]:
             pipeline = [
-                {"$match": {"category": primary_cat, score_field: {"$exists": True, "$ne": None}}},
+                {"$match": {**cat_filter, score_field: {"$exists": True, "$ne": None}}},
                 {"$group": {"_id": None, "min_val": {"$min": f"${score_field}"}, "max_val": {"$max": f"${score_field}"}}},
             ]
-            async for agg in db.rankings.aggregate(pipeline):
+            async for agg in rank_coll.aggregate(pipeline):
                 result[min_key] = agg.get("min_val")
                 result[max_key] = agg.get("max_val")
         return result
@@ -1165,6 +1180,8 @@ async def get_paper_detail(paper_id: str):
     async def fetch_cat_count():
         if not primary_cat:
             return 0
+        if primary_cat == "defi" or primary_cat.startswith("defi."):
+            return await db.defi_rankings.count_documents({})
         return await db.rankings.count_documents({"category": primary_cat})
 
     async def fetch_siblings():
