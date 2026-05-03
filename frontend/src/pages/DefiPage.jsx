@@ -170,7 +170,7 @@ export default function DefiPage() {
           onSort={handleSort}
           showRatingCol={true}
           showGapCol={false}
-          scoringMethod="wr"
+          scoringMethod="ts"
           isArchive={false}
         />
       </div>
