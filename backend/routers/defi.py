@@ -16,9 +16,13 @@ async def get_defi_papers(
     search: str = Query("", description="Search title/authors/keywords"),
     subset: str = Query("all", description="Filter: all, ai, agents"),
     availability: str = Query("all", description="Filter: all, pdf, abstract_only"),
+    group: str = Query("", description="Filter by tagged group (e.g. blockchain_ai_agents)"),
 ):
     """List DeFi papers. subset=ai/agents filters topic, availability=pdf/abstract_only filters by PDF."""
     query = {}
+    
+    if group:
+        query["group"] = group
     
     if availability == "pdf":
         query["pdf_downloaded"] = True
