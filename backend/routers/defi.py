@@ -82,7 +82,8 @@ async def get_defi_papers(
          "ai_rating": 1, "summary_scores": 1, "paper_id": 1,
          "tournament_score": 1, "tournament_win_rate": 1,
          "tournament_comparisons": 1, "tournament_wilson_margin": 1,
-         "tournament_rank": 1, "gap_score": 1},
+         "tournament_rank": 1, "gap_score": 1,
+         "tournament_ts_mu": 1, "tournament_ts_sigma": 1, "tournament_ts_ci": 1},
     ).sort(sort_field, sort_dir).skip(offset).limit(limit):
         papers.append(doc)
 
