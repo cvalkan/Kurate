@@ -36,7 +36,7 @@ export default function DefiPage() {
     const off = append ? offsetRef.current : 0;
     try {
       const r = await axios.get(`${API}/api/defi/papers`, {
-        params: { sort: apiSort, dir: sortDir, limit, offset: off, search: debouncedSearch, subset, availability },
+        params: { sort: apiSort, dir: sortDir, limit, offset: off, search: debouncedSearch, subset, availability, group: subset === "agents" ? "blockchain_ai_agents" : "" },
       });
       const newPapers = (r.data.papers || []).map((p, i) => ({
         // Map to LeaderboardTable's expected shape

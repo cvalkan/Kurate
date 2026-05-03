@@ -23,13 +23,7 @@ async def get_defi_papers(
     
     if group:
         query["group"] = group
-    
-    if availability == "pdf":
-        query["pdf_downloaded"] = True
-    elif availability == "abstract_only":
-        query["pdf_downloaded"] = {"$ne": True}
-    
-    if subset == "ai":
+    elif subset == "ai":
         ai_terms = ["artificial intelligence", "machine learning", "deep learning", "neural network",
                      "reinforcement learning", "llm", "large language model", "gpt", "chatgpt",
                      "ai agent", "autonomous agent", "multi-agent", "intelligent agent", "agentic",
@@ -48,6 +42,11 @@ async def get_defi_papers(
             {"abstract": {"$regex": "|".join(agent_terms), "$options": "i"}},
         ]}
         query = {"$and": [query, subset_cond]} if query else subset_cond
+
+    if availability == "pdf":
+        query["pdf_downloaded"] = True
+    elif availability == "abstract_only":
+        query["pdf_downloaded"] = {"$ne": True}
     
     if search:
         search_cond = {"$or": [
@@ -125,10 +124,12 @@ async def get_defi_stats():
     ]):
         top_sources.append({"source": doc["_id"], "count": doc["count"]})
 
+    blockchain_ai_agents_count = await db.defi_papers.count_documents({"group": "blockchain_ai_agents"})
+
     return {
         "total": total,
         "ai_count": ai_count,
-        "agent_count": agent_count,
+        "agent_count": blockchain_ai_agents_count,
         "pdf_downloaded": pdf_downloaded,
         "abstract_only": abstract_only,
         "with_pdf": with_pdf,
