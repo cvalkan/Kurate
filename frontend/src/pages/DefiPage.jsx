@@ -53,7 +53,13 @@ export default function DefiPage() {
         wilson_margin: p.tournament_ts_ci || p.tournament_wilson_margin || null,
         gap_score: p.gap_score || null,
         arxiv_id: p.arxiv_id || null,
-        link: p.paper_id ? null : (p.pdf_url || p.url || (p.doi ? `https://doi.org/${p.doi}` : null)),
+        link: p.paper_id ? null : (() => {
+          // Prefer DOI landing page, convert arXiv PDFs to abstract pages
+          if (p.doi) return `https://doi.org/${p.doi}`;
+          if (p.pdf_url && p.pdf_url.includes("arxiv.org/pdf/"))
+            return p.pdf_url.replace("/pdf/", "/abs/").replace(".pdf", "");
+          return p.url || p.pdf_url || null;
+        })(),
         ai_rating: p.ai_rating || null,
         // DeFi-specific
         cited_by_count: p.cited_by_count,
