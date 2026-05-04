@@ -1102,7 +1102,6 @@ async def _download_pending_pdfs(category: str = None, force: bool = False):
     return downloaded
 
 
-_OPENAI_DIRECT_KEY = os.environ.get("OPENAI_API_KEY_GPT54") or os.environ.get("OPENAI_API_KEY_DIRECT")
 
 # --- Summary model configuration ---
 # Only Claude Opus 4.6 Thinking is used for new summaries.
@@ -1161,14 +1160,6 @@ _SUMMARY_KEY_FALLBACKS = {
         "openai:gpt-5_2",
         "gemini:gemini-3-pro-preview",
         "gemini:gemini-3_1-pro-preview",
-    ],
-    # GPT-5.5 accepts existing GPT-5.2 summaries — don't re-summarize old papers
-    "openai:gpt-5_5": [
-        "openai:gpt-5_2",
-    ],
-    # Gemini 3.1 accepts existing Gemini 3 summaries
-    "gemini:gemini-3_1-pro-preview": [
-        "gemini:gemini-3-pro-preview",
     ],
 }
 
