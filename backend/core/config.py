@@ -34,7 +34,7 @@ logger = logging.getLogger("papersumo")
 TOURNAMENT_MODELS = [
     {"provider": "openai", "model": "gpt-5.2"},
     {"provider": "anthropic", "model": "claude-opus-4-6"},
-    {"provider": "gemini", "model": "gemini-3-pro-preview"},
+    {"provider": "gemini", "model": "gemini-3.1-pro-preview"},
 ]
 
 # Available categories
