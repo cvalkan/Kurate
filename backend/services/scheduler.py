@@ -1111,7 +1111,7 @@ _SUMMARY_GENERATION_MODELS = [
      "extra_params": {"extra_body": {"thinking": {"type": "enabled", "budget_tokens": 10000}}},
      "key_suffix": "thinking"},
     {"provider": "openai", "model": "gpt-5.5", "api_key": _OPENAI_DIRECT_KEY},
-    {"provider": "gemini", "model": "gemini-3.1-pro-preview"},
+    {"provider": "gemini", "model": "gemini-3-pro-preview"},
 ]
 
 # Models whose summaries can be selected for live tournament comparisons.
@@ -1119,7 +1119,7 @@ _SUMMARY_GENERATION_MODELS = [
 # generated for analysis purposes but NOT fed to judges.
 _SUMMARY_MODELS = {
     "claude": {"provider": "anthropic", "model": "claude-opus-4-6", "key_suffix": "thinking"},
-    "gemini": {"provider": "gemini", "model": "gemini-3.1-pro-preview"},
+    "gemini": {"provider": "gemini", "model": "gemini-3-pro-preview"},
     "gpt": {"provider": "openai", "model": "gpt-5.5", "api_key": _OPENAI_DIRECT_KEY},
 }
 _summary_rr_counter = 0
