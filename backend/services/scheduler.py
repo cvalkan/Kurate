@@ -791,6 +791,11 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                         last_fetch_iso = nested.get(parts[1])
         date_from = last_fetch_iso[:10] if last_fetch_iso else None
 
+        # For new categories never fetched: default to 30-day lookback for catch-up
+        if not date_from:
+            from datetime import datetime, timedelta, timezone
+            date_from = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
+
         # --- STEP 1: Fetch new papers from source ---
         cat_status["current_activity"] = "Fetching new papers from source..."
         try:
