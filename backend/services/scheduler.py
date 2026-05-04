@@ -1105,22 +1105,18 @@ async def _download_pending_pdfs(category: str = None, force: bool = False):
 _OPENAI_DIRECT_KEY = os.environ.get("OPENAI_API_KEY_GPT54") or os.environ.get("OPENAI_API_KEY_DIRECT")
 
 # --- Summary model configuration ---
-# Models used to GENERATE summaries (Claude uses thinking mode for higher quality)
+# Only Claude Opus 4.6 Thinking is used for new summaries.
+# GPT/Gemini summaries were disabled to reduce costs (~$30-60/day savings).
+# Old GPT/Gemini summaries are preserved in the DB for validation experiments.
 _SUMMARY_GENERATION_MODELS = [
     {"provider": "anthropic", "model": "claude-opus-4-6",
      "extra_params": {"extra_body": {"thinking": {"type": "enabled", "budget_tokens": 10000}}},
      "key_suffix": "thinking"},
-    {"provider": "openai", "model": "gpt-5.5", "api_key": _OPENAI_DIRECT_KEY},
-    {"provider": "gemini", "model": "gemini-3-pro-preview"},
 ]
 
 # Models whose summaries can be selected for live tournament comparisons.
-# Only Claude (thinking) is used in live tournaments; GPT/Gemini summaries are
-# generated for analysis purposes but NOT fed to judges.
 _SUMMARY_MODELS = {
     "claude": {"provider": "anthropic", "model": "claude-opus-4-6", "key_suffix": "thinking"},
-    "gemini": {"provider": "gemini", "model": "gemini-3-pro-preview"},
-    "gpt": {"provider": "openai", "model": "gpt-5.5", "api_key": _OPENAI_DIRECT_KEY},
 }
 _summary_rr_counter = 0
 
