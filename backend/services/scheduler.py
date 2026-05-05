@@ -1366,6 +1366,11 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                         ratings = parse_ratings_from_summary(summary_val)
                         if ratings:
                             update_fields["ai_rating"] = ratings["score"]
+                            # Propagate to rankings immediately (keeps leaderboard in sync)
+                            await db.rankings.update_one(
+                                {"paper_id": paper["id"]},
+                                {"$set": {"ai_rating": ratings["score"]}},
+                            )
                     # Store per-model ratings for SI inter-model correlation
                     from services.llm import parse_ratings_from_summary as _parse_ratings
                     _model_ratings = _parse_ratings(summary_val)
