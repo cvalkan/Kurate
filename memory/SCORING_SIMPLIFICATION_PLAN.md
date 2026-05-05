@@ -107,9 +107,36 @@ And `rerank_category_light` (after each compare round):
 - OpenSkill model imports in validation/correlation code
 - `model_ts` and `model_os` per-model data — used by correlation page
 
-## Migration
+## User-facing impact
 
-No DB migration required. Old fields (`score`, `ci`, `os_score`, `rank_wr`, `rank_os`, `gap_score_ts`) become dead data. Can be cleaned up later with:
+| Area | Impact | Severity |
+|------|--------|----------|
+| Leaderboard ranks | **No change** — already displaying TS ranks via `rank_ts` field | None |
+| Leaderboard scores | **No change** — already displaying `ts_score` | None |
+| CI column | Units change from Wilson % → TrueSkill score points (e.g., "15%" → "±42") | Medium — update tooltips |
+| Archive discontinuity | Old archives store WR scores; new archives will store TS scores | Low — already exists from when TS was adopted |
+| Correlation page | `os_score` currently read from rankings; after removal, compute inline from `os_mu`/`os_sigma` in `model_analysis.py` | Low — 2-line fix, same values |
+| Validation/experiments | **No change** — standalone functions preserved | None |
+| External API consumers | `score` field changes from WR to TS value; `rank` changes from WR to TS rank | Medium — document |
+| Convergence goals | **No change** — Wilson CI for convergence is independent of display scoring | None |
+
+## Correlation page fix
+
+`model_analysis.py` reads `os_score` from rankings (lines 208, 455, 551). After removing `os_score` from `rerank_category_light`, compute it inline from `os_mu`/`os_sigma` (still maintained by Step 5):
+
+```python
+# Replace:
+os_scores = {p["paper_id"]: p["os_score"] for p in papers if p.get("os_score") is not None}
+# With:
+os_scores = {p["paper_id"]: round((p.get("os_mu", 25) - 3 * p.get("os_sigma", 25/3)) * 15.0 + 1200)
+             for p in papers if p.get("os_mu") is not None}
+```
+
+Same values, derived from raw mu/sigma instead of a pre-computed field.
+
+## DB cleanup (optional, not blocking)
+
+Old fields become dead data. Can be cleaned up later with:
 ```
 db.rankings.updateMany({}, {$unset: {"os_score": "", "rank_wr": "", "rank_os": "", "gap_score_ts": ""}})
 ```
