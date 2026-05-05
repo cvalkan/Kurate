@@ -77,13 +77,13 @@ function normalizeRow(doc, source) {
     const isFallback = (doc.context || "").includes("fallback");
     const model = doc.model || doc.provider || "";
     // Use api_source field if present (new records), otherwise infer:
-    // Emergent-only models are Claude and Gemini (no direct key configured)
-    const isKnownEmergent = !doc.api_source && (model.includes("claude") || model.includes("gemini") || model.includes("opus"));
+    // Only models with explicit direct keys (gpt-5.5, deepseek, kimi) are "Direct"
+    const isKnownDirect = !doc.api_source && (model.includes("gpt-5.5") || model.includes("deepseek") || model.includes("kimi"));
     const apiLabel = doc.api_source === "direct" ? "Direct"
       : doc.api_source === "emergent" ? "Emergent"
       : isFallback ? "Anthropic"
-      : isKnownEmergent ? "Emergent"
-      : "Direct";
+      : isKnownDirect ? "Direct"
+      : "Emergent";
     return {
       ts: doc.ts,
       type: doc.context || "llm",
