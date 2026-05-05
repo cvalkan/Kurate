@@ -401,12 +401,47 @@ async def _compare_loop_inner():
             # One-time gap backfill on first cycle after startup
             if not _gap_backfill_done and active_cats:
                 _gap_backfill_done = True
+                # Backfill ai_rating from papers → rankings where missing
+                async for rank_doc in db.rankings.find(
+                    {"ai_rating": {"$in": [None, False, 0]}},
+                    {"_id": 0, "paper_id": 1}
+                ):
+                    paper = await db.papers.find_one(
+                        {"id": rank_doc["paper_id"]},
+                        {"_id": 0, "ai_rating": 1}
+                    )
+                    if paper and paper.get("ai_rating"):
+                        r = paper["ai_rating"]
+                        rating = round(r["score"], 1) if isinstance(r, dict) and r.get("score") else round(r, 1) if isinstance(r, (int, float)) else None
+                        if rating:
+                            await db.rankings.update_one(
+                                {"paper_id": rank_doc["paper_id"]},
+                                {"$set": {"ai_rating": rating}}
+                            )
+                # Also check where ai_rating field doesn't exist at all
+                async for rank_doc in db.rankings.find(
+                    {"ai_rating": {"$exists": False}},
+                    {"_id": 0, "paper_id": 1}
+                ):
+                    paper = await db.papers.find_one(
+                        {"id": rank_doc["paper_id"]},
+                        {"_id": 0, "ai_rating": 1}
+                    )
+                    if paper and paper.get("ai_rating"):
+                        r = paper["ai_rating"]
+                        rating = round(r["score"], 1) if isinstance(r, dict) and r.get("score") else round(r, 1) if isinstance(r, (int, float)) else None
+                        if rating:
+                            await db.rankings.update_one(
+                                {"paper_id": rank_doc["paper_id"]},
+                                {"$set": {"ai_rating": rating}}
+                            )
+                # Recompute gap scores for all categories
                 for cat in active_cats:
                     try:
                         await _recompute_gap_scores(cat)
                     except Exception:
                         pass
-                logger.info(f"Gap scores backfilled for {len(active_cats)} categories on startup")
+                logger.info(f"Ratings + gap scores backfilled for {len(active_cats)} categories on startup")
 
             log_mem(f"Compare loop cycle: paused={is_paused}, active_cats={len(active_cats)}")
 
