@@ -49,7 +49,8 @@ And `rerank_category_light` (after each compare round):
 ### Phase 2: `rerank_category_light` (post-round bulk rerank)
 
 - Remove: `rank_wr`, `score` (WR) computation
-- Remove: `os_score`, `os_sigma_map`, `rank_os` computation  
+- Remove: `os_sigma_map`, `rank_os` computation
+- Keep: `os_score` computation (one line, read by correlation page)
 - Remove: `gap_wr` computation
 - Remove: `_compute_gap_scores` function (dual WR/TS gap with `scipy.rankdata`) — replaced by single `_recompute_gap_scores` in scheduler (TS-only, index-based percentile)
 - Rename: `rank_ts` → `rank` (TS is the canonical rank)
@@ -122,17 +123,7 @@ And `rerank_category_light` (after each compare round):
 
 ## Correlation page fix
 
-`model_analysis.py` reads `os_score` from rankings (lines 208, 455, 551). After removing `os_score` from `rerank_category_light`, compute it inline from `os_mu`/`os_sigma` (still maintained by Step 5):
-
-```python
-# Replace:
-os_scores = {p["paper_id"]: p["os_score"] for p in papers if p.get("os_score") is not None}
-# With:
-os_scores = {p["paper_id"]: round((p.get("os_mu", 25) - 3 * p.get("os_sigma", 25/3)) * 15.0 + 1200)
-             for p in papers if p.get("os_mu") is not None}
-```
-
-Same values, derived from raw mu/sigma instead of a pre-computed field.
+Keep `os_score` computation in `rerank_category_light` — it's one line and avoids touching `model_analysis.py`. Remove `rank_os` (not read by anyone) but keep `os_score` (read by correlation page).
 
 ## DB cleanup (optional, not blocking)
 
