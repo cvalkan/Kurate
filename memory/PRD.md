@@ -49,6 +49,14 @@ Build and maintain a sophisticated AI paper-judging system that uses multiple LL
 - P2: Duplicate medals in archives
 - Anthropic direct key billing activation pending
 
+## Pending Tasks
+- P0: Execute Scoring Simplification Plan (`/app/memory/SCORING_SIMPLIFICATION_PLAN.md`)
+  - Updated: Keep Wilson CI (no user-facing change), use `scipy.rankdata` for gap scores
+- P0: Implement Multiple Reviewer Personas (ReviewerToo)
+- P1: Sub-topic Matchmaking (LLM Classifier)
+- P1: Author Verification (ORCID OAuth)
+- P1: Architecture Split (KURATE_ROLE env var)
+
 ## API Keys (in .env)
 - `EMERGENT_LLM_KEY` — Claude 4.6, Gemini 3 Pro
 - `OPENAI_API_KEY_GPT54` — GPT-5.5

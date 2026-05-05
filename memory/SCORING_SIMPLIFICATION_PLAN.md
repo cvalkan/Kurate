@@ -52,9 +52,9 @@ And `rerank_category_light` (after each compare round):
 - Remove: `os_sigma_map`, `rank_os` computation
 - Keep: `os_score` computation (one line, read by correlation page)
 - Remove: `gap_wr` computation
-- Remove: `_compute_gap_scores` function (dual WR/TS gap with `scipy.rankdata`) — replaced by single `_recompute_gap_scores` in scheduler (TS-only, index-based percentile)
+- Remove: `_compute_gap_scores` function (dual WR/TS gap) — replaced by single `_recompute_gap_scores` in scheduler (TS-only, uses `scipy.rankdata` for fractional tie handling)
 - Rename: `rank_ts` → `rank` (TS is the canonical rank)
-- **Fix:** Eliminate dual gap computation paths. Currently `_compute_gap_scores` (in `rerank_category_light`) and `_recompute_gap_scores` (in scheduler post-round) BOTH write `gap_score` with different methodologies (`scipy.rankdata` vs index-based percentile). Keep only `_recompute_gap_scores` as the single source.
+- **Fix:** Eliminate dual gap computation paths. Currently `_compute_gap_scores` (in `rerank_category_light`) and `_recompute_gap_scores` (in scheduler post-round) BOTH write `gap_score` with different methodologies (`scipy.rankdata` vs index-based percentile). Keep only `_recompute_gap_scores` as the single source, but **upgrade it to use `scipy.rankdata`** for proper fractional tie handling (same methodology as the removed function, applied to TS scores only).
 
 ### Phase 3: `insert_ranking_for_paper` (new paper entry)
 
@@ -71,7 +71,7 @@ And `rerank_category_light` (after each compare round):
 
 - Return `ts_score` as `score`, `rank_ts` as `rank`
 - Stop returning `os_score`, `rank_wr`, `rank_os`, `gap_score_ts` 
-- Compute CI server-side: `ci = round(1.96 * ts_sigma * TS_SCALE)`
+- Keep `wilson_margin` as CI column (already computed from wins/comparisons — scoring-method agnostic, same metric used for convergence goals). **No user-facing unit change.**
 - Keep returning `win_rate` (displayed in its own column)
 
 ### Phase 6: Frontend cleanup
@@ -79,7 +79,7 @@ And `rerank_category_light` (after each compare round):
 - Remove `isTS`/`isOS` branching from `LeaderboardTable.jsx`
 - `getScore` → `p.score` (server now returns TS score as `score`)
 - `getRank` → `p.rank` (server now returns TS rank as `rank`)
-- `getWilsonMargin` → `p.ci` (server computes CI)
+- `getWilsonMargin` → `p.wilson_margin` (server already returns this — no change in displayed value or unit)
 - Remove `TS_SCALE` constant from frontend
 - Remove `scoringMethod` state from `LeaderboardPage.jsx` (already hardcoded to "ts")
 
@@ -87,7 +87,7 @@ And `rerank_category_light` (after each compare round):
 
 - `compute_paper_score` function (regularized WR incremental scoring)
 - `_compute_ranks` function (dual WR/TS ranking)
-- `_compute_gap_scores` function (dual WR/TS gap with `scipy.rankdata` — replaced by `_recompute_gap_scores`)
+- `_compute_gap_scores` function (dual WR/TS gap — replaced by unified `_recompute_gap_scores` using `scipy.rankdata` for proper tie handling)
 - `OS_SCALE` constant from live pipeline
 - OpenSkill imports from `rerank_category_light`
 
@@ -97,7 +97,7 @@ And `rerank_category_light` (after each compare round):
 |-----|-----------------|-----|
 | `unique_opponents` over-counted | Incremented by 1 on every match, even rematches | Query actual opponent set from DB |
 | TrueSkill CAS failure swallowed | `except Exception: pass` — lost TS updates, no logging | Log warning + queue for repair |
-| Dual gap computation paths | `_compute_gap_scores` (in rerank, uses `scipy.rankdata`) and `_recompute_gap_scores` (in scheduler, uses index-based percentile) both write `gap_score` with different methods | Single path: `_recompute_gap_scores` only |
+| Dual gap computation paths | `_compute_gap_scores` (in rerank, uses `scipy.rankdata`) and `_recompute_gap_scores` (in scheduler, uses index-based percentile) both write `gap_score` with different methods | Single path: `_recompute_gap_scores` upgraded to use `scipy.rankdata` for fractional tie handling |
 | Regularized WR prior mismatch | `compute_paper_score` uses prior=0.5, `compute_leaderboard` uses prior=2.0 | Removed — `compute_paper_score` deleted |
 
 ## NOT touched (preserved for validation/analysis)
@@ -114,7 +114,7 @@ And `rerank_category_light` (after each compare round):
 |------|--------|----------|
 | Leaderboard ranks | **No change** — already displaying TS ranks via `rank_ts` field | None |
 | Leaderboard scores | **No change** — already displaying `ts_score` | None |
-| CI column | Units change from Wilson % → TrueSkill score points (e.g., "15%" → "±42") | Medium — update tooltips |
+| CI column | **No change** — keep Wilson CI (`±X%` format, same metric as convergence goals) | None |
 | Archive discontinuity | Old archives store WR scores; new archives will store TS scores | Low — already exists from when TS was adopted |
 | Correlation page | `os_score` currently read from rankings; after removal, compute inline from `os_mu`/`os_sigma` in `model_analysis.py` | Low — 2-line fix, same values |
 | Validation/experiments | **No change** — standalone functions preserved | None |

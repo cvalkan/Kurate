@@ -147,27 +147,48 @@ export function AdminLogs() {
       const headers = getAdminHeaders();
       const fetches = [];
 
+      // Build server-side filter for llm_usage based on type/status
+      const usageFilter = {};
+      if (type === "summary") usageFilter.context = { "$in": ["summary", "summary_fallback"] };
+      else if (type === "match") usageFilter.context = { "$in": ["match", "match_fallback"] };
+      else if (type === "email_extract") usageFilter.context = "email_extract";
+      if (status === "success") usageFilter.success = true;
+      else if (status === "failed") usageFilter.success = false;
+
+      // Always fetch llm_usage (with server-side filter)
       fetches.push(
         axios.get(`${API}/api/admin/db/llm_usage`, {
-          headers, params: { sort: JSON.stringify({ ts: -1 }), limit: 1000 },
+          headers, params: { sort: JSON.stringify({ ts: -1 }), limit: 1000, ...(Object.keys(usageFilter).length && { filter: JSON.stringify(usageFilter) }) },
         }).then(r => (r.data.docs || []).map(d => normalizeRow(d, "llm"))).catch(() => [])
       );
-      fetches.push(
-        axios.get(`${API}/api/admin/db/system_logs`, {
-          headers, params: { sort: JSON.stringify({ ts: -1 }), limit: 500, filter: JSON.stringify({ level: "event" }) },
-        }).then(r => (r.data.docs || []).map(d => normalizeRow(d, "events"))).catch(() => [])
-      );
-      fetches.push(
-        axios.get(`${API}/api/admin/db/llm_error_logs`, {
-          headers, params: { sort: JSON.stringify({ ts: -1 }), limit: 500 },
-        }).then(r => (r.data.docs || []).map(d => normalizeRow(d, "errors"))).catch(() => [])
-      );
+
+      // Skip events/errors when filters exclude them
+      const skipEvents = status === "failed" || ["summary", "match", "email_extract", "error"].includes(type);
+      const skipErrors = status === "success";
+
+      if (!skipEvents) {
+        fetches.push(
+          axios.get(`${API}/api/admin/db/system_logs`, {
+            headers, params: { sort: JSON.stringify({ ts: -1 }), limit: 500, filter: JSON.stringify({ level: "event" }) },
+          }).then(r => (r.data.docs || []).map(d => normalizeRow(d, "events"))).catch(() => [])
+        );
+      }
+      if (!skipErrors) {
+        const errorFilter = {};
+        if (type === "summary") errorFilter.context = { "$in": ["generate_summary", "generate_summary_FALLBACK"] };
+        else if (type === "match") errorFilter.context = { "$in": ["compare_papers", "compare_papers_FALLBACK"] };
+        fetches.push(
+          axios.get(`${API}/api/admin/db/llm_error_logs`, {
+            headers, params: { sort: JSON.stringify({ ts: -1 }), limit: 500, ...(Object.keys(errorFilter).length && { filter: JSON.stringify(errorFilter) }) },
+          }).then(r => (r.data.docs || []).map(d => normalizeRow(d, "errors"))).catch(() => [])
+        );
+      }
 
       const results = await Promise.all(fetches);
       setRows(results.flat().sort((a, b) => (b.ts || "").localeCompare(a.ts || "")));
     } catch { }
     finally { setLoading(false); }
-  }, []);
+  }, [type, status]);
 
   useEffect(() => { load(); }, [load]);
 
