@@ -800,6 +800,12 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         if not date_from:
             from datetime import datetime, timedelta, timezone
             date_from = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
+        else:
+            # Subtract 2 days from date_from to account for arXiv's delayed announcement
+            # (papers submitted Friday appear Monday, but submittedDate = Friday)
+            from datetime import datetime, timedelta, timezone
+            dt = datetime.fromisoformat(date_from)
+            date_from = (dt - timedelta(days=2)).strftime("%Y-%m-%d")
 
         # --- STEP 1: Fetch new papers from source ---
         cat_status["current_activity"] = "Fetching new papers from source..."
