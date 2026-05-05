@@ -1741,7 +1741,7 @@ async def _recompute_gap_scores(category: str):
     """
     entries = []
     async for r in db.rankings.find(
-        {"category": category, "comparisons": {"$gt": 0}, "is_latest_version": {"$ne": False}},
+        {"category": category, "comparisons": {"$gte": 3}, "is_latest_version": {"$ne": False}},
         {"_id": 0, "paper_id": 1, "ts_score": 1, "ai_rating": 1},
     ).sort("ts_score", -1):
         entries.append(r)
@@ -1752,7 +1752,7 @@ async def _recompute_gap_scores(category: str):
     n = len(entries)
     t_pct = {e["paper_id"]: (1 - i / max(n - 1, 1)) * 100 for i, e in enumerate(entries)}
 
-    rated = [(e["paper_id"], e["ai_rating"]) for e in entries if e.get("ai_rating") and e.get("ai_rating") > 0]
+    rated = [(e["paper_id"], e["ai_rating"]) for e in entries if e.get("ai_rating") is not None and e.get("ai_rating") >= 0]
     if len(rated) < 5:
         return
     rated.sort(key=lambda x: -x[1])
@@ -1770,6 +1770,8 @@ async def _recompute_gap_scores(category: str):
             ))
     if ops:
         await db.rankings.bulk_write(ops, ordered=False)
+    else:
+        logger.debug(f"[{category}] No gap scores computed (need ≥5 rated papers with ≥3 comparisons)")
 
 
 # Track last convergence recompute per category (match count at last recompute)
