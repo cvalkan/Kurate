@@ -1695,6 +1695,11 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                         await rerank_category_light(db, category)
                     except Exception as e:
                         logger.warning(f"[{category}] Rankings rerank failed: {e}")
+                # Recompute gap scores for this category
+                try:
+                    await _recompute_gap_scores(category)
+                except Exception as e:
+                    logger.warning(f"[{category}] Gap recompute failed: {e}")
                 # Signal leaderboard cache to refresh
                 from routers.leaderboard import notify_data_changed
                 notify_data_changed()
@@ -1724,6 +1729,47 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                     pass
             from core.memlog import force_gc
             force_gc()
+
+
+
+async def _recompute_gap_scores(category: str):
+    """Recompute gap_score for all papers in a category.
+    
+    gap = tournament_percentile - rating_percentile
+    Only for papers with ai_rating and >= 3 matches.
+    Fast: single DB query + in-memory percentile computation + bulk write.
+    """
+    entries = []
+    async for r in db.rankings.find(
+        {"category": category, "comparisons": {"$gt": 0}, "is_latest_version": {"$ne": False}},
+        {"_id": 0, "paper_id": 1, "ts_score": 1, "ai_rating": 1},
+    ).sort("ts_score", -1):
+        entries.append(r)
+
+    if len(entries) < 5:
+        return
+
+    n = len(entries)
+    t_pct = {e["paper_id"]: (1 - i / max(n - 1, 1)) * 100 for i, e in enumerate(entries)}
+
+    rated = [(e["paper_id"], e["ai_rating"]) for e in entries if e.get("ai_rating") and e.get("ai_rating") > 0]
+    if len(rated) < 5:
+        return
+    rated.sort(key=lambda x: -x[1])
+    r_pct = {pid: (1 - i / max(len(rated) - 1, 1)) * 100 for i, (pid, _) in enumerate(rated)}
+
+    # Bulk update
+    from pymongo import UpdateOne
+    ops = []
+    for pid in t_pct:
+        if pid in r_pct:
+            gap = round(t_pct[pid] - r_pct[pid], 1)
+            ops.append(UpdateOne(
+                {"paper_id": pid, "category": category},
+                {"$set": {"gap_score": gap}},
+            ))
+    if ops:
+        await db.rankings.bulk_write(ops, ordered=False)
 
 
 # Track last convergence recompute per category (match count at last recompute)
