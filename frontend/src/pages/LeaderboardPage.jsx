@@ -164,7 +164,7 @@ export default function LeaderboardPage() {
     // Non-default sort: sort by the requested field
     const key = sortKey === "score" ? "score"
       : sortKey === "wilson_margin" ? "ts_sigma"
-      : sortKey === "gap_score" ? "gap_score_ts"
+      : sortKey === "gap_score" ? "gap_score"
       : sortKey;
     const dir = sortDir || "desc";
     data.sort((a, b) => {
@@ -201,7 +201,7 @@ export default function LeaderboardPage() {
       // Server-side sorting — map sort key based on scoring method
       const effectiveSortKey = sortKey === "score" && scoringMethod === "ts" ? "ts_score"
         : sortKey === "score" && scoringMethod === "os" ? "os_score"
-        : sortKey === "gap_score" && scoringMethod === "ts" ? "gap_score_ts"
+        : sortKey === "gap_score" ? "gap_score"
         : sortKey === "wilson_margin" && scoringMethod === "ts" ? "ts_sigma"
         : sortKey === "wilson_margin" && scoringMethod === "os" ? "os_sigma"
         : sortKey;
@@ -262,7 +262,7 @@ export default function LeaderboardPage() {
         // Map sort key based on scoring method
         const effectiveSortKey = sortKey === "score" && scoringMethod === "ts" ? "ts_score"
           : sortKey === "score" && scoringMethod === "os" ? "os_score"
-          : sortKey === "gap_score" && scoringMethod === "ts" ? "gap_score_ts"
+          : sortKey === "gap_score" ? "gap_score"
           : sortKey === "wilson_margin" && scoringMethod === "ts" ? "ts_sigma"
           : sortKey === "wilson_margin" && scoringMethod === "os" ? "os_sigma"
           : sortKey;

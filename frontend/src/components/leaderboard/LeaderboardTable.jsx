@@ -286,7 +286,7 @@ export function LeaderboardTable({
             {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getComparisons(paper) != null ? getComparisons(paper) : "—"}</div>}
             {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getWinRate(paper) != null ? `${getWinRate(paper)}%` : "—"}</div>}
             {showRatingCol && !isMobile && !isTablet && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{(typeof paper.ai_rating === "object" && paper.ai_rating ? paper.ai_rating.score : paper.ai_rating) || "—"}</div>}
-            {showGapCol && !isMobile && !isTablet && (() => { const gap = paper.gap_score_ts ?? paper.gap_score; return <div className={`text-right font-mono text-[10px] sm:text-xs ${gap > 0 ? "text-emerald-600" : gap < 0 ? "text-red-400" : "text-muted-foreground"}`}>{gap != null ? (gap > 0 ? "+" : "") + gap : "\u2014"}</div>; })()}
+            {showGapCol && !isMobile && !isTablet && (() => { const gap = paper.gap_score; return <div className={`text-right font-mono text-[10px] sm:text-xs ${gap > 0 ? "text-emerald-600" : gap < 0 ? "text-red-400" : "text-muted-foreground"}`}>{gap != null ? (gap > 0 ? "+" : "") + gap : "\u2014"}</div>; })()}
             {!isMobile && <div className="text-right text-xs text-muted-foreground">
               {paper.published ? new Date(paper.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }) : "--"}
             </div>}

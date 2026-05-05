@@ -1804,8 +1804,7 @@ async def _recompute_gap_scores(category: str):
     rated.sort(key=lambda x: -x[1])
     r_pct = {pid: (1 - i / max(len(rated) - 1, 1)) * 100 for i, (pid, _) in enumerate(rated)}
 
-    # Bulk update — write to both gap_score and gap_score_ts (same value,
-    # but frontend reads gap_score_ts when in TrueSkill scoring mode)
+    # Bulk update
     from pymongo import UpdateOne
     ops = []
     for pid in t_pct:
@@ -1813,7 +1812,7 @@ async def _recompute_gap_scores(category: str):
             gap = round(t_pct[pid] - r_pct[pid], 1)
             ops.append(UpdateOne(
                 {"paper_id": pid, "category": category},
-                {"$set": {"gap_score": gap, "gap_score_ts": gap}},
+                {"$set": {"gap_score": gap}},
             ))
     if ops:
         await db.rankings.bulk_write(ops, ordered=False)

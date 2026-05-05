@@ -2651,7 +2651,7 @@ async def rebuild_archives():
     _RANK_FIELDS = {"_id": 0, "paper_id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
                     "score": 1, "ts_score": 1, "ai_rating": 1, "wins": 1, "losses": 1,
                     "comparisons": 1, "win_rate": 1, "ci": 1, "published": 1, "link": 1,
-                    "gap_score": 1, "gap_score_ts": 1, "ts_sigma": 1,
+                    "gap_score": 1, "ts_sigma": 1,
                     "os_score": 1, "os_sigma": 1, "rank_ts": 1, "rank_os": 1}
     month_names = ["", "January", "February", "March", "April", "May", "June",
                    "July", "August", "September", "October", "November", "December"]
@@ -2660,7 +2660,7 @@ async def rebuild_archives():
         return [
             {**{k: e.get(k) for k in ["title", "authors", "score", "ts_score", "ai_rating",
                 "wins", "losses", "comparisons", "win_rate", "ci", "published", "link",
-                "arxiv_id", "gap_score", "gap_score_ts", "ts_sigma",
+                "arxiv_id", "gap_score", "ts_sigma",
                 "os_score", "os_sigma", "rank_ts", "rank_os"]},
              "rank": i, "id": e.get("paper_id")}
             for i, e in enumerate(entries, 1)
@@ -3446,7 +3446,7 @@ async def repair_archive_fields():
         rankings = {}
         async for r in db.rankings.find(
             {"paper_id": {"$in": paper_ids}},
-            {"_id": 0, "paper_id": 1, "ts_sigma": 1, "gap_score": 1, "gap_score_ts": 1,
+            {"_id": 0, "paper_id": 1, "ts_sigma": 1, "gap_score": 1,
              "ci": 1, "wilson_margin": 1, "os_score": 1, "os_sigma": 1}
         ):
             rankings[r["paper_id"]] = r
@@ -3455,7 +3455,7 @@ async def repair_archive_fields():
             pid = entry.get("id")
             r = rankings.get(pid, {})
             # Only fill in fields that are missing from the archive entry
-            for field in ["ts_sigma", "gap_score", "gap_score_ts", "ci", "wilson_margin", "os_score", "os_sigma"]:
+            for field in ["ts_sigma", "gap_score", "ci", "wilson_margin", "os_score", "os_sigma"]:
                 if field not in entry and r.get(field) is not None:
                     entry[field] = r[field]
                     changed = True

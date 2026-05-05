@@ -74,7 +74,7 @@ export default function ArchivePage() {
     // Non-default sort
     const key = sortKey === "score" ? "score"
       : sortKey === "wilson_margin" ? "ts_sigma"
-      : sortKey === "gap_score" ? "gap_score_ts"
+      : sortKey === "gap_score" ? "gap_score"
       : sortKey;
     const dir = sortDir || "desc";
     data.sort((a, b) => {
@@ -155,7 +155,7 @@ export default function ArchivePage() {
             sortDir={sortDir}
             onSort={handleSort}
             showRatingCol={entries.some(e => e.ai_rating)}
-            showGapCol={entries.some(e => e.gap_score != null || e.gap_score_ts != null)}
+            showGapCol={entries.some(e => e.gap_score != null)}
             scoringMethod="ts"
           />
         </div>

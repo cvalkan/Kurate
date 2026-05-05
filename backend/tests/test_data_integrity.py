@@ -45,7 +45,7 @@ async def run_audit(production_url: str = None):
         "os_sigma": "with_matches", "rank_os": "with_matches",
     }
     # Desired but not strictly required
-    DESIRED_FIELDS = ["ai_rating", "gap_score", "gap_score_ts"]
+    DESIRED_FIELDS = ["ai_rating", "gap_score"]
 
     categories = await db.rankings.distinct("category")
     total_rankings = 0
@@ -75,7 +75,7 @@ async def run_audit(production_url: str = None):
             # Track desired fields
             if not r.get("ai_rating"):
                 total_missing_rating += 1
-            if r.get("gap_score_ts") is None and r.get("gap_score") is None:
+            if r.get("gap_score") is None:
                 total_missing_gap += 1
 
         # Report per-category

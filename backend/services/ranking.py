@@ -1091,7 +1091,7 @@ async def rerank_category_light(db, category: str):
         if pid in gap_wr:
             update["gap_score"] = gap_wr[pid]
         if pid in gap_ts:
-            update["gap_score_ts"] = gap_ts[pid]
+            update["gap_score"] = gap_ts[pid]
         ops.append(UpdateOne({"paper_id": pid, "category": category}, {"$set": update}))
     if ops:
         await db.rankings.bulk_write(ops, ordered=False)
@@ -1201,7 +1201,7 @@ async def rerank_category(db, category: str):
         if pid in gap_wr:
             update["gap_score"] = gap_wr[pid]
         if pid in gap_ts:
-            update["gap_score_ts"] = gap_ts[pid]
+            update["gap_score"] = gap_ts[pid]
         ops.append(UpdateOne({"paper_id": pid, "category": category}, {"$set": update}))
     if ops:
         await db.rankings.bulk_write(ops, ordered=False)

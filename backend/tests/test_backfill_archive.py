@@ -91,7 +91,7 @@ async def test():
             sigma = p.get("ts_sigma")
             os_s = p.get("os_score")
             rank = p.get("rank_ts")
-            gap = p.get("gap_score_ts")
+            gap = p.get("gap_score")
 
             has_ts = ts is not None
             has_sigma = sigma is not None

@@ -300,7 +300,7 @@ async def main():
                 ts_pct = _sp.rankdata(ts_vals) / len(entries_with_both) * 100
                 gap_ts = ts_pct - si_pct
                 for i, entry in enumerate(entries_with_both):
-                    entry["gap_score_ts"] = round(float(gap_ts[i]), 1)
+                    # gap_score_ts removed — use gap_score only
             updated = True  # Gap scores changed
 
         if updated:
