@@ -782,30 +782,21 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         settings = await get_settings()
         max_papers = settings.get("max_papers_per_fetch", 50)
 
-        # Resolve last_fetch_at for this category so we can catch up on ALL
-        # papers since the last fetch, not just the most recent N.
-        last_fetch_iso = None
-        if not force:
-            flat_key = f"last_fetch_at_{category.replace('.', '_')}"
-            last_fetch_iso = settings.get(flat_key)
-            if not last_fetch_iso or not isinstance(last_fetch_iso, str):
-                parts = category.split(".")
-                if len(parts) == 2:
-                    nested = settings.get(f"last_fetch_at_{parts[0]}")
-                    if isinstance(nested, dict):
-                        last_fetch_iso = nested.get(parts[1])
-        date_from = last_fetch_iso[:10] if last_fetch_iso else None
-
-        # For new categories never fetched: default to 30-day lookback for catch-up
-        if not date_from:
-            from datetime import datetime, timedelta, timezone
-            date_from = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
+        # Determine date_from: use the publication date of our NEWEST paper in this category.
+        # This is robust regardless of arXiv delays, our downtime, or rate limiting —
+        # we always fetch everything published after what we already have.
+        from datetime import datetime, timedelta, timezone
+        newest_paper = await db.papers.find_one(
+            {"categories.0": category, "published": {"$exists": True, "$ne": None}},
+            {"_id": 0, "published": 1},
+            sort=[("published", -1)],
+        )
+        if newest_paper and newest_paper.get("published"):
+            pub = newest_paper["published"][:10]  # "2026-05-04"
+            date_from = pub  # Fetch everything from that day onwards (dedup handles overlap)
         else:
-            # Subtract 2 days from date_from to account for arXiv's delayed announcement
-            # (papers submitted Friday appear Monday, but submittedDate = Friday)
-            from datetime import datetime, timedelta, timezone
-            dt = datetime.fromisoformat(date_from)
-            date_from = (dt - timedelta(days=2)).strftime("%Y-%m-%d")
+            # No papers in this category yet — use 30-day lookback
+            date_from = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
 
         # --- STEP 1: Fetch new papers from source ---
         cat_status["current_activity"] = "Fetching new papers from source..."
