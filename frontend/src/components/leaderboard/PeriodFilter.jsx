@@ -8,7 +8,7 @@ import { Clock, Calendar, CalendarDays, Infinity, Search, X, Lock, Archive, Chev
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const PERIODS = [
-  { key: "recent", label: "Most Recent", icon: Clock },
+  { key: "recent", label: "Recently Added", icon: Clock },
   { key: "week", label: "Last 7 Days", icon: Calendar },
   { key: "month", label: "Last 30 Days", icon: CalendarDays },
   { key: "all", label: "All Time", icon: Infinity },
