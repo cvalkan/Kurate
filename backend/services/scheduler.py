@@ -319,16 +319,21 @@ async def _fetch_loop_inner():
                     next_due_seconds = min(next_due_seconds, secs_until)
 
                 if should_fetch:
-                    await run_fetch_cycle(category=cat)
-                    now_iso = datetime.now(timezone.utc).isoformat()
-                    await db.settings.update_one(
-                        {"key": "global"},
-                        {"$set": {last_fetch_key: now_iso}},
-                        upsert=True,
-                    )
-                    cat_status["last_fetch_at"] = now_iso
+                    result = await run_fetch_cycle(category=cat)
+                    # Only advance last_fetch_at if the fetch actually succeeded
+                    # (not rate-limited or errored). Otherwise we'd skip papers permanently.
+                    fetch_failed = bool(result.get("errors"))
+                    if not fetch_failed:
+                        now_iso = datetime.now(timezone.utc).isoformat()
+                        await db.settings.update_one(
+                            {"key": "global"},
+                            {"$set": {last_fetch_key: now_iso}},
+                            upsert=True,
+                        )
+                        cat_status["last_fetch_at"] = now_iso
                     cat_status["next_fetch_at"] = (datetime.now(timezone.utc) + timedelta(hours=interval_hours)).isoformat()
-                    # Cooldown between categories: GC + sleep to release memory before next category
+                    # Cooldown between categories to avoid arXiv rate limiting (429)
+                    await asyncio.sleep(5)
                     from core.memlog import force_gc
                     force_gc()
                     # Re-read settings in case pause was toggled during fetch
