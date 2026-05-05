@@ -51,9 +51,9 @@ And `rerank_category_light` (after each compare round):
 - Remove: `rank_wr`, `score` (WR) computation
 - Remove: `os_score`, `os_sigma_map`, `rank_os` computation  
 - Remove: `gap_wr` computation
+- Remove: `_compute_gap_scores` function (dual WR/TS gap with `scipy.rankdata`) — replaced by single `_recompute_gap_scores` in scheduler (TS-only, index-based percentile)
 - Rename: `rank_ts` → `rank` (TS is the canonical rank)
-- Simplify: `_compute_gap_scores` → single TS-based gap only (or keep using `_recompute_gap_scores` from scheduler)
-- Remove: `_compute_ranks` function (replaced by single TS sort)
+- **Fix:** Eliminate dual gap computation paths. Currently `_compute_gap_scores` (in `rerank_category_light`) and `_recompute_gap_scores` (in scheduler post-round) BOTH write `gap_score` with different methodologies (`scipy.rankdata` vs index-based percentile). Keep only `_recompute_gap_scores` as the single source.
 
 ### Phase 3: `insert_ranking_for_paper` (new paper entry)
 
@@ -84,11 +84,20 @@ And `rerank_category_light` (after each compare round):
 
 ### Phase 7: Delete dead code
 
-- `compute_paper_score` function
-- `_compute_ranks` function  
-- `_compute_gap_scores` function (dual WR/TS gap)
+- `compute_paper_score` function (regularized WR incremental scoring)
+- `_compute_ranks` function (dual WR/TS ranking)
+- `_compute_gap_scores` function (dual WR/TS gap with `scipy.rankdata` — replaced by `_recompute_gap_scores`)
 - `OS_SCALE` constant from live pipeline
 - OpenSkill imports from `rerank_category_light`
+
+### Bugs fixed by this plan
+
+| Bug | Current behavior | Fix |
+|-----|-----------------|-----|
+| `unique_opponents` over-counted | Incremented by 1 on every match, even rematches | Query actual opponent set from DB |
+| TrueSkill CAS failure swallowed | `except Exception: pass` — lost TS updates, no logging | Log warning + queue for repair |
+| Dual gap computation paths | `_compute_gap_scores` (in rerank, uses `scipy.rankdata`) and `_recompute_gap_scores` (in scheduler, uses index-based percentile) both write `gap_score` with different methods | Single path: `_recompute_gap_scores` only |
+| Regularized WR prior mismatch | `compute_paper_score` uses prior=0.5, `compute_leaderboard` uses prior=2.0 | Removed — `compute_paper_score` deleted |
 
 ## NOT touched (preserved for validation/analysis)
 
