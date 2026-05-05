@@ -1241,7 +1241,10 @@ async def insert_ranking_for_paper(db, paper_doc: dict):
     )
     next_rank = (last["rank"] + 1) if last else 1
 
-    r = paper_doc.get("ai_rating")
+    # Always read ai_rating fresh from DB (not from paper_doc which may be stale
+    # if summary generation wrote the rating after this doc was loaded)
+    fresh = await db.papers.find_one({"id": paper_doc["id"]}, {"_id": 0, "ai_rating": 1})
+    r = (fresh or {}).get("ai_rating")
     ai_rating = None
     if r and isinstance(r, dict) and r.get("score"):
         ai_rating = round(r["score"], 1)
