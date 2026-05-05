@@ -383,6 +383,7 @@ async def _compare_loop_inner():
     from core.memlog import log_mem, force_gc
     await asyncio.sleep(0)
     _compare_loop_diag["loop_alive"] = True
+    _gap_backfill_done = False
 
     while _scheduler_running:
         unmet_cats = []
@@ -396,6 +397,16 @@ async def _compare_loop_inner():
 
             # Use the same active_categories source as the fetch loop
             active_cats = [c for c in settings.get("active_categories", list(CATEGORIES.keys())) if c and c.strip()]
+
+            # One-time gap backfill on first cycle after startup
+            if not _gap_backfill_done and active_cats:
+                _gap_backfill_done = True
+                for cat in active_cats:
+                    try:
+                        await _recompute_gap_scores(cat)
+                    except Exception:
+                        pass
+                logger.info(f"Gap scores backfilled for {len(active_cats)} categories on startup")
 
             log_mem(f"Compare loop cycle: paused={is_paused}, active_cats={len(active_cats)}")
 
