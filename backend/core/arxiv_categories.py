@@ -178,6 +178,15 @@ ARXIV_TAXONOMY = {
     "chemrxiv.TC": "Theoretical and Computational Chemistry",
     "chemrxiv.EC": "Environmental Chemistry",
     "chemrxiv.NC": "Nanoscience",
+
+    # IACR ePrint Archive (Cryptology)
+    "iacr.proto": "Cryptographic Protocols",
+    "iacr.pk": "Public-key Cryptography",
+    "iacr.sk": "Secret-key Cryptography",
+    "iacr.found": "Cryptography Foundations",
+    "iacr.impl": "Cryptography Implementation",
+    "iacr.app": "Cryptography Applications",
+    "iacr.attack": "Attacks and Cryptanalysis",
 }
 
 # Group labels for organized display
@@ -193,6 +202,7 @@ ARXIV_GROUPS = {
     "q-fin": "Quantitative Finance",
     "stat": "Statistics",
     "chemrxiv": "Chemistry (ChemRxiv)",
+    "iacr": "Cryptology (IACR ePrint)",
 }
 
 
