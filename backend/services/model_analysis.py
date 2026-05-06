@@ -192,7 +192,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
     papers = []
     async for doc in db.rankings.find(query, {
         "_id": 0, "paper_id": 1, "title": 1, "category": 1,
-        "score": 1, "ts_score": 1, "os_score": 1, "comparisons": 1,
+        "ts_score": 1, "os_score": 1, "comparisons": 1, "wins": 1, "win_rate": 1,
         "model_stats": 1, "model_ts": 1, "model_os": 1, "si_ratings": 1,
     }):
         papers.append(doc)
@@ -203,7 +203,9 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
     paper_categories = {p["paper_id"]: p.get("category") for p in papers}
     model_paper_stats, model_paper_ts, model_paper_os, model_keys, model_wr = _extract_model_data(papers)
 
-    wr_scores = {p["paper_id"]: p["score"] for p in papers if p.get("score") is not None}
+    # WR score = win_rate (actual wins/comparisons). Previously was regularized Wilson score,
+    # but `score` field was overwritten by scoring simplification migration (score=ts_score).
+    wr_scores = {p["paper_id"]: p["win_rate"] for p in papers if p.get("win_rate") is not None and p.get("comparisons", 0) >= 3}
     ts_scores = {p["paper_id"]: p["ts_score"] for p in papers if p.get("ts_score") is not None}
     os_scores = {p["paper_id"]: p["os_score"] for p in papers if p.get("os_score") is not None}
 
@@ -263,7 +265,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
         kt_r, _ = scipy_stats.kendalltau(v1, v2)
         scoring_correlations.append({
             "method1": "win_rate", "method2": "trueskill",
-            "label": "Normalized Win-Rate vs TrueSkill",
+            "label": "Win Rate vs TrueSkill",
             "spearman_rho": round(float(sp_r), 6), "kendall_tau": round(float(kt_r), 6),
         })
 
@@ -450,7 +452,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                 cat_si["avg"] = avg_si_cat
 
             # PW scores for this category
-            cat_wr = {p["paper_id"]: p["score"] for p in cat_papers if p.get("score")}
+            cat_wr = {p["paper_id"]: p["win_rate"] for p in cat_papers if p.get("win_rate") is not None and p.get("comparisons", 0) >= 3}
             cat_ts = {p["paper_id"]: p["ts_score"] for p in cat_papers if p.get("ts_score")}
             cat_os_incr = {p["paper_id"]: p["os_score"] for p in cat_papers if p.get("os_score")}
             cat_pw = {"reg_wr": ("Reg WR", cat_wr), "trueskill": ("TrueSkill", cat_ts), "openskill": ("OpenSkill", cat_os_incr)}
@@ -537,7 +539,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
             cat_papers_sm = [p for p in paper_by_cat.get(cat, []) if p.get("comparisons", 0) >= 3]
             if len(cat_papers_sm) < 10:
                 continue
-            cat_wr_sm = {p["paper_id"]: p["score"] for p in cat_papers_sm if p.get("score")}
+            cat_wr_sm = {p["paper_id"]: p["win_rate"] for p in cat_papers_sm if p.get("win_rate") is not None}
             cat_ts_sm = {p["paper_id"]: p["ts_score"] for p in cat_papers_sm if p.get("ts_score")}
             # WR vs TS
             shared = sorted(set(cat_wr_sm.keys()) & set(cat_ts_sm.keys()))
@@ -714,8 +716,8 @@ async def compute_openskill_cache(category: Optional[str] = None):
     query = {"category": category} if category else {}
     papers = []
     async for doc in db.rankings.find(query, {
-        "_id": 0, "paper_id": 1, "category": 1, "score": 1, "ts_score": 1,
-        "comparisons": 1, "model_stats": 1, "si_ratings": 1,
+        "_id": 0, "paper_id": 1, "category": 1, "ts_score": 1,
+        "comparisons": 1, "wins": 1, "win_rate": 1, "model_stats": 1, "si_ratings": 1,
     }):
         papers.append(doc)
 
@@ -724,7 +726,7 @@ async def compute_openskill_cache(category: Optional[str] = None):
 
     paper_categories = {p["paper_id"]: p.get("category") for p in papers}
     model_paper_stats, _, _, model_keys, _ = _extract_model_data(papers)
-    wr_scores = {p["paper_id"]: p["score"] for p in papers if p.get("score") is not None}
+    wr_scores = {p["paper_id"]: p["win_rate"] for p in papers if p.get("win_rate") is not None and p.get("comparisons", 0) >= 3}
     ts_scores = {p["paper_id"]: p["ts_score"] for p in papers if p.get("ts_score") is not None}
 
     cats = [category] if category else list(set(c for c in paper_categories.values() if c))
