@@ -1,0 +1,37 @@
+{
+  "summary": "Phase 8 scoring simplification verified end-to-end. Backend and frontend behave as designed: leaderboard API now returns score=ts_score, ci=wilson_margin, rank=rank_ts, with no rank_wr / rank_os / os_score / os_sigma fields in the response. DB-level migration confirmed (sample ranking doc shows score==ts_score, ci==wilson_margin, no rank_wr/rank_os keys). 14/14 backend pytest tests pass. Frontend leaderboard renders score, 95% CI (±X%), Match, Win %, Rating, Gap, Published columns; sorting works (Score/95% CI/Win %/Match/Published); category switch (AI ↔ Robotics) works (URL ?cat=cs.RO); Archive dropdown lists Week 17/16/15 2026 with paper counts; paper detail page shows Tournament Score 1482 ±34, Win Rate 75%, Wins/Losses/Matches; Model Analysis (correlation) page loads with TrueSkill, Win Rate, OpenSkill scatter plots and pairwise agreement (64.3%, 64.3%, 66.5%); Admin → Logs tab works with type/status/API filters (1754→116 entries when filtering by Match).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/papers/{paper_id}", "issue": "Pre-existing data integrity bug (NOT introduced by this PR): rank #1 paper in cs.AI (arxiv 2604.27899v1) has rankings.paper_id=8eeb58f5… but papers.id=c56c7bcb… (duplicate paper doc with same arxiv_id under a different uuid). Frontend resolves it via title link, but direct /api/papers/8eeb58f5… returns 404. Affects only that one duplicate. Recommend a one-shot data-clean script that aligns rankings.paper_id with the canonical papers.id by arxiv_id."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_scoring_simplification.py",
+    "/app/test_reports/pytest/scoring_simplification.xml"
+  ],
+  "action_items": [
+    "(Optional, pre-existing) Reconcile duplicated paper docs sharing the same arxiv_id so leaderboard.id == papers.id. The rank-#1 cs.AI paper is the only known case but a sweep is worthwhile."
+  ],
+  "critical_code_review_comments": [
+    "_rank_doc_to_entry still has fallbacks `doc.get('rank_ts', doc.get('rank', 0))` and `doc.get('ts_score', doc.get('score', 1200))` — safe now but you can drop the legacy fallbacks once Phase 8 migration is confirmed to have run on prod (rankings.ts_score / rank_ts / wilson_margin are guaranteed populated post-migration).",
+    "_SORT_FIELD_MAP still exposes os_score / os_sigma sort keys (line 597-598 of routers/leaderboard.py). Per the simplification plan these are no longer user-selectable; consider removing to avoid surfacing dead sort options through the API.",
+    "Comment on line 587 says 'WR no longer selectable — redirect to TS' but the score sort still maps to ts_score; the comment is correct but consider making the redirect explicit (return 400 if a client passes sort_by=wr) instead of silent rewrite.",
+    "Pre-existing duplicate-paper bug (one arxiv_id mapped to two papers.id values) means rankings.paper_id can dangle. Worth adding a startup integrity check that flags rankings rows whose paper_id is not in db.papers."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_scoring_simplification.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin password: papersumo2025 (POST /api/admin/login → X-Admin-Token header)",
+  "seed_data_creation": "None — used existing preview DB (10762 ranking docs, 18 active categories).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Regression: `pytest /app/backend/tests/test_scoring_simplification.py -v` (14 tests, ~1.5s). Asserts: score==ts_score, ci==wilson_margin, rank==rank_ts on /api/leaderboard; rank_wr/rank_os/os_score/os_sigma absent; sorting by score/wilson_margin/comparisons/win_rate/published; categories (cs.AI/cs.RO/cs.LG); /api/papers/{id} (uses rank-2 onward to avoid the cs.AI rank-1 duplicate-paper data issue); /api/archive/list; /api/admin/system-logs (admin auth); /api/model-analysis. Paper-detail navigation in the UI works fine (frontend uses correct paper id from the /papers/{id} link, not the rankings paper_id) — the data mismatch only manifests when calling the API directly with the leaderboard `id`.",
+  "rca of the issue": "No regression introduced by Phase 8. The single pre-existing data integrity issue (rankings.paper_id != papers.id for one duplicated arxiv doc) predates this refactor and was surfaced only because the new test queries /api/papers/{leaderboard.id} directly. Frontend behavior unchanged for end users."
+}

@@ -749,11 +749,12 @@ async def seed_rankings(db, category: str = None):
 async def update_rankings_for_match(db, category: str, winner_id: str, loser_id: str, model_used: dict = None):
     """Incrementally update rankings after a single match completes.
     
-    Updates WR scores, TrueSkill ratings, and per-model win stats for the 2 affected papers.
+    Steps: (1) win/loss counts + wilson_margin, (2) TrueSkill global,
+    (3) TrueSkill per-model, (4) OpenSkill per-model.
     O(1) per match — no match history loading.
-    Retries once on failure. If retry fails, queues for background repair.
     """
     import trueskill
+    from core.config import logger
     from datetime import datetime, timezone
     now_iso = datetime.now(timezone.utc).isoformat()
 
@@ -766,19 +767,16 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
     if model_used and isinstance(model_used, dict):
         raw_key = f"{model_used.get('provider', 'unknown')}/{model_used.get('model', 'unknown')}"
         model_key = _OPUS_MERGE.get(raw_key, raw_key)
-        # MongoDB interprets dots as nested paths — replace with underscores
         if model_key:
             model_key = model_key.replace(".", "_")
 
-    # --- Step 1: Update WR counts + scores + per-model stats for both papers ---
+    # --- Step 1: Increment win/loss counts + per-model stats ---
     for paper_id, is_winner in [(winner_id, True), (loser_id, False)]:
-        inc_fields = {"comparisons": 1, "unique_opponents": 1}
+        inc_fields = {"comparisons": 1}
         if is_winner:
             inc_fields["wins"] = 1
         else:
             inc_fields["losses"] = 1
-
-        # Also increment per-model stats
         if model_key:
             inc_fields[f"model_stats.{model_key}.total"] = 1
             if is_winner:
@@ -792,8 +790,6 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
                 projection={"_id": 0, "wins": 1, "comparisons": 1},
             )
             if not doc:
-                # Ranking doesn't exist yet (race: compare loop ran before fetch loop created it).
-                # Create the ranking entry, then retry the increment.
                 paper_doc = await db.papers.find_one(
                     {"id": paper_id},
                     {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
@@ -808,11 +804,12 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
                         projection={"_id": 0, "wins": 1, "comparisons": 1},
                     )
             if doc:
-                new_stats = compute_paper_score(doc["wins"], doc["comparisons"])
+                w, n = doc["wins"], doc["comparisons"]
+                wm = wilson_margin_pct(w, n)
+                wr = round(100 * w / n, 1) if n > 0 else 0.0
                 await db.rankings.update_one(
-                    {"paper_id": paper_id, "category": category,
-                     "comparisons": doc["comparisons"]},
-                    {"$set": new_stats},
+                    {"paper_id": paper_id, "category": category, "comparisons": n},
+                    {"$set": {"win_rate": wr, "wilson_margin": wm, "ci": wm}},
                 )
         except Exception:
             try:
@@ -838,11 +835,12 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
                             projection={"_id": 0, "wins": 1, "comparisons": 1},
                         )
                 if doc:
-                    new_stats = compute_paper_score(doc["wins"], doc["comparisons"])
+                    w, n = doc["wins"], doc["comparisons"]
+                    wm = wilson_margin_pct(w, n)
+                    wr = round(100 * w / n, 1) if n > 0 else 0.0
                     await db.rankings.update_one(
-                        {"paper_id": paper_id, "category": category,
-                         "comparisons": doc["comparisons"]},
-                        {"$set": new_stats},
+                        {"paper_id": paper_id, "category": category, "comparisons": n},
+                        {"$set": {"win_rate": wr, "wilson_margin": wm, "ci": wm}},
                     )
             except Exception:
                 await _queue_repair(db, category, paper_id)
@@ -850,7 +848,6 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
     # --- Step 2: Incremental TrueSkill update for both papers ---
     try:
         env = trueskill.TrueSkill(draw_probability=0.0)
-        # Load current TS ratings
         w_doc = await db.rankings.find_one(
             {"paper_id": winner_id, "category": category},
             {"_id": 0, "ts_mu": 1, "ts_sigma": 1},
@@ -867,17 +864,23 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
             w_rating = env.create_rating(mu=w_mu, sigma=w_sigma)
             l_rating = env.create_rating(mu=l_mu, sigma=l_sigma)
             new_w, new_l = trueskill.rate_1vs1(w_rating, l_rating)
-            # CAS: only write if ts_mu hasn't changed since we read (prevents race condition)
-            await db.rankings.update_one(
+            # CAS: only write if ts_mu hasn't changed since we read
+            res_w = await db.rankings.update_one(
                 {"paper_id": winner_id, "category": category, "ts_mu": w_mu},
                 {"$set": {"ts_mu": new_w.mu, "ts_sigma": new_w.sigma}},
             )
-            await db.rankings.update_one(
+            res_l = await db.rankings.update_one(
                 {"paper_id": loser_id, "category": category, "ts_mu": l_mu},
                 {"$set": {"ts_mu": new_l.mu, "ts_sigma": new_l.sigma}},
             )
-    except Exception:
-        pass  # TS update is best-effort; WR is the primary score
+            if res_w.modified_count == 0 or res_l.modified_count == 0:
+                logger.warning(f"TrueSkill CAS conflict in {category}: w={winner_id[:12]} l={loser_id[:12]}")
+                await _queue_repair(db, category, winner_id)
+                await _queue_repair(db, category, loser_id)
+    except Exception as e:
+        logger.warning(f"TrueSkill update failed in {category}: {e}")
+        await _queue_repair(db, category, winner_id)
+        await _queue_repair(db, category, loser_id)
 
     # --- Step 3: Incremental per-model TrueSkill update ---
     if model_key:
@@ -907,41 +910,7 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
         except Exception:
             pass
 
-    # --- Step 4: Incremental global OpenSkill update ---
-    # Uses ALL matches (not per-model) — same data volume as TrueSkill.
-    # Stored as os_mu/os_sigma on ranking doc (parallel to ts_mu/ts_sigma).
-    try:
-        from openskill.models import ThurstoneMostellerFull
-        _os_global = ThurstoneMostellerFull()
-        w_doc_g = await db.rankings.find_one(
-            {"paper_id": winner_id, "category": category},
-            {"_id": 0, "os_mu": 1, "os_sigma": 1},
-        )
-        l_doc_g = await db.rankings.find_one(
-            {"paper_id": loser_id, "category": category},
-            {"_id": 0, "os_mu": 1, "os_sigma": 1},
-        )
-        w_os_g = _os_global.rating(
-            mu=(w_doc_g or {}).get("os_mu", 25.0),
-            sigma=(w_doc_g or {}).get("os_sigma", 25.0 / 3),
-        )
-        l_os_g = _os_global.rating(
-            mu=(l_doc_g or {}).get("os_mu", 25.0),
-            sigma=(l_doc_g or {}).get("os_sigma", 25.0 / 3),
-        )
-        [[new_w_g], [new_l_g]] = _os_global.rate([[w_os_g], [l_os_g]], ranks=[1, 2])
-        await db.rankings.update_one(
-            {"paper_id": winner_id, "category": category},
-            {"$set": {"os_mu": new_w_g.mu, "os_sigma": new_w_g.sigma}},
-        )
-        await db.rankings.update_one(
-            {"paper_id": loser_id, "category": category},
-            {"$set": {"os_mu": new_l_g.mu, "os_sigma": new_l_g.sigma}},
-        )
-    except Exception:
-        pass
-
-    # --- Step 5: Incremental per-model OpenSkill update ---
+    # --- Step 4: Incremental per-model OpenSkill update (for correlation page) ---
     if model_key:
         try:
             from openskill.models import ThurstoneMostellerFull
@@ -1019,11 +988,11 @@ async def process_repair_queue(db):
 
 
 async def rerank_category_light(db, category: str):
-    """Lightweight rank re-sort from pre-computed scores.
+    """Lightweight rank re-sort from pre-computed TrueSkill scores.
     
-    Both WR and TrueSkill scores are updated incrementally per-match.
-    This function just re-sorts rank numbers, normalizes TS to Elo scale,
-    and refreshes derived fields (gap scores, community likes).
+    TrueSkill mu/sigma are updated incrementally per-match.
+    This function re-sorts rank numbers, normalizes TS to Elo scale,
+    computes os_score (for correlation page), and writes backward-compat fields.
     Single-pass: loads rankings once, computes everything, writes once.
     No match loading — O(P) reads + O(P) writes.
     
@@ -1031,6 +1000,7 @@ async def rerank_category_light(db, category: str):
     """
     from core.memlog import log_mem
     import time as _time
+    import hashlib
     from pymongo import UpdateOne
 
     _t0 = _time.perf_counter()
@@ -1038,60 +1008,54 @@ async def rerank_category_light(db, category: str):
     entries = []
     async for doc in db.rankings.find(
         {"category": category},
-        {"_id": 0, "paper_id": 1, "score": 1, "title": 1,
+        {"_id": 0, "paper_id": 1, "title": 1,
          "ts_mu": 1, "ts_sigma": 1, "os_mu": 1, "os_sigma": 1,
          "wins": 1, "comparisons": 1,
-         "si_ratings": 1, "ai_rating": 1, "model_os": 1},
+         "si_ratings": 1, "ai_rating": 1},
     ):
         entries.append(doc)
 
     if not entries:
         return
 
-    # Compute all derived values
+    # Compute TrueSkill Elo scores
     ts_elo = _compute_ts_elo(entries)
-    rank_wr, rank_ts = _compute_ranks(entries, ts_elo)
-    gap_wr, gap_ts = _compute_gap_scores(entries, ts_elo)
 
-    # Compute global OpenSkill score from os_mu/os_sigma (same pattern as TrueSkill)
+    # Rank by TS score (canonical rank)
+    ts_sorted = sorted(
+        entries,
+        key=lambda e: (ts_elo.get(e["paper_id"], SCORE_BASE_CONST),
+                       hashlib.sha256(e.get("title", e["paper_id"]).encode()).hexdigest()),
+        reverse=True,
+    )
+    rank_ts = {e["paper_id"]: rank for rank, e in enumerate(ts_sorted, 1)}
+
+    # Compute OpenSkill score (for correlation page only)
     os_elo = {}
-    os_sigma_map = {}
     for e in entries:
         raw_mu = e.get("os_mu")
         raw_sigma = e.get("os_sigma", 25.0 / 3)
         if raw_mu is not None:
             conservative = raw_mu - 3 * raw_sigma
             os_elo[e["paper_id"]] = round(conservative * OS_SCALE + SCORE_BASE_CONST)
-            os_sigma_map[e["paper_id"]] = round(raw_sigma, 4)
 
-    # Rank by OS score
-    import hashlib
-    os_sorted = sorted(
-        [e for e in entries if e["paper_id"] in os_elo],
-        key=lambda e: (os_elo.get(e["paper_id"], SCORE_BASE_CONST),
-                       hashlib.sha256(e.get("title", e["paper_id"]).encode()).hexdigest()),
-        reverse=True,
-    )
-    rank_os = {e["paper_id"]: rank for rank, e in enumerate(os_sorted, 1)}
-
-    # Single bulk write — ranks + ts_score + os_score + gap scores
+    # Single bulk write — rank + ts_score + score + ci + os_score
     ops = []
     for e in entries:
         pid = e["paper_id"]
+        ts_score_val = ts_elo.get(pid, SCORE_BASE_CONST)
+        w, n = e.get("wins", 0), e.get("comparisons", 0)
+        wm = wilson_margin_pct(w, n)
         update = {
-            "ts_score": ts_elo.get(pid, SCORE_BASE_CONST),
-            "rank": rank_wr[pid],
-            "rank_wr": rank_wr[pid],
+            "ts_score": ts_score_val,
+            "score": ts_score_val,
+            "rank": rank_ts[pid],
             "rank_ts": rank_ts[pid],
+            "ci": wm,
+            "wilson_margin": wm,
         }
         if pid in os_elo:
             update["os_score"] = os_elo[pid]
-            update["os_sigma"] = os_sigma_map.get(pid)
-            update["rank_os"] = rank_os.get(pid)
-        if pid in gap_wr:
-            update["gap_score"] = gap_wr[pid]
-        if pid in gap_ts:
-            update["gap_score"] = gap_ts[pid]
         ops.append(UpdateOne({"paper_id": pid, "category": category}, {"$set": update}))
     if ops:
         await db.rankings.bulk_write(ops, ordered=False)
@@ -1257,13 +1221,12 @@ async def insert_ranking_for_paper(db, paper_doc: dict):
             "paper_id": paper_doc["id"],
             "category": cat,
             "rank": next_rank,
-            "rank_wr": next_rank,
             "rank_ts": next_rank,
             "score": SCORE_BASE_CONST,
             "ts_mu": 25.0,
             "ts_sigma": 25.0 / 3,
             "ts_score": SCORE_BASE_CONST,
-            "ci": 0,
+            "ci": 100.0,
             "wilson_margin": 100.0,
             "win_rate": 0.0,
             "wins": 0,

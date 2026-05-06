@@ -49,10 +49,7 @@ export default function LeaderboardPage() {
   const [sortPending, setSortPending] = useState(false); // Blocks loadMore during sort transition
   const [sortKey, setSortKey] = useState(searchParams.get("sort") || "rank");
   const [sortDir, setSortDir] = useState(searchParams.get("dir") || "asc");
-  const [scoringMethod, setScoringMethod] = useState(() => {
-    const m = searchParams.get("method");
-    return m === "ts" || m === "os" ? m : "ts";
-  });
+  const scoringMethod = "ts";
 
   const { user } = useAuth();
   const [showSuggestion, setShowSuggestion] = useState(false);
@@ -102,7 +99,6 @@ export default function LeaderboardPage() {
     const p = new URLSearchParams();
     if (category && !isTagMode) p.set("cat", category);
     if (period !== "week") p.set("period", period);
-    if (scoringMethod !== "ts") p.set("method", scoringMethod);
     if (selectedTags.length) p.set("tags", selectedTags.join(","));
     if (tagMode !== "or") p.set("tagMode", tagMode);
     if (tagFilterOpen && !selectedTags.length) p.set("tagOpen", "1");
@@ -115,7 +111,7 @@ export default function LeaderboardPage() {
     for (const [k, v] of preservedAdParams.entries()) p.set(k, v);
     const qs = p.toString();
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-  }, [category, period, scoringMethod, selectedTags, tagMode, tagFilterOpen, debouncedKeyword, globalStats, isTagMode, sortKey, sortDir, activeArchive, preservedAdParams]);
+  }, [category, period, selectedTags, tagMode, tagFilterOpen, debouncedKeyword, globalStats, isTagMode, sortKey, sortDir, activeArchive, preservedAdParams]);
 
   // Notify navbar
   useEffect(() => {
@@ -198,21 +194,16 @@ export default function LeaderboardPage() {
       } else {
         params.category = category;
       }
-      // Server-side sorting — map sort key based on scoring method
-      const effectiveSortKey = sortKey === "score" && scoringMethod === "ts" ? "ts_score"
-        : sortKey === "score" && scoringMethod === "os" ? "os_score"
+      // Server-side sorting
+      const effectiveSortKey = sortKey === "score" ? "ts_score"
+        : sortKey === "wilson_margin" ? "wilson_margin"
         : sortKey === "gap_score" ? "gap_score"
-        : sortKey === "wilson_margin" && scoringMethod === "ts" ? "ts_sigma"
-        : sortKey === "wilson_margin" && scoringMethod === "os" ? "os_sigma"
         : sortKey;
       if (effectiveSortKey && effectiveSortKey !== "rank") {
         params.sort_by = effectiveSortKey;
         params.sort_dir = sortDir;
-      } else if (scoringMethod === "ts") {
+      } else {
         params.sort_by = "ts_score";
-        params.sort_dir = "desc";
-      } else if (scoringMethod === "os") {
-        params.sort_by = "os_score";
         params.sort_dir = "desc";
       }
       const res = await axios.get(`${API}/api/leaderboard`, { params, signal: controller.signal });
@@ -244,36 +235,29 @@ export default function LeaderboardPage() {
         setLoading(false);
       }
     }
-  }, [category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, debouncedKeyword, sortKey, sortDir, scoringMethod]);
+  }, [category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, debouncedKeyword, sortKey, sortDir]);
 
   // Load next page using keyset cursor or offset (infinite scroll)
   const loadMore = useCallback(async () => {
     if (loadingMore || loading || sortPending) return; // Skip if main fetch or sort pending
-    // For non-default sorts (or TS mode), use offset-based pagination
-    const isNonDefaultSort = (sortKey && sortKey !== "rank") || scoringMethod === "ts";
-    const useOffset = isNonDefaultSort;
-    if (!useOffset && !nextCursor) return;
+    // Always use offset-based pagination for TS sort
+    const isNonDefaultSort = (sortKey && sortKey !== "rank");
+    const useOffset = isNonDefaultSort || true;
     if (useOffset && leaderboard.length === 0) return; // No data yet — fresh sort pending
     setLoadingMore(true);
     try {
       const params = { period, limit: PAGE_SIZE };
       if (useOffset) {
         params.offset = leaderboard.length;
-        // Map sort key based on scoring method
-        const effectiveSortKey = sortKey === "score" && scoringMethod === "ts" ? "ts_score"
-          : sortKey === "score" && scoringMethod === "os" ? "os_score"
+        const effectiveSortKey = sortKey === "score" ? "ts_score"
+          : sortKey === "wilson_margin" ? "wilson_margin"
           : sortKey === "gap_score" ? "gap_score"
-          : sortKey === "wilson_margin" && scoringMethod === "ts" ? "ts_sigma"
-          : sortKey === "wilson_margin" && scoringMethod === "os" ? "os_sigma"
           : sortKey;
         if (effectiveSortKey && effectiveSortKey !== "rank") {
           params.sort_by = effectiveSortKey;
           params.sort_dir = sortDir;
-        } else if (scoringMethod === "ts") {
+        } else {
           params.sort_by = "ts_score";
-          params.sort_dir = "desc";
-        } else if (scoringMethod === "os") {
-          params.sort_by = "os_score";
           params.sort_dir = "desc";
         }
       } else {
@@ -305,7 +289,7 @@ export default function LeaderboardPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [nextCursor, loadingMore, loading, sortPending, category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, debouncedKeyword, leaderboard.length, sortKey, sortDir, scoringMethod]);
+  }, [nextCursor, loadingMore, loading, sortPending, category, period, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, debouncedKeyword, leaderboard.length, sortKey, sortDir]);
 
   // Fetch on param change (debounce tag mode)
   const initialLoadDone = useRef(false);

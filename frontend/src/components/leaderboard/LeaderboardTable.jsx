@@ -45,7 +45,7 @@ export function LeaderboardTable({
   debouncedKeyword, keyword, onLoadMore, hasMore, loadingMore,
   sortKey, sortDir, onSort, showRatingCol = true, showGapCol = true,
   bookmarksMode = false, onRemoveBookmark, selectedPapers, onToggleSelect,
-  scoringMethod = "wr", isArchive = false,
+  scoringMethod = "ts", isArchive = false,
 }) {
   const sentinelRef = useRef(null);
   const { bookmarkedIds, toggleBookmark } = useBookmarks();
@@ -68,50 +68,33 @@ export function LeaderboardTable({
   }, [onLoadMore, hasMore, loadingMore]);
 
   const isGlobal = hasSelectedTags && globalStats;
-  const isTS = scoringMethod === "ts";
-  const isOS = scoringMethod === "os";
-  const TS_SCALE = 10.0; // Must match backend TS_SCALE in ranking.py
-  const OS_SCALE = 15.0; // Must match backend OS_SCALE in ranking.py
   const getScore = (p) => {
     if (isGlobal && p.global_score !== undefined) return p.global_score;
-    if (isArchive) return p.score;
-    return isTS ? (p.ts_score || p.score) : isOS ? (p.os_score || p.score) : p.score;
+    return p.ts_score || p.score;
   };
   const getWinRate = (p) => isGlobal && p.global_win_rate !== undefined ? p.global_win_rate : p.win_rate;
   const getComparisons = (p) => isGlobal && p.global_comparisons !== undefined ? p.global_comparisons : p.comparisons;
   const getWilsonMargin = (p) => {
     if (isGlobal) return null;
-    if (isTS) {
-      const sigma = p.ts_sigma;
-      if (sigma != null && sigma > 0) return Math.round(1.96 * sigma * TS_SCALE);
-      return null;
-    }
-    if (isOS) {
-      const sigma = p.os_sigma;
-      if (sigma != null && sigma > 0) return Math.round(1.96 * sigma * OS_SCALE);
-      return null;
-    }
     return p.wilson_margin;
   };
   const getRank = (p) => {
     if (isArchive) return null; // Archives derive rank from array position, handled below
-    return isTS ? (p.rank_ts || p.rank) : isOS ? (p.rank_os || p.rank) : (p.rank_wr || p.rank);
+    return p.rank_ts || p.rank;
   };
 
   const scoreRankMap = useMemo(() => {
     const scoreFn = isGlobal ? (p => p.global_score || 0)
-      : isTS ? (p => p.ts_score || 0)
-      : isOS ? (p => p.os_score || 0)
-      : (p => p.score || 0);
+      : (p => p.ts_score || p.score || 0);
     const byScore = [...leaderboard].sort((a, b) => scoreFn(b) - scoreFn(a));
     const map = {};
     byScore.forEach((p, i) => { map[p.id] = i + 1; });
     return map;
-  }, [leaderboard, isGlobal, isTS]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [leaderboard, isGlobal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Assign display rank to each entry.
   // Archives: rank = array position (1-indexed). Array is sorted by score desc.
-  // Live: use getRank (rank_ts/rank_os depending on scoring mode).
+  // Live: use rank_ts from backend.
   // Global: re-sort by global_score.
   const sorted = useMemo(() => {
     if (isGlobal) {
@@ -120,15 +103,13 @@ export function LeaderboardTable({
       return ranked;
     }
     if (isArchive) {
-      // Archive: position in array IS the rank (array sorted by score at freeze time)
       return leaderboard.map((p, i) => ({ ...p, _displayRank: i + 1 }));
     }
-    // Live leaderboard: use scoring-method-specific rank from backend
     return leaderboard.map((p, i) => ({
       ...p,
       _displayRank: getRank(p) || (i + 1),
     }));
-  }, [leaderboard, isGlobal, isArchive, isTS, isOS]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [leaderboard, isGlobal, isArchive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build grid template based on visible columns and screen size
   // Mobile: #, Paper, Score only. Tablet: +Win%, Match. Desktop: all columns.
@@ -165,9 +146,7 @@ export function LeaderboardTable({
   const hasMoreToShow = hasMore;
 
   const scoreLabel = "Score";
-  const scoreTip = isTS
-    ? "TrueSkill score from pairwise comparisons. Bayesian rating updated incrementally per match."
-    : (isGlobal ? COLUMN_TIPS.score_g : COLUMN_TIPS.score);
+  const scoreTip = isGlobal ? COLUMN_TIPS.score_g : "TrueSkill score from pairwise comparisons. Bayesian rating updated incrementally per match.";
   const winLabel = "Win %";
   const matchLabel = "Match";
 
@@ -203,7 +182,7 @@ export function LeaderboardTable({
           <SortHeader label="Paper" sortKey="title" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.title} />
           {showCatCol && !isMobile && <div className="text-center">Cat</div>}
           <SortHeader label={isMobile ? "Score" : scoreLabel} sortKey="score" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={scoreTip} />
-          {!isMobile && !isTablet && <SortHeader label="95% CI" sortKey="wilson_margin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isTS ? "95% TrueSkill confidence interval (\u00B11.96\u00D7\u03C3) in Elo-scaled score points. Lower = more certain." : isOS ? "95% OpenSkill confidence interval (\u00B11.96\u00D7\u03C3) in Elo-scaled score points. Lower = more certain." : COLUMN_TIPS.wilson_margin} />}
+          {!isMobile && !isTablet && <SortHeader label="95% CI" sortKey="wilson_margin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={COLUMN_TIPS.wilson_margin} />}
           {!isMobile && <SortHeader label={matchLabel} sortKey="comparisons" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.comparisons_g : COLUMN_TIPS.comparisons} />}
           {!isMobile && <SortHeader label={winLabel} sortKey="win_rate" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip={isGlobal ? COLUMN_TIPS.win_rate_g : COLUMN_TIPS.win_rate} />}
           {showRatingCol && !isMobile && !isTablet && <SortHeader label="Rating" sortKey="ai_rating" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" tip="Single-item AI quality rating (1-10) from Opus 4.6 Thinking." />}
@@ -281,7 +260,7 @@ export function LeaderboardTable({
             )}
             <div className="text-right font-mono text-xs sm:text-sm font-medium">{getScore(paper) || "—"}</div>
             {!isMobile && !isTablet && <div className="text-right font-mono text-xs text-muted-foreground">
-              {(() => { const wm = getWilsonMargin(paper); return wm != null && wm > 0 ? `\u00B1${wm}${(isTS || isOS) ? "" : "%"}` : "—"; })()}
+              {(() => { const wm = getWilsonMargin(paper); return wm != null && wm > 0 ? `\u00B1${wm}%` : "—"; })()}
             </div>}
             {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getComparisons(paper) != null ? getComparisons(paper) : "—"}</div>}
             {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getWinRate(paper) != null ? `${getWinRate(paper)}%` : "—"}</div>}

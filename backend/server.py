@@ -757,6 +757,34 @@ async def _deferred_startup():
 
     log_mem("_deferred_startup: complete")
 
+    # Phase 8: Scoring simplification migration (one-time)
+    # Overwrites score=ts_score, ci=wilson_margin, removes rank_wr/rank_os
+    try:
+        migration_done = await db.settings.find_one({"key": "migration_scoring_simplification"})
+        if not migration_done:
+            _mig_count = await db.rankings.count_documents({"rank_wr": {"$exists": True}})
+            if _mig_count > 0:
+                # 1. Overwrite score with ts_score
+                await db.rankings.update_many(
+                    {"ts_score": {"$exists": True}},
+                    [{"$set": {"score": "$ts_score"}}],
+                )
+                # 2. Overwrite ci with wilson_margin
+                await db.rankings.update_many(
+                    {"wilson_margin": {"$exists": True}},
+                    [{"$set": {"ci": "$wilson_margin"}}],
+                )
+                # 3. Remove dead fields
+                await db.rankings.update_many({}, {"$unset": {"rank_wr": "", "rank_os": ""}})
+                logger.info(f"Scoring simplification migration: updated {_mig_count} ranking docs")
+            await db.settings.update_one(
+                {"key": "migration_scoring_simplification"},
+                {"$set": {"key": "migration_scoring_simplification", "done_at": datetime.now(timezone.utc).isoformat()}},
+                upsert=True,
+            )
+    except Exception as e:
+        logger.warning(f"Scoring simplification migration warning: {e}")
+
     # Retry summary generation for papers that are in rankings but lack summaries
     # (these papers can't be matched until they have summaries)
     asyncio.create_task(_retry_missing_summaries())

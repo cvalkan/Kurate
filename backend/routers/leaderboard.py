@@ -519,9 +519,8 @@ async def get_categories():
 # ─── DB-Backed Leaderboard Serving (Phase 2) ────────────────────────────────
 
 # Projection for rankings queries — exclude MongoDB _id, include all serving fields
-_RANK_PROJ = {"_id": 0, "paper_id": 1, "category": 1, "rank": 1, "rank_wr": 1, "rank_ts": 1, "rank_os": 1,
+_RANK_PROJ = {"_id": 0, "paper_id": 1, "category": 1, "rank": 1, "rank_ts": 1,
               "score": 1, "ts_score": 1, "ts_mu": 1, "ts_sigma": 1,
-              "os_score": 1, "os_sigma": 1,
               "ci": 1, "wilson_margin": 1, "win_rate": 1, "wins": 1, "losses": 1,
               "comparisons": 1, "title": 1, "authors": 1, "arxiv_id": 1, "link": 1,
               "published": 1, "added_at": 1, "ai_rating": 1, "gap_score": 1,
@@ -549,22 +548,21 @@ def _decode_cursor(cursor: str) -> tuple:
 
 
 def _rank_doc_to_entry(doc: dict) -> dict:
-    """Convert a rankings DB document to a leaderboard entry (matching the old cache format).
+    """Convert a rankings DB document to a leaderboard entry.
     Uses rank_ts (TrueSkill rank) as the primary rank — the canonical ranking metric."""
     entry = {
         "id": doc["paper_id"],
         "rank": doc.get("rank_ts", doc.get("rank", 0)),
-        "rank_wr": doc.get("rank_wr", doc.get("rank", 0)),
         "rank_ts": doc.get("rank_ts", doc.get("rank", 0)),
         "title": doc.get("title", ""),
         "authors": doc.get("authors", []),
         "arxiv_id": doc.get("arxiv_id", ""),
         "link": doc.get("link", ""),
         "published": doc.get("published", ""),
-        "score": doc.get("score", 1200),
+        "score": doc.get("ts_score", doc.get("score", 1200)),
         "ts_score": doc.get("ts_score", 1200),
         "ts_sigma": doc.get("ts_sigma"),
-        "ci": doc.get("ci", 0),
+        "ci": doc.get("wilson_margin", doc.get("ci", 100.0)),
         "wilson_margin": doc.get("wilson_margin", 100.0),
         "win_rate": doc.get("win_rate", 0.0),
         "wins": doc.get("wins", 0),
@@ -572,9 +570,6 @@ def _rank_doc_to_entry(doc: dict) -> dict:
         "comparisons": doc.get("comparisons", 0),
         **({"ai_rating": doc["ai_rating"]} if doc.get("ai_rating") else {}),
         **({"gap_score": doc["gap_score"]} if doc.get("gap_score") is not None else {}),
-        **({"os_score": doc["os_score"]} if doc.get("os_score") is not None else {}),
-        **({"os_sigma": doc["os_sigma"]} if doc.get("os_sigma") is not None else {}),
-        **({"rank_os": doc["rank_os"]} if doc.get("rank_os") is not None else {}),
     }
     # Propagate the arXiv version for the leaderboard `vN` badge (only shown
     # when > 1). Ranking rows don't always carry current_version directly —

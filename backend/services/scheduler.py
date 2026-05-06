@@ -1782,38 +1782,41 @@ async def _recompute_gap_scores(category: str):
     """Recompute gap_score for all papers in a category.
     
     gap = tournament_percentile - rating_percentile
+    Uses scipy.rankdata for proper fractional tie handling.
     Only for papers with ai_rating and >= 3 matches.
     Fast: single DB query + in-memory percentile computation + bulk write.
     """
+    from scipy.stats import rankdata
+    import numpy as np
+
     entries = []
     async for r in db.rankings.find(
         {"category": category, "comparisons": {"$gte": 3}, "is_latest_version": {"$ne": False}},
         {"_id": 0, "paper_id": 1, "ts_score": 1, "ai_rating": 1},
-    ).sort("ts_score", -1):
-        entries.append(r)
+    ):
+        if r.get("ai_rating") is not None and r.get("ai_rating") >= 0 and r.get("ts_score") is not None:
+            entries.append(r)
 
     if len(entries) < 5:
         return
 
     n = len(entries)
-    t_pct = {e["paper_id"]: (1 - i / max(n - 1, 1)) * 100 for i, e in enumerate(entries)}
+    ts_vals = np.array([e["ts_score"] for e in entries])
+    ai_vals = np.array([e["ai_rating"] for e in entries])
 
-    rated = [(e["paper_id"], e["ai_rating"]) for e in entries if e.get("ai_rating") is not None and e.get("ai_rating") >= 0]
-    if len(rated) < 5:
-        return
-    rated.sort(key=lambda x: -x[1])
-    r_pct = {pid: (1 - i / max(len(rated) - 1, 1)) * 100 for i, (pid, _) in enumerate(rated)}
+    ts_pct = rankdata(ts_vals) / n * 100
+    ai_pct = rankdata(ai_vals) / n * 100
+    gap_raw = ts_pct - ai_pct
 
     # Bulk update
     from pymongo import UpdateOne
     ops = []
-    for pid in t_pct:
-        if pid in r_pct:
-            gap = round(t_pct[pid] - r_pct[pid], 1)
-            ops.append(UpdateOne(
-                {"paper_id": pid, "category": category},
-                {"$set": {"gap_score": gap}},
-            ))
+    for i, entry in enumerate(entries):
+        gap = round(float(gap_raw[i]), 1)
+        ops.append(UpdateOne(
+            {"paper_id": entry["paper_id"], "category": category},
+            {"$set": {"gap_score": gap}},
+        ))
     if ops:
         await db.rankings.bulk_write(ops, ordered=False)
     else:
