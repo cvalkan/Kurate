@@ -222,36 +222,39 @@ export function LeaderboardTable({
             </div>
             <div className="min-w-0">
               {(() => {
-                // Extract vN from arxiv_id when > 1 (e.g., "2602.12345v2" → 2).
                 const m = paper.arxiv_id && /v(\d+)$/.exec(paper.arxiv_id);
                 const v = m ? parseInt(m[1], 10) : (paper.current_version || 1);
                 return (
-                  <p className="text-xs sm:text-sm font-medium truncate leading-tight" title={paper.title}>
-                    {paper.title}
-                    {v > 1 && (
-                      <span
-                        className="ml-1.5 inline-flex items-center px-1 py-px text-[9px] sm:text-[10px] font-mono rounded bg-amber-50 text-amber-700 border border-amber-200 align-middle"
-                        data-testid={`version-badge-${paper.id}`}
-                        title={`Revised on arXiv — version ${v}`}
-                      >
-                        v{v}
-                      </span>
-                    )}
-                    {paper.cited_by_count > 0 && (
-                      <span
-                        className="ml-1.5 inline-flex items-center px-1 py-px text-[9px] sm:text-[10px] rounded bg-blue-50 text-blue-600 border border-blue-200 align-middle"
-                        title={`Cited by ${paper.cited_by_count} papers`}
-                      >
-                        {paper.cited_by_count} cited
-                      </span>
-                    )}
-                  </p>
+                  <>
+                    <p className="text-xs sm:text-sm font-medium leading-tight truncate" title={paper.title}>
+                      {paper.title}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                        {paper.authors?.slice(0, 2).join(", ")}
+                        {paper.authors?.length > 2 && ` +${paper.authors.length - 2}`}
+                      </p>
+                      {v > 1 && (
+                        <span
+                          className="shrink-0 text-[9px] sm:text-[10px] font-mono px-1 py-px rounded bg-amber-50 text-amber-700 border border-amber-200"
+                          data-testid={`version-badge-${paper.id}`}
+                          title={`Revised on arXiv — version ${v}`}
+                        >
+                          v{v}
+                        </span>
+                      )}
+                      {paper.cited_by_count > 0 && (
+                        <span
+                          className="shrink-0 text-[9px] sm:text-[10px] px-1 py-px rounded bg-blue-50 text-blue-600 border border-blue-200"
+                          title={`Cited by ${paper.cited_by_count} papers`}
+                        >
+                          {paper.cited_by_count} cited
+                        </span>
+                      )}
+                    </div>
+                  </>
                 );
               })()}
-              <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">
-                {paper.authors?.slice(0, 2).join(", ")}
-                {paper.authors?.length > 2 && ` +${paper.authors.length - 2}`}
-              </p>
             </div>
             {showCatCol && !isMobile && (
               <div className="text-center">
