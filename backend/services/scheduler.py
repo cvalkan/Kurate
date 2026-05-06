@@ -854,8 +854,10 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                 id_field = "chemrxiv_id"
             elif category.startswith("iacr."):
                 from services.iacr import fetch_iacr_papers_oai
-                # OAI-PMH returns all IACR categories mixed — fetch more then filter
-                raw_all = await fetch_iacr_papers_oai(date_from=date_from, max_papers=max_papers * 20)
+                # OAI-PMH returns all IACR categories mixed.
+                # The date_from constraint limits volume (~15 papers/day total).
+                # Fetch the full date range, then filter to target category.
+                raw_all = await fetch_iacr_papers_oai(date_from=date_from, max_papers=5000)
                 raw_papers = [p for p in raw_all if category in p.get("categories", [])]
                 logger.info(f"[{category}] Step 1: Fetched {len(raw_papers)} papers from IACR ePrint (date_from={date_from}, scanned {len(raw_all)} total)")
                 id_field = "iacr_id"
