@@ -379,6 +379,16 @@ export default function PaperPage() {
         <meta name="twitter:card" content="summary" />
         <meta name="twitter:title" content={`${paper.title} | Kurate.org`} />
         <meta name="twitter:description" content={`by ${authorsStr} | AI-ranked on Kurate.org`} />
+        <script type="application/ld+json">{JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "ScholarlyArticle",
+          "name": paper.title,
+          "author": (paper.authors || []).slice(0, 5).map(a => ({"@type": "Person", "name": a})),
+          "datePublished": paper.published?.slice(0, 10),
+          "url": `https://kurate.org/paper/${id}`,
+          "isPartOf": {"@type": "WebSite", "name": "Kurate.org", "url": "https://kurate.org"},
+          ...(paper.arxiv_id && {"sameAs": `https://arxiv.org/abs/${paper.arxiv_id}`}),
+        })}</script>
       </Helmet>
       <button onClick={() => {
         const cat = paper.categories?.[0];

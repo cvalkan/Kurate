@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { Helmet } from "react-helmet";
 import axios from "axios";
 import {
   Search, Download, Swords, Trophy, BarChart3,
@@ -43,7 +44,11 @@ export default function MethodologyPage() {
 
   return (
     <div className="container mx-auto px-4 md:px-6 max-w-3xl py-6 md:py-10">
-      <div className="mb-10">
+      <Helmet>
+        <title>Methodology — How Kurate.org Ranks Papers | Kurate.org</title>
+        <meta name="description" content="How Kurate.org ranks arXiv preprints using AI-powered pairwise comparison with TrueSkill scoring across multiple scientific categories." />
+        <link rel="canonical" href="https://kurate.org/methodology" />
+      </Helmet>      <div className="mb-10">
         <h1 className="font-heading text-3xl md:text-4xl font-semibold tracking-tight mb-2" data-testid="page-title">
           Methodology
         </h1>

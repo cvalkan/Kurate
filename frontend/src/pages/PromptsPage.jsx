@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { Helmet } from "react-helmet";
 import axios from "axios";
 import { FileText, ArrowLeft, Bot, Sparkles } from "lucide-react";
 
@@ -43,7 +44,11 @@ export default function PromptsPage() {
 
   return (
     <div className="container mx-auto px-4 md:px-6 max-w-3xl py-6 md:py-10">
-      <Link to="/methodology" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors" data-testid="back-to-methodology">
+      <Helmet>
+        <title>Evaluation Prompts | Kurate.org</title>
+        <meta name="description" content="The exact prompts used by Kurate.org's AI judges (Claude, GPT, Gemini) to compare and rank scientific papers." />
+        <link rel="canonical" href="https://kurate.org/prompts" />
+      </Helmet>      <Link to="/methodology" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors" data-testid="back-to-methodology">
         <ArrowLeft className="h-3.5 w-3.5" />
         Back to Methodology
       </Link>

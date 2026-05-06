@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { Helmet } from "react-helmet";
 import axios from "axios";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
@@ -337,9 +338,30 @@ export default function LeaderboardPage() {
     ? `${selectedTags.join(tagMode === "and" ? " \u2229 " : " \u222A ")} Papers`
     : isTagMode ? "All Papers" : `${categoryName} Paper Rankings`;
 
+  // SEO: Build canonical URL (strip noise params, keep only meaningful ones)
+  const seoCanonical = useMemo(() => {
+    const base = "https://kurate.org";
+    if (isTagMode || hasSelectedTags) return base; // tag views → canonical to homepage
+    if (category && category !== categories[0]?.id) return `${base}/?cat=${category}`;
+    return base;
+  }, [category, categories, isTagMode, hasSelectedTags]);
+  const seoTitle = activeArchive
+    ? `${categoryName} Paper Rankings — ${activeArchive.label} | Kurate.org`
+    : hasSelectedTags
+    ? `${selectedTags.join(" & ")} Paper Rankings | Kurate.org`
+    : `${categoryName} Paper Rankings | Kurate.org`;
+  const seoDesc = `AI-estimated scientific impact ranking of the latest arXiv ${categoryName} preprints. Papers compared using full-text deep analysis by multiple LLMs.`;
+
   return (
     <TooltipProvider delayDuration={200}>
-    <div className="container mx-auto px-4 md:px-6 max-w-7xl py-6 md:py-10">
+    <Helmet>
+      <title>{seoTitle}</title>
+      <meta name="description" content={seoDesc} />
+      <link rel="canonical" href={seoCanonical} />
+      <meta property="og:title" content={seoTitle} />
+      <meta property="og:description" content={seoDesc} />
+      <meta property="og:url" content={seoCanonical} />
+    </Helmet>    <div className="container mx-auto px-4 md:px-6 max-w-7xl py-6 md:py-10">
       <div className="mb-8">
         <h1 className="font-heading text-3xl md:text-4xl font-semibold tracking-tight mb-2" data-testid="page-title">{title}</h1>
         <p className="text-muted-foreground text-sm md:text-base max-w-2xl">
