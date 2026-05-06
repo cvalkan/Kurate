@@ -536,7 +536,6 @@ async def _deferred_startup():
         sample = await db.rankings.find_one({}, {"_id": 0, "paper_id": 1, "category": 1})
         if sample:
             pid, cat = sample["paper_id"], sample["category"]
-            import asyncio
             await asyncio.gather(
                 db.papers.find_one({"id": pid}, {"_id": 0, "title": 1}),
                 db.matches.find({"completed": True, "$or": [{"paper1_id": pid}, {"paper2_id": pid}]}, {"_id": 0, "paper1_id": 1}).to_list(1),
