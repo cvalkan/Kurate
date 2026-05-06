@@ -48,17 +48,18 @@ And `rerank_category_light` (after each compare round):
 
 ### Phase 2: `rerank_category_light` (post-round bulk rerank)
 
-- Remove: `rank_wr`, `score` (WR) computation
+- Remove: `rank_wr` computation
 - Remove: `os_sigma_map`, `rank_os` computation
 - Keep: `os_score` computation (one line, read by correlation page)
 - Remove: `gap_wr` computation
 - Remove: `_compute_gap_scores` function (dual WR/TS gap) — replaced by single `_recompute_gap_scores` in scheduler (TS-only, uses `scipy.rankdata` for fractional tie handling)
 - Rename: `rank_ts` → `rank` (TS is the canonical rank)
+- Add: Write `score = ts_score` and `ci = wilson_margin` for backward compat (Phase 8)
 - **Fix:** Eliminate dual gap computation paths. Currently `_compute_gap_scores` (in `rerank_category_light`) and `_recompute_gap_scores` (in scheduler post-round) BOTH write `gap_score` with different methodologies (`scipy.rankdata` vs index-based percentile). Keep only `_recompute_gap_scores` as the single source, but **upgrade it to use `scipy.rankdata`** for proper fractional tie handling (same methodology as the removed function, applied to TS scores only).
 
 ### Phase 3: `insert_ranking_for_paper` (new paper entry)
 
-- Remove: `score`, `ci` fields (WR-based)
+- Change: `score = ts_score = 1200` (TS default), `ci = wilson_margin = 100.0` (no data = max uncertainty)
 - Keep: `ts_mu=25.0`, `ts_sigma=25/3`, `ts_score=1200`, `rank=0`
 - Keep: `wins=0`, `losses=0`, `comparisons=0`, `win_rate=0`
 
@@ -125,12 +126,52 @@ And `rerank_category_light` (after each compare round):
 
 Keep `os_score` computation in `rerank_category_light` — it's one line and avoids touching `model_analysis.py`. Remove `rank_os` (not read by anyone) but keep `os_score` (read by correlation page).
 
-## DB cleanup (optional, not blocking)
+## DB cleanup (Phase 8 — one-time migration in `_deferred_startup`)
 
-Old fields become dead data. Can be cleaned up later with:
+### Analysis: What's safe to remove
+
+| Field | Current readers | Safe to `$unset`? | Action |
+|-------|----------------|-------------------|--------|
+| `score` | `_rank_doc_to_entry`, admin `_check_goals` (top-K sort), archive creation fallback, frontend `p.score` | **NO** — too many consumers | **Overwrite** with `ts_score` value |
+| `ci` | `_rank_doc_to_entry`, paper detail, archive creation | **NO** — used as API response | **Overwrite** with `wilson_margin` value |
+| `rank_wr` | `_rank_doc_to_entry` (returned in API), frontend `p.rank_wr` (WR mode only) | YES after Phase 5+6 | **`$unset`** |
+| `rank_os` | `_rank_doc_to_entry` (conditional), frontend `p.rank_os`, admin archive rebuild | YES after Phase 5+6 | **`$unset`** |
+| `os_score` | Correlation page, `_rank_doc_to_entry`, paper detail | **NO** — still read | **Keep** |
+| `os_mu`, `os_sigma` | Source data for `os_score` computation | **NO** | **Keep** |
+| `model_ts`, `model_os` | Correlation page per-model analysis | **NO** | **Keep** |
+
+### Migration steps (run once, guarded by a flag)
+
+```python
+# 1. Overwrite `score` with `ts_score` (makes all `score` readers show TS value)
+db.rankings.updateMany(
+  {"ts_score": {"$exists": True}},
+  [{"$set": {"score": "$ts_score"}}]
+)
+
+# 2. Overwrite `ci` with `wilson_margin` (preserves ±X% format)
+db.rankings.updateMany(
+  {"wilson_margin": {"$exists": True}},
+  [{"$set": {"ci": "$wilson_margin"}}]
+)
+
+# 3. Remove dead fields
+db.rankings.updateMany({}, {"$unset": {"rank_wr": "", "rank_os": ""}})
 ```
-db.rankings.updateMany({}, {$unset: {"os_score": "", "rank_wr": "", "rank_os": "", "gap_score_ts": ""}})
-```
+
+### Code changes needed for cleanup to work
+
+- `rerank_category_light`: Write `score = ts_score` and `ci = wilson_margin` (alongside the TS values)
+- `update_rankings_for_match`: After incrementing wins/comparisons, compute `wilson_margin` inline and write it to both `wilson_margin` AND `ci`
+- `_rank_doc_to_entry`: Remove `rank_wr`, `rank_os` from response. Keep `score` and `ci` (now populated with TS/Wilson values).
+- Admin `_check_goals` (line 843): No change needed — `score` field now contains `ts_score`
+- Admin `rebuild_archives` (line 2655/2664): Remove `rank_os` from projection/fields
+
+### Why NOT `$unset` score/ci
+
+1. **`score` is used for convergence top-K sorting** (admin.py `_check_goals`). Changing it to read `ts_score` would work but requires touching multiple functions. Overwriting `score = ts_score` achieves the same result with zero code changes in consumers.
+2. **`ci` is returned in API responses and stored in archives**. Overwriting with `wilson_margin` preserves the semantic meaning (uncertainty metric) while maintaining backward compatibility.
+3. Both fields are actively read by 5+ code paths — `$unset` would cause fallbacks to defaults (1200, 0) which would show incorrect data.
 
 ## Testing
 
@@ -138,8 +179,9 @@ After each phase, run the rating & gap test suite on preview. Verify:
 1. Leaderboard renders correctly with scores, ranks, CI, gaps
 2. Paper pages show correct scorecard
 3. Correlation page still works
-4. Convergence goals still function
+4. Convergence goals still function (top-K determined by `score` = `ts_score`)
 5. No regression in match processing speed
+6. Archives still display correctly (old archives unaffected)
 
 ## Estimated impact
 
@@ -147,3 +189,5 @@ After each phase, run the rating & gap test suite on preview. Verify:
 - `rerank_category_light` computations: 6 → 3 (50% reduction)
 - Code removed: ~200 lines from ranking.py
 - Response payload: ~30% smaller (fewer redundant fields)
+- DB document size: ~120 bytes smaller per ranking doc (rank_wr, rank_os removed)
+
