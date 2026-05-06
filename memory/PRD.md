@@ -50,8 +50,7 @@ Build and maintain a sophisticated AI paper-judging system that uses multiple LL
 - Anthropic direct key billing activation pending
 
 ## Pending Tasks
-- P0: Execute Scoring Simplification Plan (`/app/memory/SCORING_SIMPLIFICATION_PLAN.md`)
-  - Updated: Keep Wilson CI (no user-facing change), use `scipy.rankdata` for gap scores
+- P0: ~~Execute Scoring Simplification Plan (`/app/memory/SCORING_SIMPLIFICATION_PLAN.md`)~~ DONE (May 6, 2026)
 - P0: Implement Multiple Reviewer Personas (ReviewerToo)
 - P1: Sub-topic Matchmaking (LLM Classifier)
 - P1: Author Verification (ORCID OAuth)
