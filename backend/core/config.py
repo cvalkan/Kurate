@@ -45,6 +45,7 @@ CATEGORIES = {
     "physics.comp-ph": "Computational Physics",
     "q-bio.BM": "Biomolecules",
     "chemrxiv.IC": "Inorganic Chemistry",
+    "iacr.sk": "Secret-key Cryptography",
 }
 
 # Default evaluation prompt

@@ -852,6 +852,13 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                 raw_papers = await fetch_chemrxiv_papers(category=category, max_results=max_papers)
                 logger.info(f"[{category}] Step 1: Fetched {len(raw_papers)} papers from ChemRxiv")
                 id_field = "chemrxiv_id"
+            elif category.startswith("iacr."):
+                from services.iacr import fetch_iacr_papers_oai, _normalize_category
+                raw_papers = await fetch_iacr_papers_oai(date_from=date_from, max_papers=max_papers)
+                # Filter to the specific IACR sub-category
+                raw_papers = [p for p in raw_papers if category in p.get("categories", [])]
+                logger.info(f"[{category}] Step 1: Fetched {len(raw_papers)} papers from IACR ePrint (date_from={date_from})")
+                id_field = "iacr_id"
             else:
                 raw_papers = await fetch_arxiv_papers(
                     category=category, max_results=max_papers, date_from=date_from,
@@ -951,6 +958,8 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                     paper_doc["is_latest_version"] = True
                 if rp.get("chemrxiv_id"):
                     paper_doc["chemrxiv_id"] = rp["chemrxiv_id"]
+                if rp.get("iacr_id"):
+                    paper_doc["iacr_id"] = rp["iacr_id"]
                 if rp.get("doi"):
                     paper_doc["doi"] = rp["doi"]
                 try:

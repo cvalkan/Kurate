@@ -16,7 +16,7 @@ const CATEGORY_NAMES = {
   "cs.IT": "Information Theory", "quant-ph": "Quantum Physics",
   "astro-ph.CO": "Cosmology & Astrophysics", "cond-mat.mtrl-sci": "Materials Science",
   "cs.AI": "Artificial Intelligence", "cs.SI": "Social & Information Networks",
-  "q-fin.CP": "Quantitative Finance",
+  "q-fin.CP": "Quantitative Finance", "iacr.sk": "Secret-key Cryptography",
 };
 
 export default function ArchivePage() {

@@ -350,7 +350,8 @@ export default function LeaderboardPage() {
     : hasSelectedTags
     ? `${selectedTags.join(" & ")} Paper Rankings | Kurate.org`
     : `${categoryName} Paper Rankings | Kurate.org`;
-  const seoDesc = `AI-estimated scientific impact ranking of the latest arXiv ${categoryName} preprints. Papers compared using full-text deep analysis by multiple LLMs.`;
+  const seoSource = category?.startsWith("iacr.") ? "IACR ePrint" : category?.startsWith("chemrxiv.") ? "ChemRxiv" : "arXiv";
+  const seoDesc = `AI-estimated scientific impact ranking of the latest ${seoSource} ${categoryName} preprints. Papers compared using full-text deep analysis by multiple LLMs.`;
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -369,7 +370,7 @@ export default function LeaderboardPage() {
             ? `Cross-category view: showing papers tagged with ${selectedTags.join(tagMode === "and" ? " AND " : " OR ")}.`
             : isTagMode
             ? "Showing all papers across all categories. Select tags below to filter."
-            : <>AI-estimated scientific impact ranking of the latest arXiv {categoryName} preprints. <Link to="/methodology" className="text-accent hover:underline">Methodology</Link></>}
+            : <>AI-estimated scientific impact ranking of the latest {category?.startsWith("iacr.") ? "IACR ePrint" : "arXiv"} {categoryName} preprints. <Link to="/methodology" className="text-accent hover:underline">Methodology</Link></>}
         </p>
       </div>
 
