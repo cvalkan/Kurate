@@ -656,12 +656,16 @@ function AdminSuggestions() {
 
 function AdminUsers() {
   const [users, setUsers] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 100;
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (pg = page) => {
     try {
-      const res = await axios.get(`${API}/api/admin/users`, { headers: getAdminHeaders() });
+      const res = await axios.get(`${API}/api/admin/users`, { headers: getAdminHeaders(), params: { offset: pg * PAGE_SIZE, limit: PAGE_SIZE } });
       setUsers(res.data.users || []);
+      setTotal(res.data.total || 0);
     } catch (err) {
       console.error("Failed to load users:", err);
     } finally {
@@ -669,13 +673,13 @@ function AdminUsers() {
     }
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => { fetchUsers(page); }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleActive = async (userId, currentlyActive) => {
     try {
       await axios.post(`${API}/api/admin/users/${userId}/status`, { active: !currentlyActive }, { headers: getAdminHeaders() });
       toast.success(currentlyActive ? "User deactivated" : "User reactivated");
-      fetchUsers();
+      fetchUsers(page);
     } catch { toast.error("Failed"); }
   };
 
@@ -691,7 +695,7 @@ function AdminUsers() {
     <div className="space-y-4" data-testid="admin-users">
       <div className="flex items-center justify-between">
         <h2 className="font-heading text-lg font-medium">Registered Users</h2>
-        <span className="text-xs text-muted-foreground">{users.length} total</span>
+        <span className="text-xs text-muted-foreground">{total} total</span>
       </div>
 
       {users.length === 0 ? (
@@ -743,6 +747,22 @@ function AdminUsers() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {total > PAGE_SIZE && (
+        <div className="flex items-center justify-between pt-2">
+          <span className="text-xs text-muted-foreground">
+            Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total}
+          </span>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="h-7 text-xs" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
+              Previous
+            </Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs" disabled={(page + 1) * PAGE_SIZE >= total} onClick={() => setPage(p => p + 1)}>
+              Next
+            </Button>
+          </div>
         </div>
       )}
 
