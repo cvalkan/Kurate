@@ -49,6 +49,8 @@ export function AuthProvider({ children }) {
     setUser(res.data.user);
     // X (Twitter) signup conversion pixel
     if (window.twq) window.twq('event', 'tw-rc00t-rcb0n', {});
+    // Reddit signup conversion pixel
+    if (window.rdt) window.rdt('track', 'SignUp');
     return res.data;
   };
 
@@ -60,6 +62,8 @@ export function AuthProvider({ children }) {
     setUser(res.data.user);
     // X (Twitter) signup conversion pixel (Google OAuth)
     if (window.twq) window.twq('event', 'tw-rc00t-rcb0n', {});
+    // Reddit signup conversion pixel (Google OAuth)
+    if (window.rdt) window.rdt('track', 'SignUp');
     return res.data;
   };
 

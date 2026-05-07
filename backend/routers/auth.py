@@ -9,10 +9,38 @@ from passlib.hash import bcrypt
 import httpx
 import resend
 import os
+import hashlib
 
 from core.config import db, logger
 
 router = APIRouter(prefix="/api/auth")
+
+_REDDIT_PIXEL_ID = os.environ.get("REDDIT_PIXEL_ID")
+_REDDIT_CAPI_TOKEN = os.environ.get("REDDIT_CONVERSIONS_TOKEN")
+
+
+async def _track_reddit_signup(email: str):
+    """Fire-and-forget: send SignUp event to Reddit Conversions API."""
+    if not _REDDIT_PIXEL_ID or not _REDDIT_CAPI_TOKEN:
+        return
+    try:
+        hashed_email = hashlib.sha256(email.strip().lower().encode()).hexdigest()
+        payload = {
+            "events": [{
+                "event_at": datetime.now(timezone.utc).isoformat(),
+                "event_type": {"tracking_type": "SignUp"},
+                "user": {"email": hashed_email},
+            }]
+        }
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"https://ads-api.reddit.com/api/v2.0/conversions/events/{_REDDIT_PIXEL_ID}",
+                json=payload,
+                headers={"Authorization": f"Bearer {_REDDIT_CAPI_TOKEN}"},
+                timeout=5,
+            )
+    except Exception as e:
+        logger.warning(f"Reddit CAPI signup tracking failed: {e}")
 
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
@@ -165,6 +193,9 @@ async def register(req: RegisterRequest, request: Request, response: Response):
         origin = origin[:-1]
     sent = await _send_verification_email(req.email, req.name, verification_token, origin)
 
+    # Server-side signup conversion tracking (fire-and-forget)
+    asyncio.create_task(_track_reddit_signup(req.email))
+
     return {
         "status": "verification_required",
         "verification_sent": sent,
@@ -315,6 +346,10 @@ async def google_session(req: SessionRequest, response: Response):
         is_new_user = True
 
     token = await _create_session(user_id, response)
+
+    # Server-side signup conversion tracking for new Google OAuth users
+    if is_new_user:
+        asyncio.create_task(_track_reddit_signup(email))
 
     # Get full user record to include orcid_id
     full_user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
