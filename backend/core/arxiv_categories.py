@@ -191,16 +191,16 @@ ARXIV_TAXONOMY = {
 
 # Group labels for organized display
 ARXIV_GROUPS = {
-    "cs": "Computer Science",
-    "econ": "Economics",
-    "eess": "Electrical Engineering",
-    "math": "Mathematics",
-    "astro-ph": "Astrophysics",
-    "cond-mat": "Condensed Matter",
-    "physics": "Physics",
-    "q-bio": "Quantitative Biology",
-    "q-fin": "Quantitative Finance",
-    "stat": "Statistics",
+    "cs": "Computer Science (arXiv)",
+    "econ": "Economics (arXiv)",
+    "eess": "Electrical Engineering (arXiv)",
+    "math": "Mathematics (arXiv)",
+    "astro-ph": "Astrophysics (arXiv)",
+    "cond-mat": "Condensed Matter (arXiv)",
+    "physics": "Physics (arXiv)",
+    "q-bio": "Quantitative Biology (arXiv)",
+    "q-fin": "Quantitative Finance (arXiv)",
+    "stat": "Statistics (arXiv)",
     "chemrxiv": "Chemistry (ChemRxiv)",
     "iacr": "Cryptology (IACR ePrint)",
 }
