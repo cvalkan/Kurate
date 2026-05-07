@@ -1043,12 +1043,11 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             result["errors"].append(err_msg)
 
         cat_status["current_activity"] = "Idle"
-        log_mem(f"fetch_cycle({category}) done (new={result['new_papers']}, pdfs={result['pdfs_downloaded']}, sums={result['summaries_generated']})")
 
         # Log pipeline event for admin Logs tab
         from core.memlog import log_event
         await log_event("fetch_cycle", category=category,
-            detail=f"new={result['new_papers']}, pdfs={result['pdfs_downloaded']}, summaries={result['summaries_generated']}, rankings={result['rankings_inserted']}",
+            detail=f"{category}: new={result['new_papers']}, pdfs={result['pdfs_downloaded']}, summaries={result['summaries_generated']}, rankings={result['rankings_inserted']}",
             count=result['new_papers'],
             pdfs=result['pdfs_downloaded'],
             summaries=result['summaries_generated'],
