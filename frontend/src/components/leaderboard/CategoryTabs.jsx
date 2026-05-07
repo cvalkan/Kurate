@@ -135,7 +135,7 @@ export function CategoryTabs({
                 )}
                 {groupedOverflow.groupOrder.map((group) => (
                   <div key={group}>
-                    <div className="px-3 pt-2.5 pb-1 text-[11px] font-bold uppercase tracking-wider text-foreground/60 select-none" data-testid={`group-${group}`}>
+                    <div className="px-3 pt-3 pb-1 text-xs font-extrabold uppercase tracking-wide text-foreground/80 select-none" data-testid={`group-${group}`}>
                       {group}
                     </div>
                     {groupedOverflow.groups[group].map((c) => (
