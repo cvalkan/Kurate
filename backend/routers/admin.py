@@ -581,6 +581,26 @@ async def check_new_papers(category: str = "cs.RO"):
             existing = await db.papers.count_documents({"categories.0": category})
             return {"available": max(0, len(seeds) - existing), "source": "chemrxiv_seed", "category": category, "last_fetch": last_fetch}
         return {"available": 0, "source": "chemrxiv_seed", "category": category, "last_fetch": last_fetch}
+    elif category.startswith("iacr."):
+        try:
+            from services.iacr import fetch_iacr_papers_oai
+            date_from = last_fetch[:10] if last_fetch else None
+            if not date_from:
+                from datetime import timedelta
+                date_from = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
+            raw_all = await fetch_iacr_papers_oai(date_from=date_from, max_papers=5000)
+            papers = [p for p in raw_all if category in p.get("categories", [])]
+            if papers:
+                iacr_ids = [p["iacr_id"] for p in papers if p.get("iacr_id")]
+                existing = await db.papers.find({"iacr_id": {"$in": iacr_ids}}, {"_id": 0, "iacr_id": 1}).to_list(5000)
+                existing_ids = {e["iacr_id"] for e in existing}
+                new_count = sum(1 for p in papers if p.get("iacr_id") and p["iacr_id"] not in existing_ids)
+            else:
+                new_count = 0
+            return {"available": new_count, "source": "iacr_oai", "category": category, "last_fetch": last_fetch}
+        except Exception as e:
+            logger.warning(f"Failed to query IACR for {category}: {e}")
+            return {"available": 0, "source": "iacr_error", "category": category, "last_fetch": last_fetch, "error": str(e)[:100]}
     else:
         # For arXiv: query the API to get an accurate count of new papers
         try:
