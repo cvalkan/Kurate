@@ -431,26 +431,10 @@ export function AdminStatistics({ categories }) {
                     );
                   }}
                 />
-                {/* Restart markers — red for OOM crash, amber for deploy */}
-                {(() => {
-                  const starts = memoryData.filter(d => d.label === "Server started");
-                  return starts.map((d, i) => {
-                    // If next start is within 10 minutes, this one ended in a crash
-                    const nextStart = starts[i + 1];
-                    const gap = nextStart ? (nextStart.epoch - d.epoch) / 1000 : Infinity;
-                    const isCrash = gap < 600; // < 10 min = OOM crash-restart
-                    return (
-                      <ReferenceLine
-                        key={`restart-${i}`}
-                        x={d.epoch}
-                        stroke={isCrash ? "#ef4444" : "#f59e0b"}
-                        strokeDasharray={isCrash ? "2 3" : "4 4"}
-                        strokeWidth={isCrash ? 1.5 : 1}
-                        opacity={0.7}
-                      />
-                    );
-                  });
-                })()}
+                {/* Restart markers */}
+                {memoryData.filter(d => d.label === "Server started").map((d, i) => (
+                  <ReferenceLine key={`restart-${i}`} x={d.epoch} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1} opacity={0.7} />
+                ))}
                 {/* Danger zone */}
                 <Area type="monotone" dataKey={() => 4096} stroke="none" fill="#ef4444" fillOpacity={0.05} />
                 <Area type="stepAfter" dataKey="rss" stroke="#ef4444" fill="url(#memGrad)" strokeWidth={1.5} dot={false} />
@@ -461,8 +445,6 @@ export function AdminStatistics({ categories }) {
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> &lt;1GB Safe</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" /> 1-1.5GB Warning</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" /> &gt;1.5GB Danger</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-0 border-t border-dashed border-amber-500" /> Deploy</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-0 border-t-2 border-dashed border-red-500" /> OOM crash</span>
           </div>
         </div>
       )}
