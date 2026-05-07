@@ -378,6 +378,59 @@ async def _compare_loop():
             await asyncio.sleep(backoff)
 
 
+
+async def _run_startup_backfill(active_cats):
+    """Run ai_rating backfill + gap recompute in background after startup.
+    Non-blocking: the compare loop continues while this runs."""
+    from core.memlog import log_mem, force_gc
+    try:
+        # Backfill ai_rating from papers → rankings where missing
+        async for rank_doc in db.rankings.find(
+            {"ai_rating": {"$in": [None, False, 0]}},
+            {"_id": 0, "paper_id": 1}
+        ):
+            paper = await db.papers.find_one(
+                {"id": rank_doc["paper_id"]},
+                {"_id": 0, "ai_rating": 1}
+            )
+            if paper and paper.get("ai_rating"):
+                r = paper["ai_rating"]
+                rating = round(r["score"], 1) if isinstance(r, dict) and r.get("score") else round(r, 1) if isinstance(r, (int, float)) else None
+                if rating:
+                    await db.rankings.update_one(
+                        {"paper_id": rank_doc["paper_id"]},
+                        {"$set": {"ai_rating": rating}}
+                    )
+        # Also check where ai_rating field doesn't exist at all
+        async for rank_doc in db.rankings.find(
+            {"ai_rating": {"$exists": False}},
+            {"_id": 0, "paper_id": 1}
+        ):
+            paper = await db.papers.find_one(
+                {"id": rank_doc["paper_id"]},
+                {"_id": 0, "ai_rating": 1}
+            )
+            if paper and paper.get("ai_rating"):
+                r = paper["ai_rating"]
+                rating = round(r["score"], 1) if isinstance(r, dict) and r.get("score") else round(r, 1) if isinstance(r, (int, float)) else None
+                if rating:
+                    await db.rankings.update_one(
+                        {"paper_id": rank_doc["paper_id"]},
+                        {"$set": {"ai_rating": rating}}
+                    )
+        # Recompute gap scores for all categories
+        for cat in active_cats:
+            try:
+                await _recompute_gap_scores(cat)
+            except Exception:
+                pass
+            force_gc()
+        log_mem(f"Startup backfill complete for {len(active_cats)} categories")
+    except Exception as e:
+        logger.warning(f"Startup backfill failed: {e}")
+
+
+
 async def _compare_loop_inner():
     global _wake_event
     from core.memlog import log_mem, force_gc
@@ -398,51 +451,11 @@ async def _compare_loop_inner():
             # Use the same active_categories source as the fetch loop
             active_cats = [c for c in settings.get("active_categories", list(CATEGORIES.keys())) if c and c.strip()]
 
-            # One-time gap backfill on first cycle after startup
+            # One-time gap backfill on first cycle after startup — runs in background
+            # to avoid blocking the server from accepting connections during deploy
             if not _gap_backfill_done and active_cats:
                 _gap_backfill_done = True
-                # Backfill ai_rating from papers → rankings where missing
-                async for rank_doc in db.rankings.find(
-                    {"ai_rating": {"$in": [None, False, 0]}},
-                    {"_id": 0, "paper_id": 1}
-                ):
-                    paper = await db.papers.find_one(
-                        {"id": rank_doc["paper_id"]},
-                        {"_id": 0, "ai_rating": 1}
-                    )
-                    if paper and paper.get("ai_rating"):
-                        r = paper["ai_rating"]
-                        rating = round(r["score"], 1) if isinstance(r, dict) and r.get("score") else round(r, 1) if isinstance(r, (int, float)) else None
-                        if rating:
-                            await db.rankings.update_one(
-                                {"paper_id": rank_doc["paper_id"]},
-                                {"$set": {"ai_rating": rating}}
-                            )
-                # Also check where ai_rating field doesn't exist at all
-                async for rank_doc in db.rankings.find(
-                    {"ai_rating": {"$exists": False}},
-                    {"_id": 0, "paper_id": 1}
-                ):
-                    paper = await db.papers.find_one(
-                        {"id": rank_doc["paper_id"]},
-                        {"_id": 0, "ai_rating": 1}
-                    )
-                    if paper and paper.get("ai_rating"):
-                        r = paper["ai_rating"]
-                        rating = round(r["score"], 1) if isinstance(r, dict) and r.get("score") else round(r, 1) if isinstance(r, (int, float)) else None
-                        if rating:
-                            await db.rankings.update_one(
-                                {"paper_id": rank_doc["paper_id"]},
-                                {"$set": {"ai_rating": rating}}
-                            )
-                # Recompute gap scores for all categories
-                for cat in active_cats:
-                    try:
-                        await _recompute_gap_scores(cat)
-                    except Exception:
-                        pass
-                    force_gc()
-                logger.info(f"Ratings + gap scores backfilled for {len(active_cats)} categories on startup")
+                asyncio.create_task(_run_startup_backfill(active_cats))
 
             log_mem(f"Compare loop cycle: paused={is_paused}, active_cats={len(active_cats)}")
 
