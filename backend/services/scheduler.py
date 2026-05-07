@@ -1821,8 +1821,9 @@ async def _recompute_gap_scores(category: str):
     ai_pct = rankdata(ai_vals) / n * 100
     gap_raw = ts_pct - ai_pct
 
-    # Bulk update
+    # Chunked bulk update
     from pymongo import UpdateOne
+    BULK_CHUNK = 5000
     ops = []
     for i, entry in enumerate(entries):
         gap = round(float(gap_raw[i]), 1)
@@ -1830,10 +1831,12 @@ async def _recompute_gap_scores(category: str):
             {"paper_id": entry["paper_id"], "category": category},
             {"$set": {"gap_score": gap}},
         ))
+        if len(ops) >= BULK_CHUNK:
+            await db.rankings.bulk_write(ops, ordered=False)
+            ops = []
     if ops:
         await db.rankings.bulk_write(ops, ordered=False)
-    else:
-        logger.debug(f"[{category}] No gap scores computed (need ≥5 rated papers with ≥3 comparisons)")
+    del ops
 
 
 # Track last convergence recompute per category (match count at last recompute)

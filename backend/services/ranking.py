@@ -1039,7 +1039,9 @@ async def rerank_category_light(db, category: str):
             conservative = raw_mu - 3 * raw_sigma
             os_elo[e["paper_id"]] = round(conservative * OS_SCALE + SCORE_BASE_CONST)
 
-    # Single bulk write — rank + ts_score + score + ci + os_score
+    # Chunked bulk write — rank + ts_score + score + ci + os_score
+    # Chunking prevents memory stacking for large categories (100k+ papers)
+    BULK_CHUNK = 5000
     ops = []
     for e in entries:
         pid = e["paper_id"]
@@ -1057,8 +1059,12 @@ async def rerank_category_light(db, category: str):
         if pid in os_elo:
             update["os_score"] = os_elo[pid]
         ops.append(UpdateOne({"paper_id": pid, "category": category}, {"$set": update}))
+        if len(ops) >= BULK_CHUNK:
+            await db.rankings.bulk_write(ops, ordered=False)
+            ops = []
     if ops:
         await db.rankings.bulk_write(ops, ordered=False)
+    del ops
 
     _elapsed = _time.perf_counter() - _t0
     log_mem(f"rerank_category_light({category}) done ({len(entries)} papers, {_elapsed:.1f}s)")
