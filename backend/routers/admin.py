@@ -1059,6 +1059,22 @@ async def scheduler_diagnostics():
     return diag
 
 
+
+@router.get("/restart-history", dependencies=[Depends(verify_admin)])
+async def restart_history(limit: int = 50):
+    """Show recent server shutdown/restart signals for diagnosing periodic restarts.
+    Reads from system_logs where event is shutdown_signal or server_shutdown or reload_reexec."""
+    events = []
+    async for doc in db.system_logs.find(
+        {"event": {"$in": ["shutdown_signal", "server_shutdown", "reload_reexec"]}},
+        {"_id": 0},
+    ).sort("ts", -1).limit(limit):
+        if "ts" in doc and hasattr(doc["ts"], "isoformat"):
+            doc["ts"] = doc["ts"].isoformat()
+        events.append(doc)
+    return {"events": events, "count": len(events)}
+
+
 @router.get("/diagnose-pairs", dependencies=[Depends(verify_admin)])
 async def diagnose_pair_selection(category: str = "cs.SI"):
     """Diagnose why _select_pairs returns empty for a category.

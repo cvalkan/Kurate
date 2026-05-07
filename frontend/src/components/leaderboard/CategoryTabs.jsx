@@ -1,14 +1,16 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ChevronDown, Lock, Lightbulb } from "lucide-react";
+import { ChevronDown, Lock, Lightbulb, Search } from "lucide-react";
 
 export function CategoryTabs({
   categories, category, setCategory, isTagMode, isLoggedIn,
   requireAuth, setSelectedTags, setTagFilterOpen, onSuggest,
 }) {
   const [moreCatsOpen, setMoreCatsOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const moreCatsRef = useRef(null);
+  const searchRef = useRef(null);
 
   useEffect(() => {
     const handler = (e) => {
@@ -18,6 +20,34 @@ export function CategoryTabs({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  useEffect(() => {
+    if (moreCatsOpen && searchRef.current) {
+      searchRef.current.focus();
+    }
+    if (!moreCatsOpen) setSearch("");
+  }, [moreCatsOpen]);
+
+  // Group overflow categories by their domain
+  const groupedOverflow = useMemo(() => {
+    const overflow = categories.slice(5);
+    const lc = search.toLowerCase();
+    const filtered = lc
+      ? overflow.filter(c => c.name.toLowerCase().includes(lc) || c.id.toLowerCase().includes(lc))
+      : overflow;
+
+    const groups = {};
+    const groupOrder = [];
+    for (const c of filtered) {
+      const g = c.group || "Other";
+      if (!groups[g]) {
+        groups[g] = [];
+        groupOrder.push(g);
+      }
+      groups[g].push(c);
+    }
+    return { groups, groupOrder };
+  }, [categories, search]);
+
   if (categories.length <= 1) return null;
 
   const selectCategory = (id) => {
@@ -25,6 +55,8 @@ export function CategoryTabs({
     setSelectedTags([]);
     setTagFilterOpen(false);
   };
+
+  const overflowCount = categories.length - 5;
 
   return (
     <div className={`mb-3 transition-opacity ${isTagMode ? "opacity-40 pointer-events-none" : ""}`}>
@@ -53,7 +85,7 @@ export function CategoryTabs({
                 disabled={isTagMode}
                 data-testid="more-categories-btn"
               >
-                {categories.slice(5).find(c => c.id === category)?.name || "More"}
+                {categories.slice(5).find(c => c.id === category)?.name || `More (${overflowCount})`}
                 <ChevronDown className={`h-3 w-3 transition-transform ${moreCatsOpen ? "rotate-180" : ""}`} />
               </Button>
             ) : (
@@ -67,17 +99,57 @@ export function CategoryTabs({
               </Tooltip>
             )}
             {moreCatsOpen && isLoggedIn && (
-              <div className="fixed z-50 bg-background border border-border rounded-lg shadow-lg min-w-48 py-1" style={{ top: moreCatsRef.current?.getBoundingClientRect().bottom + 4, left: moreCatsRef.current?.getBoundingClientRect().left }} data-testid="more-categories-dropdown">
-                {categories.slice(5).map((c) => (
-                  <button
-                    key={c.id}
-                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent/10 transition-colors ${category === c.id ? "bg-accent/10 text-accent font-medium" : ""}`}
-                    onClick={() => { selectCategory(c.id); setMoreCatsOpen(false); }}
-                    data-testid={`cat-${c.id}`}
-                  >
-                    <span className="font-mono text-[11px] text-muted-foreground mr-2">{c.id}</span>
-                    {c.name}
-                  </button>
+              <div
+                className="fixed z-50 bg-background border border-border rounded-lg shadow-lg min-w-56 max-w-72 py-1"
+                style={{
+                  top: moreCatsRef.current?.getBoundingClientRect().bottom + 4,
+                  left: Math.min(
+                    moreCatsRef.current?.getBoundingClientRect().left || 0,
+                    window.innerWidth - 288
+                  ),
+                  maxHeight: "min(420px, 60vh)",
+                  overflowY: "auto",
+                }}
+                data-testid="more-categories-dropdown"
+              >
+                {/* Search filter */}
+                {overflowCount > 6 && (
+                  <div className="px-2 py-1.5 border-b border-border/50 sticky top-0 bg-background z-10">
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-muted/50">
+                      <Search className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <input
+                        ref={searchRef}
+                        type="text"
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        placeholder="Filter categories..."
+                        className="bg-transparent text-xs outline-none w-full placeholder:text-muted-foreground/60"
+                        data-testid="category-search-input"
+                      />
+                    </div>
+                  </div>
+                )}
+                {/* Grouped category list */}
+                {groupedOverflow.groupOrder.length === 0 && (
+                  <div className="px-3 py-3 text-xs text-muted-foreground text-center">No matching categories</div>
+                )}
+                {groupedOverflow.groupOrder.map((group) => (
+                  <div key={group}>
+                    <div className="px-3 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 select-none" data-testid={`group-${group}`}>
+                      {group}
+                    </div>
+                    {groupedOverflow.groups[group].map((c) => (
+                      <button
+                        key={c.id}
+                        className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent/10 transition-colors ${category === c.id ? "bg-accent/10 text-accent font-medium" : ""}`}
+                        onClick={() => { selectCategory(c.id); setMoreCatsOpen(false); }}
+                        data-testid={`cat-${c.id}`}
+                      >
+                        <span className="font-mono text-[11px] text-muted-foreground mr-2">{c.id}</span>
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
                 ))}
               </div>
             )}

@@ -13,48 +13,53 @@ Build and maintain a sophisticated AI paper-judging system that uses multiple LL
 ## What's Been Implemented
 
 ### Core System
-- 18 active arXiv categories with automated fetch/summarize/match pipeline
+- 21 active categories (arXiv + ChemRxiv + IACR ePrint) with automated fetch/summarize/match pipeline
 - TrueSkill-based ranking with CI convergence goals (10% top-K, 15% general)
 - Round-robin judge rotation (Claude, GPT, Gemini)
 - Weekly archive snapshots with medal awards
+- IACR ePrint fetcher (OAI-PMH + RSS)
+- GC optimizations (force_gc between reranks, chunked bulk_write 5000 ops)
 
 ### Admin Panel (Real-time)
 - `progress` and `status` endpoints serve fresh data (no cache)
-- Only expensive endpoints (`stats`, `timeseries`) retain 5-min cache
+- Memory usage chart with restart event markers
+- Restart history API (`/api/admin/restart-history`) with signal diagnostics
 - Goals computed fresh every scheduler cycle (batch $in queries)
 
 ### Validation Hub
 - Judge Comparison: average-score GT, split accuracy/ρ methodology
-- Summarizer Rating Distributions: 6 models × 5 dimensions with adjustable histograms
+- Summarizer Rating Distributions: 6 models × 5 dimensions
 - Multiple summarizer A/B tests
 
-### DeFi Leaderboard
-- 138 curated "Blockchain & AI Agents" papers
-- Self-contained tournament (2,862 matches, TrueSkill rankings)
-- Separate from live system (`defi_matches`, `defi_rankings`)
-- Author CSV export with emails
+### SEO
+- `react-helmet` dynamic `<title>` and canonical tags per category
+- `ScholarlyArticle` JSON-LD on paper pages
 
-### Sync API
-- Export endpoints (read-only, cursor-based pagination)
-- Pull endpoint (background, `SYNC_PULL_ENABLED` guard)
-- Production data can never be accidentally overwritten
+### Restart Diagnostics (NEW - May 7, 2026)
+- Signal handlers capture SIGTERM/SIGINT with uptime and argv
+- Shutdown events persisted to MongoDB system_logs
+- `--reload` auto-removal with os.execv fallback if config is read-only
+- `/api/admin/restart-history` endpoint for admin visibility
 
-### Paper Fetch Pipeline
-- `date_from` based catch-up mode (pages through ALL papers since last fetch)
-- 30-day default lookback for new categories
-- `_pipeline_active` flag prevents duplicate LLM calls on manual add
+### Category UI Grouping (NEW - May 7, 2026)
+- Categories API returns `group` field per category
+- "More" dropdown groups categories by domain (CS, Physics, Chemistry, etc.)
+- Search filter in dropdown for quick category finding
 
 ## Known Issues
 - P1: Missing GPT/Gemini SI Ratings (GPT-5.2 summaries don't include score block)
 - P2: Duplicate medals in archives
-- Anthropic direct key billing activation pending
+- ChemRxiv papers: MOCKED from static JSON seed file (not live API)
 
 ## Pending Tasks
-- P0: ~~Execute Scoring Simplification Plan (`/app/memory/SCORING_SIMPLIFICATION_PLAN.md`)~~ DONE (May 6, 2026)
+- P0: Investigate production server restarts (diagnostics deployed, awaiting data)
 - P0: Implement Multiple Reviewer Personas (ReviewerToo)
+- P1: Live ChemRxiv Fetcher (replace static JSON with live API)
 - P1: Sub-topic Matchmaking (LLM Classifier)
 - P1: Author Verification (ORCID OAuth)
 - P1: Architecture Split (KURATE_ROLE env var)
+- P1: Duplicate paper reconciliation (arxiv_id versioning)
+- P1: Circular import resolution (core/auth.py → routers/admin.py → services/precompute.py)
 
 ## API Keys (in .env)
 - `EMERGENT_LLM_KEY` — Claude 4.6, Gemini 3 Pro

@@ -500,15 +500,16 @@ async def get_categories():
     """Always read from settings (5s TTL, invalidated on changes) — not the 20s leaderboard cache."""
     from core.auth import get_settings
     try:
-        from core.arxiv_categories import ARXIV_TAXONOMY
+        from core.arxiv_categories import ARXIV_TAXONOMY, get_group
     except ImportError:
         ARXIV_TAXONOMY = {}
+        get_group = lambda x: "Other"
     settings = await get_settings()
     active = settings.get("active_categories", list(CATEGORIES.keys()))
     cats = []
     for cat_id in active:
         name = CATEGORIES.get(cat_id) or ARXIV_TAXONOMY.get(cat_id) or cat_id
-        cats.append({"id": cat_id, "name": name})
+        cats.append({"id": cat_id, "name": name, "group": get_group(cat_id)})
     return {
         "categories": cats,
         "default": active[0] if active else "cs.RO",

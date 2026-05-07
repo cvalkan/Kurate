@@ -3,11 +3,74 @@ from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 import os
+import sys
+import signal
 import time as _time
 import asyncio
 from datetime import datetime, timezone
 from collections import defaultdict
 from core.config import db, logger
+
+# --- Restart diagnostics: track uptime and shutdown reason ---
+_server_start_time = _time.monotonic()
+_shutdown_reason = "unknown"
+
+
+def _install_signal_handlers():
+    """Install signal handlers using asyncio's loop.add_signal_handler.
+    Must be called AFTER uvicorn has set up its own handlers (i.e., in startup event).
+    We replace uvicorn's handlers but replicate its shutdown behavior."""
+    global _server_start_time
+    _server_start_time = _time.monotonic()  # Reset uptime counter on actual startup
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        logger.warning("[STARTUP] No running event loop — signal handlers not installed")
+        return
+
+    def _make_exit_handler(sig_enum):
+        def _handler():
+            global _shutdown_reason
+            sig_name = sig_enum.name
+            _shutdown_reason = sig_name
+            uptime_s = _time.monotonic() - _server_start_time
+            uptime_min = uptime_s / 60
+            logger.warning(
+                f"[SHUTDOWN] Received {sig_name} after {uptime_min:.1f}min uptime. "
+                f"argv={sys.argv}"
+            )
+            # Persist to MongoDB synchronously (best-effort, before process dies)
+            try:
+                from pymongo import MongoClient
+                sync_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+                sc = MongoClient(sync_url, serverSelectionTimeoutMS=2000)
+                sc[os.environ.get("DB_NAME", "papersumo")].system_logs.insert_one({
+                    "ts": datetime.now(timezone.utc),
+                    "level": "event",
+                    "event": "shutdown_signal",
+                    "label": f"Received {sig_name}",
+                    "signal": sig_name,
+                    "uptime_seconds": round(uptime_s),
+                    "uptime_minutes": round(uptime_min, 1),
+                    "argv": sys.argv,
+                    "pid": os.getpid(),
+                })
+                sc.close()
+            except Exception:
+                pass
+            # Replicate uvicorn's shutdown: set should_exit on all servers
+            # This triggers graceful shutdown without fighting uvicorn's internals
+            from uvicorn import Server
+            Server.should_exit = True
+        return _handler
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, _make_exit_handler(sig))
+            logger.info(f"[STARTUP] Signal handler installed for {sig.name}")
+        except Exception as e:
+            logger.warning(f"[STARTUP] Failed to install {sig.name} handler: {e}")
 
 SITE_URL = os.environ.get("SITE_URL", "")
 from routers.leaderboard import router as leaderboard_router
@@ -242,12 +305,23 @@ async def gmail_callback(code: str, state: str, request: Request):
 async def startup():
     app.state.prewarm_status = {"done": False, "step": "Loading caches"}
 
+    # --- Startup diagnostics: log how we were launched ---
+    logger.info(f"[STARTUP] PID={os.getpid()}, argv={sys.argv}")
+    _has_reload = "--reload" in sys.argv
+    if _has_reload:
+        logger.warning("[STARTUP] ⚠ Running with --reload! This causes periodic restarts via file watcher.")
+
+    # Install signal handlers NOW — after uvicorn has set up its own,
+    # so we can chain to them for proper graceful shutdown.
+    _install_signal_handlers()
+
     # Remove --reload from supervisor config if present.
     # The platform generates the config with --reload (a dev-only feature) which causes
     # restart storms on deploy and doubled RSS during restarts → OOM kills.
-    # This patch runs on every boot so it survives config resets.
+    # Strategy: (1) try to patch config file, (2) if that fails, re-exec without --reload.
     try:
-        import subprocess, sys as _sys
+        import subprocess
+        _patched = False
         # Production uses /app/etc/..., preview uses /etc/...
         for conf_path in ["/app/etc/supervisor/conf.d/supervisord.conf", "/etc/supervisor/conf.d/supervisord.conf"]:
             try:
@@ -256,12 +330,43 @@ async def startup():
             except FileNotFoundError:
                 continue
             if "--reload" in conf:
-                with open(conf_path, "w") as f:
-                    f.write(conf.replace(" --reload", ""))
-                subprocess.run(["supervisorctl", "reread"], capture_output=True, timeout=5)
-                logger.info(f"Patched out --reload from {conf_path} — exiting for clean restart")
-                _sys.exit(0)  # Let supervisor restart us WITHOUT --reload
+                try:
+                    with open(conf_path, "w") as f:
+                        f.write(conf.replace(" --reload", ""))
+                    subprocess.run(["supervisorctl", "reread"], capture_output=True, timeout=5)
+                    logger.info(f"Patched out --reload from {conf_path} — exiting for clean restart")
+                    _patched = True
+                    sys.exit(0)  # Let supervisor restart us WITHOUT --reload
+                except PermissionError:
+                    logger.warning(f"Config file {conf_path} is read-only, cannot patch out --reload")
+                except SystemExit:
+                    raise
             break  # Found config, no need to check other paths
+
+        # Fallback: if config couldn't be patched but we detect --reload in argv,
+        # re-exec ourselves without it. This prevents uvicorn's file watcher from
+        # causing periodic restarts.
+        if not _patched and _has_reload:
+            clean_argv = [a for a in sys.argv if a != "--reload"]
+            logger.warning(f"[STARTUP] Re-execing without --reload: {clean_argv}")
+            # Persist diagnostic to MongoDB before re-exec
+            try:
+                from pymongo import MongoClient
+                sync_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+                sc = MongoClient(sync_url, serverSelectionTimeoutMS=2000)
+                sc[os.environ.get("DB_NAME", "papersumo")].system_logs.insert_one({
+                    "ts": datetime.now(timezone.utc),
+                    "level": "event",
+                    "event": "reload_reexec",
+                    "label": "Re-execing to remove --reload",
+                    "original_argv": sys.argv,
+                    "clean_argv": clean_argv,
+                    "pid": os.getpid(),
+                })
+                sc.close()
+            except Exception:
+                pass
+            os.execv(sys.executable, [sys.executable] + clean_argv)
     except SystemExit:
         raise  # Don't catch sys.exit
     except Exception as e:
@@ -1470,5 +1575,22 @@ async def _prewarm_validation_cache():
 
 @app.on_event("shutdown")
 async def shutdown():
+    uptime_s = _time.monotonic() - _server_start_time
+    uptime_min = uptime_s / 60
+    logger.info(f"[SHUTDOWN] Server shutting down after {uptime_min:.1f}min uptime. Reason={_shutdown_reason}")
+    # Persist shutdown event for admin visibility
+    try:
+        await db.system_logs.insert_one({
+            "ts": datetime.now(timezone.utc),
+            "level": "event",
+            "event": "server_shutdown",
+            "label": f"Graceful shutdown after {uptime_min:.1f}min",
+            "uptime_seconds": round(uptime_s),
+            "uptime_minutes": round(uptime_min, 1),
+            "reason": _shutdown_reason,
+            "pid": os.getpid(),
+        })
+    except Exception:
+        pass
     from core.config import client
     client.close()
