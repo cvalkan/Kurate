@@ -68,6 +68,9 @@ export function AuthModal({ open, onClose }) {
         });
         const data = await res.json();
         if (!res.ok) throw { response: { data } };
+        // Fire signup conversion pixels
+        if (window.twq) window.twq('event', 'tw-rc00t-rcb0n', {});
+        if (window.rdt) window.rdt('track', 'SignUp');
         setVerificationSent(true);
       }
     } catch (err) {
