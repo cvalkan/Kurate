@@ -47,6 +47,8 @@ export function AuthProvider({ children }) {
       localStorage.setItem("session_token", res.data.session_token);
     }
     setUser(res.data.user);
+    // X (Twitter) signup conversion pixel
+    if (window.twq) window.twq('event', 'tw-rc00t-rcb0n', {});
     return res.data;
   };
 
@@ -56,6 +58,8 @@ export function AuthProvider({ children }) {
       localStorage.setItem("session_token", res.data.session_token);
     }
     setUser(res.data.user);
+    // X (Twitter) signup conversion pixel (Google OAuth)
+    if (window.twq) window.twq('event', 'tw-rc00t-rcb0n', {});
     return res.data;
   };
 
