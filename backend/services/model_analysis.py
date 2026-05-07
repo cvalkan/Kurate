@@ -19,8 +19,8 @@ _OPUS_MERGE = {
 }
 _SHORT_NAMES = {
     "anthropic/claude-opus": "Claude Opus",
-    "gemini/gemini-3.1-pro-preview": "Gemini 3.1 Pro",
-    "gemini/gemini-3-pro-preview": "Gemini 3.1 Pro",
+    "gemini/gemini-3.1-pro-preview": "Gemini Pro",
+    "gemini/gemini-3-pro-preview": "Gemini Pro",
     "openai/gpt-5_2": "GPT-5.2",
 }
 _MODEL_KEY_MAP = {
@@ -422,7 +422,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
             _os_cache_by_cat[doc["key"]] = doc
 
         # --- Avg PW-vs-SI: per-category rho values, then weighted average ---
-        _SI_LABELS = {"claude": "Claude Opus", "gpt": "GPT-5.2", "gemini": "Gemini 3.1 Pro", "avg": "Average (all models)"}
+        _SI_LABELS = {"claude": "Claude Opus", "gpt": "GPT-5.2", "gemini": "Gemini Pro", "avg": "Average (all models)"}
         _SI_MKS = ("claude", "gpt", "gemini")
         avg_pm_accum = {}   # {si_mk: {pw_key: [(rho, tau, n), ...]}}
         avg_wm_accum = {}   # {si_mk: {method: [(rho, tau, n), ...]}}
@@ -1329,7 +1329,7 @@ _JUDGE_TO_SI = {
     "anthropic/claude-opus-4-6": "claude",
     "anthropic/claude-opus-4-5-20251101": "claude",
 }
-_SI_SHORT = {"claude": "Claude Opus", "gpt": "GPT-5.2", "gemini": "Gemini 3.1 Pro"}
+_SI_SHORT = {"claude": "Claude Opus", "gpt": "GPT-5.2", "gemini": "Gemini Pro"}
 _GAP_BINS = [
     (0.0, 0.5, "0–0.5"),
     (0.5, 1.0, "0.5–1"),

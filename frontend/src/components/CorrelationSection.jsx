@@ -8,6 +8,7 @@ const MODEL_COLORS = {
   "Claude Opus": { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", dot: "#ea580c" },
   "claude-opus-4-5-20251101": { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", dot: "#ea580c" },
   "claude-opus": { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", dot: "#ea580c" },
+  "Gemini Pro": { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", dot: "#2563eb" },
   "Gemini 3.1 Pro": { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", dot: "#2563eb" },
   "Gemini 3 Pro": { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", dot: "#2563eb" },
   "gemini-3.1-pro-preview": { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", dot: "#2563eb" },
@@ -120,6 +121,9 @@ export function CorrelationSection({ sectionData, title, description, viewMode, 
                 <span className="font-mono text-foreground">{m.total_matches}</span> matches
                 {m.short === "Claude Opus" && (
                   <span className="block text-[10px] mt-0.5 opacity-70">Opus 4.6 (and 4.5 until Feb 22, 2026)</span>
+                )}
+                {m.short === "Gemini Pro" && (
+                  <span className="block text-[10px] mt-0.5 opacity-70">3.1 (and 3.0 until May 7, 2026)</span>
                 )}
               </div>
             </div>

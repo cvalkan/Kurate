@@ -141,7 +141,7 @@ function shortModel(mk) {
   const m = mk.split(":")[1] || mk;
   if (m.includes("gpt-5")) return "GPT-5.2";
   if (m.includes("claude-opus")) return "Claude Opus";
-  if (m.includes("gemini-3.1")) return "Gemini 3.1 Pro";
+  if (m.includes("gemini-3.1")) return "Gemini Pro";
   if (m.includes("gemini-3")) return "Gemini 3 Pro";
   return m.split("-").slice(0, 2).join("-");
 }
@@ -854,7 +854,7 @@ function MultiModelStats({ datasetId, isAdmin }) {
 }
 
 const CYCLE_BAR_COLORS = {
-  "Claude Opus": "#8b5cf6", "GPT-5.2": "#3b82f6", "Gemini 3.1 Pro": "#f59e0b", "Gemini 3 Pro": "#f59e0b",
+  "Claude Opus": "#8b5cf6", "GPT-5.2": "#3b82f6", "Gemini Pro": "#f59e0b", "Gemini 3 Pro": "#f59e0b",
   "Majority": "#22c55e", "Unanimity": "#06b6d4",
 };
 

@@ -2515,7 +2515,7 @@ async def _compute_judge_comparison():
         "gpt-5.2": "GPT-5.2",
         "claude-opus-4-5-20251101": "Opus 4.5",
         "claude-opus-4-6": "Opus 4.6",
-        "gemini-3.1-pro-preview": "Gemini 3.1 Pro", "gemini-3-pro-preview": "Gemini 3.1 Pro",
+        "gemini-3.1-pro-preview": "Gemini Pro", "gemini-3-pro-preview": "Gemini Pro",
     }
     ALL_JUDGES = ["Opus 4.6", "Opus 4.5", "GPT-5.2", "Gemini 3 Pro"]
     CYCLE_RATES = {"Opus 4.6": 0.61, "Gemini 3 Pro": 1.13, "Opus 4.5": 1.23, "GPT-5.2": 1.68}
@@ -2789,7 +2789,7 @@ async def _compute_model_correlation_analysis():
         "gpt-5.2": "GPT-5.2",
         "claude-opus-4-5-20251101": "Opus 4.5",
         "claude-opus-4-6": "Opus 4.6",
-        "gemini-3.1-pro-preview": "Gemini 3.1 Pro", "gemini-3-pro-preview": "Gemini 3.1 Pro",
+        "gemini-3.1-pro-preview": "Gemini Pro", "gemini-3-pro-preview": "Gemini Pro",
     }
     ALL_JUDGES = ["Opus 4.6", "Opus 4.5", "GPT-5.2", "Gemini 3 Pro"]
     DATASETS = ["iclr-llm", "iclr-codegen", "iclr-pdes", "iclr-ot", "iclr-fairness",
