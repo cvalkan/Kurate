@@ -441,6 +441,7 @@ async def _compare_loop_inner():
                         await _recompute_gap_scores(cat)
                     except Exception:
                         pass
+                    force_gc()
                 logger.info(f"Ratings + gap scores backfilled for {len(active_cats)} categories on startup")
 
             log_mem(f"Compare loop cycle: paused={is_paused}, active_cats={len(active_cats)}")
@@ -529,6 +530,7 @@ async def _compare_loop_inner():
                                     await rerank_category_light(db, cat)
                                 except Exception as e:
                                     logger.warning(f"[{cat}] Rankings rerank failed: {e}")
+                                force_gc()
                         # Process any queued repairs from failed incremental updates
                         from services.ranking import process_repair_queue
                         repaired = await process_repair_queue(db)
