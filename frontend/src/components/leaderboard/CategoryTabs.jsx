@@ -21,7 +21,7 @@ export function CategoryTabs({
   }, []);
 
   useEffect(() => {
-    if (moreCatsOpen && searchRef.current) {
+    if (moreCatsOpen && searchRef.current && !("ontouchstart" in window)) {
       searchRef.current.focus();
     }
     if (!moreCatsOpen) setSearch("");
