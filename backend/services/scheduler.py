@@ -545,7 +545,7 @@ async def _compare_loop_inner():
                     if all_failed:
                         # All categories produced 0 matches — likely budget/proxy outage.
                         # Back off to avoid spinning CPU on futile retries.
-                        log_mem(f"Compare loop: all categories failed (0 matches). Backing off 120s.")
+                        log_mem("Compare loop: all categories failed (0 matches). Backing off 120s.")
                         await asyncio.sleep(120)
                     # After a round completes, loop immediately to check if more work needed
                     continue

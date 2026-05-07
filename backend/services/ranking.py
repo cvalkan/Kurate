@@ -1503,11 +1503,11 @@ async def backfill_model_stats(db, category: str = None):
             ratings = {pid: env.create_rating() for pid in mk_pids}
             for m in mk_matches:
                 w = m.get("winner_id")
-                l = m["paper2_id"] if w == m["paper1_id"] else m["paper1_id"]
-                if w in ratings and l in ratings:
-                    new_w, new_l = trueskill.rate_1vs1(ratings[w], ratings[l])
+                loser = m["paper2_id"] if w == m["paper1_id"] else m["paper1_id"]
+                if w in ratings and loser in ratings:
+                    new_w, new_l = trueskill.rate_1vs1(ratings[w], ratings[loser])
                     ratings[w] = new_w
-                    ratings[l] = new_l
+                    ratings[loser] = new_l
             for pid, r in ratings.items():
                 paper_model_ts[pid][mk] = {"mu": r.mu, "sigma": r.sigma}
         del model_match_lists
