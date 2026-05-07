@@ -70,10 +70,15 @@ async def fetch_iacr_papers_oai(
 
         try:
             async with httpx.AsyncClient() as client:
-                resp = await client.get(OAI_BASE, params=params, timeout=30.0)
+                resp = await client.get(
+                    OAI_BASE, params=params, timeout=30.0,
+                    headers={"User-Agent": "Kurate.org/1.0 (Academic Research Aggregator; mailto:info@kurate.org)"},
+                )
                 resp.raise_for_status()
         except Exception as e:
             logger.warning(f"IACR OAI-PMH request failed (page {page}): {e}")
+            from core.memlog import log_mem
+            log_mem(f"IACR OAI-PMH FAILED (page {page}): {str(e)[:100]}")
             break
 
         papers, token = _parse_oai_response(resp.text)
@@ -97,7 +102,10 @@ async def fetch_iacr_papers_rss() -> List[dict]:
     """
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.get(RSS_URL, timeout=20.0)
+            resp = await client.get(
+                RSS_URL, timeout=20.0,
+                headers={"User-Agent": "Kurate.org/1.0 (Academic Research Aggregator; mailto:info@kurate.org)"},
+            )
             resp.raise_for_status()
     except Exception as e:
         logger.warning(f"IACR RSS fetch failed: {e}")

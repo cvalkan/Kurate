@@ -46,6 +46,12 @@ CATEGORIES = {
     "q-bio.BM": "Biomolecules",
     "chemrxiv.IC": "Inorganic Chemistry",
     "iacr.sk": "Secret-key Cryptography",
+    "iacr.pk": "Public-key Cryptography",
+    "iacr.proto": "Cryptographic Protocols",
+    "iacr.found": "Cryptography Foundations",
+    "iacr.impl": "Cryptography Implementation",
+    "iacr.app": "Cryptography Applications",
+    "iacr.attack": "Attacks and Cryptanalysis",
 }
 
 # Default evaluation prompt
