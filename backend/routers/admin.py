@@ -1267,7 +1267,7 @@ async def get_usage_stats(category: str = None):
         elif "anthropic" in provider:
             pricing_key = f"anthropic/{mk.split(chr(58))[1]}" if ":" in mk else "anthropic/claude-opus-4-6"
         elif "gemini" in provider:
-            pricing_key = "gemini/gemini-3-pro-preview"
+            pricing_key = "gemini/gemini-3.1-pro-preview"
         else:
             pricing_key = None
 
@@ -1789,6 +1789,7 @@ MODEL_PRICING = {
     "openai/gpt-5.2": {"input": 1.75, "output": 14.00},
     "anthropic/claude-opus-4-5-20251101": {"input": 5.00, "output": 25.00},
     "anthropic/claude-opus-4-6": {"input": 5.00, "output": 25.00},
+    "gemini/gemini-3.1-pro-preview": {"input": 2.00, "output": 12.00},
     "gemini/gemini-3-pro-preview": {"input": 2.00, "output": 12.00},
 }
 
@@ -1948,7 +1949,7 @@ async def _compute_timeseries(category: Optional[str] = None):
         elif "anthropic" in provider:
             pricing_key = f"anthropic/{mk.split(chr(58))[1]}" if ":" in mk else "anthropic/claude-opus-4-6"
         elif "gemini" in provider:
-            pricing_key = "gemini/gemini-3-pro-preview"
+            pricing_key = "gemini/gemini-3.1-pro-preview"
         else:
             pricing_key = None
         cost = 0.0

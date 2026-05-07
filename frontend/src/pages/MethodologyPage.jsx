@@ -63,7 +63,7 @@ export default function MethodologyPage() {
         </Step>
 
         <Step number={2} icon={Sparkles} title="AI Impact Assessment & Rating">
-          <p>Each paper receives a <span className="text-foreground font-medium">Claude Opus 4.6 Impact Assessment</span> (with extended thinking mode) generated from the full PDF text, analyzing novelty, methodology, potential impact, and limitations. GPT-5.2 and Gemini 3 Pro assessments are also generated for cross-model analysis. The primary Claude assessment serves as input to the pairwise tournament. <Link to="/prompts" className="text-accent hover:underline" data-testid="prompts-link-summary">View the assessment prompt &rarr;</Link></p>
+          <p>Each paper receives a <span className="text-foreground font-medium">Claude Opus 4.6 Impact Assessment</span> (with extended thinking mode) generated from the full PDF text, analyzing novelty, methodology, potential impact, and limitations. GPT-5.2 and Gemini 3.1 Pro assessments are also generated for cross-model analysis. The primary Claude assessment serves as input to the pairwise tournament. <Link to="/prompts" className="text-accent hover:underline" data-testid="prompts-link-summary">View the assessment prompt &rarr;</Link></p>
           <p>Separately, each model assigns a <span className="text-foreground font-medium">direct 1–10 Single-Item (SI) rating</span> across five dimensions — significance, rigor, novelty, clarity, and overall score. These ratings provide a complementary signal to the pairwise tournament and power the <Link to="/correlation" className="text-accent hover:underline">Score–Pairwise Coherence</Link> analysis.</p>
         </Step>
 
@@ -72,7 +72,7 @@ export default function MethodologyPage() {
           <div className="flex flex-wrap gap-2 my-2">
             <span className="text-xs font-mono px-2 py-1 rounded border bg-green-50 text-green-700 border-green-200">GPT-5.2</span>
             <span className="text-xs font-mono px-2 py-1 rounded border bg-orange-50 text-orange-700 border-orange-200">Claude Opus 4.6</span>
-            <span className="text-xs font-mono px-2 py-1 rounded border bg-blue-50 text-blue-700 border-blue-200">Gemini 3 Pro</span>
+            <span className="text-xs font-mono px-2 py-1 rounded border bg-blue-50 text-blue-700 border-blue-200">Gemini 3.1 Pro</span>
           </div>
           <p>Each model evaluates which paper has higher potential scientific impact across five dimensions: novelty, real-world applications, methodological rigor, breadth of impact, and timeliness. <Link to="/prompts" className="text-accent hover:underline" data-testid="prompts-link-evaluation">View the evaluation prompt &rarr;</Link></p>
         </Step>

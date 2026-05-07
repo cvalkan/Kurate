@@ -1613,7 +1613,7 @@ async def _run_multi_aspect(dataset_id: str, num_pairs: int):
 
 SUMMARIZER_MODELS = {
     "gpt": {"provider": "openai", "model": "gpt-5.2"},
-    "gemini": {"provider": "gemini", "model": "gemini-3-pro-preview"},
+    "gemini": {"provider": "gemini", "model": "gemini-3.1-pro-preview"},
     "gpt54": {"provider": "openai", "model": "gpt-5.4", "api_key_env": "OPENAI_API_KEY_GPT54"},
 }
 _sumab_state = {"running": False, "phase": "", "done": 0, "total": 0, "dataset_id": None, "summarizer": None}
@@ -2515,7 +2515,7 @@ async def _compute_judge_comparison():
         "gpt-5.2": "GPT-5.2",
         "claude-opus-4-5-20251101": "Opus 4.5",
         "claude-opus-4-6": "Opus 4.6",
-        "gemini-3-pro-preview": "Gemini 3 Pro",
+        "gemini-3.1-pro-preview": "Gemini 3.1 Pro", "gemini-3-pro-preview": "Gemini 3.1 Pro",
     }
     ALL_JUDGES = ["Opus 4.6", "Opus 4.5", "GPT-5.2", "Gemini 3 Pro"]
     CYCLE_RATES = {"Opus 4.6": 0.61, "Gemini 3 Pro": 1.13, "Opus 4.5": 1.23, "GPT-5.2": 1.68}
@@ -2789,7 +2789,7 @@ async def _compute_model_correlation_analysis():
         "gpt-5.2": "GPT-5.2",
         "claude-opus-4-5-20251101": "Opus 4.5",
         "claude-opus-4-6": "Opus 4.6",
-        "gemini-3-pro-preview": "Gemini 3 Pro",
+        "gemini-3.1-pro-preview": "Gemini 3.1 Pro", "gemini-3-pro-preview": "Gemini 3.1 Pro",
     }
     ALL_JUDGES = ["Opus 4.6", "Opus 4.5", "GPT-5.2", "Gemini 3 Pro"]
     DATASETS = ["iclr-llm", "iclr-codegen", "iclr-pdes", "iclr-ot", "iclr-fairness",

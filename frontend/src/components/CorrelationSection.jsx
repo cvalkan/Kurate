@@ -8,7 +8,9 @@ const MODEL_COLORS = {
   "Claude Opus": { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", dot: "#ea580c" },
   "claude-opus-4-5-20251101": { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", dot: "#ea580c" },
   "claude-opus": { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", dot: "#ea580c" },
+  "Gemini 3.1 Pro": { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", dot: "#2563eb" },
   "Gemini 3 Pro": { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", dot: "#2563eb" },
+  "gemini-3.1-pro-preview": { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", dot: "#2563eb" },
   "gemini-3-pro-preview": { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", dot: "#2563eb" },
 };
 

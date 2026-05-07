@@ -32,6 +32,7 @@ _SB_CACHE_TTL = 3600  # 1 hour — data only changes when new experiments run
 
 MODEL_SHORT = {
     "anthropic:claude-opus-4-5-20251101": "Claude Opus",
+    "gemini:gemini-3.1-pro-preview": "Gemini 3.1",
     "gemini:gemini-3-pro-preview": "Gemini 3",
     "openai:gpt-5.2": "GPT 5.2",
 }

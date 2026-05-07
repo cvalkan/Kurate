@@ -100,14 +100,14 @@ export default function CorrelationPage() {
     <div className="container mx-auto px-4 md:px-6 max-w-5xl py-6 md:py-10">
       <Helmet>
         <title>Model Correlation Analysis | Kurate.org</title>
-        <meta name="description" content="How well do Claude Opus, GPT-5.2, and Gemini 3 Pro agree on paper rankings? Spearman correlation analysis across AI judges." />
+        <meta name="description" content="How well do Claude Opus, GPT-5.2, and Gemini 3.1 Pro agree on paper rankings? Spearman correlation analysis across AI judges." />
         <link rel="canonical" href="https://kurate.org/correlation" />
       </Helmet>      <div className="mb-8">
         <h1 className="font-heading text-3xl md:text-4xl font-semibold tracking-tight mb-2" data-testid="page-title">
           Model Correlation
         </h1>
         <p className="text-muted-foreground text-sm max-w-2xl">
-          How well do Claude Opus, GPT-5.2, and Gemini 3 Pro agree on paper rankings?
+          How well do Claude Opus, GPT-5.2, and Gemini 3.1 Pro agree on paper rankings?
         </p>
         <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg max-w-2xl">
           <p className="text-xs text-amber-900">

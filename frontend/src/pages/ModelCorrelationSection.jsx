@@ -5,7 +5,7 @@ import { BarChart3, Info } from "lucide-react";
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const JUDGE_COLORS = {
-  "Opus 4.6": "#a78bfa", "Opus 4.5": "#8b5cf6", "GPT-5.2": "#3b82f6", "Gemini 3 Pro": "#f59e0b",
+  "Opus 4.6": "#a78bfa", "Opus 4.5": "#8b5cf6", "GPT-5.2": "#3b82f6", "Gemini 3.1 Pro": "#f59e0b",
 };
 
 function AgreementMatrix({ pairs, judges, title, subtitle }) {

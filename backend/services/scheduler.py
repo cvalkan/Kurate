@@ -1231,6 +1231,7 @@ _SUMMARY_KEY_FALLBACKS = {
     "anthropic:claude-opus-4-6": [
         "anthropic:claude-opus-4-5-20251101",
         "openai:gpt-5_2",
+        "gemini:gemini-3.1-pro-preview",
         "gemini:gemini-3-pro-preview",
         "gemini:gemini-3_1-pro-preview",
     ],

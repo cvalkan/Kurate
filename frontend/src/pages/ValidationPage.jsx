@@ -141,6 +141,7 @@ function shortModel(mk) {
   const m = mk.split(":")[1] || mk;
   if (m.includes("gpt-5")) return "GPT-5.2";
   if (m.includes("claude-opus")) return "Claude Opus";
+  if (m.includes("gemini-3.1")) return "Gemini 3.1 Pro";
   if (m.includes("gemini-3")) return "Gemini 3 Pro";
   return m.split("-").slice(0, 2).join("-");
 }
@@ -853,7 +854,7 @@ function MultiModelStats({ datasetId, isAdmin }) {
 }
 
 const CYCLE_BAR_COLORS = {
-  "Claude Opus": "#8b5cf6", "GPT-5.2": "#3b82f6", "Gemini 3 Pro": "#f59e0b",
+  "Claude Opus": "#8b5cf6", "GPT-5.2": "#3b82f6", "Gemini 3.1 Pro": "#f59e0b", "Gemini 3 Pro": "#f59e0b",
   "Majority": "#22c55e", "Unanimity": "#06b6d4",
 };
 
@@ -1117,7 +1118,7 @@ export default function ValidationPage() {
           <li><strong>Data:</strong> Papers with peer reviews from ICLR OpenReview, PeerRead (ACL 2017), and F1000Research (biomedical). Full text used for section extraction where available.</li>
           <li><strong>Pairwise Ranking:</strong> Derives head-to-head matches from reviewers who scored multiple papers. Both sides ranked via regularized win-rate. Implicitly cancels severity bias.</li>
           <li><strong>IRT Score:</strong> Z-scores each reviewer's ratings against their personal mean/std, averages per paper. Explicitly removes severity bias. Produces finer-grained scores.</li>
-          <li><strong>Multi-Model:</strong> Each pair is evaluated by GPT-5.2, Claude Opus 4.5, and Gemini 3 Pro. Inter-model agreement and majority-vote accuracy are computed.</li>
+          <li><strong>Multi-Model:</strong> Each pair is evaluated by GPT-5.2, Claude Opus 4.5, and Gemini 3.1 Pro. Inter-model agreement and majority-vote accuracy are computed.</li>
           <li><strong>Agreement:</strong> Expert-Expert = reviewer pairwise agreement rate. AI-Expert = AI vs individual reviewer. AI-Majority = AI vs reviewer consensus.</li>
         </ul>
       </div>
