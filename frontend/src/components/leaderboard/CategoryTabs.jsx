@@ -100,7 +100,7 @@ export function CategoryTabs({
             )}
             {moreCatsOpen && isLoggedIn && (
               <div
-                className="fixed z-50 bg-background border border-border rounded-lg shadow-lg min-w-[420px] py-1"
+                className="fixed z-50 bg-background border border-border rounded-lg shadow-lg w-max py-1"
                 style={{
                   top: moreCatsRef.current?.getBoundingClientRect().bottom + 4,
                   left: Math.min(
@@ -135,7 +135,7 @@ export function CategoryTabs({
                 )}
                 {groupedOverflow.groupOrder.map((group) => (
                   <div key={group}>
-                    <div className="px-3 pt-2.5 pb-1 text-[11px] font-bold uppercase tracking-wider text-foreground/70 select-none" data-testid={`group-${group}`}>
+                    <div className="px-3 pt-2.5 pb-1 text-[11px] font-bold uppercase tracking-wider text-foreground/60 select-none" data-testid={`group-${group}`}>
                       {group}
                     </div>
                     {groupedOverflow.groups[group].map((c) => (
