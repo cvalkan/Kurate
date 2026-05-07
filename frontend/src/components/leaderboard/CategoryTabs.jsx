@@ -100,12 +100,12 @@ export function CategoryTabs({
             )}
             {moreCatsOpen && isLoggedIn && (
               <div
-                className="fixed z-50 bg-background border border-border rounded-lg shadow-lg min-w-[340px] py-1"
+                className="fixed z-50 bg-background border border-border rounded-lg shadow-lg min-w-[420px] py-1"
                 style={{
                   top: moreCatsRef.current?.getBoundingClientRect().bottom + 4,
                   left: Math.min(
                     moreCatsRef.current?.getBoundingClientRect().left || 0,
-                    window.innerWidth - 360
+                    window.innerWidth - 440
                   ),
                   maxHeight: "min(420px, 60vh)",
                   overflowY: "auto",
@@ -141,7 +141,7 @@ export function CategoryTabs({
                     {groupedOverflow.groups[group].map((c) => (
                       <button
                         key={c.id}
-                        className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent/10 transition-colors ${category === c.id ? "bg-accent/10 text-accent font-medium" : ""}`}
+                        className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent/10 transition-colors whitespace-nowrap ${category === c.id ? "bg-accent/10 text-accent font-medium" : ""}`}
                         onClick={() => { selectCategory(c.id); setMoreCatsOpen(false); }}
                         data-testid={`cat-${c.id}`}
                       >
