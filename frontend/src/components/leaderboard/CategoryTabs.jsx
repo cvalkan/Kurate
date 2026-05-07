@@ -100,7 +100,7 @@ export function CategoryTabs({
             )}
             {moreCatsOpen && isLoggedIn && (
               <div
-                className="fixed z-50 bg-background border border-border rounded-lg shadow-lg w-max py-1"
+                className="fixed z-50 bg-background border border-border rounded-lg shadow-lg w-[300px] py-1"
                 style={{
                   top: moreCatsRef.current?.getBoundingClientRect().bottom + 4,
                   left: Math.min(
