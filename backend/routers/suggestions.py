@@ -69,12 +69,14 @@ async def update_suggestion_status(suggestion_id: str, request: Request):
 
 
 @router.get("/admin/users", dependencies=[Depends(verify_admin)])
-async def get_users(offset: int = 0, limit: int = 100):
+async def get_users(offset: int = 0, limit: int = 100, page: int = None):
+    if page is not None and page > 0:
+        offset = (page - 1) * limit
     total = await db.users.count_documents({})
     users = await db.users.find(
         {}, {"_id": 0, "password_hash": 0, "verification_token": 0}
     ).sort("created_at", -1).skip(offset).limit(limit).to_list(limit)
-    return {"users": users, "total": total}
+    return {"users": users, "total": total, "offset": offset, "limit": limit}
 
 
 @router.post("/admin/users/{user_id}/status", dependencies=[Depends(verify_admin)])
