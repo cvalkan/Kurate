@@ -519,7 +519,7 @@ async def _compare_loop_inner():
                     batch_size = min(max(settings.get("parallel_categories", 2), 1), 10)
                     all_failed = True  # Track if entire cycle produced 0 matches
                     # Memory ceiling: if RSS is high, force GC and reduce batch size
-                    MEM_CEILING_MB = settings.get("mem_ceiling_mb", 1500)
+                    MEM_CEILING_MB = settings.get("mem_ceiling_mb", 3000)
                     for i in range(0, len(unmet_cats), batch_size):
                         # Check memory before starting a new batch
                         from core.memlog import get_mem_mb
