@@ -14,6 +14,27 @@ from core.config import db, logger
 
 router = APIRouter(prefix="/api/badge")
 
+
+def _track_badge_event(event_type: str, paper_id: str, category: str = "", request: Request = None):
+    """Fire-and-forget: log badge view/share to system_logs."""
+    import asyncio
+    ua = request.headers.get("user-agent", "") if request else ""
+    # Skip bots and crawlers from view counts
+    is_bot = any(b in ua.lower() for b in ("bot", "crawl", "spider", "facebook", "twitter", "telegram", "slack", "discord", "whatsapp"))
+    doc = {
+        "ts": datetime.now(timezone.utc),
+        "level": "event",
+        "event": event_type,
+        "paper_id": paper_id,
+        "category": category,
+        "is_bot": is_bot,
+    }
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(db.system_logs.insert_one(doc))
+    except Exception:
+        pass
+
 # Font installation deferred to background (was blocking module import for 10s+)
 _FONT_DIR = Path(__file__).parent.parent / "fonts"
 _fonts_installed = False
@@ -251,6 +272,7 @@ async def get_badge_image(category: str, year: int, week: int, paper_id: str):
 @router.get("/{category}/{year}/w{week}/{paper_id}/share", response_class=HTMLResponse)
 async def get_badge_share_page(category: str, year: int, week: int, paper_id: str, request: Request):
     """Static HTML page with OG meta tags for social sharing. JS redirect for humans, crawlers see static tags."""
+    _track_badge_event("badge_share_view", paper_id, category, request)
     from core.sharing import get_public_base_url, SHARE_HEADERS, is_bot
     data = await _get_badge_data(category, year, paper_id, week=week)
     base_url = get_public_base_url(request)
@@ -261,6 +283,7 @@ async def get_badge_share_page(category: str, year: int, week: int, paper_id: st
 @router.get("/{category}/{year}/m{month}/{paper_id}/share", response_class=HTMLResponse)
 async def get_monthly_badge_share_page(category: str, year: int, month: int, paper_id: str, request: Request):
     """Static HTML page with OG meta tags for monthly badge sharing."""
+    _track_badge_event("badge_share_view", paper_id, category, request)
     from core.sharing import get_public_base_url, SHARE_HEADERS, is_bot
     data = await _get_badge_data(category, year, paper_id, month=month)
     base_url = get_public_base_url(request)
@@ -611,6 +634,7 @@ async def get_paper_share_data(paper_id: str):
 async def get_paper_share_page(paper_id: str, request: Request):
     """Static HTML page with OG/Twitter meta tags for social media sharing.
     Works for ALL papers — uses archive snapshot data when available, live data otherwise."""
+    _track_badge_event("paper_share_view", paper_id, request=request)
     import html as html_mod
     from core.sharing import get_public_base_url, SHARE_HEADERS, is_bot
     bot = is_bot(request)
@@ -692,6 +716,7 @@ async def get_paper_share_page(paper_id: str, request: Request):
 @router.get("/paper/{paper_id}/share/image.png")
 async def get_paper_share_image(paper_id: str):
     """Render a shareable badge image for any paper. Uses the paper's archive badge if it exists."""
+    _track_badge_event("badge_image_render", paper_id)
     await _install_fonts_if_needed()
 
     paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "id": 1, "title": 1, "authors": 1, "categories": 1})
