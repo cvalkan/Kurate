@@ -518,7 +518,23 @@ async def _compare_loop_inner():
                     log_mem(f"Compare loop: {len(unmet_cats)} unmet categories: {unmet_cats}")
                     batch_size = min(max(settings.get("parallel_categories", 2), 1), 10)
                     all_failed = True  # Track if entire cycle produced 0 matches
+                    # Memory ceiling: if RSS is high, force GC and reduce batch size
+                    MEM_CEILING_MB = settings.get("mem_ceiling_mb", 1500)
                     for i in range(0, len(unmet_cats), batch_size):
+                        # Check memory before starting a new batch
+                        from core.memlog import get_mem_mb
+                        current_mb = get_mem_mb()
+                        if current_mb > MEM_CEILING_MB:
+                            force_gc()
+                            after_gc = get_mem_mb()
+                            log_mem(f"Memory ceiling hit ({current_mb:.0f}MB > {MEM_CEILING_MB}MB), GC freed {current_mb - after_gc:.0f}MB")
+                            if after_gc > MEM_CEILING_MB:
+                                # Still too high — sleep to let OS reclaim, then continue with batch_size=1
+                                log_mem(f"Still above ceiling ({after_gc:.0f}MB), backing off 30s")
+                                await asyncio.sleep(30)
+                                force_gc()
+                                batch_size = 1  # Reduce to sequential for rest of cycle
+
                         batch = unmet_cats[i:i+batch_size]
                         tasks = [run_comparison_round(category=cat, skip_rerank=True) for cat in batch]
                         results = await asyncio.gather(*tasks, return_exceptions=True)
