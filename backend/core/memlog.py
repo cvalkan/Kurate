@@ -35,15 +35,22 @@ def get_mem_mb() -> float:
     return _process.memory_info().rss / 1024 / 1024
 
 
-def force_gc():
+def force_gc(label: str = ""):
     """GC + malloc_trim to actually return freed memory to the OS.
     
     Python's gc.collect() frees Python objects but glibc's arena allocator
     holds onto the pages. malloc_trim(0) forces glibc to release them.
+    Returns (before_mb, after_mb) for diagnostics.
     """
-    gc.collect()
+    before = get_mem_mb()
+    collected = gc.collect()
     if _libc:
         _libc.malloc_trim(0)
+    after = get_mem_mb()
+    freed = before - after
+    if freed > 5 or label:  # Only log if meaningful or explicitly labeled
+        logger.info(f"[GC] {label}: {before:.0f}→{after:.0f}MB (freed {freed:.0f}MB, {collected} objects)")
+    return before, after
 
 
 def log_mem(label: str):

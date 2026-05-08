@@ -550,7 +550,7 @@ async def _compare_loop_inner():
                                 _cycle_results[cat] = {"status": "unknown"}
                         # GC between batches to release match/paper data from completed rounds
                         from core.memlog import force_gc
-                        force_gc()
+                        force_gc(f"after batch [{', '.join(batch)}]")
                         # Sequential reranks — one at a time with GC between to prevent memory stacking
                         from services.ranking import rerank_category_light
                         for cat, res in zip(batch, results):
@@ -559,7 +559,7 @@ async def _compare_loop_inner():
                                     await rerank_category_light(db, cat)
                                 except Exception as e:
                                     logger.warning(f"[{cat}] Rankings rerank failed: {e}")
-                                force_gc()
+                                force_gc(f"after rerank {cat}")
                         # Process any queued repairs from failed incremental updates
                         from services.ranking import process_repair_queue
                         repaired = await process_repair_queue(db)
