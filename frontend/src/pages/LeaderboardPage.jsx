@@ -370,7 +370,7 @@ export default function LeaderboardPage() {
             ? `Cross-category view: showing papers tagged with ${selectedTags.join(tagMode === "and" ? " AND " : " OR ")}.`
             : isTagMode
             ? "Showing all papers across all categories. Select tags below to filter."
-            : <>AI-estimated scientific impact ranking of the latest {category?.startsWith("iacr.") ? "IACR ePrint" : "arXiv"} {categoryName} preprints. <Link to="/methodology" className="text-accent hover:underline">Methodology</Link></>}
+            : <>AI-estimated scientific impact ranking of the latest {category?.startsWith("iacr.") ? "IACR ePrint" : "arXiv"} {categoryName} preprints. <Link to="/methodology" className="text-accent hover:underline">Methodology</Link> <span className="inline-flex items-center gap-1 ml-2 text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 dark:text-emerald-400 px-2 py-0.5 rounded-full">New: Computer Vision, HCI, General Relativity, Number Theory</span></>}
         </p>
       </div>
 
