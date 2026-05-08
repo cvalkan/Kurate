@@ -522,13 +522,11 @@ export function AdminStatistics({ categories }) {
                   }}
                 />
                 <YAxis yAxisId="cumulative" orientation="left" tick={{ fontSize: 10 }} stroke="#3b82f6" />
-                <YAxis yAxisId="daily" orientation="right" tick={{ fontSize: 10 }} stroke="#f59e0b" />
                 <RechartsTooltip
                   contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }}
                   labelFormatter={(d) => new Date(d + "T00:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
                 />
                 <Area yAxisId="cumulative" type="monotone" dataKey="cumulative" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.1} strokeWidth={2} dot={false} name="Total users" />
-                <Bar yAxisId="daily" dataKey="daily" fill="#f59e0b" fillOpacity={0.6} name="New signups" />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
