@@ -1703,7 +1703,8 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                 }
 
                 if isinstance(result, Exception):
-                    match_doc.update({"completed": False, "failed": True, "error": str(result)[:200], "reasoning": f"Failed: {str(result)[:100]}"})
+                    match_doc.update({"completed": False, "failed": True, "error": str(result)[:200], "reasoning": f"Failed: {str(result)[:100]}",
+                                      "model_used": result.model_used if hasattr(result, 'model_used') else {}})
                     failed += 1
                 else:
                     winner_key = result.get("winner", "paper1")

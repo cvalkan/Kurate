@@ -910,7 +910,9 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
             await track_llm_usage(provider, model, context="match_fallback", success=False, paper_title=match_label)
             logger.error(f"Direct {provider} fallback also failed: {fallback_err}")
 
-    raise Exception(f"Comparison failed after {max_retries} retries: {last_error}")
+    err = Exception(f"Comparison failed ({provider}/{model}) after {max_retries} retries: {last_error}")
+    err.model_used = model_info
+    raise err
 
 
 IMPACT_ASSESSMENT_PROMPT = {
