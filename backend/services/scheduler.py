@@ -1706,6 +1706,11 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                     match_doc.update({"completed": False, "failed": True, "error": str(result)[:200], "reasoning": f"Failed: {str(result)[:100]}",
                                       "model_used": result.model_used if hasattr(result, 'model_used') else {}})
                     failed += 1
+                    # Track model failure for round-robin circuit breaker
+                    from services.llm import mark_model_failure
+                    _mu = result.model_used if hasattr(result, 'model_used') else {}
+                    if _mu.get("provider"):
+                        mark_model_failure(_mu["provider"])
                 else:
                     winner_key = result.get("winner", "paper1")
                     match_doc.update({
@@ -1716,6 +1721,11 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                         "completed": True, "failed": False,
                     })
                     completed += 1
+                    # Track model success for round-robin circuit breaker
+                    from services.llm import mark_model_success
+                    _mu = result.get("model_used", {})
+                    if _mu.get("provider"):
+                        mark_model_success(_mu["provider"])
 
                 await db.matches.insert_one(match_doc)
                 # Track LLM usage for this match

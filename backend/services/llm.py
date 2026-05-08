@@ -614,14 +614,45 @@ def _build_paper_content(paper: dict, char_limit: int = 2000) -> str:
 
 _model_counter = 0
 _model_lock = None
+_model_fail_counts = {}  # provider -> consecutive fail count
+_MODEL_FAIL_THRESHOLD = 3  # Skip model after this many consecutive failures
+_MODEL_FAIL_RESET_AFTER = 300  # Re-try after 5 minutes
+_model_fail_times = {}  # provider -> last fail timestamp
 
 
 def _pick_round_robin_model() -> Dict[str, str]:
-    """Round-robin model selection for even distribution across all models."""
+    """Round-robin model selection, skipping models with consecutive recent failures."""
     global _model_counter
-    model = TOURNAMENT_MODELS[_model_counter % len(TOURNAMENT_MODELS)]
+    import time
+    now = time.time()
+    n = len(TOURNAMENT_MODELS)
+    for _ in range(n):
+        model = TOURNAMENT_MODELS[_model_counter % n]
+        _model_counter += 1
+        provider = model["provider"]
+        fails = _model_fail_counts.get(provider, 0)
+        last_fail = _model_fail_times.get(provider, 0)
+        if fails >= _MODEL_FAIL_THRESHOLD and (now - last_fail) < _MODEL_FAIL_RESET_AFTER:
+            continue  # Skip this model, try next in rotation
+        return model
+    # All models failing — return next in rotation anyway (let it try)
+    model = TOURNAMENT_MODELS[_model_counter % n]
     _model_counter += 1
     return model
+
+
+def mark_model_success(provider: str):
+    """Reset fail counter on successful match."""
+    _model_fail_counts[provider] = 0
+
+
+def mark_model_failure(provider: str):
+    """Track consecutive failures for circuit-breaking."""
+    import time
+    _model_fail_counts[provider] = _model_fail_counts.get(provider, 0) + 1
+    _model_fail_times[provider] = time.time()
+    if _model_fail_counts[provider] >= _MODEL_FAIL_THRESHOLD:
+        logger.warning(f"[round-robin] {provider} hit {_model_fail_counts[provider]} consecutive failures, skipping for {_MODEL_FAIL_RESET_AFTER}s")
 
 
 def _build_full_pdf_content(paper: dict, char_limit: int = None) -> str:
