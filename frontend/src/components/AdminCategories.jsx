@@ -29,6 +29,7 @@ export function AdminCategories({ onCategoriesChanged }) {
   const [dragIdx, setDragIdx] = useState(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
   const [reordering, setReordering] = useState(false);
+  const [newCats, setNewCats] = useState(new Set());
 
   const hasChanges = pendingAdds.size > 0 || pendingRemoves.size > 0;
 
@@ -37,6 +38,7 @@ export function AdminCategories({ onCategoriesChanged }) {
       const res = await axios.get(`${API}/api/admin/arxiv-categories`, { headers: getAdminHeaders() });
       setAllCategories(res.data.categories || []);
       setActiveIds(res.data.active || []);
+      setNewCats(new Set(res.data.new_categories || []));
       // Load archive frequency
       const freqRes = await axios.get(`${API}/api/admin/archive/frequency`, { headers: getAdminHeaders() }).catch(() => ({ data: {} }));
       setArchiveFreq(freqRes.data || {});
@@ -232,6 +234,28 @@ export function AdminCategories({ onCategoriesChanged }) {
                 )}
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
+                {!isPendingRemove && (
+                  <button
+                    className={`h-6 px-1.5 text-[10px] font-medium rounded transition-colors ${
+                      newCats.has(c.id)
+                        ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                        : "bg-secondary/50 text-muted-foreground/50 hover:text-muted-foreground hover:bg-secondary"
+                    }`}
+                    onClick={async () => {
+                      try {
+                        const res = await axios.post(`${API}/api/admin/categories/toggle-new`,
+                          { category_id: c.id },
+                          { headers: { ...getAdminHeaders(), "Content-Type": "application/json" } }
+                        );
+                        setNewCats(new Set(res.data.new_categories || []));
+                      } catch { toast.error("Failed to toggle"); }
+                    }}
+                    data-testid={`new-toggle-${c.id}`}
+                    title={newCats.has(c.id) ? "Remove 'New' badge from homepage" : "Show as 'New' on homepage"}
+                  >
+                    New
+                  </button>
+                )}
                 {!isPendingRemove && (
                   <select
                     value={archiveFreq[c.id] || archiveFreq.default || "weekly"}

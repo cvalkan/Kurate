@@ -517,6 +517,7 @@ async def get_categories():
     return {
         "categories": cats,
         "default": active[0] if active else "cs.RO",
+        "new_categories": settings.get("new_categories", []),
     }
 
 

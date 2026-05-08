@@ -21,6 +21,7 @@ export default function LeaderboardPage() {
   // State — initialized from URL params for back-navigation restore
   const [leaderboard, setLeaderboard] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [newCategoryNames, setNewCategoryNames] = useState([]);
   const [category, setCategory] = useState(searchParams.get("cat") || "");
   const [period, setPeriod] = useState(searchParams.get("period") || "week");
   const [loading, setLoading] = useState(true);
@@ -126,6 +127,10 @@ export default function LeaderboardPage() {
     axios.get(`${API}/api/categories`).then(res => {
       setCategories(res.data.categories || []);
       if (!category) setCategory(res.data.default || "cs.RO");
+      // Build "New" category names from IDs
+      const newIds = res.data.new_categories || [];
+      const allCats = res.data.categories || [];
+      setNewCategoryNames(newIds.map(id => allCats.find(c => c.id === id)?.name).filter(Boolean));
     }).catch(() => { if (!category) setCategory("cs.RO"); });
     axios.get(`${API}/api/tags`).then(res => setAllTags(res.data.tags || [])).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -370,7 +375,7 @@ export default function LeaderboardPage() {
             ? `Cross-category view: showing papers tagged with ${selectedTags.join(tagMode === "and" ? " AND " : " OR ")}.`
             : isTagMode
             ? "Showing all papers across all categories. Select tags below to filter."
-            : <>AI-estimated scientific impact ranking of the latest {category?.startsWith("iacr.") ? "IACR ePrint" : "arXiv"} {categoryName} preprints. <Link to="/methodology" className="text-accent hover:underline">Methodology</Link> <span className="inline-flex items-center gap-1 ml-2 text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 dark:text-emerald-400 px-2 py-0.5 rounded-full">New: Computer Vision, HCI, General Relativity, Number Theory</span></>}
+            : <>AI-estimated scientific impact ranking of the latest {category?.startsWith("iacr.") ? "IACR ePrint" : "arXiv"} {categoryName} preprints. <Link to="/methodology" className="text-accent hover:underline">Methodology</Link>{newCategoryNames.length > 0 && <>{" "}<span className="inline-flex items-center gap-1 ml-2 text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 dark:text-emerald-400 px-2 py-0.5 rounded-full">New: {newCategoryNames.join(", ")}</span></>}</>}
         </p>
       </div>
 

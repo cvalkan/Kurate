@@ -2166,11 +2166,28 @@ async def get_arxiv_categories():
             "group": get_group(cat_id),
             "active": cat_id in active_set,
         })
-    return {"categories": cats, "active": active_list}
+    return {"categories": cats, "active": active_list, "new_categories": settings.get("new_categories", [])}
 
 
 class CategoryAction(BaseModel):
     category_id: str
+
+
+@router.post("/categories/toggle-new", dependencies=[Depends(verify_admin)])
+async def toggle_new_category(body: CategoryAction):
+    """Toggle the 'new' flag for a category (shown on homepage)."""
+    settings = await get_settings()
+    new_cats = settings.get("new_categories", [])
+    cat_id = body.category_id.strip()
+    if cat_id in new_cats:
+        new_cats.remove(cat_id)
+    else:
+        new_cats.append(cat_id)
+    await db.settings.update_one(
+        {"key": "global"}, {"$set": {"new_categories": new_cats}}, upsert=True
+    )
+    return {"new_categories": new_cats}
+
 
 
 @router.post("/categories/add", dependencies=[Depends(verify_admin)])
