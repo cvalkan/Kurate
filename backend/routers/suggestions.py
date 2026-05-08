@@ -79,6 +79,30 @@ async def get_users(offset: int = 0, limit: int = 100, page: int = None):
     return {"users": users, "total": total, "offset": offset, "limit": limit}
 
 
+@router.get("/admin/users/registrations", dependencies=[Depends(verify_admin)])
+async def user_registrations():
+    """Return daily and cumulative user registration counts for charting."""
+    from collections import defaultdict
+    daily = defaultdict(int)
+    async for u in db.users.find(
+        {"created_at": {"$exists": True}},
+        {"_id": 0, "created_at": 1, "provider": 1}
+    ):
+        created = u.get("created_at", "")
+        if isinstance(created, str) and len(created) >= 10:
+            day = created[:10]
+            daily[day] += 1
+    # Sort and compute cumulative
+    sorted_days = sorted(daily.items())
+    cumulative = 0
+    series = []
+    for day, count in sorted_days:
+        cumulative += count
+        series.append({"date": day, "daily": count, "cumulative": cumulative})
+    return {"series": series, "total": cumulative}
+
+
+
 @router.post("/admin/users/{user_id}/status", dependencies=[Depends(verify_admin)])
 async def update_user_status(user_id: str, request: Request):
     body = await request.json()

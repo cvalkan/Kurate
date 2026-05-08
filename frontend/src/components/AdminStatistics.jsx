@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  AreaChart, Area, BarChart, Bar, ComposedChart, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, Legend, ReferenceLine,
 } from "recharts";
 import {
@@ -105,6 +105,7 @@ export function AdminStatistics({ categories }) {
   const [summaryStats, setSummaryStats] = useState(null);
   const [memoryData, setMemoryData] = useState(null);
   const [repairQueueData, setRepairQueueData] = useState(null);
+  const [registrationData, setRegistrationData] = useState(null);
   const [memHours, setMemHours] = useState(24);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState("cumulative"); // "daily" | "cumulative"
@@ -125,8 +126,9 @@ export function AdminStatistics({ categories }) {
         fetchWithRetry(`${API}/api/admin/timeseries`),
         fetchWithRetry(`${API}/api/admin/stats`),
         fetchWithRetry(`${API}/api/admin/system-logs?hours=${memHours}&limit=3000`),
+        fetchWithRetry(`${API}/api/admin/users/registrations`),
       ]);
-      const [tsResult, statsResult, memResult] = results;
+      const [tsResult, statsResult, memResult, regResult] = results;
 
       // Check if critical endpoint (timeseries) failed — retry once
       if (tsResult.status === "rejected" && retryCount < 2) {
@@ -158,6 +160,9 @@ export function AdminStatistics({ categories }) {
           repaired: l.repaired ?? 0,
         }));
         setRepairQueueData(queueData);
+      }
+      if (regResult.status === "fulfilled" && regResult.value) {
+        setRegistrationData(regResult.value.data?.series || []);
       }
     } catch (err) {
       console.error("Failed to load stats:", err);
@@ -490,6 +495,41 @@ export function AdminStatistics({ categories }) {
                 />
                 <Area type="stepAfter" dataKey="size" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.15} strokeWidth={1.5} dot={false} />
               </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* User Registrations */}
+      {registrationData && registrationData.length > 0 && (
+        <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="registration-chart">
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-medium">User Registrations</h3>
+            <span className="text-xs text-muted-foreground">
+              Total: {registrationData[registrationData.length - 1]?.cumulative ?? 0}
+            </span>
+          </div>
+          <div className="h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={registrationData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                <XAxis
+                  dataKey="date" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))"
+                  tickFormatter={(d) => {
+                    const dt = new Date(d + "T00:00:00Z");
+                    return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                  }}
+                />
+                <YAxis yAxisId="cumulative" orientation="left" tick={{ fontSize: 10 }} stroke="#3b82f6" />
+                <YAxis yAxisId="daily" orientation="right" tick={{ fontSize: 10 }} stroke="#f59e0b" />
+                <RechartsTooltip
+                  contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }}
+                  labelFormatter={(d) => new Date(d + "T00:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+                />
+                <Area yAxisId="cumulative" type="monotone" dataKey="cumulative" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.1} strokeWidth={2} dot={false} name="Total users" />
+                <Bar yAxisId="daily" dataKey="daily" fill="#f59e0b" fillOpacity={0.6} name="New signups" />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         </div>
