@@ -1,4 +1,5 @@
 import "@/App.css";
+import "katex/dist/katex.min.css";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";

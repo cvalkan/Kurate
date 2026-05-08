@@ -5,6 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { RankBadge } from "./RankBadge";
 import { BookmarkButton } from "@/components/BookmarkButton";
 import { useBookmarks } from "@/contexts/BookmarkContext";
+import { LatexTitle } from "@/components/LatexTitle";
 
 const COLUMN_TIPS = {
   rank: "Position based on win-rate score (higher = better). Click to restore default ranking.",
@@ -227,7 +228,7 @@ export function LeaderboardTable({
                 return (
                   <>
                     <p className="text-xs sm:text-sm font-medium leading-tight truncate" title={paper.title}>
-                      {paper.title}
+                      <LatexTitle text={paper.title} />
                     </p>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <p className="text-[10px] sm:text-xs text-muted-foreground truncate">

@@ -13,6 +13,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useBookmarks } from "@/contexts/BookmarkContext";
 import { Button } from "@/components/ui/button";
+import { LatexTitle } from "@/components/LatexTitle";
 import { Link } from "react-router-dom";
 import katex from "katex";
 import "katex/dist/katex.min.css";
@@ -404,7 +405,7 @@ export default function PaperPage() {
       <div className="mb-8" data-testid="paper-header">
         <div className="flex items-start gap-2 mb-3">
           <h1 className="font-heading text-xl md:text-2xl font-semibold tracking-tight leading-tight flex-1">
-            {paper.title}
+            <LatexTitle text={paper.title} />
           </h1>
           <button onClick={() => toggleBookmark(paper.id)}
             className={`mt-1 p-1 rounded transition-colors ${bookmarkedIds.has(paper.id) ? "text-accent" : "text-muted-foreground/30 hover:text-muted-foreground"}`}
