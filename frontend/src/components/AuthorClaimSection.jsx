@@ -32,7 +32,7 @@ export function AuthorClaimSection({ paperId, paperAuthors, claims = [] }) {
 
   const connectOrcid = async () => {
     try {
-      const redirectUri = `${window.location.origin}/auth/orcid/callback`;
+      const redirectUri = `${window.location.origin.replace('://www.', '://')}/auth/orcid/callback`;
       const res = await axios.get(`${API}/api/claim/orcid/auth-url`, {
         params: { redirect_uri: redirectUri },
         withCredentials: true, headers: getAuthHeaders(),

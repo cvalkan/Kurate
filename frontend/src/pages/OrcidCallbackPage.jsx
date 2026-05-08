@@ -23,7 +23,7 @@ export default function OrcidCallbackPage() {
 
     const connectOrcid = async () => {
       try {
-        const redirectUri = `${window.location.origin}/auth/orcid/callback`;
+        const redirectUri = `${window.location.origin.replace('://www.', '://')}/auth/orcid/callback`;
         const res = await axios.post(
           `${API}/api/claim/orcid/connect`,
           { code, redirect_uri: redirectUri },
