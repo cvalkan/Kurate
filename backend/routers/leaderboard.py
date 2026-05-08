@@ -510,6 +510,10 @@ async def get_categories():
     for cat_id in active:
         name = CATEGORIES.get(cat_id) or ARXIV_TAXONOMY.get(cat_id) or cat_id
         cats.append({"id": cat_id, "name": name, "group": get_group(cat_id)})
+    # First 5 preserve admin order (tabs), rest sorted alphabetically by group then name
+    top5 = cats[:5]
+    rest = sorted(cats[5:], key=lambda c: (c["group"], c["name"]))
+    cats = top5 + rest
     return {
         "categories": cats,
         "default": active[0] if active else "cs.RO",
