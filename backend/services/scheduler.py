@@ -19,6 +19,72 @@ _processing_locks = {}  # Per-category locks
 _fetching_cats = set()  # Categories currently being fetched
 _wake_event: asyncio.Event = None  # Wake scheduler immediately on resume
 
+# --- Leader Election ---
+# In a multi-pod deployment, only the leader pod runs background scheduler loops.
+# Uses a MongoDB document with a TTL-like heartbeat. If the leader stops refreshing,
+# another pod can claim leadership after the lease expires.
+_LEADER_LEASE_SECONDS = 60  # Lease duration
+_LEADER_REFRESH_SECONDS = 20  # Heartbeat interval (must be < lease)
+_leader_id = f"pod-{uuid.uuid4().hex[:8]}-{os.getpid()}"
+_is_leader = False
+
+
+async def _try_acquire_leadership() -> bool:
+    """Try to become the scheduler leader. Returns True if this pod is the leader."""
+    global _is_leader
+    now = datetime.now(timezone.utc)
+    try:
+        # Try to claim: only succeed if no lock exists or the existing lock has expired
+        result = await db.scheduler_lock.find_one_and_update(
+            {"_id": "leader", "$or": [
+                {"expires_at": {"$lt": now}},
+                {"leader_id": _leader_id},
+            ]},
+            {"$set": {
+                "leader_id": _leader_id,
+                "expires_at": now + timedelta(seconds=_LEADER_LEASE_SECONDS),
+                "last_heartbeat": now,
+            }},
+            upsert=True,
+            return_document=True,
+        )
+        _is_leader = result and result.get("leader_id") == _leader_id
+    except Exception as e:
+        # If lock acquisition fails (e.g., duplicate key race), check if we already hold it
+        doc = await db.scheduler_lock.find_one({"_id": "leader"})
+        _is_leader = doc and doc.get("leader_id") == _leader_id
+        if not _is_leader:
+            logger.debug(f"Leader election: not leader ({e})")
+    return _is_leader
+
+
+async def _leader_heartbeat_loop():
+    """Background loop that refreshes the leader lease and yields leadership if this pod should stop."""
+    global _is_leader
+    while _scheduler_running:
+        try:
+            if _is_leader:
+                now = datetime.now(timezone.utc)
+                result = await db.scheduler_lock.find_one_and_update(
+                    {"_id": "leader", "leader_id": _leader_id},
+                    {"$set": {
+                        "expires_at": now + timedelta(seconds=_LEADER_LEASE_SECONDS),
+                        "last_heartbeat": now,
+                    }},
+                    return_document=True,
+                )
+                if not result or result.get("leader_id") != _leader_id:
+                    logger.warning(f"[leader] Lost leadership (another pod took over)")
+                    _is_leader = False
+            else:
+                # Try to acquire if not leader
+                acquired = await _try_acquire_leadership()
+                if acquired:
+                    logger.info(f"[leader] Acquired leadership: {_leader_id}")
+        except Exception as e:
+            logger.warning(f"[leader] Heartbeat error: {e}")
+        await asyncio.sleep(_LEADER_REFRESH_SECONDS)
+
 # Compare loop diagnostics — exposed via get_scheduler_diagnostics()
 _compare_loop_diag = {
     "last_cycle_at": None,
@@ -141,7 +207,10 @@ def get_scheduler_status(category: str = None) -> dict:
 
 def get_scheduler_diagnostics() -> dict:
     """Get compare loop diagnostics — exposes cycle tracking for debugging stalls."""
-    return dict(_compare_loop_diag)
+    diag = dict(_compare_loop_diag)
+    diag["leader_id"] = _leader_id
+    diag["is_leader"] = _is_leader
+    return diag
 
 
 
@@ -252,9 +321,35 @@ async def start_scheduler():
                 nested = settings.get(f"last_fetch_at_{parts[0]}")
                 if isinstance(nested, dict) and parts[1] in nested:
                     cat_status["last_fetch_at"] = nested[parts[1]]
-    logger.info("Background scheduler started")
-    asyncio.create_task(_fetch_loop())
-    asyncio.create_task(_compare_loop())
+
+    # Leader election: try to become leader before starting background loops
+    acquired = await _try_acquire_leadership()
+    logger.info(f"Scheduler leader election: leader={acquired}, id={_leader_id}")
+
+    # Always start the heartbeat loop (both leader and follower need it)
+    asyncio.create_task(_leader_heartbeat_loop())
+
+    if acquired:
+        logger.info("Background scheduler started (LEADER — running fetch + compare loops)")
+        asyncio.create_task(_fetch_loop())
+        asyncio.create_task(_compare_loop())
+    else:
+        logger.info("Background scheduler started (FOLLOWER — HTTP only, no background loops)")
+        # Start a watcher that promotes to leader if the current leader dies
+        asyncio.create_task(_follower_promotion_loop())
+
+
+async def _follower_promotion_loop():
+    """Follower pod watches for leader expiry and promotes itself if the leader dies."""
+    global _is_leader
+    while _scheduler_running:
+        await asyncio.sleep(_LEADER_REFRESH_SECONDS)
+        if _is_leader:
+            # Already promoted — start the loops and exit this watcher
+            logger.info("[leader] Follower promoted to LEADER — starting fetch + compare loops")
+            asyncio.create_task(_fetch_loop())
+            asyncio.create_task(_compare_loop())
+            return
 
 
 async def _fetch_loop():
@@ -518,24 +613,7 @@ async def _compare_loop_inner():
                     log_mem(f"Compare loop: {len(unmet_cats)} unmet categories: {unmet_cats}")
                     batch_size = min(max(settings.get("parallel_categories", 2), 1), 10)
                     all_failed = True  # Track if entire cycle produced 0 matches
-                    # Memory ceiling: if RSS is high, force GC and reduce batch size
-                    MEM_CEILING_MB = settings.get("mem_ceiling_mb", 1800)
                     for i in range(0, len(unmet_cats), batch_size):
-                        # Check memory before starting a new batch
-                        from core.memlog import get_mem_mb
-                        current_mb = get_mem_mb()
-                        if current_mb > MEM_CEILING_MB:
-                            force_gc()
-                            after_gc = get_mem_mb()
-                            log_mem(f"Memory ceiling hit ({current_mb:.0f}MB > {MEM_CEILING_MB}MB), GC freed {current_mb - after_gc:.0f}MB")
-                            if after_gc > MEM_CEILING_MB:
-                                # Still too high — sleep to let OS reclaim, then continue with batch_size=1
-                                log_mem(f"Still above ceiling ({after_gc:.0f}MB), backing off 30s")
-                                await asyncio.sleep(30)
-                                force_gc()
-                                batch_size = 1  # Reduce to sequential for rest of cycle
-
-                        batch = unmet_cats[i:i+batch_size]
                         tasks = [run_comparison_round(category=cat, skip_rerank=True) for cat in batch]
                         results = await asyncio.gather(*tasks, return_exceptions=True)
                         # Record per-category results for diagnostics
