@@ -614,6 +614,7 @@ async def _compare_loop_inner():
                     batch_size = min(max(settings.get("parallel_categories", 2), 1), 10)
                     all_failed = True  # Track if entire cycle produced 0 matches
                     for i in range(0, len(unmet_cats), batch_size):
+                        batch = unmet_cats[i:i+batch_size]
                         tasks = [run_comparison_round(category=cat, skip_rerank=True) for cat in batch]
                         results = await asyncio.gather(*tasks, return_exceptions=True)
                         # Record per-category results for diagnostics
