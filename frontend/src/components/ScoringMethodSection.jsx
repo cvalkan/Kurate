@@ -15,7 +15,9 @@ export function ScoringMethodSection({ category, scoringData, viewMode = "aggreg
   return (
     <div className="my-6" data-testid="scoring-method-section">
       <h3 className="text-base font-semibold mb-2 flex items-center gap-2">
+        <a href="#scoring-method" className="flex items-center gap-2 hover:text-accent transition-colors">
         <Activity className="h-4 w-4" /> Scoring Method Agreement
+        </a>
       </h3>
       <p className="text-xs text-muted-foreground mb-3">
         Spearman rank correlation between different scoring methods on the same set of papers ({data.n_papers?.toLocaleString()} papers).

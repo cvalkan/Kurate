@@ -180,8 +180,10 @@ export function SiRatingSection({ category, hidePwVsSi = false, siData: propData
     <div className="mb-10" data-testid="si-rating-section">
       <div className="mb-4 pb-2 border-b border-border">
         <h2 className="font-heading text-lg font-medium flex items-center gap-2">
+          <a href="#si-rating" className="flex items-center gap-2 hover:text-accent transition-colors">
           <TrendingUp className="h-4 w-4" />
           Single-Item Rating Analysis
+          </a>
         </h2>
         <p className="text-xs text-muted-foreground">
           Distribution of AI single-item ratings{hasData ? ` across ${data.total_papers} papers` : ""}.

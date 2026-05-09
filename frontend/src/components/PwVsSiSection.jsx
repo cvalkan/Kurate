@@ -150,8 +150,10 @@ export function PwVsSiSection({ category, siData: externalSiData, viewMode = "ag
       <div className="mb-3">
         <div className="flex items-center gap-3 flex-wrap">
           <h2 className="font-heading text-lg font-semibold tracking-tight flex items-center gap-2">
+            <a href="#pw-vs-si" className="flex items-center gap-2 hover:text-accent transition-colors">
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
             Pairwise Tournament vs Single-Item Ranking
+            </a>
           </h2>
           <div className="flex items-center gap-0.5 p-0.5 bg-secondary/50 rounded-md" data-testid="pw-vs-si-toggle">
             {[["full", "Full"], ["ctrl", "Controlled"]].map(([key, label]) => (

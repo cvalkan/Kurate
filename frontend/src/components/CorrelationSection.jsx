@@ -104,7 +104,7 @@ export function CorrelationSection({ sectionData, title, description, viewMode, 
   return (
     <div className="mb-10">
       <div className="mb-4 pb-2 border-b border-border">
-        <h2 className="font-heading text-lg font-medium">{title}</h2>
+        <h2 className="font-heading text-lg font-medium"><a href={`#${title.toLowerCase().replace(/\s+/g, '-')}`} className="hover:text-accent transition-colors">{title}</a></h2>
         <p className="text-xs text-muted-foreground">{description}</p>
       </div>
 

@@ -246,7 +246,9 @@ function ConvergenceChart({ curves, metric, setMetric, showTopK, setShowTopK, lo
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h2 className={`${compact ? "text-sm" : "text-lg"} font-semibold flex items-center gap-2`}>
+            <a href="#convergence" className="flex items-center gap-2 hover:text-accent transition-colors">
             <TrendingUp className="h-4 w-4" /> Ranking Convergence
+            </a>
           </h2>
           <p className="text-[10px] text-muted-foreground mt-0.5">
             {isLeaderboard

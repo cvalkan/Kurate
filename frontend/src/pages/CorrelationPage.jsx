@@ -150,34 +150,44 @@ export default function CorrelationPage() {
       )}
 
       <SectionBoundary>
+        <div id="tournament">
         <CorrelationSection
           sectionData={data}
           title="Standard Tournament"
           description='Full-text evaluation: "Which paper has higher scientific impact?"'
           viewMode={viewMode} setViewMode={setViewMode}
         />
+        </div>
       </SectionBoundary>
 
       <SectionBoundary>
-        <div className="mb-6">
+        <div id="convergence" className="mb-6">
           <LeaderboardConvergence category={category || null} />
         </div>
       </SectionBoundary>
 
       <SectionBoundary>
+        <div id="scoring-method">
         <ScoringMethodSection category={category || null} scoringData={data?.scoring_method} viewMode={viewMode} osUpdatedAt={data?.openskill_updated_at} />
+        </div>
       </SectionBoundary>
 
       <SectionBoundary>
+        <div id="pw-vs-si">
         <PwVsSiSection category={category || null} siData={siData} viewMode={viewMode} osUpdatedAt={data?.openskill_updated_at} coherenceData={data?.score_pairwise_coherence} />
+        </div>
       </SectionBoundary>
 
       <SectionBoundary>
+        <div id="inter-model">
         <InterModelSection pwData={data} siData={siData} viewMode={viewMode} osUpdatedAt={data?.openskill_updated_at} />
+        </div>
       </SectionBoundary>
 
       <SectionBoundary>
+        <div id="si-rating">
         <SiRatingSection category={category || null} hidePwVsSi siData={siData} />
+        </div>
       </SectionBoundary>
 
       <SectionBoundary>

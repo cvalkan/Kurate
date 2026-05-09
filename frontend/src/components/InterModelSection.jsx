@@ -45,8 +45,10 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
     <div className="mb-8" data-testid="inter-model-section">
       <div className="mb-3">
         <h2 className="font-heading text-lg font-semibold tracking-tight flex items-center gap-2">
+          <a href="#inter-model" className="flex items-center gap-2 hover:text-accent transition-colors">
           <GitCompare className="h-4 w-4 text-muted-foreground" />
           Inter-Model Agreement
+          </a>
         </h2>
         <p className="text-muted-foreground text-xs mt-1 max-w-2xl">
           How similarly do Claude Opus, GPT-5.2, and Gemini 3 Pro rank papers?
