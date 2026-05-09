@@ -16,17 +16,19 @@ from core.config import db, logger
 _OPUS_MERGE = {
     "anthropic/claude-opus-4-5-20251101": "anthropic/claude-opus",
     "anthropic/claude-opus-4-6": "anthropic/claude-opus",
+    "gemini/gemini-3.1-pro-preview": "gemini/gemini-3-pro-preview",
+    "gemini/gemini-3_1-pro-preview": "gemini/gemini-3-pro-preview",
 }
 _SHORT_NAMES = {
     "anthropic/claude-opus": "Claude Opus",
-    "gemini/gemini-3.1-pro-preview": "Gemini Pro",
     "gemini/gemini-3-pro-preview": "Gemini Pro",
+    "gemini/gemini-3_1-pro-preview": "Gemini Pro",
     "openai/gpt-5_2": "GPT-5.2",
 }
 _MODEL_KEY_MAP = {
     "claude": "anthropic/claude-opus",
     "gpt": "openai/gpt-5_2",
-    "gemini": "gemini/gemini-3.1-pro-preview",
+    "gemini": "gemini/gemini-3-pro-preview",
 }
 MIN_MATCHES = 5
 
@@ -58,6 +60,17 @@ def _corr_row(method, label, scores_dict, si_dict):
             "n": len(common)}
 
 
+# Merge model keys that should be treated as the same model
+_MODEL_KEY_MERGE = {
+    "gemini/gemini-3.1-pro-preview": "gemini/gemini-3-pro-preview",
+    "gemini/gemini-3_1-pro-preview": "gemini/gemini-3-pro-preview",
+}
+
+
+def _normalize_model_key(mk: str) -> str:
+    return _MODEL_KEY_MERGE.get(mk, mk)
+
+
 def _extract_model_data(papers):
     """Extract per-model stats from rankings docs.
     Returns (model_paper_stats, model_paper_ts, model_paper_os, model_keys, model_wr)."""
@@ -68,18 +81,33 @@ def _extract_model_data(papers):
         ms = p.get("model_stats")
         if ms and isinstance(ms, dict):
             for mk, stats in ms.items():
+                mk = _normalize_model_key(mk)
                 if isinstance(stats, dict) and stats.get("total") is not None:
-                    model_paper_stats.setdefault(mk, {})[p["paper_id"]] = stats
+                    existing = model_paper_stats.setdefault(mk, {}).get(p["paper_id"])
+                    if existing:
+                        # Merge: sum wins/losses/total
+                        existing["wins"] = existing.get("wins", 0) + stats.get("wins", 0)
+                        existing["losses"] = existing.get("losses", 0) + stats.get("losses", 0)
+                        existing["total"] = existing.get("total", 0) + stats.get("total", 0)
+                    else:
+                        model_paper_stats[mk][p["paper_id"]] = dict(stats)
         mts = p.get("model_ts")
         if mts and isinstance(mts, dict):
             for mk, ts_data in mts.items():
+                mk = _normalize_model_key(mk)
                 if isinstance(ts_data, dict) and ts_data.get("mu"):
-                    model_paper_ts.setdefault(mk, {})[p["paper_id"]] = ts_data["mu"]
+                    # Keep the latest (higher mu wins in case of merge)
+                    existing = model_paper_ts.setdefault(mk, {}).get(p["paper_id"])
+                    if not existing or ts_data["mu"] > existing:
+                        model_paper_ts[mk][p["paper_id"]] = ts_data["mu"]
         mos = p.get("model_os")
         if mos and isinstance(mos, dict):
             for mk, os_data in mos.items():
+                mk = _normalize_model_key(mk)
                 if isinstance(os_data, dict) and os_data.get("mu"):
-                    model_paper_os.setdefault(mk, {})[p["paper_id"]] = os_data["mu"]
+                    existing = model_paper_os.setdefault(mk, {}).get(p["paper_id"])
+                    if not existing or os_data["mu"] > existing:
+                        model_paper_os[mk][p["paper_id"]] = os_data["mu"]
 
     model_keys = sorted(mk for mk in model_paper_stats
                         if sum(s.get("total", 0) for s in model_paper_stats[mk].values()) > 0)
