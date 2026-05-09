@@ -716,12 +716,14 @@ async def get_paper_share_page(paper_id: str, request: Request):
 @router.get("/paper/{paper_id}/share/image.png")
 async def get_paper_share_image(paper_id: str):
     """Render a shareable badge image for any paper. Uses the paper's archive badge if it exists."""
-    _track_badge_event("badge_image_render", paper_id)
     await _install_fonts_if_needed()
 
     paper_doc = await db.papers.find_one({"id": paper_id}, {"_id": 0, "id": 1, "title": 1, "authors": 1, "categories": 1})
     if not paper_doc:
         raise HTTPException(404, "Paper not found")
+
+    primary_cat = (paper_doc.get("categories") or [None])[0]
+    _track_badge_event("badge_image_render", paper_id, primary_cat or "")
 
     primary_cat = paper_doc.get("categories", [None])[0]
     ranking = await db.rankings.find_one(

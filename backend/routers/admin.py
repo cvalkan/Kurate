@@ -2961,13 +2961,14 @@ async def get_llm_errors(hours: int = 24, limit: int = 100, provider: str = None
 
 @router.get("/system-logs", dependencies=[Depends(verify_admin)])
 async def get_system_logs(
-    level: str = None, label: str = None, hours: int = 24, limit: int = 2000,
+    level: str = None, label: str = None, event: str = None, hours: int = 24, limit: int = 2000,
 ):
     """Query persisted system logs (memory tracking, events). Stored 7 days.
     
     Returns all non-mem logs raw (repair_queue, slow_query, events — low volume).
     For mem logs: downsamples to 1 point per minute (max RSS per bucket) to keep
     chart resolution high without sending 100K+ entries to the browser.
+    Filters: level=mem|event, label=substring, event=badge_share_view|badge_image_render|...
     """
     from datetime import datetime, timezone, timedelta
     query = {"ts": {"$gte": datetime.now(timezone.utc) - timedelta(hours=hours)}}
@@ -2976,6 +2977,8 @@ async def get_system_logs(
     if label:
         import re as _re
         query["label"] = {"$regex": _re.escape(label), "$options": "i"}
+    if event:
+        query["event"] = {"$in": event.split(",")} if "," in event else event
 
     # Fetch non-mem logs raw (low volume: repair_queue, slow_query, events)
     non_mem_query = {**query, "level": {"$ne": "mem"}} if not level else query
