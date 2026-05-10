@@ -11,7 +11,7 @@ const MODEL_LABELS = {
   "claude-opus-4-6": "claude-opus-4.6",
   "claude-opus-4-5-20251101": "claude-opus-4.5",
   "gemini-3.1-pro-preview": "gemini-3.1",
-  "gemini-3-pro-preview": "gemini-3.1",
+  "gemini-3-pro-preview": "gemini-3",
 };
 
 function getLabel(model) {
