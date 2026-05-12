@@ -580,6 +580,14 @@ async def _deferred_startup():
         await db.leaderboard_archives.create_index([("category", 1), ("year", -1), ("week", -1)])
         await db.leaderboard_archives.create_index([("category", 1), ("year", -1), ("month", -1)])
         await db.leaderboard_archives.create_index([("category", 1), ("period_type", 1), ("year", -1)])
+        # Unique constraint to prevent duplicate archives from multi-pod race conditions
+        try:
+            await db.leaderboard_archives.create_index(
+                [("category", 1), ("period_type", 1), ("scoring_method", 1), ("year", 1), ("week", 1), ("month", 1)],
+                unique=True, name="archive_unique"
+            )
+        except Exception:
+            pass  # Index may already exist or conflict with duplicates — dedup handles it
         # Summarizer-ab task queue (for auto-resume on restart)
         await db.summarizer_ab_tasks.create_index([("dataset_id", 1), ("summarizer", 1)], unique=True)
         # Author verifications (ORCID claiming)
@@ -936,6 +944,7 @@ async def _staggered_startup_tasks():
     # Phase 2: Memory-heavy startup tasks (run SEQUENTIALLY with GC between each)
     _heavy_tasks = [
         "_startup_dedup",
+        "_startup_dedup_archives",
         "_startup_backfill_dedup_pair",
         "_startup_fix_dotted_model_keys",
         "_startup_seed_rankings",
@@ -1010,6 +1019,41 @@ async def _prewarm_summary_bias_caches():
             logger.info(f"Summary bias cache pre-warmed: {len(sb_cats)} categories")
     except Exception as e:
         logger.warning(f"Summary bias cache prewarm failed: {e}")
+
+
+
+async def _startup_dedup_archives():
+    """Remove duplicate archive snapshots caused by multi-pod race conditions.
+    Keeps the first (oldest) document for each (category, period_type, scoring_method, year, week, month) combo."""
+    flag = await db.settings.find_one({"key": "dedup_archives_v1"}, {"_id": 0})
+    if flag and flag.get("done"):
+        return
+
+    pipeline = [
+        {"$group": {
+            "_id": {"category": "$category", "period_type": "$period_type", "scoring_method": "$scoring_method",
+                    "year": "$year", "week": "$week", "month": "$month"},
+            "count": {"$sum": 1},
+            "ids": {"$push": "$_id"},
+        }},
+        {"$match": {"count": {"$gt": 1}}},
+    ]
+    removed = 0
+    async for group in db.leaderboard_archives.aggregate(pipeline):
+        # Keep the first, delete the rest
+        ids_to_delete = group["ids"][1:]
+        if ids_to_delete:
+            await db.leaderboard_archives.delete_many({"_id": {"$in": ids_to_delete}})
+            removed += len(ids_to_delete)
+
+    if removed:
+        logger.info(f"Archive dedup: removed {removed} duplicate snapshots")
+
+    await db.settings.update_one(
+        {"key": "dedup_archives_v1"},
+        {"$set": {"key": "dedup_archives_v1", "done": True, "removed": removed}},
+        upsert=True,
+    )
 
 
 async def _startup_dedup():
