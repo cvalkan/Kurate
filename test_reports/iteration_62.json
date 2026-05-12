@@ -1,0 +1,44 @@
+{
+  "summary": "Verified the 13 backend + frontend changes in the review request. Created /app/backend/tests/test_kurate_changes_iter62.py (12 tests). 11 passed, 1 skipped (db-explorer settings endpoint not exposed publicly — verified flag directly via mongo). Backend restart confirmed the previously-missing _startup_dedup_archives migration ran and persisted settings.dedup_archives_v1 = {done: true, removed: 0}. Frontend smoke: homepage (LeaderboardPage) renders cleanly with category tabs, 'New: Robotics, Inorganic Chemistry, Artificial Intelligence' badges, More dropdown, archive picker, etc. CorrelationPage renders and all 6 section anchors are present (#tournament, #convergence, #scoring-method, #pw-vs-si, #inter-model, #si-rating). Gemini model merge confirmed in UI label ('Gemini Pro' card showing '3.1 (and 3.0 until May 7, 2026)').",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "startup task _startup_dedup_archives", "issue": "Before this run, the live process (started before server.py mtime) had a stale module without _startup_dedup_archives in globals(); _staggered_startup_tasks silently skipped it (no warning logged because the for-loop only logs/runs when _g.get(name) is truthy). After a manual `supervisorctl restart backend`, the task ran and set settings.dedup_archives_v1 = {done: True, removed: 0}. Recommend: add an explicit `logger.warning(f'Startup task {name} not found in globals — skipped')` in services scheduler to make this discoverable; or import & call by reference instead of `_g.get(name)` so a missing function fails fast."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Global (all pages)", "issues": ["Content-Security-Policy blocks GTM, Reddit/Twitter ad pixels, Plausible, and Cloudflare beacon scripts. These produce console errors on every page load. Either remove the analytics tags or whitelist their origins in the CSP header (X-Content-Security-Policy in server.py). Pre-existing — not introduced by this PR."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_kurate_changes_iter62.py",
+    "/app/test_reports/pytest/iter62.xml"
+  ],
+  "action_items": [
+    "(Optional) Make _staggered_startup_tasks log a warning when a heavy task name is not found in globals() — this would have surfaced the stale-process bug immediately.",
+    "(Optional) Whitelist analytics origins in CSP header to remove repeated console errors on every page (or drop the unused trackers)."
+  ],
+  "critical_code_review_comments": [
+    "server.py _staggered_startup_tasks uses `_g.get(name)` and silently no-ops on missing functions. Add a warning log on miss to avoid quietly-skipped migrations.",
+    "_startup_dedup_archives is idempotent (guarded by settings.dedup_archives_v1.done) — good. The flag is also written even when removed=0, which is correct.",
+    "routers/leaderboard.py categories endpoint correctly: includes 'group' on each item, returns 'new_categories', and keeps the first 5 admin-ordered while sorting the tail by (group, name). Verified via API.",
+    "routers/admin.py /restart-history reads system_logs filtered by event in {shutdown_signal, server_shutdown, reload_reexec} — works and returns a list+count.",
+    "routers/admin.py /system-logs supports comma-separated event filter via `{'$in': event.split(',')}` — works for event=badge_image_render.",
+    "routers/suggestions.py /admin/users supports both offset/limit and page/limit — pagination verified to return different user sets across pages and a correct offset value.",
+    "routers/suggestions.py /admin/users/registrations returns {series, total} (NOT new_categories as the review request implies — confirm with main agent which endpoint was meant; the actual new_categories field is on /api/categories and /api/admin/arxiv-categories).",
+    "services/scheduler.py exposes leader_id and is_leader via /admin/scheduler-diagnostics — verified."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_kurate_changes_iter62.py"
+  ],
+  "success_rate": {"backend": "100% (11/11 executed, 1 intentional skip)", "frontend": "100% (smoke checks passed)"},
+  "test_credentials": "Admin password: papersumo2025 (POST /api/admin/login → X-Admin-Token header). Test user: test@kurate.org / test1234 (not exercised in this iteration).",
+  "seed_data_creation": "None. Used preview DB. dedup_archives_v1 flag was created by the startup migration after backend restart (removed=0 — no archive docs in preview).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Regression: `pytest /app/backend/tests/test_kurate_changes_iter62.py -v` (12 tests, ~3-6s). Covers: /api/health; /api/categories group+new_categories+sort order; admin login (200) and wrong password (401/403); /api/admin/scheduler-diagnostics leader_id/is_leader; /api/admin/restart-history; /api/admin/system-logs?event=badge_image_render; /api/admin/users/registrations; /api/admin/users pagination (page=1 vs page=2); /api/admin/categories/toggle-new idempotency (uses /api/admin/arxiv-categories for initial state); dedup_archives_v1 settings flag (skipped because no db-explorer route — verify via mongo: `db.settings.findOne({key:'dedup_archives_v1'})`). Frontend smoke: LeaderboardPage + CorrelationPage anchors (#tournament,#convergence,#scoring-method,#pw-vs-si,#inter-model,#si-rating).",
+  "rca of the issue": "Stale-process / silently-skipped-migration: the running backend pid 48 started at 20:44 but server.py was last modified at 20:47:42 (after process start). The in-memory module therefore did not contain _startup_dedup_archives even though the on-disk file did. `_staggered_startup_tasks` iterates a hard-coded list and looks up each function with `_g.get(name)`; when the function is missing it silently no-ops, so no error/warning was logged. After `sudo supervisorctl restart backend`, the migration ran and persisted settings.dedup_archives_v1={done:true, removed:0}. Mitigation: log a WARNING on missing globals; or convert the list to direct references so an undefined symbol raises NameError at import time."
+}
