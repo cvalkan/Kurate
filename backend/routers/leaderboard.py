@@ -1918,7 +1918,13 @@ async def create_archive_snapshot(category: str, period_type: str = "weekly"):
         "created_at": utc_now.isoformat(),
     }
 
-    await db.leaderboard_archives.insert_one(doc)
+    try:
+        await db.leaderboard_archives.insert_one(doc)
+    except Exception as e:
+        if "duplicate" in str(e).lower() or "E11000" in str(e):
+            logger.info(f"Archive snapshot already exists: {category} {label} (skipped duplicate)")
+            return None
+        raise
     logger.info(f"Archive snapshot created: {category} {label} ({len(frozen_entries)} papers)")
 
     from core.memlog import log_event
