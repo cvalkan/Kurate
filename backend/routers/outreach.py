@@ -555,12 +555,12 @@ async def post_tweet(body: PostTweetRequest):
         congrats_text = draft["draft_text"].split("\n\nhttps://")[0]  # Strip share URL from text
         tweet_id_to_quote = draft["tweet_url"].rstrip("/").split("/")[-1]
 
-        quote_result = client._post("/tw-v2/create-post-quote", {
-            "authToken": auth_token,
-            "text": congrats_text,
-            "attachmentUrl": draft["tweet_url"],
-            "proxy": proxy or None,
-        })
+        quote_result = client.post.create_post_quote(
+            auth_token=auth_token,
+            text=congrats_text,
+            attachment_url=draft["tweet_url"],
+            proxy=proxy,
+        )
 
         rd = quote_result if isinstance(quote_result, dict) else (quote_result.data if hasattr(quote_result, "data") else {})
         quote_tweet_id = rd.get("data", rd).get("metadata", {}).get("tweet_id", "") if isinstance(rd, dict) else ""
@@ -573,12 +573,12 @@ async def post_tweet(body: PostTweetRequest):
             import asyncio as _aio
             await _aio.sleep(2)  # Brief pause between posts
             try:
-                reply_result = client._post("/tw-v2/reply-post", {
-                    "authToken": auth_token,
-                    "text": draft["share_url"],
-                    "tweetId": str(quote_tweet_id),
-                    "proxy": proxy or None,
-                })
+                reply_result = client.post.reply_post(
+                    auth_token=auth_token,
+                    text=draft["share_url"],
+                    tweet_id=str(quote_tweet_id),
+                    proxy=proxy,
+                )
                 logger.info(f"[outreach] Badge reply posted under {quote_tweet_id}")
             except Exception as re:
                 logger.warning(f"[outreach] Badge reply failed (quote succeeded): {re}")
@@ -746,14 +746,14 @@ async def set_twitter_auth_token(body: TwitterAuthRequest):
         try:
             from tweetapi import TweetAPI
             client = TweetAPI(api_key=TWEETAPI_KEY)
-            r1 = client._post("/tw-v2/like-post", {
-                "authToken": new_tok, "tweetId": verify_tweet_id, "proxy": proxy or None,
-            })
+            r1 = client.interaction.favorite_post(
+                auth_token=new_tok, tweet_id=verify_tweet_id, proxy=proxy,
+            )
             # Best-effort restore; ignore failure (token is already proven valid)
             try:
-                client._post("/tw-v2/unlike-post", {
-                    "authToken": new_tok, "tweetId": verify_tweet_id, "proxy": proxy or None,
-                })
+                client.interaction.unfavorite_post(
+                    auth_token=new_tok, tweet_id=verify_tweet_id, proxy=proxy,
+                )
             except Exception:
                 pass
             ok = bool(r1.data if hasattr(r1, "data") else r1)
@@ -824,11 +824,11 @@ async def like_tweet(body: LikeTweetRequest):
     client = TweetAPI(api_key=TWEETAPI_KEY)
 
     try:
-        result = client._post("/tw-v2/like-post", {
-            "authToken": auth_token,
-            "tweetId": tweet_id,
-            "proxy": proxy or None,
-        })
+        result = client.interaction.favorite_post(
+            auth_token=auth_token,
+            tweet_id=tweet_id,
+            proxy=proxy,
+        )
         now = datetime.now(timezone.utc).isoformat()
         await db.tweet_likes.update_one(
             {"paper_id": body.paper_id, "tweet_id": tweet_id},
@@ -880,11 +880,11 @@ async def unlike_tweet(body: LikeTweetRequest):
     from tweetapi import TweetAPI
     client = TweetAPI(api_key=TWEETAPI_KEY)
     try:
-        client._post("/tw-v2/unlike-post", {
-            "authToken": auth_token,
-            "tweetId": tweet_id,
-            "proxy": proxy or None,
-        })
+        client.interaction.unfavorite_post(
+            auth_token=auth_token,
+            tweet_id=tweet_id,
+            proxy=proxy,
+        )
         await db.tweet_likes.update_one(
             {"paper_id": body.paper_id, "tweet_id": tweet_id},
             {"$set": {
@@ -968,11 +968,11 @@ async def follow_handle(body: FollowHandleRequest):
     from tweetapi import TweetAPI
     client = TweetAPI(api_key=TWEETAPI_KEY)
     try:
-        result = client._post("/tw-v2/follow", {
-            "authToken": auth_token,
-            "userId": user_id,
-            "proxy": proxy or None,
-        })
+        result = client.interaction.follow(
+            auth_token=auth_token,
+            user_id=user_id,
+            proxy=proxy,
+        )
         now = datetime.now(timezone.utc).isoformat()
         await db.tweet_follows.update_one(
             {"handle": handle},
@@ -1022,11 +1022,11 @@ async def unfollow_handle(body: FollowHandleRequest):
     from tweetapi import TweetAPI
     client = TweetAPI(api_key=TWEETAPI_KEY)
     try:
-        client._post("/tw-v2/unfollow", {
-            "authToken": auth_token,
-            "userId": user_id,
-            "proxy": proxy or None,
-        })
+        client.interaction.unfollow(
+            auth_token=auth_token,
+            user_id=user_id,
+            proxy=proxy,
+        )
         await db.tweet_follows.update_one(
             {"handle": handle},
             {"$set": {
