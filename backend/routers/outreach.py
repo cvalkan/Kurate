@@ -12,6 +12,7 @@ from routers.admin import verify_admin
 router = APIRouter(prefix="/api/admin/outreach", tags=["admin-outreach"])
 
 TWEETAPI_KEY = os.environ.get("TWEETAPI_KEY", "")
+TWITTER_PROXY = os.environ.get("TWITTER_PROXY") or os.environ.get("TWITTER PROXY") or ""
 
 
 class DiscoverRequest(BaseModel):
@@ -534,7 +535,7 @@ async def post_tweet(body: PostTweetRequest):
         draft["draft_text"] = edited
 
     auth_token, _src = await _get_twitter_auth_token()
-    proxy = os.environ.get("TWITTER_PROXY", "")
+    proxy = TWITTER_PROXY
     if not auth_token:
         raise HTTPException(500, "No X auth token configured (set via Admin → Outreach → X Auth, or TWITTER_AUTH_TOKEN env)")
 
@@ -724,7 +725,7 @@ async def set_twitter_auth_token(body: TwitterAuthRequest):
         raise HTTPException(400, "auth_token must be a 20+ char alphanumeric string")
 
     now = datetime.now(timezone.utc).isoformat()
-    proxy = os.environ.get("TWITTER_PROXY", "") or None
+    proxy = TWITTER_PROXY or None
 
     verification: dict = {"verified": False, "error": None}
     if body.verify:
@@ -803,7 +804,7 @@ async def like_tweet(body: LikeTweetRequest):
         return {"status": "already_liked", "tweet_id": tweet_id, "liked_at": existing.get("liked_at")}
 
     auth_token, _src = await _get_twitter_auth_token()
-    proxy = os.environ.get("TWITTER_PROXY", "")
+    proxy = TWITTER_PROXY
     if not auth_token:
         raise HTTPException(500, "No X auth token configured (set via Admin → Outreach → X Auth, or TWITTER_AUTH_TOKEN env)")
     if not TWEETAPI_KEY:
@@ -863,7 +864,7 @@ async def unlike_tweet(body: LikeTweetRequest):
         raise HTTPException(400, f"Could not parse tweet_id from URL: {body.tweet_url}")
 
     auth_token, _src = await _get_twitter_auth_token()
-    proxy = os.environ.get("TWITTER_PROXY", "")
+    proxy = TWITTER_PROXY
     if not auth_token:
         raise HTTPException(500, "No X auth token configured (set via Admin → Outreach → X Auth, or TWITTER_AUTH_TOKEN env)")
 
@@ -947,7 +948,7 @@ async def follow_handle(body: FollowHandleRequest):
                 "followed_at": existing.get("followed_at")}
 
     auth_token, _src = await _get_twitter_auth_token()
-    proxy = os.environ.get("TWITTER_PROXY", "")
+    proxy = TWITTER_PROXY
     if not auth_token:
         raise HTTPException(500, "No X auth token configured")
     if not TWEETAPI_KEY:
@@ -1004,7 +1005,7 @@ async def unfollow_handle(body: FollowHandleRequest):
         raise HTTPException(400, "handle is required")
 
     auth_token, _src = await _get_twitter_auth_token()
-    proxy = os.environ.get("TWITTER_PROXY", "")
+    proxy = TWITTER_PROXY
     if not auth_token:
         raise HTTPException(500, "No X auth token configured")
 
