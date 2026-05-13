@@ -12,7 +12,15 @@ from routers.admin import verify_admin
 router = APIRouter(prefix="/api/admin/outreach", tags=["admin-outreach"])
 
 TWEETAPI_KEY = os.environ.get("TWEETAPI_KEY", "")
-TWITTER_PROXY = os.environ.get("TWITTER_PROXY") or os.environ.get("TWITTER PROXY") or ""
+TWITTER_PROXY = os.environ.get("TWITTER_PROXY") or os.environ.get("TWITTER PROXY") or os.environ.get("TWITTER_PROXY_URL") or os.environ.get("TWITTERPROXY") or ""
+# Debug: log which variant was found
+_proxy_source = (
+    "TWITTER_PROXY" if os.environ.get("TWITTER_PROXY") else
+    "TWITTER PROXY" if os.environ.get("TWITTER PROXY") else
+    "TWITTER_PROXY_URL" if os.environ.get("TWITTER_PROXY_URL") else
+    "TWITTERPROXY" if os.environ.get("TWITTERPROXY") else
+    "none"
+)
 
 
 class DiscoverRequest(BaseModel):
@@ -713,6 +721,7 @@ async def twitter_auth_status():
         "updated_at": (doc or {}).get("updated_at"),
         "last_verified_at": (doc or {}).get("last_verified_at"),
         "proxy_configured": bool(TWITTER_PROXY),
+        "proxy_source": _proxy_source,
         "proxy_masked": TWITTER_PROXY[:15] + "..." if len(TWITTER_PROXY) > 15 else ("(empty)" if not TWITTER_PROXY else TWITTER_PROXY),
         "tweetapi_key_configured": bool(TWEETAPI_KEY),
     }
