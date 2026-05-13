@@ -701,6 +701,116 @@ def _mask_token(tok: str) -> str:
     return f"{tok[:4]}…{tok[-4:]}"
 
 
+@router.post("/twitter-pipeline-test", dependencies=[Depends(verify_admin)])
+async def twitter_pipeline_test():
+    """Diagnostic: runs the full tweet pipeline (like → quote → reply → delete) and returns detailed results.
+    Tests every operation with full error capture."""
+    import tweetapi as _tw_mod
+    from tweetapi import TweetAPI
+
+    results = {
+        "tweetapi_version": getattr(_tw_mod, "__version__", "unknown"),
+        "proxy": TWITTER_PROXY[:15] + "..." if TWITTER_PROXY else "(empty)",
+        "proxy_source": _proxy_source,
+        "tweetapi_key": bool(TWEETAPI_KEY),
+        "tests": {},
+    }
+
+    auth_token, _src = await _get_twitter_auth_token()
+    results["auth_token_source"] = _src
+    results["auth_token_length"] = len(auth_token)
+    if not auth_token:
+        results["error"] = "No auth token configured"
+        return results
+
+    client = TweetAPI(api_key=TWEETAPI_KEY)
+    test_tweet = os.environ.get("TWITTER_VERIFY_TWEET_ID") or "2046687272339452032"
+    proxy = TWITTER_PROXY
+
+    # Monkey-patch to capture exact URL + response
+    import requests as _req
+    orig_session_send = _req.Session.send
+    call_log = []
+    def patched_send(self, prepared, **kwargs):
+        resp = orig_session_send(self, prepared, **kwargs)
+        call_log.append({
+            "method": prepared.method,
+            "url": prepared.url,
+            "status": resp.status_code,
+            "body": resp.text[:300],
+        })
+        return resp
+    _req.Session.send = patched_send
+
+    # Test 1: Like
+    call_log.clear()
+    try:
+        r = client.interaction.favorite_post(auth_token=auth_token, tweet_id=test_tweet, proxy=proxy)
+        results["tests"]["like"] = {"status": "ok", "response": str(r)[:200], "http": call_log.copy()}
+    except Exception as e:
+        results["tests"]["like"] = {"status": "fail", "error": str(e)[:200], "http": call_log.copy()}
+
+    # Test 2: Unlike
+    call_log.clear()
+    try:
+        r = client.interaction.unfavorite_post(auth_token=auth_token, tweet_id=test_tweet, proxy=proxy)
+        results["tests"]["unlike"] = {"status": "ok", "response": str(r)[:200], "http": call_log.copy()}
+    except Exception as e:
+        results["tests"]["unlike"] = {"status": "fail", "error": str(e)[:200], "http": call_log.copy()}
+
+    # Test 3: Quote tweet
+    call_log.clear()
+    quote_tid = None
+    try:
+        r = client.post.create_post_quote(
+            auth_token=auth_token,
+            text="Pipeline test - will be deleted",
+            attachment_url=f"https://x.com/KurateAI/status/{test_tweet}",
+            proxy=proxy,
+        )
+        rd = r if isinstance(r, dict) else (r.data if hasattr(r, "data") else {})
+        quote_tid = rd.get("data", rd).get("metadata", {}).get("tweet_id", "") if isinstance(rd, dict) else ""
+        results["tests"]["quote"] = {"status": "ok", "tweet_id": quote_tid, "http": call_log.copy()}
+    except Exception as e:
+        results["tests"]["quote"] = {"status": "fail", "error": str(e)[:200], "http": call_log.copy()}
+
+    # Test 4: Reply (only if quote succeeded)
+    if quote_tid:
+        import asyncio
+        await asyncio.sleep(2)
+        call_log.clear()
+        try:
+            r = client.post.reply_post(
+                auth_token=auth_token,
+                text="Reply test",
+                tweet_id=str(quote_tid),
+                proxy=proxy,
+            )
+            rd = r if isinstance(r, dict) else (r.data if hasattr(r, "data") else {})
+            reply_tid = rd.get("data", rd).get("metadata", {}).get("tweet_id", "") if isinstance(rd, dict) else ""
+            results["tests"]["reply"] = {"status": "ok", "tweet_id": reply_tid, "http": call_log.copy()}
+            # Delete reply
+            if reply_tid:
+                try:
+                    client.post.delete_post(auth_token=auth_token, tweet_id=reply_tid, proxy=proxy)
+                except: pass
+        except Exception as e:
+            results["tests"]["reply"] = {"status": "fail", "error": str(e)[:200], "http": call_log.copy()}
+
+        # Delete quote
+        call_log.clear()
+        try:
+            client.post.delete_post(auth_token=auth_token, tweet_id=quote_tid, proxy=proxy)
+            results["tests"]["delete"] = {"status": "ok", "http": call_log.copy()}
+        except Exception as e:
+            results["tests"]["delete"] = {"status": "fail", "error": str(e)[:200], "http": call_log.copy()}
+
+    # Restore
+    _req.Session.send = orig_session_send
+    return results
+
+
+
 class TwitterAuthRequest(BaseModel):
     auth_token: str
     verify: bool = True
