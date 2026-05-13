@@ -59,7 +59,7 @@ export default function MethodologyPage() {
 
       <div>
         <Step number={1} icon={Search} title="Preprint Discovery">
-          <p>The system fetches the latest preprints from the arXiv API across {catList || "Robotics, Distributed Computing, Economics, Computational Physics, Biomolecules"} and downloads the full PDF for each.</p>
+          <p>The system fetches the latest preprints from the arXiv API across {catList || "Robotics, Distributed Computing, Economics, Computational Physics, Biomolecules"} and downloads the full PDF for each. When a new category is added, the system fetches all papers published in the last 30 days; after that, it fetches incrementally from the most recent paper onward.</p>
         </Step>
 
         <Step number={2} icon={Sparkles} title="AI Impact Assessment & Rating">
