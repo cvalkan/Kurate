@@ -712,6 +712,9 @@ async def twitter_auth_status():
         "length": len(tok),
         "updated_at": (doc or {}).get("updated_at"),
         "last_verified_at": (doc or {}).get("last_verified_at"),
+        "proxy_configured": bool(TWITTER_PROXY),
+        "proxy_masked": TWITTER_PROXY[:15] + "..." if len(TWITTER_PROXY) > 15 else ("(empty)" if not TWITTER_PROXY else TWITTER_PROXY),
+        "tweetapi_key_configured": bool(TWEETAPI_KEY),
     }
 
 
