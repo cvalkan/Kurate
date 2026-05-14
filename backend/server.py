@@ -509,6 +509,8 @@ async def _retry_missing_summaries():
                 logger.warning(f"[retry-summaries] {cat} failed: {e}")
 
         log_mem("[retry-summaries] Done")
+        from core.memlog import force_gc
+        force_gc("[retry-summaries] cleanup")
     except Exception as e:
         import traceback
         logger.error(f"[retry-summaries] CRASHED: {e}")
@@ -1002,6 +1004,11 @@ async def _staggered_startup_tasks():
     # Summary bias caches are lightweight and safe to prewarm.
     asyncio.create_task(_prewarm_summary_bias_caches())
     asyncio.create_task(_prewarm_summarizer_ratings())
+
+    # Final GC after all startup tasks — critical for follower pod which
+    # won't run scheduler loops that trigger periodic GC
+    await asyncio.sleep(5)
+    force_gc("staggered startup complete")
 
 
 
