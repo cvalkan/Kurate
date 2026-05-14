@@ -468,7 +468,7 @@ export function AdminStatistics({ categories }) {
                 {/* Restart markers — different styles per type, colored by pod */}
                 {(() => {
                   const pods = [...new Set(restartEvents.map(e => e.pod_id).filter(Boolean))];
-                  const podColors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"];
+                  const podColors = ["#f59e0b", "#3b82f6", "#10b981", "#8b5cf6", "#ef4444"];
                   const podColor = (pod) => podColors[pods.indexOf(pod) % podColors.length] || "#f59e0b";
                   return <>
                     {restartEvents.filter(e => e.event === "server_started" || e.label === "Server started").map((d, i) => (
@@ -487,7 +487,7 @@ export function AdminStatistics({ categories }) {
                 {/* Per-pod memory lines — same colors as restart markers */}
                 {(() => {
                   const pods = [...new Set(memoryData.map(d => d.pod_id).filter(Boolean))];
-                  const podColors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"];
+                  const podColors = ["#f59e0b", "#3b82f6", "#10b981", "#8b5cf6", "#ef4444"];
                   if (pods.length <= 1) {
                     return <Area type="stepAfter" dataKey="rss" stroke={podColors[0]} fill="url(#memGrad)" strokeWidth={1.5} dot={false} connectNulls={false} />;
                   }
@@ -509,7 +509,7 @@ export function AdminStatistics({ categories }) {
             <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dotted border-foreground/60" /> Unknown kill</span>
             {(() => {
               const pods = [...new Set(memoryData.map(d => d.pod_id).filter(p => p && p !== "default"))];
-              const podColors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"];
+              const podColors = ["#f59e0b", "#3b82f6", "#10b981", "#8b5cf6", "#ef4444"];
               if (pods.length <= 1) return null;
               return <>
                 <span className="ml-2 border-l pl-2 border-border">Pods:</span>
