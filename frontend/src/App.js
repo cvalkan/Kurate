@@ -25,6 +25,7 @@ import BookmarksPage from "@/pages/BookmarksPage";
 import ReadingListPage from "@/pages/ReadingListPage";
 import ScoreCardTest from "@/pages/ScoreCardTest";
 import NewBadgeTest from "@/pages/NewBadgeTest";
+import SimulatedMemChart from "@/pages/SimulatedMemChart";
 import PrivacyPage from "@/pages/PrivacyPage";
 import ImpressumPage from "@/pages/ImpressumPage";
 import StartRedirect from "@/pages/StartRedirect";
@@ -54,6 +55,7 @@ function AppRouter() {
           <Route path="/admin" element={<AdminLoginPage />} />
           <Route path="/test/score-card" element={<ScoreCardTest />} />
           <Route path="/test/new-badge" element={<NewBadgeTest />} />
+          <Route path="/test/sim-mem" element={<SimulatedMemChart />} />
           <Route path="/admin/dashboard" element={<AdminPage />} />
           <Route path="/admin/outreach" element={<OutreachPage />} />
           <Route path="/admin/outreach/activity" element={<OutreachActivityPage />} />
