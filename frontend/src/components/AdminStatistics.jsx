@@ -522,14 +522,25 @@ export function AdminStatistics({ categories }) {
               const pods = [...new Set(memoryData.map(d => d.pod_id).filter(p => p && p !== "__legacy__"))];
               const realColors = ["#ef4444", "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b"];
               if (pods.length === 0) return null;
+              // Detect leader: the pod with the most log entries (runs scheduler loops)
+              const podCounts = {};
+              for (const d of memoryData) {
+                if (d.pod_id && d.pod_id !== "__legacy__") podCounts[d.pod_id] = (podCounts[d.pod_id] || 0) + 1;
+              }
+              const leader = Object.entries(podCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
               return <>
                 <span className="ml-2 border-l pl-2 border-border">Pods:</span>
-                {pods.map((pod, idx) => (
-                  <span key={pod} className="flex items-center gap-1">
-                    <span className="w-3 h-0.5" style={{ backgroundColor: realColors[idx % realColors.length] }} />
-                    {pod.length > 15 ? pod.slice(0, 15) + "..." : pod}
-                  </span>
-                ))}
+                {pods.map((pod, idx) => {
+                  const isLeader = pod === leader;
+                  const role = isLeader ? "Leader" : "Follower";
+                  const desc = isLeader ? "scheduler, comparisons, fetching" : "HTTP traffic only";
+                  return (
+                    <span key={pod} className="flex items-center gap-1" title={`${pod} — ${desc}`}>
+                      <span className="w-3 h-0.5" style={{ backgroundColor: realColors[idx % realColors.length] }} />
+                      {role} <span className="opacity-50">({desc})</span>
+                    </span>
+                  );
+                })}
               </>;
             })()}
           </div>
