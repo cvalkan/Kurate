@@ -84,6 +84,7 @@ def set_pod_id(pod_id: str):
 # Set pod_id immediately from process info (before scheduler starts)
 # Will be updated later with the scheduler's leader_id if available
 _pod_id = f"pod-{os.getpid()}"
+logger.info(f"[memlog] pod_id initialized to: {_pod_id}")
 
 
 def _persist(level: str, label: str, data: dict):
@@ -95,9 +96,8 @@ def _persist(level: str, label: str, data: dict):
             "level": level,
             "label": label,
             **data,
+            "pod_id": _pod_id,  # Always include, even if None
         }
-        if _pod_id:
-            doc["pod_id"] = _pod_id
         import asyncio
         try:
             loop = asyncio.get_running_loop()
