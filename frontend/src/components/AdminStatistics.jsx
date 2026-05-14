@@ -106,6 +106,7 @@ export function AdminStatistics({ categories }) {
   const [memoryData, setMemoryData] = useState(null);
   const [repairQueueData, setRepairQueueData] = useState(null);
   const [registrationData, setRegistrationData] = useState(null);
+  const [restartEvents, setRestartEvents] = useState([]);
   const [memHours, setMemHours] = useState(24);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState("cumulative"); // "daily" | "cumulative"
@@ -145,13 +146,40 @@ export function AdminStatistics({ categories }) {
       if (memResult.status === "fulfilled" && memResult.value) {
         const allLogs = memResult.value.data?.logs || [];
         const memLogs = allLogs.filter(l => l.level === "mem" && l.rss_mb);
-        const chartData = memLogs.sort((a, b) => a.ts.localeCompare(b.ts)).map(l => ({
-          ts: l.ts,
-          epoch: new Date(l.ts.endsWith("Z") ? l.ts : l.ts + "Z").getTime(),
-          rss: l.rss_mb,
-          label: l.label,
-        }));
+        // Group by pod_id for per-pod lines
+        const podSet = new Set();
+        const chartData = memLogs.sort((a, b) => a.ts.localeCompare(b.ts)).map(l => {
+          const pod = l.pod_id || "default";
+          podSet.add(pod);
+          return {
+            ts: l.ts,
+            epoch: new Date(l.ts.endsWith("Z") ? l.ts : l.ts + "Z").getTime(),
+            rss: l.rss_mb,
+            label: l.label,
+            pod_id: pod,
+            [`rss_${pod}`]: l.rss_mb,
+          };
+        });
+        // Fill missing pod values with null so Recharts draws separate lines
+        const pods = [...podSet];
+        for (const d of chartData) {
+          for (const p of pods) {
+            if (d[`rss_${p}`] === undefined) d[`rss_${p}`] = null;
+          }
+        }
         setMemoryData(chartData);
+        // Extract restart events with pod and signal info
+        const restartEvents = allLogs
+          .filter(l => l.label === "Server started" || l.event === "shutdown_signal" || l.event === "server_shutdown")
+          .map(l => ({
+            ts: l.ts,
+            epoch: new Date(l.ts.endsWith("Z") ? l.ts : l.ts + "Z").getTime(),
+            pod_id: l.pod_id || "default",
+            event: l.event || (l.label === "Server started" ? "server_started" : "unknown"),
+            signal: l.signal,
+            reason: l.reason,
+          }));
+        setRestartEvents(restartEvents);
         const queueLogs = allLogs.filter(l => l.level === "repair_queue");
         const queueData = queueLogs.sort((a, b) => a.ts.localeCompare(b.ts)).map(l => ({
           ts: l.ts,
@@ -429,6 +457,7 @@ export function AdminStatistics({ categories }) {
                       <div className="rounded-lg border border-border bg-popover p-2 shadow-lg text-xs">
                         <div className="font-medium">{d?.ts ? new Date(d.ts.endsWith("Z") ? d.ts : d.ts + "Z").toLocaleString("en-US", { timeZone: "Europe/Berlin", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) + " CET" : ""}</div>
                         <div className="text-muted-foreground mt-0.5">{d?.label}</div>
+                        {d?.pod_id && d.pod_id !== "default" && <div className="text-muted-foreground">Pod: {d.pod_id}</div>}
                         <div className="font-mono mt-1" style={{ color: d?.rss > 1536 ? "#ef4444" : d?.rss > 1024 ? "#f59e0b" : "#10b981" }}>
                           {Math.round(d?.rss)}MB
                         </div>
@@ -436,20 +465,52 @@ export function AdminStatistics({ categories }) {
                     );
                   }}
                 />
-                {/* Restart markers */}
-                {memoryData.filter(d => d.label === "Server started").map((d, i) => (
-                  <ReferenceLine key={`restart-${i}`} x={d.epoch} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1} opacity={0.7} />
+                {/* Restart markers — different styles per type */}
+                {restartEvents.filter(e => e.event === "server_started" || e.label === "Server started").map((d, i) => (
+                  <ReferenceLine key={`restart-${i}`} x={d.epoch} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1} opacity={0.6} />
+                ))}
+                {restartEvents.filter(e => e.event === "shutdown_signal" && e.signal === "SIGTERM").map((d, i) => (
+                  <ReferenceLine key={`sigterm-${i}`} x={d.epoch} stroke="#3b82f6" strokeDasharray="8 3" strokeWidth={1.5} opacity={0.8} />
+                ))}
+                {restartEvents.filter(e => e.event === "server_shutdown" && (!e.reason || e.reason === "unknown")).map((d, i) => (
+                  <ReferenceLine key={`oom-${i}`} x={d.epoch} stroke="#ef4444" strokeDasharray="2 2" strokeWidth={2} opacity={0.8} />
                 ))}
                 {/* Danger zone */}
                 <Area type="monotone" dataKey={() => 4096} stroke="none" fill="#ef4444" fillOpacity={0.05} />
-                <Area type="stepAfter" dataKey="rss" stroke="#ef4444" fill="url(#memGrad)" strokeWidth={1.5} dot={false} />
+                {/* Per-pod memory lines */}
+                {(() => {
+                  const pods = [...new Set(memoryData.map(d => d.pod_id).filter(Boolean))];
+                  const podColors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"];
+                  if (pods.length <= 1) {
+                    return <Area type="stepAfter" dataKey="rss" stroke="#ef4444" fill="url(#memGrad)" strokeWidth={1.5} dot={false} connectNulls={false} />;
+                  }
+                  return pods.map((pod, idx) => (
+                    <Area key={pod} type="stepAfter" dataKey={`rss_${pod}`} stroke={podColors[idx % podColors.length]}
+                      fill={podColors[idx % podColors.length]} fillOpacity={0.05} strokeWidth={1.5} dot={false} connectNulls={false}
+                      name={pod.length > 12 ? pod.slice(0, 12) + "..." : pod} />
+                  ));
+                })()}
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex items-center gap-4 mt-2 text-[10px] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-4 mt-2 text-[10px] text-muted-foreground">
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> &lt;1GB Safe</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" /> 1-1.5GB Warning</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" /> &gt;1.5GB Danger</span>
+            <span className="flex items-center gap-1 ml-2 border-l pl-2 border-border"><span className="w-4 border-t-2 border-dashed border-amber-500" /> Restart</span>
+            <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dashed border-blue-500" /> SIGTERM caught</span>
+            <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dotted border-red-500" /> Unknown kill</span>
+            {(() => {
+              const pods = [...new Set(memoryData.map(d => d.pod_id).filter(p => p && p !== "default"))];
+              const podColors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"];
+              if (pods.length <= 1) return null;
+              return pods.map((pod, idx) => (
+                <span key={pod} className="flex items-center gap-1 ml-1">
+                  <span className="w-3 h-0.5" style={{ backgroundColor: podColors[idx % podColors.length] }} />
+                  {pod.length > 15 ? pod.slice(0, 15) + "..." : pod}
+                </span>
+              ));
+            })()}
           </div>
         </div>
       )}
