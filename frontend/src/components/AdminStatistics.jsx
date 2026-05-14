@@ -465,24 +465,31 @@ export function AdminStatistics({ categories }) {
                     );
                   }}
                 />
-                {/* Restart markers — different styles per type */}
-                {restartEvents.filter(e => e.event === "server_started" || e.label === "Server started").map((d, i) => (
-                  <ReferenceLine key={`restart-${i}`} x={d.epoch} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1} opacity={0.6} />
-                ))}
-                {restartEvents.filter(e => e.event === "shutdown_signal" && e.signal === "SIGTERM").map((d, i) => (
-                  <ReferenceLine key={`sigterm-${i}`} x={d.epoch} stroke="#3b82f6" strokeDasharray="8 3" strokeWidth={1.5} opacity={0.8} />
-                ))}
-                {restartEvents.filter(e => e.event === "server_shutdown" && (!e.reason || e.reason === "unknown")).map((d, i) => (
-                  <ReferenceLine key={`oom-${i}`} x={d.epoch} stroke="#ef4444" strokeDasharray="2 2" strokeWidth={2} opacity={0.8} />
-                ))}
+                {/* Restart markers — different styles per type, colored by pod */}
+                {(() => {
+                  const pods = [...new Set(restartEvents.map(e => e.pod_id).filter(Boolean))];
+                  const podColors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"];
+                  const podColor = (pod) => podColors[pods.indexOf(pod) % podColors.length] || "#f59e0b";
+                  return <>
+                    {restartEvents.filter(e => e.event === "server_started" || e.label === "Server started").map((d, i) => (
+                      <ReferenceLine key={`restart-${i}`} x={d.epoch} stroke={podColor(d.pod_id)} strokeDasharray="4 4" strokeWidth={1} opacity={0.6} />
+                    ))}
+                    {restartEvents.filter(e => e.event === "shutdown_signal" && e.signal === "SIGTERM").map((d, i) => (
+                      <ReferenceLine key={`sigterm-${i}`} x={d.epoch} stroke={podColor(d.pod_id)} strokeDasharray="8 3" strokeWidth={1.5} opacity={0.8} />
+                    ))}
+                    {restartEvents.filter(e => e.event === "server_shutdown" && (!e.reason || e.reason === "unknown")).map((d, i) => (
+                      <ReferenceLine key={`oom-${i}`} x={d.epoch} stroke={podColor(d.pod_id)} strokeDasharray="2 2" strokeWidth={2} opacity={0.8} />
+                    ))}
+                  </>;
+                })()}
                 {/* Danger zone */}
                 <Area type="monotone" dataKey={() => 4096} stroke="none" fill="#ef4444" fillOpacity={0.05} />
-                {/* Per-pod memory lines */}
+                {/* Per-pod memory lines — same colors as restart markers */}
                 {(() => {
                   const pods = [...new Set(memoryData.map(d => d.pod_id).filter(Boolean))];
                   const podColors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"];
                   if (pods.length <= 1) {
-                    return <Area type="stepAfter" dataKey="rss" stroke="#ef4444" fill="url(#memGrad)" strokeWidth={1.5} dot={false} connectNulls={false} />;
+                    return <Area type="stepAfter" dataKey="rss" stroke={podColors[0]} fill="url(#memGrad)" strokeWidth={1.5} dot={false} connectNulls={false} />;
                   }
                   return pods.map((pod, idx) => (
                     <Area key={pod} type="stepAfter" dataKey={`rss_${pod}`} stroke={podColors[idx % podColors.length]}
@@ -497,19 +504,22 @@ export function AdminStatistics({ categories }) {
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> &lt;1GB Safe</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" /> 1-1.5GB Warning</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" /> &gt;1.5GB Danger</span>
-            <span className="flex items-center gap-1 ml-2 border-l pl-2 border-border"><span className="w-4 border-t-2 border-dashed border-amber-500" /> Restart</span>
-            <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dashed border-blue-500" /> SIGTERM caught</span>
-            <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dotted border-red-500" /> Unknown kill</span>
+            <span className="flex items-center gap-1 ml-2 border-l pl-2 border-border"><span className="w-4 border-t border-dashed border-foreground/40" /> Restart</span>
+            <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dashed border-foreground/60" /> SIGTERM</span>
+            <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dotted border-foreground/60" /> Unknown kill</span>
             {(() => {
               const pods = [...new Set(memoryData.map(d => d.pod_id).filter(p => p && p !== "default"))];
               const podColors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"];
               if (pods.length <= 1) return null;
-              return pods.map((pod, idx) => (
-                <span key={pod} className="flex items-center gap-1 ml-1">
-                  <span className="w-3 h-0.5" style={{ backgroundColor: podColors[idx % podColors.length] }} />
-                  {pod.length > 15 ? pod.slice(0, 15) + "..." : pod}
-                </span>
-              ));
+              return <>
+                <span className="ml-2 border-l pl-2 border-border">Pods:</span>
+                {pods.map((pod, idx) => (
+                  <span key={pod} className="flex items-center gap-1">
+                    <span className="w-3 h-0.5" style={{ backgroundColor: podColors[idx % podColors.length] }} />
+                    {pod.length > 15 ? pod.slice(0, 15) + "..." : pod}
+                  </span>
+                ))}
+              </>;
             })()}
           </div>
         </div>
