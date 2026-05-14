@@ -146,49 +146,19 @@ export function AdminStatistics({ categories }) {
       if (memResult.status === "fulfilled" && memResult.value) {
         const allLogs = memResult.value.data?.logs || [];
         const memLogs = allLogs.filter(l => l.level === "mem" && l.rss_mb);
-        // Find all real pod IDs (non-null)
-        const realPods = [...new Set(memLogs.map(l => l.pod_id).filter(Boolean))];
-        // If we have real pods, assign "no pod_id" logs to a generic key
-        // so old data still shows as a continuous line
-        const chartData = memLogs.sort((a, b) => a.ts.localeCompare(b.ts)).map(l => {
-          const pod = l.pod_id || (realPods.length > 0 ? "__legacy__" : "default");
-          return {
-            ts: l.ts,
-            epoch: new Date(l.ts.endsWith("Z") ? l.ts : l.ts + "Z").getTime(),
-            rss: l.rss_mb,
-            label: l.label,
-            pod_id: pod,
-          };
-        });
-        // Build per-pod columns — merge legacy + first real pod if only one real pod
-        const allPods = [...new Set(chartData.map(d => d.pod_id))];
-        // If there's legacy + exactly one real pod, merge them as one line
-        const hasLegacy = allPods.includes("__legacy__");
-        const activePods = allPods.filter(p => p !== "__legacy__" && p !== "default");
-        let displayPods;
-        if (hasLegacy && activePods.length === 0) {
-          // All legacy, no real pods yet — single line
-          for (const d of chartData) {
-            d["rss_default"] = d.rss;
-          }
-          displayPods = ["default"];
-        } else if (activePods.length >= 2) {
-          // Multiple real pods — show legacy + each real pod as separate lines
-          displayPods = [...activePods];
-          if (hasLegacy) displayPods.unshift("__legacy__");
-          for (const d of chartData) {
-            d[`rss_${d.pod_id}`] = d.rss;
-          }
-        } else {
-          // Legacy + 1 real pod — merge into one line
-          const mergedKey = activePods[0] || "default";
-          for (const d of chartData) {
-            d[`rss_${mergedKey}`] = d.rss;
-            d.pod_id = mergedKey;
-          }
-          displayPods = [mergedKey];
+        const chartData = memLogs.sort((a, b) => a.ts.localeCompare(b.ts)).map(l => ({
+          ts: l.ts,
+          epoch: new Date(l.ts.endsWith("Z") ? l.ts : l.ts + "Z").getTime(),
+          rss: l.rss_mb,
+          label: l.label,
+          pod_id: l.pod_id || "__legacy__",
+        }));
+        // Simple: each pod_id gets its own line. No merging.
+        const displayPods = [...new Set(chartData.map(d => d.pod_id))];
+        for (const d of chartData) {
+          d[`rss_${d.pod_id}`] = d.rss;
         }
-        // Fill missing pod values by carrying forward last known value per pod
+        // Carry forward last known value per pod so lines are continuous
         const lastKnown = {};
         for (const d of chartData) {
           for (const p of displayPods) {
@@ -200,13 +170,13 @@ export function AdminStatistics({ categories }) {
           }
         }
         setMemoryData(chartData);
-        // Extract restart events with pod info
+        // Extract restart events
         const restartEvents = allLogs
           .filter(l => l.label === "Server started" || l.event === "shutdown_signal" || l.event === "server_shutdown")
           .map(l => ({
             ts: l.ts,
             epoch: new Date(l.ts.endsWith("Z") ? l.ts : l.ts + "Z").getTime(),
-            pod_id: l.pod_id || (activePods[0] || "default"),
+            pod_id: l.pod_id || "__legacy__",
             event: l.event || (l.label === "Server started" ? "server_started" : "unknown"),
             signal: l.signal,
             reason: l.reason,
