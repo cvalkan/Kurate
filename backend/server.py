@@ -443,9 +443,10 @@ async def startup():
         from services.scheduler import _leader_id, _is_leader
         global _pod_id
         _pod_id = _leader_id
-        from core.memlog import set_pod_id
+        from core.memlog import set_pod_id, set_pod_role
         set_pod_id(_leader_id)
-        logger.info(f"[STARTUP] pod_id={_leader_id}, is_leader={_is_leader}")
+        set_pod_role("leader" if _is_leader else "follower")
+        logger.info(f"[STARTUP] pod_id={_leader_id}, role={'leader' if _is_leader else 'follower'}")
     except Exception as e:
         logger.warning(f"[STARTUP] Failed to set pod_id: {e}")
 

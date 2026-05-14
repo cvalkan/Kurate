@@ -73,7 +73,8 @@ def log_event(level: str, label: str, data: dict = None):
     _persist(level, label, data or {})
 
 
-_pod_id = None  # Set by server.py after scheduler assigns leader ID
+_pod_id = None
+_pod_role = None  # "leader" or "follower"
 
 
 def set_pod_id(pod_id: str):
@@ -81,8 +82,12 @@ def set_pod_id(pod_id: str):
     _pod_id = pod_id
 
 
+def set_pod_role(role: str):
+    global _pod_role
+    _pod_role = role
+
+
 # Set pod_id immediately from process info (before scheduler starts)
-# Will be updated later with the scheduler's leader_id if available
 _pod_id = f"pod-{os.getpid()}"
 logger.info(f"[memlog] pod_id initialized to: {_pod_id}")
 
@@ -96,7 +101,8 @@ def _persist(level: str, label: str, data: dict):
             "level": level,
             "label": label,
             **data,
-            "pod_id": _pod_id,  # Always include, even if None
+            "pod_id": _pod_id,
+            "pod_role": _pod_role,  # "leader" or "follower"
         }
         import asyncio
         try:

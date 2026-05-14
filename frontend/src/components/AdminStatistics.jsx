@@ -151,21 +151,21 @@ export function AdminStatistics({ categories }) {
           epoch: new Date(l.ts.endsWith("Z") ? l.ts : l.ts + "Z").getTime(),
           rss: l.rss_mb,
           label: l.label,
-          pod_id: l.pod_id || "__legacy__",
+          role: l.pod_role || "unknown",
         }));
-        // Simple: each pod_id gets its own line. No merging.
-        const displayPods = [...new Set(chartData.map(d => d.pod_id))];
+        // Each role gets its own line
+        const roles = [...new Set(chartData.map(d => d.role))];
         for (const d of chartData) {
-          d[`rss_${d.pod_id}`] = d.rss;
+          d[`rss_${d.role}`] = d.rss;
         }
-        // Carry forward last known value per pod so lines are continuous
+        // Carry forward last known value per role
         const lastKnown = {};
         for (const d of chartData) {
-          for (const p of displayPods) {
-            if (d[`rss_${p}`] !== undefined && d[`rss_${p}`] !== null) {
-              lastKnown[p] = d[`rss_${p}`];
+          for (const r of roles) {
+            if (d[`rss_${r}`] !== undefined && d[`rss_${r}`] !== null) {
+              lastKnown[r] = d[`rss_${r}`];
             } else {
-              d[`rss_${p}`] = lastKnown[p] ?? null;
+              d[`rss_${r}`] = lastKnown[r] ?? null;
             }
           }
         }
@@ -176,7 +176,7 @@ export function AdminStatistics({ categories }) {
           .map(l => ({
             ts: l.ts,
             epoch: new Date(l.ts.endsWith("Z") ? l.ts : l.ts + "Z").getTime(),
-            pod_id: l.pod_id || "__legacy__",
+            role: l.pod_role || "unknown",
             event: l.event || (l.label === "Server started" ? "server_started" : "unknown"),
             signal: l.signal,
             reason: l.reason,
@@ -459,7 +459,7 @@ export function AdminStatistics({ categories }) {
                       <div className="rounded-lg border border-border bg-popover p-2 shadow-lg text-xs">
                         <div className="font-medium">{d?.ts ? new Date(d.ts.endsWith("Z") ? d.ts : d.ts + "Z").toLocaleString("en-US", { timeZone: "Europe/Berlin", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) + " CET" : ""}</div>
                         <div className="text-muted-foreground mt-0.5">{d?.label}</div>
-                        {d?.pod_id && d.pod_id !== "default" && <div className="text-muted-foreground">Pod: {d.pod_id}</div>}
+                        {d?.role && d.role !== "unknown" && <div className="text-muted-foreground">{d.role.charAt(0).toUpperCase() + d.role.slice(1)}</div>}
                         <div className="font-mono mt-1" style={{ color: d?.rss > 1536 ? "#ef4444" : d?.rss > 1024 ? "#f59e0b" : "#10b981" }}>
                           {Math.round(d?.rss)}MB
                         </div>
@@ -467,45 +467,37 @@ export function AdminStatistics({ categories }) {
                     );
                   }}
                 />
-                {/* Restart markers — colored per pod, styled per event type */}
+                {/* Restart markers — colored per role, styled per event type */}
                 {(() => {
-                  const realPods = [...new Set(restartEvents.map(e => e.pod_id).filter(p => p && p !== "__legacy__"))];
-                  const podColorMap = {"__legacy__": "#9ca3af"};
-                  const realColors = ["#ef4444", "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b"];
-                  realPods.forEach((p, i) => { podColorMap[p] = realColors[i % realColors.length]; });
-                  const getColor = (pod) => podColorMap[pod] || "#9ca3af";
+                  const roleColors = {"leader": "#ef4444", "follower": "#3b82f6", "unknown": "#9ca3af"};
+                  const getColor = (role) => roleColors[role] || "#9ca3af";
                   return <>
                     {restartEvents.filter(e => e.event === "server_started" || e.label === "Server started").map((d, i) => (
-                      <ReferenceLine key={`restart-${i}`} x={d.epoch} stroke={getColor(d.pod_id)} strokeDasharray="4 4" strokeWidth={1} opacity={0.6} />
+                      <ReferenceLine key={`restart-${i}`} x={d.epoch} stroke={getColor(d.role)} strokeDasharray="4 4" strokeWidth={1} opacity={0.6} />
                     ))}
                     {restartEvents.filter(e => e.event === "shutdown_signal" && e.signal === "SIGTERM").map((d, i) => (
-                      <ReferenceLine key={`sigterm-${i}`} x={d.epoch} stroke={getColor(d.pod_id)} strokeDasharray="8 3" strokeWidth={1.5} opacity={0.8} />
+                      <ReferenceLine key={`sigterm-${i}`} x={d.epoch} stroke={getColor(d.role)} strokeDasharray="8 3" strokeWidth={1.5} opacity={0.8} />
                     ))}
                     {restartEvents.filter(e => e.event === "server_shutdown" && (!e.reason || e.reason === "unknown")).map((d, i) => (
-                      <ReferenceLine key={`oom-${i}`} x={d.epoch} stroke={getColor(d.pod_id)} strokeDasharray="2 2" strokeWidth={2} opacity={0.8} />
+                      <ReferenceLine key={`oom-${i}`} x={d.epoch} stroke={getColor(d.role)} strokeDasharray="2 2" strokeWidth={2} opacity={0.8} />
                     ))}
                   </>;
                 })()}
                 {/* Danger zone */}
                 <Area type="monotone" dataKey={() => 4096} stroke="none" fill="#ef4444" fillOpacity={0.05} />
-                {/* Per-pod memory lines */}
+                {/* Per-role memory lines: leader (red), follower (blue), unknown/legacy (grey) */}
                 {(() => {
-                  const pods = [...new Set(memoryData.map(d => d.pod_id).filter(Boolean))];
-                  const realPods = pods.filter(p => p !== "__legacy__");
-                  const podColors = {"__legacy__": "#9ca3af"}; // grey for legacy
-                  const realColors = ["#ef4444", "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b"];
-                  realPods.forEach((p, i) => { podColors[p] = realColors[i % realColors.length]; });
-                  const getColor = (pod) => podColors[pod] || "#9ca3af";
-
-                  if (pods.length <= 1) {
-                    const key = pods[0] || "default";
-                    return <Area type="stepAfter" dataKey={`rss_${key}`} stroke={getColor(key)} fill="url(#memGrad)" strokeWidth={1.5} dot={false} connectNulls={false} />;
-                  }
-                  // Render legacy first (behind), then real pods on top
-                  return pods.sort((a, b) => a === "__legacy__" ? -1 : b === "__legacy__" ? 1 : 0).map((pod) => (
-                    <Area key={pod} type="stepAfter" dataKey={`rss_${pod}`} stroke={getColor(pod)}
-                      fill={getColor(pod)} fillOpacity={pod === "__legacy__" ? 0.03 : 0.05} strokeWidth={pod === "__legacy__" ? 1 : 1.5} dot={false} connectNulls={false}
-                      name={pod === "__legacy__" ? "pre-deploy" : pod.length > 12 ? pod.slice(0, 12) + "..." : pod} />
+                  const roleColors = {"leader": "#ef4444", "follower": "#3b82f6", "unknown": "#9ca3af"};
+                  const roles = [...new Set(memoryData.map(d => d.role).filter(Boolean))];
+                  const sorted = roles.sort((a, b) => a === "unknown" ? -1 : b === "unknown" ? 1 : a === "leader" ? -1 : 1);
+                  return sorted.map((role) => (
+                    <Area key={role} type="stepAfter" dataKey={`rss_${role}`}
+                      stroke={roleColors[role] || "#9ca3af"}
+                      fill={roleColors[role] || "#9ca3af"}
+                      fillOpacity={role === "unknown" ? 0.03 : 0.05}
+                      strokeWidth={role === "unknown" ? 1 : 1.5}
+                      dot={false} connectNulls={false}
+                      name={role === "unknown" ? "pre-deploy" : role.charAt(0).toUpperCase() + role.slice(1)} />
                   ));
                 })()}
               </AreaChart>
@@ -519,28 +511,18 @@ export function AdminStatistics({ categories }) {
             <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dashed border-foreground/60" /> SIGTERM</span>
             <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dotted border-foreground/60" /> Unknown kill</span>
             {(() => {
-              const pods = [...new Set(memoryData.map(d => d.pod_id).filter(p => p && p !== "__legacy__"))];
-              const realColors = ["#ef4444", "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b"];
-              if (pods.length === 0) return null;
-              // Detect leader: the pod with the most log entries (runs scheduler loops)
-              const podCounts = {};
-              for (const d of memoryData) {
-                if (d.pod_id && d.pod_id !== "__legacy__") podCounts[d.pod_id] = (podCounts[d.pod_id] || 0) + 1;
-              }
-              const leader = Object.entries(podCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+              const roles = [...new Set(memoryData.map(d => d.role).filter(r => r && r !== "unknown"))];
+              if (roles.length === 0) return null;
+              const roleColors = {"leader": "#ef4444", "follower": "#3b82f6"};
+              const roleDesc = {"leader": "scheduler, comparisons, fetching", "follower": "HTTP traffic only"};
               return <>
                 <span className="ml-2 border-l pl-2 border-border">Pods:</span>
-                {pods.map((pod, idx) => {
-                  const isLeader = pod === leader;
-                  const role = isLeader ? "Leader" : "Follower";
-                  const desc = isLeader ? "scheduler, comparisons, fetching" : "HTTP traffic only";
-                  return (
-                    <span key={pod} className="flex items-center gap-1" title={`${pod} — ${desc}`}>
-                      <span className="w-3 h-0.5" style={{ backgroundColor: realColors[idx % realColors.length] }} />
-                      {role} <span className="opacity-50">({desc})</span>
-                    </span>
-                  );
-                })}
+                {roles.map((role) => (
+                  <span key={role} className="flex items-center gap-1" title={roleDesc[role]}>
+                    <span className="w-3 h-0.5" style={{ backgroundColor: roleColors[role] }} />
+                    {role.charAt(0).toUpperCase() + role.slice(1)} <span className="opacity-50">({roleDesc[role]})</span>
+                  </span>
+                ))}
               </>;
             })()}
           </div>
