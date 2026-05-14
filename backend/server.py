@@ -14,19 +14,65 @@ from core.config import db, logger
 # --- Restart diagnostics: track uptime and shutdown reason ---
 _server_start_time = _time.monotonic()
 _shutdown_reason = "unknown"
+_pod_id = f"pod-{os.getpid()}"  # Will be updated with leader election ID once scheduler starts
+
+
+def _sync_log_shutdown(sig_name: str):
+    """Write shutdown event to MongoDB SYNCHRONOUSLY using pymongo.
+    Must complete before the process dies — no async, no event loop dependency."""
+    uptime_s = _time.monotonic() - _server_start_time
+    uptime_min = uptime_s / 60
+    try:
+        from pymongo import MongoClient
+        sync_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+        sc = MongoClient(sync_url, serverSelectionTimeoutMS=2000)
+        sc[os.environ.get("DB_NAME", "papersumo")].system_logs.insert_one({
+            "ts": datetime.now(timezone.utc),
+            "level": "event",
+            "event": "shutdown_signal",
+            "label": f"Received {sig_name}",
+            "signal": sig_name,
+            "uptime_seconds": round(uptime_s),
+            "uptime_minutes": round(uptime_min, 1),
+            "pod_id": _pod_id,
+            "argv": sys.argv,
+            "pid": os.getpid(),
+        })
+        sc.close()
+    except Exception:
+        pass
+
+
+def _sigterm_handler(signum, frame):
+    """Synchronous SIGTERM handler — runs immediately when signal is received,
+    BEFORE supervisor or any other layer can kill the process."""
+    global _shutdown_reason
+    sig_name = signal.Signals(signum).name
+    _shutdown_reason = sig_name
+    uptime_s = _time.monotonic() - _server_start_time
+    logger.warning(f"[SHUTDOWN] Received {sig_name} after {uptime_s/60:.1f}min uptime. pod={_pod_id}")
+    _sync_log_shutdown(sig_name)
+    # Re-raise to let uvicorn handle graceful shutdown
+    raise SystemExit(0)
+
+
+# Install IMMEDIATELY at import time — before uvicorn, before asyncio.
+# This ensures we catch SIGTERM even if the event loop hasn't started yet.
+signal.signal(signal.SIGTERM, _sigterm_handler)
+signal.signal(signal.SIGINT, _sigterm_handler)
 
 
 def _install_signal_handlers():
-    """Install signal handlers using asyncio's loop.add_signal_handler.
-    Must be called AFTER uvicorn has set up its own handlers (i.e., in startup event).
-    We replace uvicorn's handlers but replicate its shutdown behavior."""
+    """Re-install signal handlers via asyncio loop.add_signal_handler.
+    asyncio handlers take precedence over signal.signal() ones.
+    Called after uvicorn starts so we can also trigger graceful ASGI shutdown."""
     global _server_start_time
-    _server_start_time = _time.monotonic()  # Reset uptime counter on actual startup
+    _server_start_time = _time.monotonic()
 
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
-        logger.warning("[STARTUP] No running event loop — signal handlers not installed")
+        logger.warning("[STARTUP] No running event loop — asyncio signal handlers not installed")
         return
 
     def _make_exit_handler(sig_enum):
@@ -34,33 +80,8 @@ def _install_signal_handlers():
             global _shutdown_reason
             sig_name = sig_enum.name
             _shutdown_reason = sig_name
-            uptime_s = _time.monotonic() - _server_start_time
-            uptime_min = uptime_s / 60
-            logger.warning(
-                f"[SHUTDOWN] Received {sig_name} after {uptime_min:.1f}min uptime. "
-                f"argv={sys.argv}"
-            )
-            # Persist to MongoDB synchronously (best-effort, before process dies)
-            try:
-                from pymongo import MongoClient
-                sync_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-                sc = MongoClient(sync_url, serverSelectionTimeoutMS=2000)
-                sc[os.environ.get("DB_NAME", "papersumo")].system_logs.insert_one({
-                    "ts": datetime.now(timezone.utc),
-                    "level": "event",
-                    "event": "shutdown_signal",
-                    "label": f"Received {sig_name}",
-                    "signal": sig_name,
-                    "uptime_seconds": round(uptime_s),
-                    "uptime_minutes": round(uptime_min, 1),
-                    "argv": sys.argv,
-                    "pid": os.getpid(),
-                })
-                sc.close()
-            except Exception:
-                pass
-            # Replicate uvicorn's shutdown: set should_exit on all servers
-            # This triggers graceful shutdown without fighting uvicorn's internals
+            logger.warning(f"[SHUTDOWN] Received {sig_name} (async handler). pod={_pod_id}")
+            _sync_log_shutdown(sig_name)
             from uvicorn import Server
             Server.should_exit = True
         return _handler
@@ -417,6 +438,17 @@ async def startup():
     except Exception as e:
         logger.error(f"start_scheduler failed: {e}")
     
+    # Set pod_id for memory/event logging after scheduler assigns leader ID
+    try:
+        from services.scheduler import _leader_id, _is_leader
+        global _pod_id
+        _pod_id = _leader_id
+        from core.memlog import set_pod_id
+        set_pod_id(_leader_id)
+        logger.info(f"[STARTUP] pod_id={_leader_id}, is_leader={_is_leader}")
+    except Exception:
+        pass
+
     log_mem("Server started")
     logger.info("Kurate.org Leaderboard started")
 
@@ -1621,7 +1653,7 @@ async def _prewarm_validation_cache():
 async def shutdown():
     uptime_s = _time.monotonic() - _server_start_time
     uptime_min = uptime_s / 60
-    logger.info(f"[SHUTDOWN] Server shutting down after {uptime_min:.1f}min uptime. Reason={_shutdown_reason}")
+    logger.info(f"[SHUTDOWN] Server shutting down after {uptime_min:.1f}min uptime. Reason={_shutdown_reason} pod={_pod_id}")
     # Persist shutdown event for admin visibility
     try:
         await db.system_logs.insert_one({
@@ -1632,6 +1664,7 @@ async def shutdown():
             "uptime_seconds": round(uptime_s),
             "uptime_minutes": round(uptime_min, 1),
             "reason": _shutdown_reason,
+            "pod_id": _pod_id,
             "pid": os.getpid(),
         })
     except Exception:

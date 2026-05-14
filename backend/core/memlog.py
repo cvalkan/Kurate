@@ -73,6 +73,14 @@ def log_event(level: str, label: str, data: dict = None):
     _persist(level, label, data or {})
 
 
+_pod_id = None  # Set by server.py after scheduler assigns leader ID
+
+
+def set_pod_id(pod_id: str):
+    global _pod_id
+    _pod_id = pod_id
+
+
 def _persist(level: str, label: str, data: dict):
     """Fire-and-forget write to MongoDB system_logs collection."""
     try:
@@ -83,6 +91,8 @@ def _persist(level: str, label: str, data: dict):
             "label": label,
             **data,
         }
+        if _pod_id:
+            doc["pod_id"] = _pod_id
         import asyncio
         try:
             loop = asyncio.get_running_loop()
