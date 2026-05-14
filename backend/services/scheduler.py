@@ -345,8 +345,10 @@ async def _follower_promotion_loop():
     while _scheduler_running:
         await asyncio.sleep(_LEADER_REFRESH_SECONDS)
         if _is_leader:
-            # Already promoted — start the loops and exit this watcher
+            # Already promoted — update role and start the loops
             logger.info("[leader] Follower promoted to LEADER — starting fetch + compare loops")
+            from core.memlog import set_pod_role
+            set_pod_role("leader")
             asyncio.create_task(_fetch_loop())
             asyncio.create_task(_compare_loop())
             return
