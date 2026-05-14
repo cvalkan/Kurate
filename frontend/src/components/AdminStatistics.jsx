@@ -158,12 +158,16 @@ export function AdminStatistics({ categories }) {
         for (const d of chartData) {
           d[`rss_${d.role}`] = d.rss;
         }
-        // Carry forward last known value per role
+        // Carry forward last known value per role, but stop unknown once real roles appear
         const lastKnown = {};
+        let realRolesStarted = false;
         for (const d of chartData) {
+          if (d.role === "leader" || d.role === "follower") realRolesStarted = true;
           for (const r of roles) {
             if (d[`rss_${r}`] !== undefined && d[`rss_${r}`] !== null) {
               lastKnown[r] = d[`rss_${r}`];
+            } else if (r === "unknown" && realRolesStarted) {
+              d[`rss_${r}`] = null; // Stop extending grey into red/blue region
             } else {
               d[`rss_${r}`] = lastKnown[r] ?? null;
             }
