@@ -146,35 +146,56 @@ export function AdminStatistics({ categories }) {
       if (memResult.status === "fulfilled" && memResult.value) {
         const allLogs = memResult.value.data?.logs || [];
         const memLogs = allLogs.filter(l => l.level === "mem" && l.rss_mb);
-        // Group by pod_id for per-pod lines
-        const podSet = new Set();
+        // Find all real pod IDs (non-null)
+        const realPods = [...new Set(memLogs.map(l => l.pod_id).filter(Boolean))];
+        // If we have real pods, assign "no pod_id" logs to a generic key
+        // so old data still shows as a continuous line
         const chartData = memLogs.sort((a, b) => a.ts.localeCompare(b.ts)).map(l => {
-          const pod = l.pod_id || "default";
-          podSet.add(pod);
+          const pod = l.pod_id || (realPods.length > 0 ? "__legacy__" : "default");
           return {
             ts: l.ts,
             epoch: new Date(l.ts.endsWith("Z") ? l.ts : l.ts + "Z").getTime(),
             rss: l.rss_mb,
             label: l.label,
             pod_id: pod,
-            [`rss_${pod}`]: l.rss_mb,
           };
         });
-        // Fill missing pod values with null so Recharts draws separate lines
-        const pods = [...podSet];
+        // Build per-pod columns — merge legacy + first real pod if only one real pod
+        const allPods = [...new Set(chartData.map(d => d.pod_id))];
+        // If there's legacy + exactly one real pod, merge them as one line
+        const hasLegacy = allPods.includes("__legacy__");
+        const activePods = allPods.filter(p => p !== "__legacy__" && p !== "default");
+        let displayPods;
+        if (hasLegacy && activePods.length <= 1) {
+          // Merge legacy into the real pod (or keep as single line)
+          const mergedKey = activePods[0] || "default";
+          for (const d of chartData) {
+            d[`rss_${mergedKey}`] = d.rss;
+            d.pod_id = mergedKey;
+          }
+          displayPods = [mergedKey];
+        } else {
+          // Multiple real pods — show separate lines, legacy as its own
+          displayPods = allPods.filter(p => p !== "__legacy__");
+          if (hasLegacy) displayPods.unshift("__legacy__");
+          for (const d of chartData) {
+            d[`rss_${d.pod_id}`] = d.rss;
+          }
+        }
+        // Fill missing pod values with null
         for (const d of chartData) {
-          for (const p of pods) {
+          for (const p of displayPods) {
             if (d[`rss_${p}`] === undefined) d[`rss_${p}`] = null;
           }
         }
         setMemoryData(chartData);
-        // Extract restart events with pod and signal info
+        // Extract restart events with pod info
         const restartEvents = allLogs
           .filter(l => l.label === "Server started" || l.event === "shutdown_signal" || l.event === "server_shutdown")
           .map(l => ({
             ts: l.ts,
             epoch: new Date(l.ts.endsWith("Z") ? l.ts : l.ts + "Z").getTime(),
-            pod_id: l.pod_id || "default",
+            pod_id: l.pod_id || (activePods[0] || "default"),
             event: l.event || (l.label === "Server started" ? "server_started" : "unknown"),
             signal: l.signal,
             reason: l.reason,
@@ -489,12 +510,13 @@ export function AdminStatistics({ categories }) {
                   const pods = [...new Set(memoryData.map(d => d.pod_id).filter(Boolean))];
                   const podColors = ["#ef4444", "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b"];
                   if (pods.length <= 1) {
-                    return <Area type="stepAfter" dataKey="rss" stroke={podColors[0]} fill="url(#memGrad)" strokeWidth={1.5} dot={false} connectNulls={false} />;
+                    const key = pods[0] || "default";
+                    return <Area type="stepAfter" dataKey={`rss_${key}`} stroke={podColors[0]} fill="url(#memGrad)" strokeWidth={1.5} dot={false} connectNulls={false} />;
                   }
                   return pods.map((pod, idx) => (
                     <Area key={pod} type="stepAfter" dataKey={`rss_${pod}`} stroke={podColors[idx % podColors.length]}
                       fill={podColors[idx % podColors.length]} fillOpacity={0.05} strokeWidth={1.5} dot={false} connectNulls={false}
-                      name={pod.length > 12 ? pod.slice(0, 12) + "..." : pod} />
+                      name={pod === "__legacy__" ? "pre-deploy" : pod.length > 12 ? pod.slice(0, 12) + "..." : pod} />
                   ));
                 })()}
               </AreaChart>
