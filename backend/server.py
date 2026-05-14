@@ -933,29 +933,67 @@ async def _deferred_startup():
     except Exception as e:
         logger.warning(f"Scoring simplification migration warning: {e}")
 
-    # Retry summary generation for papers that are in rankings but lack summaries
-    # (these papers can't be matched until they have summaries)
-    asyncio.create_task(_retry_missing_summaries())
+    # Determine pod role for gating leader-only tasks
+    from services.scheduler import _is_leader as _pod_is_leader
 
-    # Start background cache refresh loop — pre-computes all leaderboard data
+    # Start background cache refresh loop — needed by ALL pods for serving HTTP
     from routers.leaderboard import start_cache_bg
-    start_cache_bg()
+    start_cache_bg(is_leader=_pod_is_leader)
 
     # Start background All Categories model analysis refresh (keeps correlation page fast)
+    # Both pods need this for serving the validation/model-analysis pages
     from services.model_analysis import _bg_refresh_all_categories
     asyncio.create_task(_bg_refresh_all_categories())
 
-    # Pre-warm caches and run startup tasks in background.
-    # IMPORTANT: Tasks are staggered to prevent concurrent memory spikes that
-    # can trigger OOM kills. Heavy tasks (dedup, regen, experiment cache) are
-    # sequenced rather than launched all at once.
-    # Use globals() lookup to avoid NameError during hot-reload (uvicorn --reload
-    # can fire the startup event before all module-level functions are defined).
-    asyncio.create_task(_staggered_startup_tasks())
+    if _pod_is_leader:
+        # --- LEADER-ONLY tasks: summaries, dedup, backfill, archiving ---
+        asyncio.create_task(_retry_missing_summaries())
+        asyncio.create_task(_staggered_startup_tasks())
+        log_mem("_deferred_startup: all tasks launched (LEADER)")
+    else:
+        # --- FOLLOWER: lightweight prewarms only, plus periodic GC ---
+        asyncio.create_task(_follower_lightweight_startup())
+        log_mem("_deferred_startup: lightweight startup (FOLLOWER)")
 
-    log_mem("_deferred_startup: all tasks launched")
     force_gc()
-    logger.info("Deferred startup complete — all background tasks launched")
+    logger.info(f"Deferred startup complete — role={'LEADER' if _pod_is_leader else 'FOLLOWER'}")
+
+
+async def _follower_lightweight_startup():
+    """Follower-only startup: read-only prewarms + periodic GC.
+    
+    The follower serves HTTP traffic, so it needs cache prewarms.
+    It does NOT need: retry summaries, dedup, seed, backfill, archive creation.
+    It also lacks the periodic GC the leader gets from comparison loops.
+    """
+    from core.memlog import log_mem, force_gc
+    
+    log_mem("Follower lightweight startup begin")
+    
+    _g = globals()
+    for _name in ["_prewarm_extraction_cache", "_prewarm_validation_cache", "_prewarm_all_experiment_caches"]:
+        _fn = _g.get(_name)
+        if _fn:
+            asyncio.create_task(_fn())
+    
+    asyncio.create_task(_prewarm_summary_bias_caches())
+    asyncio.create_task(_prewarm_summarizer_ratings())
+    
+    await asyncio.sleep(10)
+    force_gc("follower lightweight startup complete")
+    log_mem("Follower lightweight startup done")
+    
+    # Periodic GC — leader gets GC between comparison rounds, follower doesn't
+    asyncio.create_task(_follower_periodic_gc())
+
+
+async def _follower_periodic_gc():
+    """Periodic GC for follower pod to prevent memory creep."""
+    from core.memlog import force_gc
+    await asyncio.sleep(120)
+    while True:
+        force_gc("follower periodic")
+        await asyncio.sleep(300)
 
 
 async def _staggered_startup_tasks():

@@ -516,7 +516,7 @@ export function AdminStatistics({ categories }) {
               const roles = [...new Set(memoryData.map(d => d.role).filter(r => r && r !== "unknown"))];
               if (roles.length === 0) return null;
               const roleColors = {"leader": "#ef4444", "follower": "#3b82f6"};
-              const roleDesc = {"leader": "scheduler, comparisons, fetching", "follower": "HTTP traffic only"};
+              const roleDesc = {"leader": "fetch, compare, summarize, archive", "follower": "HTTP, cache, prewarm, analysis"};
               return <>
                 <span className="ml-2 border-l pl-2 border-border">Pods:</span>
                 {roles.map((role) => (

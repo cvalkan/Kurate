@@ -402,12 +402,14 @@ async def _bg_cache_loop():
             logger.warning(f"Background cache refresh failed: {e}")
 
 
-def start_cache_bg():
-    """Start the background cache refresh task. Called from startup."""
+def start_cache_bg(is_leader: bool = True):
+    """Start the background cache refresh task. Called from startup.
+    Archive loop only runs on leader (it creates snapshots)."""
     global _bg_task_started
     if not _bg_task_started:
         asyncio.create_task(_bg_cache_loop())
-        asyncio.create_task(_bg_archive_loop())
+        if is_leader:
+            asyncio.create_task(_bg_archive_loop())
         asyncio.create_task(_bg_memory_heartbeat())
 
 

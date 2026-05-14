@@ -201,9 +201,9 @@ async def main():
                 })
 
         print("Standalone-paper-per-version demo ready:")
-        print(f"  v1 URL: https://validation-hub-42.preview.emergentagent.com/paper/{V1_ID}")
-        print(f"  v2 URL: https://validation-hub-42.preview.emergentagent.com/paper/{V2_ID}")
-        print(f"  v3 URL: https://validation-hub-42.preview.emergentagent.com/paper/{V3_ID} (latest)")
+        print(f"  v1 URL: https://ai-judge-hub-1.preview.emergentagent.com/paper/{V1_ID}")
+        print(f"  v2 URL: https://ai-judge-hub-1.preview.emergentagent.com/paper/{V2_ID}")
+        print(f"  v3 URL: https://ai-judge-hub-1.preview.emergentagent.com/paper/{V3_ID} (latest)")
         print(f"  arxiv_id_base = {BASE}")
     finally:
         client.close()
