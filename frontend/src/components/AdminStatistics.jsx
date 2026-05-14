@@ -467,36 +467,44 @@ export function AdminStatistics({ categories }) {
                     );
                   }}
                 />
-                {/* Restart markers — different styles per type, colored by pod */}
+                {/* Restart markers — colored per pod, styled per event type */}
                 {(() => {
-                  const pods = [...new Set(restartEvents.map(e => e.pod_id).filter(Boolean))];
-                  const podColors = ["#ef4444", "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b"];
-                  const podColor = (pod) => podColors[pods.indexOf(pod) % podColors.length] || "#f59e0b";
+                  const realPods = [...new Set(restartEvents.map(e => e.pod_id).filter(p => p && p !== "__legacy__"))];
+                  const podColorMap = {"__legacy__": "#9ca3af"};
+                  const realColors = ["#ef4444", "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b"];
+                  realPods.forEach((p, i) => { podColorMap[p] = realColors[i % realColors.length]; });
+                  const getColor = (pod) => podColorMap[pod] || "#9ca3af";
                   return <>
                     {restartEvents.filter(e => e.event === "server_started" || e.label === "Server started").map((d, i) => (
-                      <ReferenceLine key={`restart-${i}`} x={d.epoch} stroke={podColor(d.pod_id)} strokeDasharray="4 4" strokeWidth={1} opacity={0.6} />
+                      <ReferenceLine key={`restart-${i}`} x={d.epoch} stroke={getColor(d.pod_id)} strokeDasharray="4 4" strokeWidth={1} opacity={0.6} />
                     ))}
                     {restartEvents.filter(e => e.event === "shutdown_signal" && e.signal === "SIGTERM").map((d, i) => (
-                      <ReferenceLine key={`sigterm-${i}`} x={d.epoch} stroke={podColor(d.pod_id)} strokeDasharray="8 3" strokeWidth={1.5} opacity={0.8} />
+                      <ReferenceLine key={`sigterm-${i}`} x={d.epoch} stroke={getColor(d.pod_id)} strokeDasharray="8 3" strokeWidth={1.5} opacity={0.8} />
                     ))}
                     {restartEvents.filter(e => e.event === "server_shutdown" && (!e.reason || e.reason === "unknown")).map((d, i) => (
-                      <ReferenceLine key={`oom-${i}`} x={d.epoch} stroke={podColor(d.pod_id)} strokeDasharray="2 2" strokeWidth={2} opacity={0.8} />
+                      <ReferenceLine key={`oom-${i}`} x={d.epoch} stroke={getColor(d.pod_id)} strokeDasharray="2 2" strokeWidth={2} opacity={0.8} />
                     ))}
                   </>;
                 })()}
                 {/* Danger zone */}
                 <Area type="monotone" dataKey={() => 4096} stroke="none" fill="#ef4444" fillOpacity={0.05} />
-                {/* Per-pod memory lines — same colors as restart markers */}
+                {/* Per-pod memory lines */}
                 {(() => {
                   const pods = [...new Set(memoryData.map(d => d.pod_id).filter(Boolean))];
-                  const podColors = ["#ef4444", "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b"];
+                  const realPods = pods.filter(p => p !== "__legacy__");
+                  const podColors = {"__legacy__": "#9ca3af"}; // grey for legacy
+                  const realColors = ["#ef4444", "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b"];
+                  realPods.forEach((p, i) => { podColors[p] = realColors[i % realColors.length]; });
+                  const getColor = (pod) => podColors[pod] || "#9ca3af";
+
                   if (pods.length <= 1) {
                     const key = pods[0] || "default";
-                    return <Area type="stepAfter" dataKey={`rss_${key}`} stroke={podColors[0]} fill="url(#memGrad)" strokeWidth={1.5} dot={false} connectNulls={false} />;
+                    return <Area type="stepAfter" dataKey={`rss_${key}`} stroke={getColor(key)} fill="url(#memGrad)" strokeWidth={1.5} dot={false} connectNulls={false} />;
                   }
-                  return pods.map((pod, idx) => (
-                    <Area key={pod} type="stepAfter" dataKey={`rss_${pod}`} stroke={podColors[idx % podColors.length]}
-                      fill={podColors[idx % podColors.length]} fillOpacity={0.05} strokeWidth={1.5} dot={false} connectNulls={false}
+                  // Render legacy first (behind), then real pods on top
+                  return pods.sort((a, b) => a === "__legacy__" ? -1 : b === "__legacy__" ? 1 : 0).map((pod) => (
+                    <Area key={pod} type="stepAfter" dataKey={`rss_${pod}`} stroke={getColor(pod)}
+                      fill={getColor(pod)} fillOpacity={pod === "__legacy__" ? 0.03 : 0.05} strokeWidth={pod === "__legacy__" ? 1 : 1.5} dot={false} connectNulls={false}
                       name={pod === "__legacy__" ? "pre-deploy" : pod.length > 12 ? pod.slice(0, 12) + "..." : pod} />
                   ));
                 })()}
@@ -511,14 +519,14 @@ export function AdminStatistics({ categories }) {
             <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dashed border-foreground/60" /> SIGTERM</span>
             <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dotted border-foreground/60" /> Unknown kill</span>
             {(() => {
-              const pods = [...new Set(memoryData.map(d => d.pod_id).filter(p => p && p !== "default"))];
-              const podColors = ["#ef4444", "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b"];
-              if (pods.length <= 1) return null;
+              const pods = [...new Set(memoryData.map(d => d.pod_id).filter(p => p && p !== "__legacy__"))];
+              const realColors = ["#ef4444", "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b"];
+              if (pods.length === 0) return null;
               return <>
                 <span className="ml-2 border-l pl-2 border-border">Pods:</span>
                 {pods.map((pod, idx) => (
                   <span key={pod} className="flex items-center gap-1">
-                    <span className="w-3 h-0.5" style={{ backgroundColor: podColors[idx % podColors.length] }} />
+                    <span className="w-3 h-0.5" style={{ backgroundColor: realColors[idx % realColors.length] }} />
                     {pod.length > 15 ? pod.slice(0, 15) + "..." : pod}
                   </span>
                 ))}
