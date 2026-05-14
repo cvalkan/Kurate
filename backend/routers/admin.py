@@ -3002,15 +3002,16 @@ async def get_system_logs(
                     {"$mod": [{"$toLong": "$ts"}, bucket_seconds * 1000]}
                 ]}
             }},
-            {"$sort": {"rss_mb": -1}},  # Sort by RSS desc within each group
+            {"$sort": {"rss_mb": -1}},
             {"$group": {
-                "_id": "$bucket",
+                "_id": {"bucket": "$bucket", "pod_id": {"$ifNull": ["$pod_id", None]}},
                 "ts": {"$first": "$ts"},
                 "rss_mb": {"$max": "$rss_mb"},
                 "label": {"$first": "$label"},
+                "pod_id": {"$first": "$pod_id"},
             }},
-            {"$sort": {"_id": 1}},
-            {"$limit": hours * 60},  # Max 1 point per minute
+            {"$sort": {"_id.bucket": 1}},
+            {"$limit": hours * 60 * 4},  # Up to 4 pods per minute
         ]
         try:
             async for doc in db.system_logs.aggregate(pipeline):
@@ -3019,6 +3020,7 @@ async def get_system_logs(
                     "level": "mem",
                     "rss_mb": round(doc["rss_mb"]) if doc.get("rss_mb") else None,
                     "label": doc.get("label", ""),
+                    "pod_id": doc.get("pod_id"),
                 })
         except Exception:
             # Fallback: raw query with limit if aggregation fails
