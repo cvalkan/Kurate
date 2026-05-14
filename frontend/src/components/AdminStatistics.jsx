@@ -461,7 +461,7 @@ export function AdminStatistics({ categories }) {
                       <div className="rounded-lg border border-border bg-popover p-2 shadow-lg text-xs">
                         <div className="font-medium">{d?.ts ? new Date(d.ts.endsWith("Z") ? d.ts : d.ts + "Z").toLocaleString("en-US", { timeZone: "Europe/Berlin", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) + " CET" : ""}</div>
                         <div className="text-muted-foreground mt-0.5">{d?.label}</div>
-                        {d?.role && d.role !== "unknown" && <div className="text-muted-foreground">{d.role.charAt(0).toUpperCase() + d.role.slice(1)}</div>}
+                        {d?.role && d.role !== "unknown" && <div style={{ color: d.role === "leader" ? "#ef4444" : "#3b82f6" }}>{d.role.charAt(0).toUpperCase() + d.role.slice(1)}</div>}
                         <div className="font-mono mt-1" style={{ color: d?.rss > 1536 ? "#ef4444" : d?.rss > 1024 ? "#f59e0b" : "#10b981" }}>
                           {Math.round(d?.rss)}MB
                         </div>
