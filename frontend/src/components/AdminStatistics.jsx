@@ -166,21 +166,27 @@ export function AdminStatistics({ categories }) {
         const hasLegacy = allPods.includes("__legacy__");
         const activePods = allPods.filter(p => p !== "__legacy__" && p !== "default");
         let displayPods;
-        if (hasLegacy && activePods.length <= 1) {
-          // Merge legacy into the real pod (or keep as single line)
+        if (hasLegacy && activePods.length === 0) {
+          // All legacy, no real pods yet — single line
+          for (const d of chartData) {
+            d["rss_default"] = d.rss;
+          }
+          displayPods = ["default"];
+        } else if (activePods.length >= 2) {
+          // Multiple real pods — show legacy + each real pod as separate lines
+          displayPods = [...activePods];
+          if (hasLegacy) displayPods.unshift("__legacy__");
+          for (const d of chartData) {
+            d[`rss_${d.pod_id}`] = d.rss;
+          }
+        } else {
+          // Legacy + 1 real pod — merge into one line
           const mergedKey = activePods[0] || "default";
           for (const d of chartData) {
             d[`rss_${mergedKey}`] = d.rss;
             d.pod_id = mergedKey;
           }
           displayPods = [mergedKey];
-        } else {
-          // Multiple real pods — show separate lines, legacy as its own
-          displayPods = allPods.filter(p => p !== "__legacy__");
-          if (hasLegacy) displayPods.unshift("__legacy__");
-          for (const d of chartData) {
-            d[`rss_${d.pod_id}`] = d.rss;
-          }
         }
         // Fill missing pod values by carrying forward last known value per pod
         const lastKnown = {};
