@@ -182,10 +182,15 @@ export function AdminStatistics({ categories }) {
             d[`rss_${d.pod_id}`] = d.rss;
           }
         }
-        // Fill missing pod values with null
+        // Fill missing pod values by carrying forward last known value per pod
+        const lastKnown = {};
         for (const d of chartData) {
           for (const p of displayPods) {
-            if (d[`rss_${p}`] === undefined) d[`rss_${p}`] = null;
+            if (d[`rss_${p}`] !== undefined && d[`rss_${p}`] !== null) {
+              lastKnown[p] = d[`rss_${p}`];
+            } else {
+              d[`rss_${p}`] = lastKnown[p] ?? null;
+            }
           }
         }
         setMemoryData(chartData);

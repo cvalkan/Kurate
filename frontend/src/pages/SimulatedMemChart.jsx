@@ -31,29 +31,33 @@ function generateSimData() {
   const restartEpoch = now - 180 * 60000;
 
   // Next 3 hours: two pods with pod_id
+  // Each data point carries forward last known value for both pods
+  let lastRss1 = null, lastRss2 = null;
   for (let i = 180; i < 360; i += 2) {
     const epoch = now - (360 - i) * 60000;
-    const rss1 = 800 + Math.sin(i / 25) * 300 + Math.random() * 80;
-    const rss2 = 400 + Math.sin(i / 20) * 100 + Math.random() * 50;
+    const rss1 = Math.round(800 + Math.sin(i / 25) * 300 + Math.random() * 80);
+    const rss2 = Math.round(400 + Math.sin(i / 20) * 100 + Math.random() * 50);
+    lastRss1 = rss1;
+    lastRss2 = rss2;
     data.push({
       epoch,
       ts: new Date(epoch).toISOString(),
-      rss: Math.round(rss1),
+      rss: rss1,
       pod_id: pod1,
       label: "_check_goals",
       [`rss___legacy__`]: null,
-      [`rss_${pod1}`]: Math.round(rss1),
-      [`rss_${pod2}`]: null,
+      [`rss_${pod1}`]: rss1,
+      [`rss_${pod2}`]: lastRss2,
     });
     data.push({
-      epoch: epoch + 30000,
-      ts: new Date(epoch + 30000).toISOString(),
-      rss: Math.round(rss2),
+      epoch: epoch + 60000,
+      ts: new Date(epoch + 60000).toISOString(),
+      rss: rss2,
       pod_id: pod2,
       label: "heartbeat",
       [`rss___legacy__`]: null,
-      [`rss_${pod1}`]: null,
-      [`rss_${pod2}`]: Math.round(rss2),
+      [`rss_${pod1}`]: lastRss1,
+      [`rss_${pod2}`]: rss2,
     });
   }
 
