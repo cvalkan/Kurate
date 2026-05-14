@@ -81,6 +81,11 @@ def set_pod_id(pod_id: str):
     _pod_id = pod_id
 
 
+# Set pod_id immediately from process info (before scheduler starts)
+# Will be updated later with the scheduler's leader_id if available
+_pod_id = f"pod-{os.getpid()}"
+
+
 def _persist(level: str, label: str, data: dict):
     """Fire-and-forget write to MongoDB system_logs collection."""
     try:

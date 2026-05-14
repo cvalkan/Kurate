@@ -446,8 +446,8 @@ async def startup():
         from core.memlog import set_pod_id
         set_pod_id(_leader_id)
         logger.info(f"[STARTUP] pod_id={_leader_id}, is_leader={_is_leader}")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[STARTUP] Failed to set pod_id: {e}")
 
     log_mem("Server started")
     logger.info("Kurate.org Leaderboard started")
