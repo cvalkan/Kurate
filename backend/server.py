@@ -24,6 +24,7 @@ def _sync_log_shutdown(sig_name: str):
     uptime_min = uptime_s / 60
     try:
         from pymongo import MongoClient
+        from core.memlog import _pod_role
         sync_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
         sc = MongoClient(sync_url, serverSelectionTimeoutMS=2000)
         sc[os.environ.get("DB_NAME", "papersumo")].system_logs.insert_one({
@@ -35,6 +36,7 @@ def _sync_log_shutdown(sig_name: str):
             "uptime_seconds": round(uptime_s),
             "uptime_minutes": round(uptime_min, 1),
             "pod_id": _pod_id,
+            "pod_role": _pod_role,
             "argv": sys.argv,
             "pid": os.getpid(),
         })
