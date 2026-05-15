@@ -478,7 +478,7 @@ export function AdminStatistics({ categories }) {
                       <ReferenceLine key={`restart-${i}`} x={d.epoch} stroke={getColor(d.role)} strokeDasharray="4 4" strokeWidth={1} opacity={0.6} />
                     ))}
                     {restartEvents.filter(e => e.event === "shutdown_signal" && e.signal === "SIGTERM").map((d, i) => (
-                      <ReferenceLine key={`sigterm-${i}`} x={d.epoch} stroke={getColor(d.role)} strokeDasharray="8 3" strokeWidth={1.5} opacity={0.8} />
+                      <ReferenceLine key={`sigterm-${i}`} x={d.epoch} stroke={getColor(d.role)} strokeDasharray="6 4" strokeWidth={2.5} opacity={0.9} />
                     ))}
                     {restartEvents.filter(e => e.event === "server_shutdown" && (!e.reason || e.reason === "unknown")).map((d, i) => (
                       <ReferenceLine key={`oom-${i}`} x={d.epoch} stroke={getColor(d.role)} strokeDasharray="2 2" strokeWidth={2} opacity={0.8} />
@@ -510,7 +510,7 @@ export function AdminStatistics({ categories }) {
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" /> 1-1.5GB Warning</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" /> &gt;1.5GB Danger</span>
             <span className="flex items-center gap-1 ml-2 border-l pl-2 border-border"><span className="w-4 border-t border-dashed border-foreground/40" /> Restart</span>
-            <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dashed border-foreground/60" /> SIGTERM</span>
+            <span className="flex items-center gap-1"><span className="w-4 border-t-[2.5px] border-dashed border-foreground/80" /> SIGTERM</span>
             <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dotted border-foreground/60" /> Unknown kill</span>
             {(() => {
               const roles = [...new Set(memoryData.map(d => d.role).filter(r => r && r !== "unknown"))];
