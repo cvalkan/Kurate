@@ -804,16 +804,16 @@ async def get_progress_estimate(category: str = "cs.RO"):
     # Compute progress from rankings DB — single source of truth
     # Uses indexed rankings collection (pre-computed wins/comparisons), fast enough without caching
     top_k = settings.get("top_k_focus", 10)
-    ci_target = settings.get("ci_target", 10)
-    ci_target_general = settings.get("ci_target_general", 15)
+    sigma_target_general = settings.get("sigma_target_general", 2.5)
+    sigma_target_topk = settings.get("sigma_target_topk", 2.0)
     parallel_agents = settings.get("parallel_agents", 5)
 
-    from services.ranking import wilson_margin_pct
+    TS_SCALE = 10.0  # for ±Elo display
 
     entries = []
     async for doc in db.rankings.find(
         {"category": category},
-        {"_id": 0, "paper_id": 1, "wins": 1, "comparisons": 1, "score": 1, "unique_opponents": 1},
+        {"_id": 0, "paper_id": 1, "ts_sigma": 1, "comparisons": 1, "score": 1, "unique_opponents": 1},
     ):
         entries.append(doc)
 
@@ -864,62 +864,62 @@ async def get_progress_estimate(category: str = "cs.RO"):
     top_k_list = [e["paper_id"] for e in entries[:min(top_k, total_papers)]]
     top_k_ids = set(top_k_list)
 
-    # Goal 1: All non-top-K papers CI ≤ ci_target_general
+    # Goal 1: All non-top-K papers sigma ≤ sigma_target_general
     general_converged = 0
     general_total = 0
     general_additional = 0
-    widest_general = 0.0
-    general_margins = []
+    widest_general_sigma = 0.0
+    general_sigmas = []
     for e in entries:
         if e["paper_id"] in top_k_ids:
             continue
         general_total += 1
-        n = e.get("comparisons", 0)
-        w = e.get("wins", 0)
-        margin = wilson_margin_pct(w, n)
-        general_margins.append(margin)
-        if margin <= ci_target_general:
+        sigma = e.get("ts_sigma", 25.0 / 3)
+        general_sigmas.append(sigma)
+        if sigma <= sigma_target_general:
             general_converged += 1
         else:
+            n = e.get("comparisons", 0)
             if n >= 2:
-                n_needed = n * (margin / ci_target_general) ** 2
+                # Estimate: sigma ≈ k/sqrt(n), so n_needed = (k/target)^2
+                k = sigma * (n ** 0.5)
+                n_needed = (k / sigma_target_general) ** 2
                 general_additional += max(3, int(n_needed) - n)
             else:
                 general_additional += 30
-        if margin > widest_general:
-            widest_general = margin
+        if sigma > widest_general_sigma:
+            widest_general_sigma = sigma
 
     goal1_met = general_converged == general_total if general_total > 0 else True
-    median_general = sorted(general_margins)[len(general_margins) // 2] if general_margins else 0.0
+    median_general_sigma = sorted(general_sigmas)[len(general_sigmas) // 2] if general_sigmas else 0.0
     matches_for_goal1 = 0 if goal1_met else max(0, int(general_additional * 0.6))
 
-    # Goal 2: All top-K papers CI ≤ ci_target (tighter)
+    # Goal 2: All top-K papers sigma ≤ sigma_target_topk
     topk_converged = 0
     topk_total = len(top_k_ids)
     topk_additional = 0
-    widest_topk = 0.0
-    topk_margins = []
-    # Build lookup from entries for top-K
+    widest_topk_sigma = 0.0
+    topk_sigmas = []
     entry_map = {e["paper_id"]: e for e in entries}
     for pid in top_k_list:
         e = entry_map.get(pid, {})
-        n = e.get("comparisons", 0)
-        w = e.get("wins", 0)
-        margin = wilson_margin_pct(w, n)
-        topk_margins.append(margin)
-        if margin <= ci_target:
+        sigma = e.get("ts_sigma", 25.0 / 3)
+        topk_sigmas.append(sigma)
+        if sigma <= sigma_target_topk:
             topk_converged += 1
         else:
+            n = e.get("comparisons", 0)
             if n >= 2:
-                n_needed = n * (margin / ci_target) ** 2
+                k = sigma * (n ** 0.5)
+                n_needed = (k / sigma_target_topk) ** 2
                 topk_additional += max(3, int(n_needed) - n)
             else:
                 topk_additional += 40
-        if margin > widest_topk:
-            widest_topk = margin
+        if sigma > widest_topk_sigma:
+            widest_topk_sigma = sigma
 
     goal2_met = topk_converged == topk_total if topk_total > 0 else True
-    median_topk = sorted(topk_margins)[len(topk_margins) // 2] if topk_margins else 0.0
+    median_topk_sigma = sorted(topk_sigmas)[len(topk_sigmas) // 2] if topk_sigmas else 0.0
     matches_for_goal2 = 0 if goal2_met else max(0, int(topk_additional * 0.6))
 
     # Goal 3: Cross-matches among top-K papers
@@ -975,10 +975,10 @@ async def get_progress_estimate(category: str = "cs.RO"):
     if not (goal1_met and goal2_met) and matchable_count > 1:
         for e in entries:
             pid = e["paper_id"]
-            target = ci_target if pid in top_k_ids else ci_target_general
-            margin = wilson_margin_pct(e.get("wins", 0), e.get("comparisons", 0))
+            target = sigma_target_topk if pid in top_k_ids else sigma_target_general
+            sigma = e.get("ts_sigma", 25.0 / 3)
             actual_opps = e.get("unique_opponents", 0)
-            if margin > target and actual_opps >= matchable_count - 1:
+            if sigma > target and actual_opps >= matchable_count - 1:
                 exhausted_papers += 1
         if exhausted_papers > 0:
             pair_exhausted = True
@@ -1008,17 +1008,17 @@ async def get_progress_estimate(category: str = "cs.RO"):
         "unique_pairs_played": unique_pairs_played,
         "goal1": {
             "met": bool(goal1_met),
-            "label": f"General CI \u2264 {ci_target_general}%",
+            "label": f"General \u00B1{int(sigma_target_general * 2 * TS_SCALE)} pts",
             "done": int(general_converged),
             "total": int(general_total),
-            "median_margin": round(median_general, 1),
+            "median_margin": round(median_general_sigma * 2 * TS_SCALE, 0),
         },
         "goal2": {
             "met": bool(goal2_met),
-            "label": f"Top-{topk_total} CI \u2264 {ci_target}%",
+            "label": f"Top-{topk_total} \u00B1{int(sigma_target_topk * 2 * TS_SCALE)} pts",
             "done": int(topk_converged),
             "total": int(topk_total),
-            "median_margin": round(median_topk, 1),
+            "median_margin": round(median_topk_sigma * 2 * TS_SCALE, 0),
         },
         "goal3": {
             "met": bool(goal3_met),

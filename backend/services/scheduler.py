@@ -713,32 +713,35 @@ async def _check_goals_met(category: str = "cs.RO") -> bool:
 
 
 async def _check_goals_met_impl(category: str = "cs.RO") -> bool:
-    """Actual goals check — loads rankings from DB."""
+    """Actual goals check — loads rankings from DB.
+    
+    Uses TrueSkill sigma thresholds (not Wilson CI):
+    1. General papers: ts_sigma ≤ sigma_target_general (default 2.5)
+    2. Top-K papers: ts_sigma ≤ sigma_target_topk (default 2.0)
+    3. Top-K cross-matching: all top-K pairs compared
+    """
     from core.memlog import log_mem
-    from services.ranking import wilson_margin_pct
 
     settings = await get_settings()
     top_k = settings.get("top_k_focus", 10)
-    ci_target = settings.get("ci_target", 10)
-    ci_target_general = settings.get("ci_target_general", 15)
+    sigma_target_general = settings.get("sigma_target_general", 2.5)
+    sigma_target_topk = settings.get("sigma_target_topk", 2.0)
 
-    # Read wins/comparisons directly from rankings (no match loading)
+    # Read ts_sigma directly from rankings
     entries = []
     async for doc in db.rankings.find(
         {"category": category},
-        {"_id": 0, "paper_id": 1, "wins": 1, "comparisons": 1, "score": 1},
+        {"_id": 0, "paper_id": 1, "ts_sigma": 1, "comparisons": 1, "score": 1},
     ):
         entries.append(doc)
 
     if len(entries) < 2:
-        # Check if papers exist but haven't been ranked yet (summary phase)
         actual_papers = await db.papers.count_documents({"categories.0": category})
         if actual_papers >= 2:
-            return False  # Papers exist but not yet ranked — goals NOT met
+            return False
         return True
 
     total_rankings = len(entries)
-    # Exclude unmatchable papers (no summary → can never get matches).
     try:
         matchable_ids = await get_matchable_paper_ids(category, settings.get("summary_source", "thinking"))
         if matchable_ids:
@@ -748,11 +751,9 @@ async def _check_goals_met_impl(category: str = "cs.RO") -> bool:
         log_mem(f"_check_goals({category}): filter FAILED: {e}")
 
     if len(entries) < 2:
-        # Not enough matchable papers to compare — but don't claim goals met
-        # if papers exist that need summaries
         actual_papers = await db.papers.count_documents({"categories.0": category})
         if actual_papers >= 2:
-            return False  # Papers exist, waiting for summaries
+            return False
         return True
 
     # Sort by score descending to identify top-K
@@ -760,18 +761,16 @@ async def _check_goals_met_impl(category: str = "cs.RO") -> bool:
     top_k_list = [e["paper_id"] for e in entries[:min(top_k, len(entries))]]
     top_k_ids = set(top_k_list)
 
-    # Goal 1: General papers CI ≤ ci_target_general
+    # Goal 1: General papers sigma ≤ sigma_target_general
     for e in entries:
         if e["paper_id"] in top_k_ids:
             continue
-        margin = wilson_margin_pct(e.get("wins", 0), e.get("comparisons", 0))
-        if margin > ci_target_general:
+        if e.get("ts_sigma", 25 / 3) > sigma_target_general:
             return False
 
-    # Goal 2: Top-K papers CI ≤ ci_target
+    # Goal 2: Top-K papers sigma ≤ sigma_target_topk
     for e in entries[:min(top_k, len(entries))]:
-        margin = wilson_margin_pct(e.get("wins", 0), e.get("comparisons", 0))
-        if margin > ci_target:
+        if e.get("ts_sigma", 25 / 3) > sigma_target_topk:
             return False
 
     # Goal 3: Top-K cross-matching — 2 batch queries instead of 45 individual ones
@@ -1697,7 +1696,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
             paper_stats = {}
             async for rdoc in db.rankings.find(
                 {"category": category},
-                {"_id": 0, "paper_id": 1, "wins": 1, "losses": 1, "comparisons": 1, "score": 1},
+                {"_id": 0, "paper_id": 1, "wins": 1, "losses": 1, "comparisons": 1, "score": 1, "ts_sigma": 1},
             ):
                 pid = rdoc["paper_id"]
                 paper_stats[pid] = {
@@ -1705,11 +1704,12 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                     "losses": rdoc.get("losses", 0),
                     "comparisons": rdoc.get("comparisons", 0),
                     "score": rdoc.get("score", 1200),
+                    "ts_sigma": rdoc.get("ts_sigma", 25.0 / 3),
                 }
             # Ensure all papers have an entry (new papers may not be in rankings yet)
             for p in all_papers:
                 if p["id"] not in paper_stats:
-                    paper_stats[p["id"]] = {"wins": 0, "losses": 0, "comparisons": 0, "score": 1200}
+                    paper_stats[p["id"]] = {"wins": 0, "losses": 0, "comparisons": 0, "score": 1200, "ts_sigma": 25.0 / 3}
 
             if max_pairs_override:
                 max_pairs = min(max_pairs_override, 500)
@@ -1719,8 +1719,8 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
             pairs = await _select_pairs(
                 all_papers, paper_stats, category,
                 max_pairs, top_k_focus, max_new_per_round,
-                ci_target=settings.get("ci_target", 10),
-                ci_target_general=settings.get("ci_target_general", 15),
+                sigma_target_general=settings.get("sigma_target_general", 2.5),
+                sigma_target_topk=settings.get("sigma_target_topk", 2.0),
                 calibration_ratio=settings.get("calibration_ratio", 50),
             )
 
@@ -2022,17 +2022,15 @@ async def _select_pairs(
     max_pairs: int, top_k: int, max_per_round: int, **kwargs,
 ) -> List[tuple]:
     """
-    Goal-directed pair selection with 2-tier CI targets.
+    Goal-directed pair selection with 2-tier TrueSkill sigma targets.
     Loads all existing pairs once, then checks in-memory (O(1) per pair).
     """
-    from services.ranking import wilson_margin_pct
-
     paper_ids = [p["id"] for p in papers]
     if len(paper_ids) < 2:
         return []
 
-    ci_target = kwargs.get("ci_target", 10)
-    ci_target_general = kwargs.get("ci_target_general", 15)
+    sigma_target_topk = kwargs.get("sigma_target_topk", 2.0)
+    sigma_target_general = kwargs.get("sigma_target_general", 2.5)
     calibration_pct = kwargs.get("calibration_ratio", 50)
 
     # --- Load ALL existing dedup_pairs for this category once (replaces N per-paper queries) ---
@@ -2045,16 +2043,12 @@ async def _select_pairs(
             existing_pairs.add(m["dedup_pair"])
 
     comparisons = {}
-    wins = {}
-    margins = {}
+    sigmas = {}
 
     for pid in paper_ids:
         s = stats.get(pid, {})
-        c = s.get("comparisons", 0)
-        w = s.get("wins", 0)
-        comparisons[pid] = c
-        wins[pid] = w
-        margins[pid] = wilson_margin_pct(w, c)
+        comparisons[pid] = s.get("comparisons", 0)
+        sigmas[pid] = s.get("ts_sigma", 25.0 / 3)
 
     # Use stored scores from rankings collection (same source as _check_goals_met)
     SCORE_BASE = 1200
@@ -2071,20 +2065,18 @@ async def _select_pairs(
 
     pairs = []
     round_count = {pid: 0 for pid in paper_ids}
-    # Track pairs selected THIS round (to avoid selecting the same pair twice)
     selected_this_round = set()
 
     def can_pair(p):
         return round_count[p] < max_per_round
 
-    # --- Rule 1: Match neediest papers (widest margin vs their target) ---
+    # --- Rule 1: Match neediest papers (highest sigma above their target) ---
     def urgency(pid):
-        target = ci_target if pid in top_k_ids else ci_target_general
+        target = sigma_target_topk if pid in top_k_ids else sigma_target_general
         if comparisons[pid] == 0:
             return 999
-        if margins[pid] > target:
-            return margins[pid] - target
-        return 0
+        excess = sigmas[pid] - target
+        return excess if excess > 0 else 0
 
     needy = sorted(paper_ids, key=lambda pid: urgency(pid), reverse=True)
     needy = [pid for pid in needy if urgency(pid) > 0]

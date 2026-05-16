@@ -14,7 +14,7 @@ const COLUMN_TIPS = {
   score_g: "Win-rate score from ALL matches across all categories (pairwise win-rate). Reflects overall performance.",
   win_rate: "Percentage of head-to-head comparisons won within this set.",
   win_rate_g: "Win rate across ALL matches the paper has participated in, not just this filtered set.",
-  wilson_margin: "95% confidence interval half-width. For Win Rate: Wilson score interval on win percentage. For TrueSkill/OpenSkill: \u00B11.96\u00D7\u03C3 in Elo-scaled score points. Lower = more matches played = more certainty in the rating.",
+  wilson_margin: "95% confidence interval in \u00B1Elo points (from TrueSkill \u03C3). Lower = more certain ranking. Based on opponent strength, not just win rate.",
   comparisons: "Number of head-to-head LLM comparisons this paper has participated in within this set.",
   comparisons_g: "Total comparisons across ALL categories, including matches outside this filtered set.",
   published: "arXiv publication date.",
@@ -77,7 +77,7 @@ export function LeaderboardTable({
   const getComparisons = (p) => isGlobal && p.global_comparisons !== undefined ? p.global_comparisons : p.comparisons;
   const getWilsonMargin = (p) => {
     if (isGlobal) return null;
-    return p.wilson_margin;
+    return p.ci;
   };
   const getRank = (p) => {
     if (isArchive) return null; // Archives derive rank from array position, handled below
@@ -264,7 +264,7 @@ export function LeaderboardTable({
             )}
             <div className="text-right font-mono text-xs sm:text-sm font-medium">{getScore(paper) || "—"}</div>
             {!isMobile && !isTablet && <div className="text-right font-mono text-xs text-muted-foreground">
-              {(() => { const wm = getWilsonMargin(paper); return wm != null && wm > 0 ? `\u00B1${wm}%` : "—"; })()}
+              {(() => { const wm = getWilsonMargin(paper); return wm != null && wm > 0 ? `\u00B1${Math.round(wm)}` : "—"; })()}
             </div>}
             {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getComparisons(paper) != null ? getComparisons(paper) : "—"}</div>}
             {!isMobile && <div className="text-right font-mono text-[10px] sm:text-xs text-muted-foreground">{getWinRate(paper) != null ? `${getWinRate(paper)}%` : "—"}</div>}

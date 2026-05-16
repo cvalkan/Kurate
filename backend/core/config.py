@@ -141,6 +141,8 @@ DEFAULT_SETTINGS = {
     "max_new_matches_per_round": 3,
     "ci_target": 10,
     "ci_target_general": 15,
+    "sigma_target_general": 2.5,
+    "sigma_target_topk": 2.0,
     "calibration_ratio": 50,
     "min_papers_for_tournament": 8,
     "parallel_categories": 10,

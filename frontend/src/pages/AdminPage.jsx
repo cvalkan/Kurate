@@ -213,7 +213,7 @@ export default function AdminPage() {
     setLoading(l => ({ ...l, settings: true }));
     try {
       const updates = {};
-      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "parallel_agents", "top_k_focus", "max_new_matches_per_round", "ci_target", "ci_target_general", "calibration_ratio", "parallel_categories", "compare_loop_interval", "llm_request_timeout", "max_pairs_per_round", "summary_batch_size", "summary_parallel", "min_papers_for_tournament"]) {
+      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "parallel_agents", "top_k_focus", "max_new_matches_per_round", "ci_target", "ci_target_general", "sigma_target_general", "sigma_target_topk", "calibration_ratio", "parallel_categories", "compare_loop_interval", "llm_request_timeout", "max_pairs_per_round", "summary_batch_size", "summary_parallel", "min_papers_for_tournament"]) {
         if (editSettings[key] !== settings[key]) {
           updates[key] = Number(editSettings[key]);
         }
@@ -338,14 +338,20 @@ export default function AdminPage() {
               { key: "top_k_focus", label: "Top-K Focus", dflt: 10, help: "Top papers that get tighter CI target and cross-matching. Safe range: 3-50. Default: 10.", min: 3, max: 50 },
               { key: "max_new_matches_per_round", label: "Max Matches Per Paper Per Round", dflt: 3, help: "New matches a single paper can participate in per round. Higher = faster convergence for individual papers. Safe range: 1-10. Default: 3.", min: 1, max: 10 },
               { key: "max_pairs_per_round", label: "Max Pairs Per Round", dflt: 100, help: "Hard cap on total pairs generated per category per round. Increase for large categories (5K+ papers). Safe range: 10-500. Default: 100.", min: 10, max: 500 },
-              { key: "ci_target", label: "Top-K CI Target (%)", dflt: 10, help: "Wilson CI margin target for top-K papers. Lower = more matches needed. Safe range: 3-30. Default: 10.", min: 3, max: 30 },
-              { key: "ci_target_general", label: "General CI Target (%)", dflt: 15, help: "Wilson CI margin target for non-top-K papers. Should be >= Top-K target. Safe range: 5-50. Default: 15.", min: 5, max: 50 },
+              { key: "ci_target", label: "Top-K CI Target (%) [legacy]", dflt: 10, help: "Legacy Wilson CI target — no longer used for convergence. Kept for reference.", min: 3, max: 30 },
+              { key: "ci_target_general", label: "General CI Target (%) [legacy]", dflt: 15, help: "Legacy Wilson CI target — no longer used for convergence. Kept for reference.", min: 5, max: 50 },
+              { key: "sigma_target_general", label: "General Confidence Target (\u00B1Elo)", dflt: 50, help: "TrueSkill confidence target for non-top-K papers, in \u00B1Elo points. Stored as sigma (value\u00F720). Lower = more matches needed. Default: \u00B150 (\u03C3=2.5).", min: 10, max: 200, step: 5, isSigma: true },
+              { key: "sigma_target_topk", label: "Top-K Confidence Target (\u00B1Elo)", dflt: 40, help: "TrueSkill confidence target for top-K papers, in \u00B1Elo points. Stored as sigma (value\u00F720). Should be \u2264 General target. Default: \u00B140 (\u03C3=2.0).", min: 10, max: 200, step: 5, isSigma: true },
               { key: "calibration_ratio", label: "Calibration Ratio (%)", dflt: 50, help: "% of new-paper matches paired against established (converged) papers. 0=all needy-vs-needy, 100=all needy-vs-established. Safe range: 0-100. Default: 50.", min: 0, max: 100 },
               { key: "compare_loop_interval", label: "Compare Loop Interval (sec)", dflt: 60, help: "Seconds between compare loop cycles. Increase for 100+ categories to reduce DB pressure. Safe range: 10-300. Default: 60.", min: 10, max: 300 },
               { key: "llm_request_timeout", label: "LLM Request Timeout (sec)", dflt: 120, help: "Max seconds to wait for an LLM comparison response. Increase for slower models. Safe range: 30-300. Default: 120.", min: 30, max: 300 },
               { key: "summary_parallel", label: "Summary Parallel", dflt: 10, help: "Concurrent LLM calls for summary generation. Safe range: 1-20. Default: 10.", min: 1, max: 20 },
               { key: "summary_batch_size", label: "Summary Batch Size", dflt: 50, help: "Papers per summary generation batch. Lower = less memory, more batches. Safe range: 10-200. Default: 50.", min: 10, max: 200 },
-            ].map(({ key, label, help, min, max, step, dflt }) => {
+            ].map(({ key, label, help, min, max, step, dflt, isSigma }) => {
+              // Sigma fields: display as ±Elo (sigma × 20), save as raw sigma (÷20)
+              const displayValue = isSigma && editSettings[key] != null && editSettings[key] !== ""
+                ? Math.round(editSettings[key] * 20)
+                : editSettings[key];
               return (
               <div key={key}>
                 <div className="flex items-center gap-1.5 mb-1">
@@ -356,13 +362,15 @@ export default function AdminPage() {
                 <Input
                   type="number" min={min} max={max} step={step}
                   placeholder={dflt !== undefined ? `${dflt}` : ""}
-                  value={editSettings[key] ?? ""}
+                  value={displayValue ?? ""}
                   onChange={(e) => {
                     let v = step && step < 1 ? parseFloat(e.target.value) : Number(e.target.value);
                     if (isNaN(v)) v = "";
                     if (v !== "" && min !== undefined && v < min) v = min;
                     if (v !== "" && max !== undefined && v > max) v = max;
-                    setEditSettings({ ...editSettings, [key]: v });
+                    // Convert ±Elo back to raw sigma for storage
+                    const storeValue = isSigma && v !== "" ? v / 20 : v;
+                    setEditSettings({ ...editSettings, [key]: storeValue });
                   }}
                   data-testid={`setting-${key}`}
                 />

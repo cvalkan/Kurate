@@ -570,7 +570,7 @@ def _rank_doc_to_entry(doc: dict) -> dict:
         "score": doc.get("ts_score", doc.get("score", 1200)),
         "ts_score": doc.get("ts_score", 1200),
         "ts_sigma": doc.get("ts_sigma"),
-        "ci": doc.get("wilson_margin", doc.get("ci", 100.0)),
+        "ci": round(doc.get("ts_sigma", 25.0 / 3) * 2 * 10, 0),
         "wilson_margin": doc.get("wilson_margin", 100.0),
         "win_rate": doc.get("win_rate", 0.0),
         "wins": doc.get("wins", 0),
@@ -595,7 +595,7 @@ _SORT_FIELD_MAP = {
     "score": ("ts_score", -1),  # WR no longer selectable — redirect to TS
     "win_rate": ("win_rate", -1),
     "comparisons": ("comparisons", -1),
-    "wilson_margin": ("wilson_margin", 1),
+    "wilson_margin": ("ts_sigma", 1),
     "published": ("published", -1),
     "title": ("title", 1),
     "ts_score": ("ts_score", -1),

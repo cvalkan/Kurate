@@ -1,0 +1,26 @@
+{
+  "summary": "Tested the TrueSkill sigma migration: leaderboard ci field is now ±Elo points (sigma*2*10), admin progress goals are sigma-based with ±pts labels, sort by wilson_margin maps to ts_sigma ascending, and the frontend renders ±X (not ±X%). All 8 backend tests pass against the preview URL. Frontend smoke confirmed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_sigma_convergence_iter63.py",
+    "/app/test_reports/pytest/iter63.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routers/leaderboard.py:573 ci = round(ts_sigma * 2 * 10, 0) — correct conversion. Default fallback sigma is 25/3 (TrueSkill prior), so a brand-new paper would show ±167 ≈ TS_SCALE×16.7 which sits at the top of the expected 15-170 range. OK.",
+    "routers/admin.py:1011 goal1.label uses int(sigma_target_general * 2 * TS_SCALE) — with default sigma_target_general=2.5 this prints 'General ±50 pts'. goal2 with sigma_target_topk=2.0 prints 'Top-N ±40 pts'. Both verified live for cs.AI.",
+    "routers/admin.py goal2 'Top-N ±40 pts' uses len(top_k_ids) (the actual N from settings.top_k_focus, default 10) — label was 'Top-10 ±40 pts' in live response. Matches review request.",
+    "routers/leaderboard.py:598 _SORT_FIELD_MAP['wilson_margin'] = ('ts_sigma', 1) — ascending ts_sigma = ascending ci, so the CI column sorts smallest-uncertainty first. Verified: inversions=0 in a 50-row sample.",
+    "Convergence estimate formula in admin.py uses sigma ≈ k/sqrt(n) ⇒ n_needed = (k/target)². Reasonable order-of-magnitude. For cs.AI returns finite positive int (no overflow).",
+    "config.py DEFAULT_SETTINGS exposes sigma_target_general=2.5 and sigma_target_topk=2.0 with st <= sg invariant — verified via /api/admin/settings.",
+    "Frontend LeaderboardTable.jsx:267 (per review request) renders ±X without %. Visual confirmation: 0 occurrences of '±X%' on the rendered page; 200+ '±X' entries in the table."
+  ],
+  "updated_files": ["/app/backend/tests/test_sigma_convergence_iter63.py"],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100% (smoke verified)"},
+  "test_credentials": "Admin: papersumo2025 (POST /api/admin/login). Used cs.AI (711 papers, 17317 matches) as test category.",
+  "seed_data_creation": "None.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: `python -m pytest /app/backend/tests/test_sigma_convergence_iter63.py -v` (8 tests, ~1.3s). Tests target cs.AI; if that category is wiped, change CAT constant. test_fewer_matches_higher_ci_trend uses median-split (not absolute thresholds) because cs.AI papers all have >15 comparisons."
+}
