@@ -814,7 +814,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     entries = []
     async for doc in db.rankings.find(
         {"category": category},
-        {"_id": 0, "paper_id": 1, "ts_sigma": 1, "comparisons": 1, "score": 1, "unique_opponents": 1},
+        {"_id": 0, "paper_id": 1, "ts_sigma": 1, "comparisons": 1, "score": 1, "unique_opponents": 1, "wins": 1},
     ):
         entries.append(doc)
 
@@ -865,7 +865,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     top_k_list = [e["paper_id"] for e in entries[:min(top_k, total_papers)]]
     top_k_ids = set(top_k_list)
 
-    # Goal 1: All non-top-K papers sigma ≤ sigma_target_general
+    # Goal 1: All non-top-K papers sigma ≤ sigma_target_general (+ undefeated check)
     general_converged = 0
     general_total = 0
     general_additional = 0
@@ -878,7 +878,10 @@ async def get_progress_estimate(category: str = "cs.RO"):
         sigma = e.get("ts_sigma", 25.0 / 3)
         general_sigmas.append(sigma)
         n = e.get("comparisons", 0)
-        if sigma <= sigma_target_general or n >= min_comps:
+        w = e.get("wins", 0)
+        # Converged if: (sigma met OR floor reached) AND not undefeated-below-floor
+        is_undefeated = n > 0 and (w == n or w == 0) and n < min_comps
+        if (sigma <= sigma_target_general or n >= min_comps) and not is_undefeated:
             general_converged += 1
         else:
             if n >= 2:
@@ -895,7 +898,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     median_general_sigma = sorted(general_sigmas)[len(general_sigmas) // 2] if general_sigmas else 0.0
     matches_for_goal1 = 0 if goal1_met else max(0, int(general_additional * 0.6))
 
-    # Goal 2: All top-K papers sigma ≤ sigma_target_topk
+    # Goal 2: All top-K papers sigma ≤ sigma_target_topk (+ undefeated check)
     topk_converged = 0
     topk_total = len(top_k_ids)
     topk_additional = 0
@@ -905,11 +908,13 @@ async def get_progress_estimate(category: str = "cs.RO"):
     for pid in top_k_list:
         e = entry_map.get(pid, {})
         sigma = e.get("ts_sigma", 25.0 / 3)
+        n = e.get("comparisons", 0)
+        w = e.get("wins", 0)
         topk_sigmas.append(sigma)
-        if sigma <= sigma_target_topk or n >= min_comps:
+        is_undefeated = n > 0 and (w == n or w == 0) and n < min_comps
+        if (sigma <= sigma_target_topk or n >= min_comps) and not is_undefeated:
             topk_converged += 1
         else:
-            n = e.get("comparisons", 0)
             if n >= 2:
                 k = sigma * (n ** 0.5)
                 n_needed = (k / sigma_target_topk) ** 2

@@ -732,7 +732,7 @@ async def _check_goals_met_impl(category: str = "cs.RO") -> bool:
     entries = []
     async for doc in db.rankings.find(
         {"category": category},
-        {"_id": 0, "paper_id": 1, "ts_sigma": 1, "comparisons": 1, "score": 1},
+        {"_id": 0, "paper_id": 1, "ts_sigma": 1, "comparisons": 1, "score": 1, "wins": 1},
     ):
         entries.append(doc)
 
@@ -766,12 +766,27 @@ async def _check_goals_met_impl(category: str = "cs.RO") -> bool:
     for e in entries:
         if e["paper_id"] in top_k_ids:
             continue
-        if e.get("ts_sigma", 25 / 3) > sigma_target_general and e.get("comparisons", 0) < min_comps:
+        comps = e.get("comparisons", 0)
+        if comps >= min_comps:
+            continue
+        sigma = e.get("ts_sigma", 25 / 3)
+        if sigma > sigma_target_general:
+            return False
+        # Undefeated papers below floor are under-tested
+        w = e.get("wins", 0)
+        if comps > 0 and (w == comps or w == 0):
             return False
 
     # Goal 2: Top-K papers sigma ≤ sigma_target_topk (or enough comparisons)
     for e in entries[:min(top_k, len(entries))]:
-        if e.get("ts_sigma", 25 / 3) > sigma_target_topk and e.get("comparisons", 0) < min_comps:
+        comps = e.get("comparisons", 0)
+        if comps >= min_comps:
+            continue
+        sigma = e.get("ts_sigma", 25 / 3)
+        if sigma > sigma_target_topk:
+            return False
+        w = e.get("wins", 0)
+        if comps > 0 and (w == comps or w == 0):
             return False
 
     # Goal 3: Top-K cross-matching — 2 batch queries instead of 45 individual ones
@@ -1697,7 +1712,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
             paper_stats = {}
             async for rdoc in db.rankings.find(
                 {"category": category},
-                {"_id": 0, "paper_id": 1, "wins": 1, "losses": 1, "comparisons": 1, "score": 1, "ts_sigma": 1},
+                {"_id": 0, "paper_id": 1, "wins": 1, "losses": 1, "comparisons": 1, "score": 1, "ts_sigma": 1, "ts_mu": 1},
             ):
                 pid = rdoc["paper_id"]
                 paper_stats[pid] = {
@@ -1706,11 +1721,12 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                     "comparisons": rdoc.get("comparisons", 0),
                     "score": rdoc.get("score", 1200),
                     "ts_sigma": rdoc.get("ts_sigma", 25.0 / 3),
+                    "ts_mu": rdoc.get("ts_mu", 25.0),
                 }
             # Ensure all papers have an entry (new papers may not be in rankings yet)
             for p in all_papers:
                 if p["id"] not in paper_stats:
-                    paper_stats[p["id"]] = {"wins": 0, "losses": 0, "comparisons": 0, "score": 1200, "ts_sigma": 25.0 / 3}
+                    paper_stats[p["id"]] = {"wins": 0, "losses": 0, "comparisons": 0, "score": 1200, "ts_sigma": 25.0 / 3, "ts_mu": 25.0}
 
             if max_pairs_override:
                 max_pairs = min(max_pairs_override, 500)
@@ -2047,11 +2063,15 @@ async def _select_pairs(
 
     comparisons = {}
     sigmas = {}
+    mus = {}
+    wins = {}
 
     for pid in paper_ids:
         s = stats.get(pid, {})
         comparisons[pid] = s.get("comparisons", 0)
         sigmas[pid] = s.get("ts_sigma", 25.0 / 3)
+        mus[pid] = s.get("ts_mu", 25.0)
+        wins[pid] = s.get("wins", 0)
 
     # Use stored scores from rankings collection (same source as _check_goals_met)
     SCORE_BASE = 1200
@@ -2081,7 +2101,12 @@ async def _select_pairs(
         if comparisons[pid] >= min_comps:
             return 0  # enough matches — consider established
         excess = sigmas[pid] - target
-        return excess if excess > 0 else 0
+        if excess > 0:
+            return excess
+        # Sigma met but below floor: undefeated papers are under-tested
+        if wins[pid] == comparisons[pid] or wins[pid] == 0:
+            return 0.1
+        return 0
 
     needy = sorted(paper_ids, key=lambda pid: urgency(pid), reverse=True)
     needy = [pid for pid in needy if urgency(pid) > 0]
@@ -2105,14 +2130,17 @@ async def _select_pairs(
         best = None
 
         if prefer_established:
-            target = median_elo if comparisons[p1] == 0 else wr_scores[p1]
-            best_dist = float('inf')
+            # Quality-based selection: pick established opponent maximizing TrueSkill
+            # match quality (accounts for both skill difference AND uncertainty).
+            import trueskill as _ts
+            r1 = _ts.Rating(mu=mus[p1], sigma=sigmas[p1])
+            best_quality = -1
             for p2 in established:
                 if p2 == p1 or not can_pair(p2) or p2 in already_compared:
                     continue
-                dist = abs(wr_scores[p2] - target)
-                if dist < best_dist:
-                    best_dist = dist
+                q = _ts.quality_1vs1(r1, _ts.Rating(mu=mus[p2], sigma=sigmas[p2]))
+                if q > best_quality:
+                    best_quality = q
                     best = p2
 
         # If no novel established opponent, pick a novel needy opponent
