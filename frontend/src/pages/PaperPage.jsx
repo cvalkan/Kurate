@@ -534,9 +534,7 @@ export default function PaperPage() {
         ];
 
         const displayScore = paper.ts_score;
-        const displaySigma = paper.ts_sigma;
-        const displayScale = 10;
-        const displayCi = displaySigma ? Math.round(2 * displaySigma * displayScale) : null;
+        const displayCi = stats.ci_elo || null;
         const rangeMin = paper.category_ts_min || 900;
         const rangeMax = paper.category_ts_max || 2000;
         const paddedMin = Math.floor((rangeMin - 50) / 50) * 50;

@@ -6,7 +6,7 @@ import asyncio
 import time
 from core.config import db, logger, CATEGORIES
 from routers.validation_utils import collect_all
-from services.ranking import compute_leaderboard, compute_leaderboard_async, calculate_confidence_interval, wilson_margin_pct
+from services.ranking import compute_leaderboard, compute_leaderboard_async, calculate_confidence_interval
 
 router = APIRouter(prefix="/api")
 

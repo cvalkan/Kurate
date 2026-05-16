@@ -1082,18 +1082,17 @@ async def diagnose_pair_selection(category: str = "cs.SI"):
     Shows per-paper: rankings comparisons vs actual DB matches vs actual unique opponents.
     Identifies the gap between what rankings thinks and what the matches DB has.
     """
-    from services.ranking import wilson_margin_pct
     from services.scheduler import get_matchable_paper_ids, _get_compared_opponents, _make_dedup_pair
     settings = await get_settings()
-    ci_target = settings.get("ci_target", 10)
-    ci_target_general = settings.get("ci_target_general", 15)
+    sigma_target_general = settings.get("sigma_target_general", 2.5)
+    sigma_target_topk = settings.get("sigma_target_topk", 2.0)
     top_k = settings.get("top_k_focus", 10)
 
     # Get rankings entries
     entries = []
     async for doc in db.rankings.find(
         {"category": category},
-        {"_id": 0, "paper_id": 1, "wins": 1, "comparisons": 1, "score": 1},
+        {"_id": 0, "paper_id": 1, "ts_sigma": 1, "comparisons": 1, "score": 1},
     ):
         entries.append(doc)
 
@@ -1111,11 +1110,11 @@ async def diagnose_pair_selection(category: str = "cs.SI"):
     needy_diagnosis = []
     for e in entries:
         pid = e["paper_id"]
-        target = ci_target if pid in top_k_ids else ci_target_general
-        margin = wilson_margin_pct(e.get("wins", 0), e.get("comparisons", 0))
-        if margin <= target:
+        target = sigma_target_topk if pid in top_k_ids else sigma_target_general
+        sigma = e.get("ts_sigma", 25.0 / 3)
+        if sigma <= target:
             continue
-        # Count actual unique opponents from matches DB (what _get_compared_opponents sees)
+        # Count actual unique opponents from matches DB
         candidates = [p for p in paper_ids if p != pid]
         already_compared = await _get_compared_opponents(pid, category, candidates)
         novel_count = len(candidates) - len(already_compared)
@@ -1125,7 +1124,7 @@ async def diagnose_pair_selection(category: str = "cs.SI"):
             "rankings_comparisons": e.get("comparisons", 0),
             "db_unique_opponents": len(already_compared),
             "novel_opponents_available": novel_count,
-            "margin": margin,
+            "sigma": round(sigma, 3),
             "target": target,
             "is_top_k": pid in top_k_ids,
         })
@@ -2318,6 +2317,7 @@ async def estimate_category(cat_id: str):
     settings = await get_settings()
     top_k = settings.get("top_k_focus", 10)
     ci_target = settings.get("ci_target", 10)
+    sigma_target_general = settings.get("sigma_target_general", 2.5)
 
     # Check if we already have papers for this category
     existing_papers = await db.papers.count_documents({"categories.0": cat_id})
@@ -2363,7 +2363,7 @@ async def estimate_category(cat_id: str):
         "sample_size": total_fetched,
         "settings_used": {
             "top_k_focus": top_k,
-            "ci_target": ci_target,
+            "sigma_target_general": sigma_target_general,
             "matches_per_paper_ratio": round(matches_per_paper, 1),
         },
     }

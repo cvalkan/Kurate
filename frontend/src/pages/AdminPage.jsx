@@ -213,7 +213,7 @@ export default function AdminPage() {
     setLoading(l => ({ ...l, settings: true }));
     try {
       const updates = {};
-      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "parallel_agents", "top_k_focus", "max_new_matches_per_round", "ci_target", "ci_target_general", "sigma_target_general", "sigma_target_topk", "calibration_ratio", "parallel_categories", "compare_loop_interval", "llm_request_timeout", "max_pairs_per_round", "summary_batch_size", "summary_parallel", "min_papers_for_tournament"]) {
+      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "parallel_agents", "top_k_focus", "max_new_matches_per_round", "sigma_target_general", "sigma_target_topk", "calibration_ratio", "parallel_categories", "compare_loop_interval", "llm_request_timeout", "max_pairs_per_round", "summary_batch_size", "summary_parallel", "min_papers_for_tournament"]) {
         if (editSettings[key] !== settings[key]) {
           updates[key] = Number(editSettings[key]);
         }
@@ -338,8 +338,6 @@ export default function AdminPage() {
               { key: "top_k_focus", label: "Top-K Focus", dflt: 10, help: "Top papers that get tighter CI target and cross-matching. Safe range: 3-50. Default: 10.", min: 3, max: 50 },
               { key: "max_new_matches_per_round", label: "Max Matches Per Paper Per Round", dflt: 3, help: "New matches a single paper can participate in per round. Higher = faster convergence for individual papers. Safe range: 1-10. Default: 3.", min: 1, max: 10 },
               { key: "max_pairs_per_round", label: "Max Pairs Per Round", dflt: 100, help: "Hard cap on total pairs generated per category per round. Increase for large categories (5K+ papers). Safe range: 10-500. Default: 100.", min: 10, max: 500 },
-              { key: "ci_target", label: "Top-K CI Target (%) [legacy]", dflt: 10, help: "Legacy Wilson CI target — no longer used for convergence. Kept for reference.", min: 3, max: 30 },
-              { key: "ci_target_general", label: "General CI Target (%) [legacy]", dflt: 15, help: "Legacy Wilson CI target — no longer used for convergence. Kept for reference.", min: 5, max: 50 },
               { key: "sigma_target_general", label: "General Confidence Target (\u00B1Elo)", dflt: 50, help: "TrueSkill confidence target for non-top-K papers, in \u00B1Elo points. Stored as sigma (value\u00F720). Lower = more matches needed. Default: \u00B150 (\u03C3=2.5).", min: 10, max: 200, step: 5, isSigma: true },
               { key: "sigma_target_topk", label: "Top-K Confidence Target (\u00B1Elo)", dflt: 40, help: "TrueSkill confidence target for top-K papers, in \u00B1Elo points. Stored as sigma (value\u00F720). Should be \u2264 General target. Default: \u00B140 (\u03C3=2.0).", min: 10, max: 200, step: 5, isSigma: true },
               { key: "calibration_ratio", label: "Calibration Ratio (%)", dflt: 50, help: "% of new-paper matches paired against established (converged) papers. 0=all needy-vs-needy, 100=all needy-vs-established. Safe range: 0-100. Default: 50.", min: 0, max: 100 },
