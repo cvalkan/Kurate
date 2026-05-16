@@ -1276,6 +1276,7 @@ async def get_paper_detail(paper_id: str):
             "comparisons": ranking_doc.get("comparisons", 0),
             "confidence": calculate_confidence_interval(
                 ranking_doc.get("wins", 0), ranking_doc.get("comparisons", 0)),
+            "ci_elo": round(ranking_doc.get("ts_sigma", 25.0 / 3) * 2 * 10, 0),
         }
     else:
         # Paper not yet in rankings (newly added) — compute from matches
@@ -1286,6 +1287,7 @@ async def get_paper_detail(paper_id: str):
             "losses": total - wins,
             "comparisons": total,
             "confidence": calculate_confidence_interval(wins, total),
+            "ci_elo": 0,
         }
 
     # Merge ranking scores into paper for frontend display

@@ -698,9 +698,9 @@ async def _compare_loop_inner():
 async def _check_goals_met(category: str = "cs.RO") -> bool:
     """Check if ranking has converged for a category.
     
-    Two-tier Wilson CI convergence:
-    1. General papers: CI margin ≤ ci_target_general (default 15%)
-    2. Top-K papers: CI margin ≤ ci_target (default 10%)
+    Two-tier TrueSkill sigma convergence:
+    1. General papers: ts_sigma ≤ sigma_target_general (default 2.5, ±50 Elo)
+    2. Top-K papers: ts_sigma ≤ sigma_target_topk (default 2.0, ±40 Elo)
     3. Top-K cross-matching: all top-K pairs compared
     
     Returns True when all goals met. Only considers matchable papers
