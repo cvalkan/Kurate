@@ -1824,7 +1824,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                 from services.llm import track_llm_usage
                 match_tokens = match_doc.get("tokens", {})
                 match_model = match_doc.get("model_used", {})
-                match_label = f"{p1.get('title','')[:30]} vs {p2.get('title','')[:30]}"
+                match_label = f"{category}: {p1.get('title','')[:30]} vs {p2.get('title','')[:30]}"
                 await track_llm_usage(
                     match_model.get("provider", ""), match_model.get("model", ""),
                     context="match", success=match_doc.get("completed", False),
