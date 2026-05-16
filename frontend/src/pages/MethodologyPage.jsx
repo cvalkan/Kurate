@@ -81,12 +81,13 @@ export default function MethodologyPage() {
           <p>The presentation order of each pair is <span className="text-foreground font-medium">randomly flipped with 50% probability</span> before sending to the LLM, eliminating the known tendency for models to prefer the paper presented first.</p>
         </Step>
 
-        <Step number={5} icon={RefreshCw} title="Adaptive Matchmaking">
-          <p>The matchmaker uses goal-directed pair selection with two convergence tiers: <span className="text-foreground">general papers</span> (Wilson 95% CI &le; 15%) and <span className="text-foreground">top-K papers</span> (CI &le; 10%, with mandatory cross-matches). Papers with the widest confidence intervals are matched first. A calibration ratio ensures new papers are compared against established ones for transitive score calibration.</p>
+        <Step number={5} icon={RefreshCw} title="Quality-Based Matchmaking">
+          <p>Opponent selection uses <span className="text-foreground font-medium">TrueSkill match quality</span> — a function that maximizes the information gained from each match by accounting for both skill difference and rating uncertainty. New papers with high uncertainty are matched against a wider range of opponents; established papers face similarly-rated peers for fine-grained ranking.</p>
+          <p>Convergence uses two tiers of <span className="text-foreground font-medium">TrueSkill sigma targets</span>: general papers (&plusmn;50 Elo pts) and top-K papers (&plusmn;40 pts). Papers with extreme win rates (100% or 0%) continue receiving matches until they face a decisive result or reach the match floor (50 comparisons). A calibration ratio ensures new papers are compared against established ones for transitive score calibration.</p>
         </Step>
 
         <Step number={6} icon={BarChart3} title="Ranking & Scoring">
-          <p>Global rankings use <span className="text-foreground font-medium">TrueSkill</span> (Bayesian skill estimation) as the primary metric, updated incrementally after each match. <span className="text-foreground font-medium">OpenSkill</span> (Thurstone-Mosteller) and <span className="text-foreground font-medium">regularized win-rates</span> are also computed. All scores use a conservative estimate (mu&nbsp;&minus;&nbsp;3&sigma;) mapped to an Elo-style scale centered at 1200, with 95% Wilson confidence intervals.</p>
+          <p>Global rankings use <span className="text-foreground font-medium">TrueSkill</span> (Bayesian skill estimation) as the primary metric, updated incrementally after each match. Scores use a conservative estimate (mu&nbsp;&minus;&nbsp;3&sigma;) mapped to an Elo-style scale centered at 1200. The 95% confidence interval is derived from TrueSkill sigma (&plusmn;2&sigma; in Elo points), reflecting both match count and opponent quality — not just win rate.</p>
         </Step>
 
         <Step number={7} icon={Users} title="Multi-Model Consensus">
@@ -108,7 +109,7 @@ export default function MethodologyPage() {
 
       <div className="mt-4 p-4 bg-secondary/30 rounded-lg border border-border text-xs text-muted-foreground">
         <p className="font-medium text-foreground mb-1">Limitations</p>
-        <p>AI-based evaluation is an approximation of scientific impact, not a replacement for human peer review. Rankings reflect the consensus of three large language models. The matchmaker's preference for pairing similar-strength papers means pairwise agreement statistics are biased toward difficult comparisons.</p>
+        <p>AI-based evaluation is an approximation of scientific impact, not a replacement for human peer review. Rankings reflect the consensus of three large language models. Papers with very few matches may have wide confidence intervals regardless of their win rate.</p>
       </div>
     </div>
   );
