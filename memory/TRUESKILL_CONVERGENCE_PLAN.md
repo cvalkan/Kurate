@@ -35,14 +35,17 @@ Score = (mu - 3*sigma) * 10 + 1200. One sigma unit = 30 Elo points in the displa
 
 ## Proposed Thresholds
 
-| Tier | Current (Wilson) | Proposed (TrueSkill sigma) | Expected median matches |
-|---|---|---|---|
-| General | wilson_margin ≤ 15% | ts_sigma ≤ 2.5 | ~38 (same as current) |
-| Top-K | wilson_margin ≤ 10% | ts_sigma ≤ 2.0 | ~40-45 (down from 144) |
+All thresholds expressed as **±Elo points** (= ts_sigma × 2 × TS_SCALE, where TS_SCALE=10).
+This is the same unit displayed in the UI and on scorecards.
 
-**Rationale for general ≤ 2.5**: Papers with 30-40 matches typically have sigma 1.5-1.7 — they pass easily. The threshold catches only the true outliers: papers with extreme win rates and <10 matches (sigma 3-7) that Wilson falsely declares converged. Across 21 active categories, this adds only ~3.5% more matches to established categories.
+| Tier | Current (Wilson %) | Proposed (±Elo pts) | Raw sigma | Expected median matches |
+|---|---|---|---|---|
+| General | wilson_margin ≤ 15% | ±50 pts | σ ≤ 2.5 | ~38 (same as current) |
+| Top-K | wilson_margin ≤ 10% | ±40 pts | σ ≤ 2.0 | ~40-45 (down from 144) |
 
-**Rationale for top-K ≤ 2.0**: The current Wilson ≤10% requires ~144 median matches. At sigma 2.0, score uncertainty is ±40 pts — tight enough to distinguish top-10 papers (which typically span 200+ pts). Achievable in ~40-45 matches, freeing significant match budget.
+**Rationale for ±50 pts (general)**: Papers with 30-40 matches typically have sigma 1.5-1.7 (±30-34 pts) — they pass easily. The threshold catches only the true outliers: papers with extreme win rates and <10 matches (sigma 3-7, ±60-140 pts) that Wilson falsely declares converged. Across 21 active categories, this adds only ~3.5% more matches to established categories.
+
+**Rationale for ±40 pts (top-K)**: The current Wilson ≤10% requires ~144 median matches. At ±40 pts, top-10 papers (which typically span 200+ pts) are clearly distinguishable. Achievable in ~40-45 matches, freeing significant match budget.
 
 ### Production impact estimate (gen≤2.5, topk≤2.0)
 
@@ -65,8 +68,8 @@ Estimated scheduler runtime to full convergence: 6-10 hours.
 Add new settings alongside existing ones (backward compatible):
 
 ```python
-"sigma_target_general": 2.5,   # ts_sigma threshold for general papers
-"sigma_target_topk": 2.0,      # ts_sigma threshold for top-K papers
+"sigma_target_general": 2.5,   # ts_sigma threshold for general papers (±50 Elo pts)
+"sigma_target_topk": 2.0,      # ts_sigma threshold for top-K papers (±40 Elo pts)
 ```
 
 ### 2. Convergence check (`services/scheduler.py::_check_goals_met_impl`)
@@ -74,7 +77,7 @@ Add new settings alongside existing ones (backward compatible):
 Replace Wilson margin checks with sigma checks:
 
 ```python
-# Goal 1: General papers sigma ≤ sigma_target_general
+# Goal 1: General papers ±Elo ≤ 50 (sigma ≤ 2.5)
 sigma_target_general = settings.get("sigma_target_general", 2.5)
 for e in entries:
     if e["paper_id"] in top_k_ids:
@@ -82,7 +85,7 @@ for e in entries:
     if e.get("ts_sigma", 25/3) > sigma_target_general:
         return False
 
-# Goal 2: Top-K papers sigma ≤ sigma_target_topk  
+# Goal 2: Top-K papers ±Elo ≤ 40 (sigma ≤ 2.0)
 sigma_target_topk = settings.get("sigma_target_topk", 2.0)
 for e in entries[:min(top_k, len(entries))]:
     if e.get("ts_sigma", 25/3) > sigma_target_topk:
@@ -112,18 +115,13 @@ Requires passing `ts_sigma` from rankings into the stats dict.
 
 ### 4. Displayed CI column (`services/ranking.py` + frontend)
 
-Change the "95% CI" column from Wilson margin to sigma-derived:
+Change the "95% CI" column from Wilson percentage to ±Elo points:
 
-```python
-# Instead of wilson_margin_pct(wins, comparisons)
-# Display: round(ts_sigma * 2 * TS_SCALE, 0) as "±X pts"
-# Or keep as percentage: round(ts_sigma / ts_mu * 100, 1) if ts_mu > 0
-```
+Backend: serve `ts_ci_elo = round(ts_sigma * 2 * TS_SCALE)` in the ranking response.
 
-Decision: keep displaying as `±X%` for continuity, but derive from sigma:
-`ci_display = round(ts_sigma * 2 * TS_SCALE / max(score, 1) * 100, 1)`
-
-Or simpler: just display raw sigma, relabel column to "σ".
+Frontend (`LeaderboardTable.jsx`): Display `±{ts_ci_elo}` instead of `±{wilson_margin}%`.
+The column header stays "95% CI" but the tooltip updates to explain ±Elo points.
+This matches the scorecard format users already see.
 
 ### 5. No matchmaking structure changes needed
 
