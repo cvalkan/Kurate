@@ -390,8 +390,12 @@ async def _bg_cache_loop():
         logger.warning(f"Initial cache warm failed: {e}")
 
     while True:
-        # Wait ONLY for data change — no timeout fallback
-        await _cache_dirty.wait()
+        # Wait for data change OR periodic fallback (follower pod never gets
+        # notify_data_changed since matches run on the leader)
+        try:
+            await asyncio.wait_for(_cache_dirty.wait(), timeout=300)
+        except asyncio.TimeoutError:
+            pass
         _cache_dirty.clear()
         await asyncio.sleep(30)  # Debounce: remaining cache data (tags, PDF stats) is slow-changing
         _cache_dirty.clear()
