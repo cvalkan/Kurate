@@ -806,6 +806,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     top_k = settings.get("top_k_focus", 10)
     sigma_target_general = settings.get("sigma_target_general", 2.5)
     sigma_target_topk = settings.get("sigma_target_topk", 2.0)
+    min_comps = settings.get("min_comparisons_converged", 50)
     parallel_agents = settings.get("parallel_agents", 5)
 
     TS_SCALE = 10.0  # for ±Elo display
@@ -876,10 +877,10 @@ async def get_progress_estimate(category: str = "cs.RO"):
         general_total += 1
         sigma = e.get("ts_sigma", 25.0 / 3)
         general_sigmas.append(sigma)
-        if sigma <= sigma_target_general:
+        n = e.get("comparisons", 0)
+        if sigma <= sigma_target_general or n >= min_comps:
             general_converged += 1
         else:
-            n = e.get("comparisons", 0)
             if n >= 2:
                 # Estimate: sigma ≈ k/sqrt(n), so n_needed = (k/target)^2
                 k = sigma * (n ** 0.5)
@@ -905,7 +906,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
         e = entry_map.get(pid, {})
         sigma = e.get("ts_sigma", 25.0 / 3)
         topk_sigmas.append(sigma)
-        if sigma <= sigma_target_topk:
+        if sigma <= sigma_target_topk or n >= min_comps:
             topk_converged += 1
         else:
             n = e.get("comparisons", 0)
@@ -977,16 +978,16 @@ async def get_progress_estimate(category: str = "cs.RO"):
             pid = e["paper_id"]
             target = sigma_target_topk if pid in top_k_ids else sigma_target_general
             sigma = e.get("ts_sigma", 25.0 / 3)
+            comps = e.get("comparisons", 0)
             actual_opps = e.get("unique_opponents", 0)
-            if sigma > target and actual_opps >= matchable_count - 1:
+            if sigma > target and comps < min_comps and actual_opps >= matchable_count - 1:
                 exhausted_papers += 1
         if exhausted_papers > 0:
             pair_exhausted = True
 
     # Compute unique pairs played from materialized unique_opponents.
-    # Note: sum/2 is a lower bound — undercounts if papers have opponents no longer in rankings.
-    # The per-paper stall check (unique_opponents >= matchable_count - 1) is exact.
-    unique_pairs_played = sum(e.get("unique_opponents", 0) for e in entries) // 2
+    # Cap each paper's count at matchable_count-1 to avoid inflation from orphan opponents.
+    unique_pairs_played = sum(min(e.get("unique_opponents", 0), matchable_count - 1) for e in entries) // 2
     all_pairs_exhausted = unique_pairs_played >= max_possible_pairs if max_possible_pairs > 0 else False
 
     result = {

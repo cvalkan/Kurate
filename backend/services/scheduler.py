@@ -726,6 +726,7 @@ async def _check_goals_met_impl(category: str = "cs.RO") -> bool:
     top_k = settings.get("top_k_focus", 10)
     sigma_target_general = settings.get("sigma_target_general", 2.5)
     sigma_target_topk = settings.get("sigma_target_topk", 2.0)
+    min_comps = settings.get("min_comparisons_converged", 50)
 
     # Read ts_sigma directly from rankings
     entries = []
@@ -761,16 +762,16 @@ async def _check_goals_met_impl(category: str = "cs.RO") -> bool:
     top_k_list = [e["paper_id"] for e in entries[:min(top_k, len(entries))]]
     top_k_ids = set(top_k_list)
 
-    # Goal 1: General papers sigma ≤ sigma_target_general
+    # Goal 1: General papers sigma ≤ sigma_target_general (or enough comparisons)
     for e in entries:
         if e["paper_id"] in top_k_ids:
             continue
-        if e.get("ts_sigma", 25 / 3) > sigma_target_general:
+        if e.get("ts_sigma", 25 / 3) > sigma_target_general and e.get("comparisons", 0) < min_comps:
             return False
 
-    # Goal 2: Top-K papers sigma ≤ sigma_target_topk
+    # Goal 2: Top-K papers sigma ≤ sigma_target_topk (or enough comparisons)
     for e in entries[:min(top_k, len(entries))]:
-        if e.get("ts_sigma", 25 / 3) > sigma_target_topk:
+        if e.get("ts_sigma", 25 / 3) > sigma_target_topk and e.get("comparisons", 0) < min_comps:
             return False
 
     # Goal 3: Top-K cross-matching — 2 batch queries instead of 45 individual ones
@@ -1721,6 +1722,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                 max_pairs, top_k_focus, max_new_per_round,
                 sigma_target_general=settings.get("sigma_target_general", 2.5),
                 sigma_target_topk=settings.get("sigma_target_topk", 2.0),
+                min_comparisons_converged=settings.get("min_comparisons_converged", 50),
                 calibration_ratio=settings.get("calibration_ratio", 50),
             )
 
@@ -2031,6 +2033,7 @@ async def _select_pairs(
 
     sigma_target_topk = kwargs.get("sigma_target_topk", 2.0)
     sigma_target_general = kwargs.get("sigma_target_general", 2.5)
+    min_comps = kwargs.get("min_comparisons_converged", 50)
     calibration_pct = kwargs.get("calibration_ratio", 50)
 
     # --- Load ALL existing dedup_pairs for this category once (replaces N per-paper queries) ---
@@ -2075,6 +2078,8 @@ async def _select_pairs(
         target = sigma_target_topk if pid in top_k_ids else sigma_target_general
         if comparisons[pid] == 0:
             return 999
+        if comparisons[pid] >= min_comps:
+            return 0  # enough matches — consider established
         excess = sigmas[pid] - target
         return excess if excess > 0 else 0
 

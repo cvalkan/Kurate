@@ -213,7 +213,7 @@ export default function AdminPage() {
     setLoading(l => ({ ...l, settings: true }));
     try {
       const updates = {};
-      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "parallel_agents", "top_k_focus", "max_new_matches_per_round", "sigma_target_general", "sigma_target_topk", "calibration_ratio", "parallel_categories", "compare_loop_interval", "llm_request_timeout", "max_pairs_per_round", "summary_batch_size", "summary_parallel", "min_papers_for_tournament"]) {
+      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "parallel_agents", "top_k_focus", "max_new_matches_per_round", "sigma_target_general", "sigma_target_topk", "min_comparisons_converged", "calibration_ratio", "parallel_categories", "compare_loop_interval", "llm_request_timeout", "max_pairs_per_round", "summary_batch_size", "summary_parallel", "min_papers_for_tournament"]) {
         if (editSettings[key] !== settings[key]) {
           updates[key] = Number(editSettings[key]);
         }
@@ -340,6 +340,7 @@ export default function AdminPage() {
               { key: "max_pairs_per_round", label: "Max Pairs Per Round", dflt: 100, help: "Hard cap on total pairs generated per category per round. Increase for large categories (5K+ papers). Safe range: 10-500. Default: 100.", min: 10, max: 500 },
               { key: "sigma_target_general", label: "General Confidence Target (\u00B1Elo)", dflt: 50, help: "TrueSkill confidence target for non-top-K papers, in \u00B1Elo points. Stored as sigma (value\u00F720). Lower = more matches needed. Default: \u00B150 (\u03C3=2.5).", min: 10, max: 200, step: 5, isSigma: true },
               { key: "sigma_target_topk", label: "Top-K Confidence Target (\u00B1Elo)", dflt: 40, help: "TrueSkill confidence target for top-K papers, in \u00B1Elo points. Stored as sigma (value\u00F720). Should be \u2264 General target. Default: \u00B140 (\u03C3=2.0).", min: 10, max: 200, step: 5, isSigma: true },
+              { key: "min_comparisons_converged", label: "Min Comparisons for Convergence", dflt: 50, help: "Papers with this many matches are considered converged regardless of sigma. Prevents infinite matching of stubborn papers. They can still receive matches as opponents. Default: 50.", min: 10, max: 500 },
               { key: "calibration_ratio", label: "Calibration Ratio (%)", dflt: 50, help: "% of new-paper matches paired against established (converged) papers. 0=all needy-vs-needy, 100=all needy-vs-established. Safe range: 0-100. Default: 50.", min: 0, max: 100 },
               { key: "compare_loop_interval", label: "Compare Loop Interval (sec)", dflt: 60, help: "Seconds between compare loop cycles. Increase for 100+ categories to reduce DB pressure. Safe range: 10-300. Default: 60.", min: 10, max: 300 },
               { key: "llm_request_timeout", label: "LLM Request Timeout (sec)", dflt: 120, help: "Max seconds to wait for an LLM comparison response. Increase for slower models. Safe range: 30-300. Default: 120.", min: 30, max: 300 },

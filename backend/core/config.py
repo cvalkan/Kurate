@@ -143,6 +143,7 @@ DEFAULT_SETTINGS = {
     "ci_target_general": 15,
     "sigma_target_general": 2.5,
     "sigma_target_topk": 2.0,
+    "min_comparisons_converged": 50,
     "calibration_ratio": 50,
     "min_papers_for_tournament": 8,
     "parallel_categories": 10,
