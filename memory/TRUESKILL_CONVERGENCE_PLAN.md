@@ -133,13 +133,16 @@ The opponent selection heuristic (prefer score-proximate established opponents) 
 
 ## Rollout Plan
 
-1. **Phase A — Parallel logging** (no behavior change): Log `ts_sigma` alongside `wilson_margin` in the compare loop diagnostics. Verify sigma distributions match the analysis above on live data. Deploy and monitor for 1 week.
+1. ~~**Phase A — Parallel logging**~~ SKIPPED — empirical analysis already validated sigma distributions.
 
-2. **Phase B — Switch convergence** (behavior change): Swap `_check_goals_met` to use sigma thresholds. Keep Wilson as a secondary diagnostic. Unpause and observe: do categories converge at similar match counts? Are 100% WR papers now being matched further?
+2. **Phase B — Switch convergence + pair selection + display** (DONE): All three shipped together since thresholds are conservative (gen≤2.5, topk≤2.0) and the changes are tested end-to-end.
 
-3. **Phase C — Switch pair selection urgency**: Change `_select_pairs` urgency to sigma-based. This changes which papers get matched first. Monitor for any regression in per-category match efficiency.
+3. **Phase C — Monitor after unpause**: After deploying to production and unpausing, monitor:
+   - Do categories converge at similar match counts?
+   - Are 100% WR papers now being matched further?
+   - Admin progress panel shows accurate ±Elo labels.
 
-4. **Phase D — Update display**: Change the CI column to reflect sigma. Update admin progress panel labels.
+4. **Phase D — Tighten thresholds** (future): If ranking stability warrants it, tighten to gen≤2.0, topk≤1.5 via admin settings panel.
 
 ## Risks
 
