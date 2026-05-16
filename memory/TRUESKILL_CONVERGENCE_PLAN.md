@@ -37,12 +37,26 @@ Score = (mu - 3*sigma) * 10 + 1200. One sigma unit = 30 Elo points in the displa
 
 | Tier | Current (Wilson) | Proposed (TrueSkill sigma) | Expected median matches |
 |---|---|---|---|
-| General | wilson_margin ≤ 15% | ts_sigma ≤ 2.0 | ~40 (same as current) |
-| Top-K | wilson_margin ≤ 10% | ts_sigma ≤ 1.5 | ~50-60 (down from 144) |
+| General | wilson_margin ≤ 15% | ts_sigma ≤ 2.5 | ~38 (same as current) |
+| Top-K | wilson_margin ≤ 10% | ts_sigma ≤ 2.0 | ~40-45 (down from 144) |
 
-**Rationale for general ≤ 2.0**: Papers with 40 matches typically have sigma 1.5-1.6, so they pass easily. But papers with 100% win rate and only 1-9 matches (sigma 6+) are correctly flagged as unconverged. Net: same match budget, no false convergence.
+**Rationale for general ≤ 2.5**: Papers with 30-40 matches typically have sigma 1.5-1.7 — they pass easily. The threshold catches only the true outliers: papers with extreme win rates and <10 matches (sigma 3-7) that Wilson falsely declares converged. Across 21 active categories, this adds only ~3.5% more matches to established categories.
 
-**Rationale for top-K ≤ 1.5**: The current Wilson ≤10% requires ~144 median matches — far more than needed. Sigma 1.3 is typical at 50 matches with diverse opponents. A threshold of 1.5 is achievable in ~50-60 matches if opponents are informative, freeing match budget for other papers. Score uncertainty ±30 pts is tight enough to distinguish adjacent top-K papers.
+**Rationale for top-K ≤ 2.0**: The current Wilson ≤10% requires ~144 median matches. At sigma 2.0, score uncertainty is ±40 pts — tight enough to distinguish top-10 papers (which typically span 200+ pts). Achievable in ~40-45 matches, freeing significant match budget.
+
+### Production impact estimate (gen≤2.5, topk≤2.0)
+
+| Category | Papers | Existing matches | Unmet papers | Additional matches | % increase |
+|---|---|---|---|---|---|
+| cs.RO | 2417 | 56,991 | 238 | ~3,056 | 5.4% |
+| cs.GT | 411 | 11,546 | 89 | ~1,565 | 13.6% |
+| cs.CR | 1331 | 35,716 | 59 | ~1,063 | 3.0% |
+| cs.AI | 715 | 17,288 | 13 | ~144 | 0.8% |
+| quant-ph | 1326 | 31,597 | 31 | ~351 | 1.1% |
+| **All 21 cats** | | **284,765** | | **~12,158** | **4.3%** |
+
+Excluding 3 new IACR categories (0 existing matches): ~10,094 additional matches (3.5%).
+Estimated scheduler runtime to full convergence: 6-10 hours.
 
 ## Code Changes
 
@@ -51,8 +65,8 @@ Score = (mu - 3*sigma) * 10 + 1200. One sigma unit = 30 Elo points in the displa
 Add new settings alongside existing ones (backward compatible):
 
 ```python
-"sigma_target_general": 2.0,   # ts_sigma threshold for general papers
-"sigma_target_topk": 1.5,      # ts_sigma threshold for top-K papers
+"sigma_target_general": 2.5,   # ts_sigma threshold for general papers
+"sigma_target_topk": 2.0,      # ts_sigma threshold for top-K papers
 ```
 
 ### 2. Convergence check (`services/scheduler.py::_check_goals_met_impl`)
@@ -61,7 +75,7 @@ Replace Wilson margin checks with sigma checks:
 
 ```python
 # Goal 1: General papers sigma ≤ sigma_target_general
-sigma_target_general = settings.get("sigma_target_general", 2.0)
+sigma_target_general = settings.get("sigma_target_general", 2.5)
 for e in entries:
     if e["paper_id"] in top_k_ids:
         continue
@@ -69,7 +83,7 @@ for e in entries:
         return False
 
 # Goal 2: Top-K papers sigma ≤ sigma_target_topk  
-sigma_target_topk = settings.get("sigma_target_topk", 1.5)
+sigma_target_topk = settings.get("sigma_target_topk", 2.0)
 for e in entries[:min(top_k, len(entries))]:
     if e.get("ts_sigma", 25/3) > sigma_target_topk:
         return False
@@ -131,7 +145,7 @@ The opponent selection heuristic (prefer score-proximate established opponents) 
 |---|---|---|
 | Sigma doesn't decrease for some papers | Low — only if all opponents are extreme mismatches | Calibration ratio ensures 50% of pairings are against established (score-proximate) opponents |
 | More total matches needed | Low — thresholds calibrated to current medians | Admin can adjust sigma_target_* in settings panel |
-| Top-K threshold too tight | Medium — 1.5 may require more matches than 50 for some categories | Start with 2.0 for both tiers, tighten top-K later based on data |
+| Top-K threshold too tight | Low — 2.0 is achievable in ~40-45 matches | Tighten to 1.5 later if ranking stability warrants it |
 | Order dependence of TrueSkill | Known issue — sigma path depends on match order | Already mitigated by the 3-pass shuffled computation in full reranks |
 
 ## Expected Outcome
