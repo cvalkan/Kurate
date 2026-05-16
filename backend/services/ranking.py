@@ -793,7 +793,7 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
                 paper_doc = await db.papers.find_one(
                     {"id": paper_id},
                     {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
-                     "link": 1, "published": 1, "added_at": 1, "categories": 1, "ai_rating": 1},
+                     "link": 1, "published": 1, "added_at": 1, "categories": 1, "ai_rating": 1, "summaries": 1, "is_latest_version": 1},
                 )
                 if paper_doc:
                     await insert_ranking_for_paper(db, paper_doc)
@@ -824,7 +824,7 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
                     paper_doc = await db.papers.find_one(
                         {"id": paper_id},
                         {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
-                         "link": 1, "published": 1, "added_at": 1, "categories": 1, "ai_rating": 1},
+                         "link": 1, "published": 1, "added_at": 1, "categories": 1, "ai_rating": 1, "summaries": 1, "is_latest_version": 1},
                     )
                     if paper_doc:
                         await insert_ranking_for_paper(db, paper_doc)

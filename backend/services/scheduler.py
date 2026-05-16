@@ -1706,10 +1706,9 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                     "score": rdoc.get("score", 1200),
                     "ts_sigma": rdoc.get("ts_sigma", 25.0 / 3),
                 }
-            # Ensure all papers have an entry (new papers may not be in rankings yet)
-            for p in all_papers:
-                if p["id"] not in paper_stats:
-                    paper_stats[p["id"]] = {"wins": 0, "losses": 0, "comparisons": 0, "score": 1200, "ts_sigma": 25.0 / 3}
+            # Filter out papers not in rankings — they can't receive incremental updates
+            # and would create an infinite match loop (sigma never decreases)
+            all_papers = [p for p in all_papers if p["id"] in paper_stats]
 
             if max_pairs_override:
                 max_pairs = min(max_pairs_override, 500)
