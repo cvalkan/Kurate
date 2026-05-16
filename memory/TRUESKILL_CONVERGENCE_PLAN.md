@@ -68,16 +68,18 @@ Estimated scheduler runtime to full convergence: 6-10 hours.
 Add new settings alongside existing ones (backward compatible):
 
 ```python
-"sigma_target_general": 2.5,   # ts_sigma threshold for general papers (±50 Elo pts)
-"sigma_target_topk": 2.0,      # ts_sigma threshold for top-K papers (±40 Elo pts)
+"sigma_target_general": 2.5,   # raw ts_sigma threshold for general papers
+"sigma_target_topk": 2.0,      # raw ts_sigma threshold for top-K papers
 ```
+
+Config stores raw sigma (the native TrueSkill unit). The UI converts to ±Elo points for display only.
 
 ### 2. Convergence check (`services/scheduler.py::_check_goals_met_impl`)
 
-Replace Wilson margin checks with sigma checks:
+Replace Wilson margin checks with raw sigma checks:
 
 ```python
-# Goal 1: General papers ±Elo ≤ 50 (sigma ≤ 2.5)
+# Goal 1: General papers sigma ≤ 2.5
 sigma_target_general = settings.get("sigma_target_general", 2.5)
 for e in entries:
     if e["paper_id"] in top_k_ids:
@@ -85,12 +87,14 @@ for e in entries:
     if e.get("ts_sigma", 25/3) > sigma_target_general:
         return False
 
-# Goal 2: Top-K papers ±Elo ≤ 40 (sigma ≤ 2.0)
+# Goal 2: Top-K papers sigma ≤ 2.0
 sigma_target_topk = settings.get("sigma_target_topk", 2.0)
 for e in entries[:min(top_k, len(entries))]:
     if e.get("ts_sigma", 25/3) > sigma_target_topk:
         return False
 ```
+
+Convergence uses raw sigma — no Elo conversion. This keeps thresholds independent of TS_SCALE.
 
 Requires loading `ts_sigma` in the rankings query (add to projection).
 
