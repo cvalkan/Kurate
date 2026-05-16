@@ -68,7 +68,7 @@ export default function MethodologyPage() {
         </Step>
 
         <Step number={3} icon={Swords} title="Pairwise Tournament">
-          <p>Papers are compared head-to-head using their <span className="text-foreground font-medium">abstract + AI Impact Assessment</span> as input. Each comparison is judged by one of three models via round-robin rotation:</p>
+          <p>Papers are compared head-to-head <span className="text-foreground font-medium">within the same category</span> using their abstract + AI Impact Assessment as input. Each comparison is judged by one of three models via round-robin rotation:</p>
           <div className="flex flex-wrap gap-2 my-2">
             <span className="text-xs font-mono px-2 py-1 rounded border bg-green-50 text-green-700 border-green-200">GPT-5.2</span>
             <span className="text-xs font-mono px-2 py-1 rounded border bg-orange-50 text-orange-700 border-orange-200">Claude Opus 4.6</span>
