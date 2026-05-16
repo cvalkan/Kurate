@@ -1706,8 +1706,31 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                     "score": rdoc.get("score", 1200),
                     "ts_sigma": rdoc.get("ts_sigma", 25.0 / 3),
                 }
-            # Filter out papers not in rankings — they can't receive incremental updates
-            # and would create an infinite match loop (sigma never decreases)
+            # Seed rankings for papers that don't have one yet.
+            # This is the normal path for newly fetched/summarized papers to enter the tournament.
+            # Uses upsert — idempotent and safe to call repeatedly.
+            from services.ranking import insert_ranking_for_paper
+            unranked = [p for p in all_papers if p["id"] not in paper_stats]
+            for p in unranked:
+                try:
+                    await insert_ranking_for_paper(db, p)
+                    rdoc = await db.rankings.find_one(
+                        {"paper_id": p["id"], "category": category},
+                        {"_id": 0, "paper_id": 1, "wins": 1, "losses": 1, "comparisons": 1, "score": 1, "ts_sigma": 1},
+                    )
+                    if rdoc:
+                        paper_stats[p["id"]] = {
+                            "wins": rdoc.get("wins", 0),
+                            "losses": rdoc.get("losses", 0),
+                            "comparisons": rdoc.get("comparisons", 0),
+                            "score": rdoc.get("score", 1200),
+                            "ts_sigma": rdoc.get("ts_sigma", 25.0 / 3),
+                        }
+                except Exception as e:
+                    logger.warning(f"[{category}] Failed to seed ranking for {p['id'][:20]}: {e}")
+            if unranked:
+                logger.info(f"[{category}] Seeded {len([p for p in unranked if p['id'] in paper_stats])} new papers into rankings")
+            # Filter out any that still failed to seed (shouldn't happen, but defensive)
             all_papers = [p for p in all_papers if p["id"] in paper_stats]
 
             if max_pairs_override:
