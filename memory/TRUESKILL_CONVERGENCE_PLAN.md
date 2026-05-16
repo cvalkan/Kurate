@@ -72,7 +72,7 @@ Add new settings alongside existing ones (backward compatible):
 "sigma_target_topk": 2.0,      # raw ts_sigma threshold for top-K papers
 ```
 
-Config stores raw sigma (the native TrueSkill unit). The UI converts to ±Elo points for display only.
+Config stores raw sigma (the native TrueSkill unit). The admin panel displays these as ±Elo points (sigma × 2 × TS_SCALE) for readability, and converts back on save (÷ 20).
 
 ### 2. Convergence check (`services/scheduler.py::_check_goals_met_impl`)
 
