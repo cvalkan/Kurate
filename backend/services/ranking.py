@@ -793,7 +793,7 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
                 paper_doc = await db.papers.find_one(
                     {"id": paper_id},
                     {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
-                     "link": 1, "published": 1, "added_at": 1, "categories": 1, "ai_rating": 1, "summaries": 1, "is_latest_version": 1},
+                     "link": 1, "published": 1, "added_at": 1, "categories": 1, "ai_rating": 1, "is_latest_version": 1},
                 )
                 if paper_doc:
                     await insert_ranking_for_paper(db, paper_doc)
@@ -824,7 +824,7 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
                     paper_doc = await db.papers.find_one(
                         {"id": paper_id},
                         {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
-                         "link": 1, "published": 1, "added_at": 1, "categories": 1, "ai_rating": 1, "summaries": 1, "is_latest_version": 1},
+                         "link": 1, "published": 1, "added_at": 1, "categories": 1, "ai_rating": 1, "is_latest_version": 1},
                     )
                     if paper_doc:
                         await insert_ranking_for_paper(db, paper_doc)
@@ -1189,15 +1189,11 @@ async def rerank_category(db, category: str):
 async def insert_ranking_for_paper(db, paper_doc: dict):
     """Add a ranking entry for a newly inserted paper. Score = 1200, rank = last.
     
-    Only inserts if the paper has a Claude thinking summary — non-Claude papers
-    must NOT enter the tournament.
+    Callers are responsible for ensuring the paper is eligible for ranking
+    (has required summaries, is latest version, etc.). This function only
+    creates the ranking doc.
     """
     from datetime import datetime, timezone
-
-    CLAUDE_KEY = "anthropic:claude-opus-4-6:thinking"
-    summaries = paper_doc.get("summaries") or {}
-    if not summaries.get(CLAUDE_KEY):
-        return  # No Claude thinking summary → don't insert
 
     # Don't rank frozen older versions
     if paper_doc.get("is_latest_version") is False:
