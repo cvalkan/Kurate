@@ -1,0 +1,19 @@
+=== PRODUCTION BASELINE 15:51:57 ===
+cs.RO 66489 2729
+cs.AI 45972 1857
+cs.DC 23518 749
+cs.CR 43812 1705
+cs.GT 13424 426
+cs.IT 16749 640
+cs.LG 57647 2716
+cs.IR 9324 344
+cs.SI 3833 142
+econ.GN 9960 284
+physics.comp-ph 8987 270
+physics.chem-ph 16391 473
+quant-ph 45162 1949
+q-bio.BM 5603 111
+stat.ML 9184 356
+astro-ph.CO 11125 373
+cond-mat.mtrl-sci 18852 770
+chemrxiv.IC 4048 50
