@@ -452,10 +452,10 @@ async def startup():
     except Exception as e:
         logger.warning(f"[STARTUP] Failed to set pod_id: {e}")
 
-    log_mem("Server started")
     logger.info("Kurate.org Leaderboard started")
 
     # Log startup event with build fingerprint to distinguish deploys from restarts
+    # This runs AFTER role assignment so pod_role is available
     try:
         import hashlib, glob
         _build_files = sorted(glob.glob("/app/backend/**/*.py", recursive=True))[:50]
@@ -477,9 +477,11 @@ async def startup():
             "pod_role": _pod_role,
             "pid": os.getpid(),
         })
-        logger.info(f"[STARTUP] {'DEPLOY (new code)' if _is_deploy else 'RESTART (same code)'} build={_build_hash}")
+        logger.info(f"[STARTUP] {'DEPLOY (new code)' if _is_deploy else 'RESTART (same code)'} build={_build_hash} role={_pod_role}")
     except Exception as e:
         logger.warning(f"[STARTUP] Build fingerprint failed: {e}")
+
+    log_mem("Server started")
 
 
 
