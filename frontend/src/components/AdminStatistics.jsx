@@ -497,7 +497,6 @@ export function AdminStatistics({ categories }) {
                         strokeDasharray={style.dash}
                         strokeWidth={style.width}
                         opacity={0.85}
-                        label={{ value: style.label + podLabel, position: "top", fontSize: 9, fill: style.color, fontWeight: 600 }}
                       />
                     );
                   });
@@ -531,7 +530,6 @@ export function AdminStatistics({ categories }) {
             <span className="flex items-center gap-1"><span className="w-4 border-t border-dashed border-gray-500" /> <b className="text-gray-500">R</b> Restart</span>
             <span className="flex items-center gap-1"><span className="w-4 border-t-[2.5px] border-dashed border-amber-500" /> <b className="text-amber-500">T</b> SIGTERM</span>
             <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dotted border-red-500" /> <b className="text-red-500">K</b> Kill</span>
-            <span className="flex items-center gap-1 opacity-60">Suffix: L=Leader F=Follower</span>
             {(() => {
               const roles = [...new Set(memoryData.map(d => d.role).filter(r => r && r !== "unknown"))];
               if (roles.length === 0) return null;
