@@ -174,14 +174,16 @@ export function AdminStatistics({ categories }) {
         setMemoryData(chartData);
         // Extract restart events
         const restartEvents = allLogs
-          .filter(l => l.label === "Server started" || l.event === "shutdown_signal" || l.event === "server_shutdown")
+          .filter(l => l.label === "Server started" || l.label === "Deploy" || l.label === "Restart" || l.event === "server_started" || l.event === "shutdown_signal" || l.event === "server_shutdown")
           .map(l => ({
             ts: l.ts,
             epoch: new Date(l.ts.endsWith("Z") ? l.ts : l.ts + "Z").getTime(),
             role: l.pod_role || "unknown",
             event: l.event || (l.label === "Server started" ? "server_started" : "unknown"),
+            label: l.label,
             signal: l.signal,
             reason: l.reason,
+            is_deploy: l.is_deploy,
           }));
         setRestartEvents(restartEvents);
         const queueLogs = allLogs.filter(l => l.level === "repair_queue");
@@ -469,21 +471,37 @@ export function AdminStatistics({ categories }) {
                     );
                   }}
                 />
-                {/* Restart markers — colored per role, styled per event type */}
+                {/* Restart markers — labeled at top with event type + role */}
                 {(() => {
-                  const roleColors = {"leader": "#ef4444", "follower": "#3b82f6", "unknown": "#9ca3af"};
-                  const getColor = (role) => roleColors[role] || "#9ca3af";
-                  return <>
-                    {restartEvents.filter(e => e.event === "server_started" || e.label === "Server started").map((d, i) => (
-                      <ReferenceLine key={`restart-${i}`} x={d.epoch} stroke={getColor(d.role)} strokeDasharray="4 4" strokeWidth={1} opacity={0.6} />
-                    ))}
-                    {restartEvents.filter(e => e.event === "shutdown_signal" && e.signal === "SIGTERM").map((d, i) => (
-                      <ReferenceLine key={`sigterm-${i}`} x={d.epoch} stroke={getColor(d.role)} strokeDasharray="6 4" strokeWidth={2.5} opacity={0.9} />
-                    ))}
-                    {restartEvents.filter(e => e.event === "server_shutdown" && (!e.reason || e.reason === "unknown")).map((d, i) => (
-                      <ReferenceLine key={`oom-${i}`} x={d.epoch} stroke={getColor(d.role)} strokeDasharray="2 2" strokeWidth={2} opacity={0.8} />
-                    ))}
-                  </>;
+                  const roleLabels = {"leader": "L", "follower": "F", "unknown": ""};
+                  const roleColors = {"leader": "#ef4444", "follower": "#3b82f6", "unknown": "#6b7280"};
+                  const eventStyles = {
+                    "deploy": { dash: "none", width: 2, color: "#8b5cf6", label: "D" },       // solid purple
+                    "restart": { dash: "4 4", width: 1.5, color: "#6b7280", label: "R" },      // dashed grey
+                    "sigterm": { dash: "6 4", width: 2.5, color: "#f59e0b", label: "T" },       // dashed amber
+                    "oom": { dash: "2 2", width: 2.5, color: "#ef4444", label: "K" },           // dotted red
+                  };
+                  const markers = [];
+                  restartEvents.forEach((d, i) => {
+                    let type;
+                    if (d.label === "Deploy" || d.is_deploy) type = "deploy";
+                    else if (d.event === "shutdown_signal" && d.signal === "SIGTERM") type = "sigterm";
+                    else if (d.event === "server_shutdown" && (!d.reason || d.reason === "unknown")) type = "oom";
+                    else if (d.event === "server_started" || d.label === "Server started" || d.label === "Restart") type = "restart";
+                    else return;
+                    const style = eventStyles[type];
+                    const podLabel = roleLabels[d.role] || "";
+                    markers.push(
+                      <ReferenceLine key={`mark-${i}`} x={d.epoch}
+                        stroke={style.color}
+                        strokeDasharray={style.dash}
+                        strokeWidth={style.width}
+                        opacity={0.85}
+                        label={{ value: style.label + podLabel, position: "top", fontSize: 9, fill: style.color, fontWeight: 600 }}
+                      />
+                    );
+                  });
+                  return markers;
                 })()}
                 {/* Danger zone */}
                 <Area type="monotone" dataKey={() => 4096} stroke="none" fill="#ef4444" fillOpacity={0.05} />
@@ -509,9 +527,11 @@ export function AdminStatistics({ categories }) {
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> &lt;1GB Safe</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" /> 1-1.5GB Warning</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" /> &gt;1.5GB Danger</span>
-            <span className="flex items-center gap-1 ml-2 border-l pl-2 border-border"><span className="w-4 border-t border-dashed border-foreground/40" /> Restart</span>
-            <span className="flex items-center gap-1"><span className="w-4 border-t-[2.5px] border-dashed border-foreground/80" /> SIGTERM</span>
-            <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dotted border-foreground/60" /> Unknown kill</span>
+            <span className="flex items-center gap-1 ml-2 border-l pl-2 border-border"><span className="w-4 border-t-2 border-purple-500" /> <b className="text-purple-500">D</b> Deploy</span>
+            <span className="flex items-center gap-1"><span className="w-4 border-t border-dashed border-gray-500" /> <b className="text-gray-500">R</b> Restart</span>
+            <span className="flex items-center gap-1"><span className="w-4 border-t-[2.5px] border-dashed border-amber-500" /> <b className="text-amber-500">T</b> SIGTERM</span>
+            <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dotted border-red-500" /> <b className="text-red-500">K</b> Kill</span>
+            <span className="flex items-center gap-1 opacity-60">Suffix: L=Leader F=Follower</span>
             {(() => {
               const roles = [...new Set(memoryData.map(d => d.role).filter(r => r && r !== "unknown"))];
               if (roles.length === 0) return null;

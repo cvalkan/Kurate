@@ -455,6 +455,32 @@ async def startup():
     log_mem("Server started")
     logger.info("Kurate.org Leaderboard started")
 
+    # Log startup event with build fingerprint to distinguish deploys from restarts
+    try:
+        import hashlib, glob
+        _build_files = sorted(glob.glob("/app/backend/**/*.py", recursive=True))[:50]
+        _build_hash = hashlib.md5("".join(open(f).read()[:200] for f in _build_files if os.path.isfile(f)).encode()).hexdigest()[:12]
+        _prev_hash = await db.system_logs.find_one(
+            {"event": "server_started", "build_hash": {"$exists": True}},
+            sort=[("ts", -1)], projection={"_id": 0, "build_hash": 1},
+        )
+        _is_deploy = not _prev_hash or _prev_hash.get("build_hash") != _build_hash
+        from core.memlog import _pod_role
+        await db.system_logs.insert_one({
+            "ts": datetime.now(timezone.utc),
+            "level": "event",
+            "event": "server_started",
+            "label": "Deploy" if _is_deploy else "Restart",
+            "build_hash": _build_hash,
+            "is_deploy": _is_deploy,
+            "pod_id": _pod_id,
+            "pod_role": _pod_role,
+            "pid": os.getpid(),
+        })
+        logger.info(f"[STARTUP] {'DEPLOY (new code)' if _is_deploy else 'RESTART (same code)'} build={_build_hash}")
+    except Exception as e:
+        logger.warning(f"[STARTUP] Build fingerprint failed: {e}")
+
 
 
 async def _retry_missing_summaries():
