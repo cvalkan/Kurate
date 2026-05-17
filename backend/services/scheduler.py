@@ -2132,16 +2132,17 @@ async def _select_pairs(
         if prefer_established:
             # Quality-based selection: pick established opponent maximizing TrueSkill
             # match quality (accounts for both skill difference AND uncertainty).
-            import trueskill as _ts
-            r1 = _ts.Rating(mu=mus[p1], sigma=sigmas[p1])
-            best_quality = -1
-            for p2 in established:
-                if p2 == p1 or not can_pair(p2) or p2 in already_compared:
-                    continue
-                q = _ts.quality_1vs1(r1, _ts.Rating(mu=mus[p2], sigma=sigmas[p2]))
-                if q > best_quality:
-                    best_quality = q
-                    best = p2
+            # Vectorized with numpy for O(1)-per-candidate instead of Python loop.
+            import numpy as np
+            eligible = [p2 for p2 in established if p2 != p1 and can_pair(p2) and p2 not in already_compared]
+            if eligible:
+                mu1, sig1 = mus[p1], sigmas[p1]
+                e_mus = np.array([mus[p2] for p2 in eligible])
+                e_sigs = np.array([sigmas[p2] for p2 in eligible])
+                beta_sq = (25.0 / 6) ** 2  # TrueSkill default beta = 25/6
+                denom = 2 * beta_sq + sig1 ** 2 + e_sigs ** 2
+                quality = np.sqrt(2 * sig1 ** 2 * e_sigs ** 2 / denom) * np.exp(-(mu1 - e_mus) ** 2 / (2 * denom))
+                best = eligible[int(np.argmax(quality))]
 
         # If no novel established opponent, pick a novel needy opponent
         if best is None:
