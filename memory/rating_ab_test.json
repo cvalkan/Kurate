@@ -1,0 +1,758 @@
+{
+  "results_10": [
+    {
+      "score": 7.2,
+      "significance": 7.5,
+      "rigor": 6.8,
+      "novelty": 8.0,
+      "clarity": 7.0
+    },
+    {
+      "score": 4.5,
+      "significance": 5.0,
+      "rigor": 3.5,
+      "novelty": 4.5,
+      "clarity": 6.0
+    },
+    {
+      "score": 6.8,
+      "significance": 7.5,
+      "rigor": 6.5,
+      "novelty": 6.0,
+      "clarity": 7.0
+    },
+    {
+      "score": 6.2,
+      "significance": 6.5,
+      "rigor": 6.0,
+      "novelty": 6.5,
+      "clarity": 6.0
+    },
+    {
+      "score": 3.5,
+      "significance": 4.0,
+      "rigor": 2.5,
+      "novelty": 3.0,
+      "clarity": 5.5
+    },
+    {
+      "score": 5.8,
+      "significance": 6.5,
+      "rigor": 5.5,
+      "novelty": 5.0,
+      "clarity": 6.0
+    },
+    {
+      "score": 7.2,
+      "significance": 7.5,
+      "rigor": 6.5,
+      "novelty": 8.0,
+      "clarity": 7.0
+    },
+    {
+      "score": 3.5,
+      "significance": 3.0,
+      "rigor": 3.0,
+      "novelty": 2.5,
+      "clarity": 4.0
+    },
+    {
+      "score": 6.2,
+      "significance": 6.5,
+      "rigor": 5.8,
+      "novelty": 6.5,
+      "clarity": 6.0
+    },
+    {
+      "score": 7.2,
+      "significance": 7.5,
+      "rigor": 6.5,
+      "novelty": 8.0,
+      "clarity": 7.0
+    },
+    {
+      "score": 6.2,
+      "significance": 7.0,
+      "rigor": 5.5,
+      "novelty": 5.0,
+      "clarity": 7.5
+    },
+    {
+      "score": 4.2,
+      "significance": 4.5,
+      "rigor": 3.5,
+      "novelty": 4.0,
+      "clarity": 5.0
+    },
+    {
+      "score": 5.8,
+      "significance": 6.5,
+      "rigor": 5.5,
+      "novelty": 6.5,
+      "clarity": 6.0
+    },
+    {
+      "score": 6.8,
+      "significance": 7.0,
+      "rigor": 6.5,
+      "novelty": 7.2,
+      "clarity": 6.0
+    },
+    {
+      "score": 4.2,
+      "significance": 4.5,
+      "rigor": 4.0,
+      "novelty": 3.8,
+      "clarity": 4.5
+    },
+    {
+      "score": 6.8,
+      "significance": 7.0,
+      "rigor": 6.5,
+      "novelty": 7.2,
+      "clarity": 6.5
+    },
+    {
+      "score": 5.8,
+      "significance": 6.5,
+      "rigor": 4.5,
+      "novelty": 6.0,
+      "clarity": 6.5
+    },
+    {
+      "score": 7.4,
+      "significance": 7.5,
+      "rigor": 7.5,
+      "novelty": 8.0,
+      "clarity": 7.0
+    },
+    {
+      "score": 5.2,
+      "significance": 5.5,
+      "rigor": 4.0,
+      "novelty": 6.5,
+      "clarity": 5.5
+    },
+    {
+      "score": 6.8,
+      "significance": 7.0,
+      "rigor": 6.5,
+      "novelty": 7.5,
+      "clarity": 7.0
+    },
+    {
+      "score": 5.8,
+      "significance": 5.5,
+      "rigor": 5.5,
+      "novelty": 6.5,
+      "clarity": 7.0
+    },
+    {
+      "score": 6.8,
+      "significance": 7.5,
+      "rigor": 5.5,
+      "novelty": 7.8,
+      "clarity": 6.0
+    },
+    {
+      "score": 6.8,
+      "significance": 7.5,
+      "rigor": 6.0,
+      "novelty": 7.5,
+      "clarity": 7.0
+    },
+    {
+      "score": 5.2,
+      "significance": 5.5,
+      "rigor": 5.0,
+      "novelty": 5.5,
+      "clarity": 5.0
+    },
+    {
+      "score": 5.2,
+      "significance": 6.5,
+      "rigor": 3.5,
+      "novelty": 6.8,
+      "clarity": 5.5
+    },
+    {
+      "score": 6.8,
+      "significance": 7.5,
+      "rigor": 6.0,
+      "novelty": 7.0,
+      "clarity": 6.5
+    },
+    {
+      "score": 5.8,
+      "significance": 6.5,
+      "rigor": 5.5,
+      "novelty": 5.0,
+      "clarity": 6.5
+    },
+    {
+      "score": 6.8,
+      "significance": 6.5,
+      "rigor": 7.5,
+      "novelty": 6.5,
+      "clarity": 6.5
+    },
+    {
+      "score": 6.2,
+      "significance": 6.5,
+      "rigor": 5.5,
+      "novelty": 6.0,
+      "clarity": 7.0
+    },
+    {
+      "score": 7.2,
+      "significance": 7.5,
+      "rigor": 7.0,
+      "novelty": 7.5,
+      "clarity": 7.0
+    },
+    {
+      "score": 6.8,
+      "significance": 7.5,
+      "rigor": 6.0,
+      "novelty": 6.5,
+      "clarity": 7.0
+    },
+    {
+      "score": 6.8,
+      "significance": 7.5,
+      "rigor": 7.0,
+      "novelty": 6.5,
+      "clarity": 7.0
+    },
+    {
+      "score": 7.8,
+      "significance": 8.5,
+      "rigor": 7.5,
+      "novelty": 8.0,
+      "clarity": 7.5
+    },
+    {
+      "score": 6.8,
+      "significance": 7.0,
+      "rigor": 6.5,
+      "novelty": 7.5,
+      "clarity": 6.0
+    },
+    {
+      "score": 5.8,
+      "significance": 6.5,
+      "rigor": 5.5,
+      "novelty": 5.0,
+      "clarity": 6.0
+    },
+    {
+      "score": 5.8,
+      "significance": 6.5,
+      "rigor": 5.5,
+      "novelty": 6.0,
+      "clarity": 6.0
+    },
+    {
+      "score": 3.5,
+      "significance": 3.0,
+      "rigor": 3.5,
+      "novelty": 2.5,
+      "clarity": 4.5
+    },
+    {
+      "score": 4.2,
+      "significance": 4.5,
+      "rigor": 3.0,
+      "novelty": 5.0,
+      "clarity": 5.5
+    },
+    {
+      "score": 6.8,
+      "significance": 7.0,
+      "rigor": 6.5,
+      "novelty": 7.5,
+      "clarity": 7.0
+    },
+    {
+      "score": 7.8,
+      "significance": 8.0,
+      "rigor": 7.5,
+      "novelty": 8.2,
+      "clarity": 7.5
+    },
+    {
+      "score": 7.2,
+      "significance": 7.5,
+      "rigor": 7.5,
+      "novelty": 7.8,
+      "clarity": 7.0
+    },
+    {
+      "score": 7.2,
+      "significance": 7.5,
+      "rigor": 6.5,
+      "novelty": 7.0,
+      "clarity": 7.5
+    },
+    {
+      "score": 5.2,
+      "significance": 5.5,
+      "rigor": 4.5,
+      "novelty": 4.0,
+      "clarity": 6.5
+    },
+    {
+      "score": 5.8,
+      "significance": 5.5,
+      "rigor": 6.0,
+      "novelty": 4.5,
+      "clarity": 7.0
+    },
+    {
+      "score": 4.8,
+      "significance": 5.5,
+      "rigor": 3.5,
+      "novelty": 4.5,
+      "clarity": 5.0
+    },
+    {
+      "score": 6.8,
+      "significance": 7.5,
+      "rigor": 5.5,
+      "novelty": 7.5,
+      "clarity": 6.5
+    },
+    {
+      "score": 5.2,
+      "significance": 6.5,
+      "rigor": 3.5,
+      "novelty": 5.5,
+      "clarity": 5.0
+    },
+    {
+      "score": 6.8,
+      "significance": 7.0,
+      "rigor": 7.0,
+      "novelty": 6.5,
+      "clarity": 7.0
+    },
+    {
+      "score": 5.2,
+      "significance": 5.5,
+      "rigor": 6.0,
+      "novelty": 4.5,
+      "clarity": 6.5
+    },
+    {
+      "score": 6.2,
+      "significance": 6.5,
+      "rigor": 5.5,
+      "novelty": 6.5,
+      "clarity": 7.0
+    }
+  ],
+  "results_100": [
+    {
+      "score": 62,
+      "significance": 68,
+      "rigor": 55,
+      "novelty": 70,
+      "clarity": 65
+    },
+    {
+      "score": 35,
+      "significance": 40,
+      "rigor": 25,
+      "novelty": 35,
+      "clarity": 50
+    },
+    {
+      "score": 62,
+      "significance": 70,
+      "rigor": 58,
+      "novelty": 55,
+      "clarity": 68
+    },
+    {
+      "score": 52,
+      "significance": 55,
+      "rigor": 50,
+      "novelty": 55,
+      "clarity": 48
+    },
+    {
+      "score": 28,
+      "significance": 30,
+      "rigor": 18,
+      "novelty": 22,
+      "clarity": 45
+    },
+    {
+      "score": 42,
+      "significance": 45,
+      "rigor": 38,
+      "novelty": 35,
+      "clarity": 50
+    },
+    {
+      "score": 62,
+      "significance": 70,
+      "rigor": 55,
+      "novelty": 72,
+      "clarity": 65
+    },
+    {
+      "score": 22,
+      "significance": 18,
+      "rigor": 15,
+      "novelty": 12,
+      "clarity": 30
+    },
+    {
+      "score": 62,
+      "significance": 65,
+      "rigor": 58,
+      "novelty": 64,
+      "clarity": 68
+    },
+    {
+      "score": 62,
+      "significance": 68,
+      "rigor": 52,
+      "novelty": 72,
+      "clarity": 65
+    },
+    {
+      "score": 52,
+      "significance": 60,
+      "rigor": 45,
+      "novelty": 40,
+      "clarity": 72
+    },
+    {
+      "score": 32,
+      "significance": 35,
+      "rigor": 20,
+      "novelty": 30,
+      "clarity": 40
+    },
+    {
+      "score": 52,
+      "significance": 55,
+      "rigor": 45,
+      "novelty": 60,
+      "clarity": 65
+    },
+    {
+      "score": 62,
+      "significance": 65,
+      "rigor": 60,
+      "novelty": 68,
+      "clarity": 55
+    },
+    {
+      "score": 32,
+      "significance": 30,
+      "rigor": 35,
+      "novelty": 25,
+      "clarity": 40
+    },
+    {
+      "score": 62,
+      "significance": 65,
+      "rigor": 58,
+      "novelty": 68,
+      "clarity": 55
+    },
+    {
+      "score": 42,
+      "significance": 50,
+      "rigor": 30,
+      "novelty": 45,
+      "clarity": 55
+    },
+    {
+      "score": 72,
+      "significance": 75,
+      "rigor": 74,
+      "novelty": 78,
+      "clarity": 68
+    },
+    {
+      "score": 42,
+      "significance": 45,
+      "rigor": 30,
+      "novelty": 55,
+      "clarity": 50
+    },
+    {
+      "score": 62,
+      "significance": 65,
+      "rigor": 55,
+      "novelty": 68,
+      "clarity": 64
+    },
+    {
+      "score": 52,
+      "significance": 55,
+      "rigor": 50,
+      "novelty": 58,
+      "clarity": 65
+    },
+    {
+      "score": 62,
+      "significance": 68,
+      "rigor": 55,
+      "novelty": 72,
+      "clarity": 60
+    },
+    {
+      "score": 62,
+      "significance": 68,
+      "rigor": 55,
+      "novelty": 70,
+      "clarity": 65
+    },
+    {
+      "score": 42,
+      "significance": 45,
+      "rigor": 50,
+      "novelty": 40,
+      "clarity": 55
+    },
+    {
+      "score": 32,
+      "significance": 45,
+      "rigor": 18,
+      "novelty": 40,
+      "clarity": 35
+    },
+    {
+      "score": 62,
+      "significance": 68,
+      "rigor": 55,
+      "novelty": 65,
+      "clarity": 60
+    },
+    {
+      "score": 45,
+      "significance": 55,
+      "rigor": 40,
+      "novelty": 35,
+      "clarity": 55
+    },
+    {
+      "score": 52,
+      "significance": 55,
+      "rigor": 70,
+      "novelty": 50,
+      "clarity": 55
+    },
+    {
+      "score": 52,
+      "significance": 55,
+      "rigor": 45,
+      "novelty": 50,
+      "clarity": 60
+    },
+    {
+      "score": 62,
+      "significance": 65,
+      "rigor": 60,
+      "novelty": 68,
+      "clarity": 55
+    },
+    {
+      "score": 62,
+      "significance": 65,
+      "rigor": 55,
+      "novelty": 60,
+      "clarity": 65
+    },
+    {
+      "score": 62,
+      "significance": 68,
+      "rigor": 65,
+      "novelty": 60,
+      "clarity": 58
+    },
+    {
+      "score": 78,
+      "significance": 82,
+      "rigor": 75,
+      "novelty": 80,
+      "clarity": 77
+    },
+    {
+      "score": 62,
+      "significance": 58,
+      "rigor": 55,
+      "novelty": 65,
+      "clarity": 52
+    },
+    {
+      "score": 52,
+      "significance": 55,
+      "rigor": 45,
+      "novelty": 50,
+      "clarity": 55
+    },
+    {
+      "score": 52,
+      "significance": 55,
+      "rigor": 55,
+      "novelty": 50,
+      "clarity": 60
+    },
+    {
+      "score": 28,
+      "significance": 25,
+      "rigor": 30,
+      "novelty": 20,
+      "clarity": 35
+    },
+    {
+      "score": 32,
+      "significance": 30,
+      "rigor": 20,
+      "novelty": 35,
+      "clarity": 40
+    },
+    {
+      "score": 62,
+      "significance": 58,
+      "rigor": 55,
+      "novelty": 68,
+      "clarity": 65
+    },
+    {
+      "score": 72,
+      "significance": 75,
+      "rigor": 68,
+      "novelty": 78,
+      "clarity": 74
+    },
+    {
+      "score": 68,
+      "significance": 72,
+      "rigor": 74,
+      "novelty": 70,
+      "clarity": 65
+    },
+    {
+      "score": 72,
+      "significance": 78,
+      "rigor": 62,
+      "novelty": 74,
+      "clarity": 73
+    },
+    {
+      "score": 42,
+      "significance": 48,
+      "rigor": 35,
+      "novelty": 38,
+      "clarity": 55
+    },
+    {
+      "score": 52,
+      "significance": 45,
+      "rigor": 55,
+      "novelty": 35,
+      "clarity": 72
+    },
+    {
+      "score": 38,
+      "significance": 45,
+      "rigor": 30,
+      "novelty": 35,
+      "clarity": 40
+    },
+    {
+      "score": 62,
+      "significance": 68,
+      "rigor": 45,
+      "novelty": 72,
+      "clarity": 65
+    },
+    {
+      "score": 42,
+      "significance": 55,
+      "rigor": 25,
+      "novelty": 45,
+      "clarity": 50
+    },
+    {
+      "score": 62,
+      "significance": 65,
+      "rigor": 60,
+      "novelty": 58,
+      "clarity": 65
+    },
+    {
+      "score": 42,
+      "significance": 45,
+      "rigor": 55,
+      "novelty": 30,
+      "clarity": 60
+    },
+    {
+      "score": 52,
+      "significance": 55,
+      "rigor": 45,
+      "novelty": 58,
+      "clarity": 60
+    }
+  ],
+  "paper_titles": [
+    "Intern-Atlas: A Methodological Evolution Graph as Research Infrastructure for AI Scientists",
+    "Collaborative Agent Reasoning Engineering (CARE): A Three-Party Design Methodology for Systematically Engineering AI Agents with Subject Matter Experts, Developers, and Helper Agents",
+    "Plausible but Wrong: A case study on Agentic Failures in Astrophysical Workflows",
+    "Sample-efficient Neuro-symbolic Proximal Policy Optimization",
+    "Think Before You Act -- A Neurocognitive Governance Model for Autonomous AI Agents",
+    "Fairness for distribution network operations and planning",
+    "Automated Adversarial Collaboration for Advancing Theory Building in the Cognitive Sciences",
+    "Rethinking Agentic Reinforcement Learning In Large Language Models",
+    "RHyVE: Competence-Aware Verification and Phase-Aware Deployment for LLM-Generated Reward Hypotheses",
+    "When Agents Evolve, Institutions Follow",
+    "In-Context Prompting Obsoletes Agent Orchestration for Procedural Tasks",
+    "Autonomous Traffic Signal Optimization Using Digital Twin and Agentic AI for Real-Time Decision-Making",
+    "The Effects of Visual Priming on Cooperative Behavior in Vision-Language Models",
+    "Sparse Personalized Text Generation with Multi-Trajectory Reasoning",
+    "Multi-action Tangled Program Graphs for Multi-task Reinforcement Learning with Continuous Control",
+    "Hierarchical Multi-Persona Induction from User Behavioral Logs: Learning Evidence-Grounded and Truthful Personas",
+    "Leverage Laws: A Per-Task Framework for Human-Agent Collaboration",
+    "PI-TTA: Physics-Informed Source-Free Test-Time Adaptation for Robust Human Activity Recognition on Mobile Devices",
+    "LLM as Clinical Graph Structure Refiner: Enhancing Representation Learning in EEG Seizure Diagnosis",
+    "DATAREEL: Automated Data-Driven Video Story Generation with Animations",
+    "Consumer Attitudes Towards AI in Digital Health: A Mixed-Methods Survey in Australia",
+    "Operating-Layer Controls for Onchain Language-Model Agents Under Real Capital",
+    "FutureWorld: A Live Environment for Training Predictive Agents with Real-World Outcome Rewards",
+    "Assessing Y-Axis Influence: Bias in Multimodal Language Models on Chart-to-Table Translation",
+    "Toward a Science of Intent: Closure Gaps and Delegation Envelopes for Open-World AI Agents",
+    "SciHorizon-DataEVA: An Agentic System for AI-Readiness Evaluation of Heterogeneous Scientific Data",
+    "Knowledge Graph Representations for LLM-Based Policy Compliance Reasoning",
+    "Splitting Assumption-Based Argumentation Frameworks",
+    "GUI Agents with Reinforcement Learning: Toward Digital Inhabitants",
+    "JURY-RL: Votes Propose, Proofs Dispose for Label-Free RLVR",
+    "Agentic Architect: An Agentic AI Framework for Architecture Design Exploration and Optimization",
+    "The Nonverbal Syntax Framework: An Evidence-Based Tiered System for Inferring Learner States from Observable Behavioral Cues",
+    "Training Transformers as a Universal Computer",
+    "Co-Director: Agentic Generative Video Storytelling",
+    "Doing More With Less: Revisiting the Effectiveness of LLM Pruning for Test-Time Scaling",
+    "Characterizing the Consistency of the Emergent Misalignment Persona",
+    "Apriori-based Analysis of Learned Helplessness in Mathematics Tutoring: Behavioral Patterns by Level, Intervention, and Outcome",
+    "OMEGA: Optimizing Machine Learning by Evaluating Generated Algorithms",
+    "Language Models Refine Mechanical Linkage Designs Through Symbolic Reflection and Modular Optimisation",
+    "DreamProver: Evolving Transferable Lemma Libraries via a Wake-Sleep Theorem-Proving Agent",
+    "Distill-Belief: Closed-Loop Inverse Source Localization and Characterization in Physical Fields",
+    "Heterogeneous Scientific Foundation Model Collaboration",
+    "Modeling Clinical Concern Trajectories in Language Model Agents",
+    "Post-Optimization Adaptive Rank Allocation for LoRA",
+    "OxyGent: Making Multi-Agent Systems Modular, Observable, and Evolvable via Oxy Abstraction",
+    "AGEL-Comp: A Neuro-Symbolic Framework for Compositional Generalization in Interactive Agents",
+    "A Collective Variational Principle Unifying Bayesian Inference, Game Theory, and Thermodynamics",
+    "Evaluating Risks in Weak-to-Strong Alignment: A Bias-Variance Perspective",
+    "Exploring Interaction Paradigms for LLM Agents in Scientific Visualization",
+    "The TEA Nets framework combines AI and cognitive network science to model targets, events and actors in text"
+  ]
+}
