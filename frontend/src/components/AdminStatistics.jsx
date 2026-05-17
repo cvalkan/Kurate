@@ -456,9 +456,14 @@ export function AdminStatistics({ categories }) {
                 />
                 <YAxis domain={[0, 4096]} ticks={[0, 1024, 2048, 3072, 4096]} tickFormatter={v => `${v}MB`} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={55} />
                 <RechartsTooltip
-                  content={({ active, payload }) => {
+                  content={({ active, payload, label }) => {
                     if (!active || !payload?.length) return null;
                     const d = payload[0]?.payload;
+                    // Find any restart events within 2 minutes of this data point
+                    const epoch = d?.epoch || label;
+                    const nearbyEvents = restartEvents.filter(e => Math.abs(e.epoch - epoch) < 120000);
+                    const eventLabels = {"deploy": "Deploy", "restart": "Restart", "sigterm": "SIGTERM", "oom": "Kill"};
+                    const eventColors = {"deploy": "#8b5cf6", "restart": "#6b7280", "sigterm": "#f59e0b", "oom": "#ef4444"};
                     return (
                       <div className="rounded-lg border border-border bg-popover p-2 shadow-lg text-xs">
                         <div className="font-medium">{d?.ts ? new Date(d.ts.endsWith("Z") ? d.ts : d.ts + "Z").toLocaleString("en-US", { timeZone: "Europe/Berlin", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) + " CET" : ""}</div>
@@ -467,6 +472,18 @@ export function AdminStatistics({ categories }) {
                         <div className="font-mono mt-1" style={{ color: d?.rss > 1536 ? "#ef4444" : d?.rss > 1024 ? "#f59e0b" : "#10b981" }}>
                           {Math.round(d?.rss)}MB
                         </div>
+                        {nearbyEvents.length > 0 && (
+                          <div className="mt-1.5 pt-1.5 border-t border-border space-y-0.5">
+                            {nearbyEvents.map((evt, i) => {
+                              let type = evt.is_deploy || evt.label === "Deploy" ? "deploy" : evt.signal === "SIGTERM" ? "sigterm" : evt.event === "server_shutdown" ? "oom" : "restart";
+                              return (
+                                <div key={i} style={{ color: eventColors[type] }} className="font-medium">
+                                  {eventLabels[type]}{evt.role && evt.role !== "unknown" ? ` (${evt.role})` : ""}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     );
                   }}
