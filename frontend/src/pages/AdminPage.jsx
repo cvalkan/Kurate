@@ -443,65 +443,80 @@ export default function AdminPage() {
           <div className="border-t border-border pt-6 mt-6">
             <h3 className="text-sm font-medium mb-3">System Actions</h3>
             <div className="flex flex-wrap gap-2 items-center">
-              <Button
-                variant="outline" size="sm" className="text-xs gap-1.5"
-                data-testid="btn-repair-queue"
-                disabled={loading.repair}
-                onClick={async () => {
-                  setLoading(l => ({ ...l, repair: true }));
-                  try {
-                    const res = await axios.get(`${API}/api/admin/repair-queue`, { headers: getAdminHeaders() });
-                    const count = res.data.count;
-                    if (count === 0) {
-                      toast.success("Repair queue empty — no drift detected");
-                    } else {
-                      const procRes = await axios.post(`${API}/api/admin/process-repair-queue`, {}, { headers: getAdminHeaders() });
-                      toast.success(`Repaired ${procRes.data.repaired} papers`);
-                    }
-                  } catch (e) { toast.error("Repair failed: " + (e.response?.data?.detail || e.message)); }
-                  finally { setLoading(l => ({ ...l, repair: false })); }
-                }}
-              >
-                {loading.repair ? "Processing..." : "Process Repair Queue"}
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline" size="sm" className="text-xs gap-1.5"
+                    data-testid="btn-repair-queue"
+                    disabled={loading.repair}
+                    onClick={async () => {
+                      setLoading(l => ({ ...l, repair: true }));
+                      try {
+                        const res = await axios.get(`${API}/api/admin/repair-queue`, { headers: getAdminHeaders() });
+                        const count = res.data.count;
+                        if (count === 0) {
+                          toast.success("Repair queue empty — no drift detected");
+                        } else {
+                          const procRes = await axios.post(`${API}/api/admin/process-repair-queue`, {}, { headers: getAdminHeaders() });
+                          toast.success(`Repaired ${procRes.data.repaired} papers`);
+                        }
+                      } catch (e) { toast.error("Repair failed: " + (e.response?.data?.detail || e.message)); }
+                      finally { setLoading(l => ({ ...l, repair: false })); }
+                    }}
+                  >
+                    {loading.repair ? "Processing..." : "Process Repair Queue"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom"><p className="max-w-64 text-xs">Fixes ranking inconsistencies where stored wins/losses/comparisons have drifted from actual match data. This can happen after failed incremental TrueSkill updates. Safe to run anytime.</p></TooltipContent>
+              </Tooltip>
               <RepairQueueBadge />
-              <Button
-                variant="outline" size="sm" className="text-xs gap-1.5"
-                data-testid="btn-reconcile"
-                disabled={loading.reconcile}
-                onClick={async () => {
-                  setLoading(l => ({ ...l, reconcile: true }));
-                  try {
-                    const res = await axios.post(`${API}/api/admin/reconcile-rankings`, {}, { headers: getAdminHeaders() });
-                    const data = res.data;
-                    const drifted = Object.values(data).filter(v => v.drifted).length;
-                    toast.success(drifted > 0
-                      ? `Reconciled: ${drifted} categories had drift`
-                      : "All rankings consistent — no drift detected");
-                  } catch (e) { toast.error("Reconciliation failed: " + (e.response?.data?.detail || e.message)); }
-                  finally { setLoading(l => ({ ...l, reconcile: false })); }
-                }}
-              >
-                {loading.reconcile ? "Running..." : "Full Reconcile"}
-              </Button>
-              <Button
-                variant="outline" size="sm" className="text-xs gap-1.5"
-                data-testid="btn-precompute"
-                disabled={loading.precompute}
-                onClick={async () => {
-                  setLoading(l => ({ ...l, precompute: true }));
-                  try {
-                    await axios.post(`${API}/api/admin/precompute-experiments`, {}, { headers: getAdminHeaders(), timeout: 600000 });
-                    toast.success("Precompute complete");
-                  } catch (e) {
-                    if (e.code === "ECONNABORTED") toast.info("Precompute running in background (request timed out but server continues)");
-                    else toast.error("Precompute failed: " + (e.response?.data?.detail || e.message));
-                  }
-                  finally { setLoading(l => ({ ...l, precompute: false })); }
-                }}
-              >
-                {loading.precompute ? "Running..." : "Precompute Experiments"}
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline" size="sm" className="text-xs gap-1.5"
+                    data-testid="btn-reconcile"
+                    disabled={loading.reconcile}
+                    onClick={async () => {
+                      setLoading(l => ({ ...l, reconcile: true }));
+                      try {
+                        const res = await axios.post(`${API}/api/admin/reconcile-rankings`, {}, { headers: getAdminHeaders() });
+                        const data = res.data;
+                        const drifted = Object.values(data).filter(v => v.drifted).length;
+                        toast.success(drifted > 0
+                          ? `Reconciled: ${drifted} categories had drift`
+                          : "All rankings consistent — no drift detected");
+                      } catch (e) { toast.error("Reconciliation failed: " + (e.response?.data?.detail || e.message)); }
+                      finally { setLoading(l => ({ ...l, reconcile: false })); }
+                    }}
+                  >
+                    {loading.reconcile ? "Running..." : "Full Reconcile"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom"><p className="max-w-64 text-xs">Recalculates all TrueSkill rankings from complete match history for every category. Use after manual data fixes or suspected ranking corruption. Runs a 3-pass shuffled rerank for each category.</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline" size="sm" className="text-xs gap-1.5"
+                    data-testid="btn-precompute"
+                    disabled={loading.precompute}
+                    onClick={async () => {
+                      setLoading(l => ({ ...l, precompute: true }));
+                      try {
+                        await axios.post(`${API}/api/admin/precompute-experiments`, {}, { headers: getAdminHeaders(), timeout: 600000 });
+                        toast.success("Precompute complete");
+                      } catch (e) {
+                        if (e.code === "ECONNABORTED") toast.info("Precompute running in background (request timed out but server continues)");
+                        else toast.error("Precompute failed: " + (e.response?.data?.detail || e.message));
+                      }
+                      finally { setLoading(l => ({ ...l, precompute: false })); }
+                    }}
+                  >
+                    {loading.precompute ? "Running..." : "Precompute Experiments"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom"><p className="max-w-64 text-xs">Regenerates cached validation benchmark results (model accuracy, consistency, cycles). Run after adding new validation datasets or changing benchmark methodology. Takes several minutes.</p></TooltipContent>
+              </Tooltip>
             </div>
           </div>
         </div>
