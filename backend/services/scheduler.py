@@ -1578,6 +1578,7 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                         input_tokens=tokens.get("input", 0),
                         output_tokens=tokens.get("output", 0),
                         thinking_tokens=tokens.get("thinking", 0),
+                        paper_title=f"{category}: {paper.get('title', '')[:60]}",
                     )
                     generated += 1
                     _sync_progress()
