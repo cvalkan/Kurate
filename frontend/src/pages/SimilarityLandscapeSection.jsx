@@ -19,17 +19,20 @@ function scoreToRadius(score) {
   return 3;                       // below average
 }
 
-function SimilarityLandscapeSection() {
+function SimilarityLandscapeSection({ category = "cs.AI" }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [useUmap, setUseUmap] = useState(false);
   const [nClusters, setNClusters] = useState(null);
 
   useEffect(() => {
-    axios.get(`${API}/api/similarity-landscape`)
+    const url = category === "cs.AI"
+      ? `${API}/api/similarity-landscape`
+      : `${API}/api/similarity-landscape/${category}`;
+    axios.get(url)
       .then(r => { setData(r.data); setNClusters(r.data.n_clusters); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  }, [category]);
 
   // Re-cluster client-side with different K using simple k-means
   const clustered = useMemo(() => {

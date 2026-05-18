@@ -2075,3 +2075,19 @@ async def get_similarity_landscape():
             return _json.load(f)
     except FileNotFoundError:
         return {"papers": [], "n_papers": 0, "n_pairs": 0}
+
+
+@router.get("/similarity-landscape/{category}")
+async def get_similarity_landscape_category(category: str):
+    """Serve precomputed similarity landscape data for a specific category."""
+    import json as _json
+    safe_cat = category.replace("/", "_").replace("..", "")
+    path = f"/app/backend/data/precomputed/similarity_landscape_{safe_cat.replace('.', '_')}.json"
+    # Fall back to default (cs.AI) if category-specific not found
+    if not os.path.exists(path):
+        path = "/app/backend/data/precomputed/similarity_landscape.json"
+    try:
+        with open(path) as f:
+            return _json.load(f)
+    except FileNotFoundError:
+        return {"papers": [], "n_papers": 0, "n_pairs": 0}
