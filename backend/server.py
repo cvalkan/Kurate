@@ -963,6 +963,37 @@ async def _deferred_startup():
     except Exception as e:
         logger.warning(f"Scoring simplification migration warning: {e}")
 
+    # Migration: backfill archive CI from Wilson % to sigma-derived ±Elo
+    try:
+        _ci_mig = await db.settings.find_one({"key": "migration_archive_ci_sigma"})
+        if not _ci_mig:
+            patched = 0
+            async for archive in db.leaderboard_archives.find({}, {"_id": 1, "leaderboard": 1}):
+                lb = archive.get("leaderboard", [])
+                changed = False
+                for entry in lb:
+                    ts_sigma = entry.get("ts_sigma")
+                    if ts_sigma is not None:
+                        new_ci = round(ts_sigma * 2 * 10, 0)
+                        if entry.get("ci") != new_ci:
+                            entry["ci"] = new_ci
+                            changed = True
+                if changed:
+                    await db.leaderboard_archives.update_one(
+                        {"_id": archive["_id"]},
+                        {"$set": {"leaderboard": lb}},
+                    )
+                    patched += 1
+            if patched:
+                logger.info(f"Archive CI backfill: patched {patched} archives (Wilson→sigma ±Elo)")
+            await db.settings.update_one(
+                {"key": "migration_archive_ci_sigma"},
+                {"$set": {"key": "migration_archive_ci_sigma", "done_at": datetime.now(timezone.utc).isoformat(), "patched": patched}},
+                upsert=True,
+            )
+    except Exception as e:
+        logger.warning(f"Archive CI backfill warning: {e}")
+
     # Determine pod role for gating leader-only tasks
     from services.scheduler import _is_leader as _pod_is_leader
 

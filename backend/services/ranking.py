@@ -787,7 +787,7 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
                 {"paper_id": paper_id, "category": category},
                 {"$inc": inc_fields, "$set": {"updated_at": now_iso}},
                 return_document=True,
-                projection={"_id": 0, "wins": 1, "comparisons": 1},
+                projection={"_id": 0, "wins": 1, "comparisons": 1, "ts_sigma": 1},
             )
             if not doc:
                 paper_doc = await db.papers.find_one(
@@ -801,15 +801,16 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
                         {"paper_id": paper_id, "category": category},
                         {"$inc": inc_fields, "$set": {"updated_at": now_iso}},
                         return_document=True,
-                        projection={"_id": 0, "wins": 1, "comparisons": 1},
+                        projection={"_id": 0, "wins": 1, "comparisons": 1, "ts_sigma": 1},
                     )
             if doc:
                 w, n = doc["wins"], doc["comparisons"]
                 wm = wilson_margin_pct(w, n)
                 wr = round(100 * w / n, 1) if n > 0 else 0.0
+                ci_elo = round(doc.get("ts_sigma", 25.0 / 3) * 2 * TS_SCALE, 0)
                 await db.rankings.update_one(
                     {"paper_id": paper_id, "category": category, "comparisons": n},
-                    {"$set": {"win_rate": wr, "wilson_margin": wm, "ci": wm}},
+                    {"$set": {"win_rate": wr, "wilson_margin": wm, "ci": ci_elo}},
                 )
         except Exception:
             try:
@@ -818,7 +819,7 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
                     {"paper_id": paper_id, "category": category},
                     {"$inc": inc_fields, "$set": {"updated_at": now_iso}},
                     return_document=True,
-                    projection={"_id": 0, "wins": 1, "comparisons": 1},
+                    projection={"_id": 0, "wins": 1, "comparisons": 1, "ts_sigma": 1},
                 )
                 if not doc:
                     paper_doc = await db.papers.find_one(
@@ -832,15 +833,16 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
                             {"paper_id": paper_id, "category": category},
                             {"$inc": inc_fields, "$set": {"updated_at": now_iso}},
                             return_document=True,
-                            projection={"_id": 0, "wins": 1, "comparisons": 1},
+                            projection={"_id": 0, "wins": 1, "comparisons": 1, "ts_sigma": 1},
                         )
                 if doc:
                     w, n = doc["wins"], doc["comparisons"]
                     wm = wilson_margin_pct(w, n)
                     wr = round(100 * w / n, 1) if n > 0 else 0.0
+                    ci_elo = round(doc.get("ts_sigma", 25.0 / 3) * 2 * TS_SCALE, 0)
                     await db.rankings.update_one(
                         {"paper_id": paper_id, "category": category, "comparisons": n},
-                        {"$set": {"win_rate": wr, "wilson_margin": wm, "ci": wm}},
+                        {"$set": {"win_rate": wr, "wilson_margin": wm, "ci": ci_elo}},
                     )
             except Exception:
                 await _queue_repair(db, category, paper_id)
