@@ -16,9 +16,9 @@ sys.path.insert(0, "/app/backend")
 SEED = 42
 DATA_PATH = "/app/backend/data/precomputed/similarity_landscape.json"
 
-TITLE_PROMPT = """Given these paper titles from a cluster of AI research papers, generate a short (2-5 word) theme label that captures the common research topic.
+TITLE_PROMPT = """Given these paper abstracts from a cluster of AI research papers, generate a short (2-5 word) theme label that captures the common research topic.
 
-Paper titles:
+Paper abstracts:
 {titles}
 
 Respond with JSON only: {{"title": "Multi-Agent Systems"}}"""
@@ -54,6 +54,17 @@ async def main():
     n = len(papers)
     print(f"Loaded {n} papers from landscape data")
 
+    # Load abstracts from DB
+    from motor.motor_asyncio import AsyncIOMotorClient
+    client = AsyncIOMotorClient(os.environ["MONGO_URL"])
+    db = client[os.environ["DB_NAME"]]
+    abstracts = {}
+    for p in papers:
+        doc = await db.papers.find_one({"id": p["id"]}, {"_id": 0, "abstract": 1})
+        if doc and doc.get("abstract"):
+            abstracts[p["id"]] = doc["abstract"][:500]
+    print(f"Loaded {len(abstracts)} abstracts from DB")
+
     # Get MDS coords for clustering
     coords = np.array([[p["x"], p["y"]] for p in papers])
 
@@ -67,24 +78,26 @@ async def main():
         km = KMeans(n_clusters=k, random_state=SEED, n_init=10)
         labels = km.fit_predict(coords)
 
-        # Group paper titles by cluster
-        cluster_titles_map = {}
+        # Group paper titles and abstracts by cluster
+        cluster_papers_map = {}
         for i, p in enumerate(papers):
             c = int(labels[i])
-            if c not in cluster_titles_map:
-                cluster_titles_map[c] = []
-            cluster_titles_map[c].append(p["title"])
+            if c not in cluster_papers_map:
+                cluster_papers_map[c] = []
+            cluster_papers_map[c].append(p)
 
-        # Generate title for each cluster
+        # Generate title for each cluster using abstracts
         titles = {}
-        for c in sorted(cluster_titles_map.keys()):
-            paper_titles = cluster_titles_map[c]
-            # Send up to 20 titles (enough for theme detection)
-            sample = paper_titles[:20]
-            titles_text = "\n".join(f"- {t}" for t in sample)
-            prompt = TITLE_PROMPT.format(titles=titles_text)
+        for c in sorted(cluster_papers_map.keys()):
+            cluster_p = cluster_papers_map[c]
+            # Use abstracts (truncated), fall back to title if no abstract
+            sample = cluster_p[:20]
+            abstracts_text = "\n\n".join(
+                f"- {abstracts.get(p['id'], p['title'])}" for p in sample
+            )
+            prompt = TITLE_PROMPT.format(titles=abstracts_text)
             title = await call_llm(prompt)
-            count = len(paper_titles)
+            count = len(cluster_p)
             if title:
                 titles[c] = f"{title} ({count})"
                 print(f"  Cluster {c}: {title} ({count} papers)")

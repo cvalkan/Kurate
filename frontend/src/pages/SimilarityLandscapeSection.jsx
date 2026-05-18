@@ -277,7 +277,7 @@ function SimilarityLandscapeSection() {
           </div>
           <div>
             <span className="text-foreground font-medium">6. Cluster Titles.</span>{" "}
-            For each K, the top 20 paper titles from each cluster are sent to Claude Opus 4.6 with the prompt: <em>"Generate a short (2-5 word) theme label that captures the common research topic."</em> Titles are pre-generated for all K values (55 LLM calls total) and stored alongside the embedding data.
+            For each K, the abstracts of up to 20 papers from each cluster are sent to Claude Opus 4.6 with the prompt: <em>"Generate a short (2-5 word) theme label that captures the common research topic."</em> Using abstracts rather than titles gives the model richer context for identifying shared themes. Titles are pre-generated for all K values (55 LLM calls total) and stored alongside the embedding data.
           </div>
           <div>
             <span className="text-foreground font-medium">7. Dot Sizing.</span>{" "}
