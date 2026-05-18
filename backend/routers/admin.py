@@ -3360,7 +3360,7 @@ async def create_all_snapshots(year: int = None, month: int = None, week: int = 
     - year+month: creates monthly archives for that specific month
     - year+week: creates weekly archives for that specific week
     Respects archive_frequency settings. Idempotent (skips existing)."""
-    from routers.leaderboard import create_archive_snapshot, create_archive_snapshot_for_period
+    from routers.leaderboard import create_archive_snapshot
     settings = await get_settings()
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
     archive_config = settings.get("archive_frequency") or {}
@@ -3373,7 +3373,7 @@ async def create_all_snapshots(year: int = None, month: int = None, week: int = 
         # (a category's frequency may have changed since that period).
         period_type = "monthly" if month else "weekly"
         for cat in active_cats:
-            result = await create_archive_snapshot_for_period(cat, period_type, year, week=week, month=month)
+            result = await create_archive_snapshot(cat, period_type, year=year, week=week, month=month)
             if result:
                 created += 1
         return {"status": "ok", "created": created, "period_type": period_type, "year": year, "week": week, "month": month}

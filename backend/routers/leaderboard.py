@@ -1713,11 +1713,6 @@ async def get_older_archive(category: str):
 
 
 
-async def create_archive_snapshot_for_period(category: str, period_type: str, year: int, week: int = None, month: int = None):
-    """Create archive for a specific period. Delegates to create_archive_snapshot."""
-    return await create_archive_snapshot(category, period_type, year=year, week=week, month=month)
-
-
 async def create_archive_snapshot(category: str, period_type: str = "weekly", year: int = None, week: int = None, month: int = None):
     """Create a frozen leaderboard snapshot for the given category.
 
