@@ -1714,128 +1714,31 @@ async def get_older_archive(category: str):
 
 
 async def create_archive_snapshot_for_period(category: str, period_type: str, year: int, week: int = None, month: int = None):
-    """Create archive for a specific period (not just the previous one). Used for rebuilding."""
-    utc_now = datetime.now(timezone.utc)
-
-    # Check if already exists (fast pre-check before building the full document)
-    if period_type == "weekly" and week:
-        if await db.leaderboard_archives.find_one(
-            {"category": category, "year": year, "week": week, "period_type": "weekly"}, {"_id": 1}):
-            return None
-    elif period_type == "monthly" and month:
-        if await db.leaderboard_archives.find_one(
-            {"category": category, "year": year, "month": month, "period_type": "monthly"}, {"_id": 1}):
-            return None
-
-    # Build period filter
-    if period_type == "monthly":
-        from calendar import monthrange
-        month_start = f"{year}-{month:02d}-01T00:00:00+00:00"
-        next_m = month + 1 if month < 12 else 1
-        next_y = year if month < 12 else year + 1
-        month_end = f"{next_y}-{next_m:02d}-01T00:00:00+00:00"
-        period_filter = {"published": {"$gte": month_start, "$lt": month_end}}
-    else:
-        from datetime import date
-        week_start_date = date.fromisocalendar(year, week, 1)
-        week_end_date = week_start_date + timedelta(days=7)
-        period_filter = {"published": {
-            "$gte": f"{week_start_date.isoformat()}T00:00:00+00:00",
-            "$lt": f"{week_end_date.isoformat()}T00:00:00+00:00",
-        }}
-
-    rank_query = {"category": category, "is_latest_version": {"$ne": False}}
-    rank_query.update(period_filter)
-
-    # Determine active scoring method from settings
-    from core.auth import get_settings
-    _settings = await get_settings()
-    scoring = _settings.get("scoring_method", "ts")
-    sort_field = "os_score" if scoring == "os" else "ts_score"
-
-    source_entries = await db.rankings.find(rank_query, _RANK_PROJ).sort(sort_field, -1).to_list(10000)
-    if not source_entries:
-        return None
-
-    frozen_entries = []
-    for r in source_entries:
-        entry = {
-            "id": r.get("paper_id"),
-            "title": r.get("title", ""),
-            "authors": r.get("authors", []),
-            "score": r.get(sort_field) or r.get("score"),
-            "wins": r.get("wins"),
-            "losses": r.get("losses"),
-            "comparisons": r.get("comparisons"),
-            "win_rate": r.get("win_rate"),
-            "ci": round(r.get("ts_sigma", 25.0 / 3) * 2 * 10, 0),
-            "wilson_margin": r.get("wilson_margin"),
-            "published": r.get("published"),
-            "link": r.get("link"),
-            "arxiv_id": r.get("arxiv_id"),
-            "ai_rating": r.get("ai_rating"),
-            "gap_score": r.get("gap_score"),
-            "ts_sigma": r.get("ts_sigma"),
-            
-        }
-        frozen_entries.append(entry)
-
-    if period_type == "weekly":
-        label = f"Week {week}, {year}"
-    else:
-        month_names = ["", "January", "February", "March", "April", "May", "June",
-                       "July", "August", "September", "October", "November", "December"]
-        label = f"{month_names[month]} {year}"
-
-    doc = {
-        "category": category, "period_type": period_type, "scoring_method": scoring,
-        "year": year,
-        "week": week if period_type == "weekly" else None,
-        "month": month if period_type == "monthly" else None,
-        "label": label,
-        "paper_count": len(frozen_entries),
-        "match_count": sum(e.get("comparisons") or 0 for e in frozen_entries) // 2,
-        "leaderboard": frozen_entries,
-        "created_at": utc_now.isoformat(),
-    }
-    # Atomic upsert — prevents duplicates from race conditions
-    unique_filter = {"category": category, "period_type": period_type, "year": year,
-                     "week": doc.get("week"), "month": doc.get("month")}
-    result = await db.leaderboard_archives.update_one(unique_filter, {"$setOnInsert": doc}, upsert=True)
-    if not result.upserted_id:
-        return None  # Already existed
-    logger.info(f"Archive snapshot created: {category} {label} ({len(frozen_entries)} papers)")
-
-    from core.memlog import log_event
-    await log_event("archive_created", category=category,
-        detail=f"{label} — {len(frozen_entries)} papers",
-        count=len(frozen_entries), label=label, period_type=period_type)
-    return doc
+    """Create archive for a specific period. Delegates to create_archive_snapshot."""
+    return await create_archive_snapshot(category, period_type, year=year, week=week, month=month)
 
 
-
-async def create_archive_snapshot(category: str, period_type: str = "weekly"):
+async def create_archive_snapshot(category: str, period_type: str = "weekly", year: int = None, week: int = None, month: int = None):
     """Create a frozen leaderboard snapshot for the given category.
-    Called by the scheduler at the configured interval.
 
-    Archives the PREVIOUS completed period — not the current one — so that
-    all papers for that period have had time to be fetched, summarized, and
-    ranked before the snapshot is frozen.
+    When year/week/month are provided, archives that specific period (admin rebuild).
+    When omitted, archives the PREVIOUS completed period (scheduler loop).
+    Idempotent: skips if snapshot already exists.
     """
     utc_now = datetime.now(timezone.utc)
 
-    if period_type == "weekly":
-        # Archive PREVIOUS week (the one that just ended)
-        from datetime import date
-        prev_week_date = utc_now - timedelta(days=7)
-        year = prev_week_date.isocalendar()[0]
-        week = prev_week_date.isocalendar()[1]
-    else:
-        # Archive PREVIOUS month
-        first_of_this_month = utc_now.replace(day=1)
-        last_of_prev_month = first_of_this_month - timedelta(days=1)
-        year = last_of_prev_month.year
-        month = last_of_prev_month.month
+    # Determine period: explicit params or auto-compute previous
+    if year is None:
+        if period_type == "weekly":
+            from datetime import date
+            prev_week_date = utc_now - timedelta(days=7)
+            year = prev_week_date.isocalendar()[0]
+            week = prev_week_date.isocalendar()[1]
+        else:
+            first_of_this_month = utc_now.replace(day=1)
+            last_of_prev_month = first_of_this_month - timedelta(days=1)
+            year = last_of_prev_month.year
+            month = last_of_prev_month.month
 
     # Check if this snapshot already exists (fast pre-check)
     if period_type == "weekly":
