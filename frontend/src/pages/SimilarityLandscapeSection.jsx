@@ -36,7 +36,14 @@ function SimilarityLandscapeSection() {
     if (!data?.papers || !nClusters) return data?.papers || [];
     const papers = data.papers;
     const k = nClusters;
-    if (k === data.n_clusters) return papers; // use server clusters
+
+    // Use pre-generated labels if available
+    if (data.cluster_labels?.[String(k)]) {
+      const labels = data.cluster_labels[String(k)];
+      return papers.map((p, i) => ({ ...p, cluster: labels[i] }));
+    }
+
+    if (k === data.n_clusters) return papers; // use server default clusters
 
     // Simple k-means on 2D coords
     const coords = papers.map(p => [useUmap ? p.x_umap : p.x, useUmap ? p.y_umap : p.y]);
@@ -85,12 +92,16 @@ function SimilarityLandscapeSection() {
   }, [clustered, useUmap]);
 
   const clusterNames = useMemo(() => {
+    // Use pre-generated LLM titles if available for this K
+    if (data?.cluster_titles?.[String(nClusters)]) {
+      return data.cluster_titles[String(nClusters)];
+    }
+    // Fallback: keyword extraction
     const groups = {};
     clustered.forEach(p => {
       if (!groups[p.cluster]) groups[p.cluster] = [];
       groups[p.cluster].push(p.title);
     });
-    // Extract distinguishing keywords per cluster
     const stopwords = new Set(["a","an","the","of","in","for","and","with","to","on","from","by","as","is","at","via","its","are","or","can","do","how","into","that","this","using","based","towards","toward","beyond","through","between"]);
     const allWords = {};
     Object.values(groups).flat().forEach(t => {
@@ -104,16 +115,14 @@ function SimilarityLandscapeSection() {
           t.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 2 && !stopwords.has(w))
             .forEach(w => { wordCounts[w] = (wordCounts[w] || 0) + 1; });
         });
-        // Score: frequency in this cluster / frequency in all clusters (TF-IDF-like)
         const scored = Object.entries(wordCounts)
           .map(([w, c]) => [w, c / Math.max(allWords[w] || 1, 1) * Math.log(1 + c)])
           .sort((a, b) => b[1] - a[1]);
         const topWords = scored.slice(0, 3).map(([w]) => w[0].toUpperCase() + w.slice(1));
-        const label = topWords.join(", ");
-        return [k, `${label} (${titles.length})`];
+        return [k, `${topWords.join(", ")} (${titles.length})`];
       })
     );
-  }, [clustered]);
+  }, [data, clustered, nClusters]);
 
   const histogramData = useMemo(() => {
     if (!data?.score_distribution) return [];
@@ -194,18 +203,14 @@ function SimilarityLandscapeSection() {
                 );
               }}
             />
-            <Scatter data={chartData} isAnimationActive={false}>
-              {chartData.map((entry, idx) => (
-                <Cell
-                  key={idx}
-                  fill={CLUSTER_COLORS[entry.cluster % CLUSTER_COLORS.length]}
-                  fillOpacity={0.7}
-                  stroke={CLUSTER_COLORS[entry.cluster % CLUSTER_COLORS.length]}
-                  strokeWidth={1}
-                  r={entry.r}
-                />
-              ))}
-            </Scatter>
+            <Scatter data={chartData} isAnimationActive={false}
+              shape={(props) => {
+                const { cx, cy, payload } = props;
+                const r = payload.r || 5;
+                const color = CLUSTER_COLORS[payload.cluster % CLUSTER_COLORS.length];
+                return <circle cx={cx} cy={cy} r={r} fill={color} fillOpacity={0.7} stroke={color} strokeWidth={1} />;
+              }}
+            />
           </ScatterChart>
         </ResponsiveContainer>
       </div>
