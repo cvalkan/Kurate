@@ -251,6 +251,41 @@ function SimilarityLandscapeSection() {
         </div>
       )}
 
+      {/* Methodology */}
+      <div className="border border-border rounded-lg p-4 bg-card space-y-3">
+        <h3 className="text-sm font-medium">Methodology</h3>
+        <div className="text-xs text-muted-foreground space-y-2.5 leading-relaxed max-w-3xl">
+          <div>
+            <span className="text-foreground font-medium">1. Pairwise Similarity Scoring.</span>{" "}
+            Each paper is compared with 20 randomly selected papers from the same category. For each pair, Claude Opus 4.6 rates topical similarity on an integer scale from 1 (unrelated) to 20 (identical research question), using the paper's abstract and AI impact assessment as input. This produces a sparse similarity matrix covering ~10% of all possible pairs — sufficient for local neighborhood recovery in dimensionality reduction.
+          </div>
+          <div>
+            <span className="text-foreground font-medium">2. Distance Matrix.</span>{" "}
+            Similarity scores are converted to distances (distance = 20 &minus; similarity). Uncompared pairs receive the median distance (10), which positions them neutrally — neither close nor far — avoiding bias from missing data.
+          </div>
+          <div>
+            <span className="text-foreground font-medium">3. MDS Embedding.</span>{" "}
+            Multidimensional Scaling (MDS) projects the distance matrix into 2D by minimizing <em>stress</em> — the difference between the original distances and the 2D distances. MDS preserves global structure (overall arrangement of clusters) but can distort local neighborhoods. It uses 4 random initializations with up to 500 iterations each, selecting the lowest-stress result.
+          </div>
+          <div>
+            <span className="text-foreground font-medium">4. UMAP Embedding.</span>{" "}
+            Uniform Manifold Approximation and Projection (UMAP) constructs a k-nearest-neighbor graph (k=10) from the distance matrix, then optimizes a low-dimensional layout that preserves the graph's topological structure. Unlike MDS, UMAP prioritizes local neighborhoods (nearby papers stay nearby) while allowing global distances to stretch, producing more visually separated clusters. Parameters: min_dist=0.8 (controls spacing between points), spread=2.5 (controls overall scale).
+          </div>
+          <div>
+            <span className="text-foreground font-medium">5. Clustering.</span>{" "}
+            K-Means clustering is applied to the MDS coordinates for K=1 through 10. The default K is selected by maximizing the silhouette score (a measure of cluster cohesion vs. separation). All K values are pre-computed — switching K in the UI uses pre-stored labels, not a live recomputation.
+          </div>
+          <div>
+            <span className="text-foreground font-medium">6. Cluster Titles.</span>{" "}
+            For each K, the top 20 paper titles from each cluster are sent to Claude Opus 4.6 with the prompt: <em>"Generate a short (2-5 word) theme label that captures the common research topic."</em> Titles are pre-generated for all K values (55 LLM calls total) and stored alongside the embedding data.
+          </div>
+          <div>
+            <span className="text-foreground font-medium">7. Dot Sizing.</span>{" "}
+            Each paper's dot radius reflects its Kurate impact score in 5 tiers: &ge;1500 (largest), 1400, 1300, 1200, and &lt;1200 (smallest). This makes high-impact papers visually prominent regardless of their cluster membership.
+          </div>
+        </div>
+      </div>
+
       {/* Paper list by cluster */}
       <div className="border border-border rounded-lg p-4 bg-card">
         <h3 className="text-sm font-medium mb-3">Papers by Cluster</h3>
