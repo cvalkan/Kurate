@@ -147,12 +147,25 @@ async def run():
     print(f"\nGenerating pairs ({COMPS_PER_PAPER} comparisons/paper)...")
     pairs = generate_pairs(n, COMPS_PER_PAPER, SEED)
 
-    # Step 3: Run similarity comparisons
+    # Step 3: Run similarity comparisons (with incremental save)
     print(f"\nRunning {len(pairs)} similarity comparisons...")
     t0 = _time.time()
+    
+    # Load any previously saved partial results
+    partial_path = OUT_PATH + ".partial"
     results = {}
+    if os.path.exists(partial_path):
+        with open(partial_path) as f:
+            saved = json.load(f)
+        results = {(r[0], r[1]): r[2] for r in saved}
+        print(f"  Resumed {len(results)} pairs from partial save")
+    
+    # Filter out already-completed pairs
+    remaining_pairs = [(i, j) for i, j in pairs if (i, j) not in results]
+    print(f"  {len(remaining_pairs)} pairs remaining")
+    
     sem = asyncio.Semaphore(3)
-    completed = 0
+    completed = len(results)
     failed = 0
 
     async def process_pair(i, j):
@@ -172,18 +185,26 @@ async def run():
             completed += 1
             if score is None:
                 failed += 1
+            else:
+                results[(i, j)] = score
+            # Save partial results every 50 pairs
             if completed % 50 == 0:
                 elapsed = _time.time() - t0
-                rate = completed / elapsed * 60
-                eta = (len(pairs) - completed) / (rate / 60) if rate > 0 else 0
+                rate = completed / elapsed * 60 if elapsed > 0 else 0
+                remaining = len(pairs) - completed
+                eta = remaining / (rate / 60) if rate > 0 else 0
                 print(f"  {completed}/{len(pairs)} done ({failed} failed) [{rate:.0f}/min, ETA {eta/60:.0f}min]")
+                # Incremental save
+                with open(partial_path, "w") as f:
+                    json.dump([[i, j, s] for (i, j), s in results.items()], f)
             return (i, j), score
 
-    tasks = [process_pair(i, j) for i, j in pairs]
-    batch_results = await asyncio.gather(*tasks)
-    for (i, j), score in batch_results:
-        if score is not None:
-            results[(i, j)] = score
+    tasks = [process_pair(i, j) for i, j in remaining_pairs]
+    await asyncio.gather(*tasks)
+    
+    # Final save of partial results
+    with open(partial_path, "w") as f:
+        json.dump([[i, j, s] for (i, j), s in results.items()], f)
 
     elapsed = _time.time() - t0
     print(f"\nCompleted: {len(results)}/{len(pairs)} ({len(pairs)-len(results)} failed)")
