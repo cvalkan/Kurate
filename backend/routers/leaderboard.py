@@ -2062,3 +2062,16 @@ async def match_mode_stats():
              "model": r["_id"]["model"], "count": r["count"]} for r in results]
 
     return {"rows": rows, "total_matches": sum(r["count"] for r in rows)}
+
+
+
+@router.get("/similarity-landscape")
+async def get_similarity_landscape():
+    """Serve precomputed similarity landscape data."""
+    import json as _json
+    path = "/app/backend/data/precomputed/similarity_landscape.json"
+    try:
+        with open(path) as f:
+            return _json.load(f)
+    except FileNotFoundError:
+        return {"papers": [], "n_papers": 0, "n_pairs": 0}

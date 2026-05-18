@@ -28,6 +28,7 @@ import CycleAnalysisSection from "./CycleAnalysisSection";
 import SamePairsSection from "./SamePairsSection";
 import InstitutionBiasSamePairSection from "./InstitutionBiasSamePairSection";
 import SingleItemScoringSection from "./SingleItemScoringSection";
+import SimilarityLandscapeSection from "./SimilarityLandscapeSection";
 import ValidationReportPage from "./ValidationReportPage";
 import AllPairsSection from "./AllPairsSection";
 import HumanAIBenchmarkSection, { HumanAIBenchmarkUnfilteredSection, HumanAIBenchmarkFixedSection, ICLR2026BenchmarkSection, ICLR2026WithinLabelBenchmarkSection } from "./HumanAIBenchmarkSection";
@@ -229,6 +230,7 @@ export default function ValidationHubPage() {
       "exp-cycle-analysis": { title: "Intransitive Cycles", desc: "Condorcet paradox analysis: how often does A>B, B>C, but C>A? By model, format, and dataset." },
       "exp-model-correlation": { title: "Model Correlation", desc: "How much do different judge models agree on the same pairs? Pairwise agreement by dataset and input format." },
       "exp-single-item": { title: "Single-Item Scoring", desc: "Can one LLM call per paper ('rate this 1-10') rank as well as a full pairwise tournament? Compares absolute scoring vs hundreds of pairwise comparisons." },
+      "exp-similarity-landscape": { title: "Similarity Landscape — cs.AI", desc: "200 latest AI papers embedded in 2D via pairwise similarity scores (1-20, Claude Opus 4.6). Dot size = Kurate impact score, color = auto-detected cluster." },
       "report-summary": { title: "Validation Summary Report", desc: "Comprehensive analysis across all datasets: single-item vs pairwise, the GT generation hypothesis, the Gap score signal, and practical recommendations." },
       "exp-institution-bias": { title: "Institution Bias", desc: "Do AI judges favor papers from prestigious institutions (Google, Stanford, MIT) more than human reviewers? Analysis across 12 datasets using author affiliation extraction." },
       "exp-institution-bias-samepair": { title: "Institution Bias — Same Pairs", desc: "Same analysis but controlled: only pairs where all 3 judges (Opus 4.6, GPT-5.2, Gemini 3 Pro) evaluated the exact same pair. Eliminates pair-selection confounds." },
@@ -385,6 +387,9 @@ export default function ValidationHubPage() {
                 <NavItem item={{ id: "exp-summary-bias-econ", label: "Economics", sub: "3 judges × 3 sources" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-summary-bias-phys", label: "Comp Physics", sub: "3 judges × 3 sources" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
+              <CollapsibleGroup label="Similarity" defaultOpen={selected === "exp-similarity-landscape"}>
+                <NavItem item={{ id: "exp-similarity-landscape", label: "Similarity Landscape", sub: "200 AI papers · UMAP" }} selected={selected} onSelect={setSelected} />
+              </CollapsibleGroup>
             </CollapsibleGroup>
 
         </nav>
@@ -457,6 +462,7 @@ export default function ValidationHubPage() {
           {selected === "exp-consistency" && <SamePairsSection />}
           {selected === "exp-model-correlation" && <ModelCorrelationSection />}
           {selected === "exp-positional-bias" && <PositionalBiasSection />}
+          {selected === "exp-similarity-landscape" && <SimilarityLandscapeSection />}
           {selected === "exp-institution-bias-samepair" && <InstitutionBiasSamePairSection />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
           {selected === "t-iclr2026-validation" && <ICLR2026TournamentSection />}

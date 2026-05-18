@@ -965,7 +965,7 @@ async def _deferred_startup():
 
     # Migration: backfill archive CI from Wilson % to sigma-derived ±Elo
     try:
-        _ci_mig = await db.settings.find_one({"key": "migration_archive_ci_sigma"})
+        _ci_mig = await db.settings.find_one({"key": "migration_archive_ci_sigma_v2"})
         if not _ci_mig:
             patched = 0
             async for archive in db.leaderboard_archives.find({}, {"_id": 1, "leaderboard": 1}):
@@ -987,8 +987,8 @@ async def _deferred_startup():
             if patched:
                 logger.info(f"Archive CI backfill: patched {patched} archives (Wilson→sigma ±Elo)")
             await db.settings.update_one(
-                {"key": "migration_archive_ci_sigma"},
-                {"$set": {"key": "migration_archive_ci_sigma", "done_at": datetime.now(timezone.utc).isoformat(), "patched": patched}},
+                {"key": "migration_archive_ci_sigma_v2"},
+                {"$set": {"key": "migration_archive_ci_sigma_v2", "done_at": datetime.now(timezone.utc).isoformat(), "patched": patched}},
                 upsert=True,
             )
     except Exception as e:
