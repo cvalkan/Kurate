@@ -24,6 +24,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
   const [loading, setLoading] = useState(true);
   const [useUmap, setUseUmap] = useState(false);
   const [nClusters, setNClusters] = useState(null);
+  const [embMode, setEmbMode] = useState(null); // null | "abstract" | "combined"
 
   useEffect(() => {
     const url = category === "cs.AI"
@@ -40,8 +41,10 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
     const papers = data.papers;
     const k = nClusters;
 
-    // Use UMAP-based clusters when viewing UMAP, MDS-based when viewing MDS
-    const labelsSource = useUmap ? data.umap_cluster_labels : data.cluster_labels;
+    // Use cluster labels matching the current view
+    const labelsSource = embMode === "abstract" ? data.emb_abstract_cluster_labels
+      : embMode === "combined" ? data.emb_combined_cluster_labels
+      : useUmap ? data.umap_cluster_labels : data.cluster_labels;
     if (labelsSource?.[String(k)]) {
       const labels = labelsSource[String(k)];
       return papers.map((p, i) => ({ ...p, cluster: labels[i] }));
@@ -84,8 +87,8 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
   const chartData = useMemo(() => {
     if (!clustered.length) return [];
     return clustered.map(p => ({
-      x: useUmap ? p.x_umap : p.x,
-      y: useUmap ? p.y_umap : p.y,
+      x: embMode === "abstract" ? p.x_emb_abstract : embMode === "combined" ? p.x_emb_combined : useUmap ? p.x_umap : p.x,
+      y: embMode === "abstract" ? p.y_emb_abstract : embMode === "combined" ? p.y_emb_combined : useUmap ? p.y_umap : p.y,
       title: p.title,
       cluster: p.cluster,
       score: p.score,
@@ -97,7 +100,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
 
   const clusterNames = useMemo(() => {
     // Use pre-generated LLM titles matching the current view
-    const titlesSource = useUmap ? data?.umap_cluster_titles : data?.cluster_titles;
+    const titlesSource = embMode ? null : useUmap ? data?.umap_cluster_titles : data?.cluster_titles;
     if (titlesSource?.[String(nClusters)]) {
       return titlesSource[String(nClusters)];
     }
@@ -153,14 +156,21 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
 
       {/* Controls */}
       <div className="flex flex-wrap gap-4 items-center">
-        {data.has_umap && (
-          <div className="flex gap-1.5">
-            <button onClick={() => setUseUmap(false)}
-              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${!useUmap ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
-            >MDS</button>
-            <button onClick={() => setUseUmap(true)}
-              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${useUmap ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
-            >UMAP</button>
+        <div className="flex gap-1.5">
+          <button onClick={() => { setUseUmap(false); setEmbMode(null); }}
+            className={`px-2.5 py-1 text-xs rounded-md transition-colors ${!useUmap && !embMode ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+          >MDS</button>
+          {data.has_umap && <button onClick={() => { setUseUmap(true); setEmbMode(null); }}
+            className={`px-2.5 py-1 text-xs rounded-md transition-colors ${useUmap && !embMode ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+          >UMAP</button>}
+          {data.has_embeddings && <>
+            <button onClick={() => { setUseUmap(false); setEmbMode("abstract"); }}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "abstract" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >Emb: Abstract</button>
+            <button onClick={() => { setUseUmap(false); setEmbMode("combined"); }}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "combined" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >Emb: Summary</button>
+          </>}
           </div>
         )}
         <div className="flex items-center gap-1.5 text-xs">
