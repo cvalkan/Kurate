@@ -42,12 +42,14 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
     const k = nClusters;
 
     // Use cluster labels matching the current view
-    const labelsSource = embMode === "abstract" ? data.emb_abstract_cluster_labels
-      : embMode === "combined" ? data.emb_combined_cluster_labels
-      : embMode === "tags" ? data.emb_tags_cluster_labels
-      : embMode === "tags_consolidated" ? data.emb_tags_consolidated_cluster_labels
-      : embMode === "jaccard_incr" ? data.jaccard_incr_cluster_labels
-      : useUmap ? data.umap_cluster_labels : data.cluster_labels;
+    const labelsKey = embMode === "abstract" ? "emb_abstract_cluster_labels"
+      : embMode === "combined" ? "emb_combined_cluster_labels"
+      : embMode === "tags" ? "emb_tags_cluster_labels"
+      : embMode === "tags_consolidated" ? "emb_tags_consolidated_cluster_labels"
+      : embMode === "jaccard_incr" ? "jaccard_incr_cluster_labels"
+      : embMode?.startsWith("jaccard_") ? `${embMode}_cluster_labels`
+      : useUmap ? "umap_cluster_labels" : "cluster_labels";
+    const labelsSource = data[labelsKey];
     if (labelsSource?.[String(k)]) {
       const labels = labelsSource[String(k)];
       return papers.map((p, i) => ({ ...p, cluster: labels[i] }));
@@ -62,6 +64,10 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       if (embMode === "tags") return [p.x_emb_tags || p.x, p.y_emb_tags || p.y];
       if (embMode === "tags_consolidated") return [p.x_emb_tags_consolidated || p.x, p.y_emb_tags_consolidated || p.y];
       if (embMode === "jaccard_incr") return [p.x_jaccard_incr || p.x, p.y_jaccard_incr || p.y];
+      if (embMode?.startsWith("jaccard_")) {
+        const key = embMode;
+        return [p[`x_${key}`] || p.x, p[`y_${key}`] || p.y];
+      }
       return [useUmap ? p.x_umap : p.x, useUmap ? p.y_umap : p.y];
     });
     // Initialize centroids from random papers
@@ -97,8 +103,8 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
   const chartData = useMemo(() => {
     if (!clustered.length) return [];
     return clustered.map(p => ({
-      x: embMode === "abstract" ? p.x_emb_abstract : embMode === "combined" ? p.x_emb_combined : embMode === "tags" ? p.x_emb_tags : embMode === "tags_consolidated" ? p.x_emb_tags_consolidated : embMode === "jaccard_incr" ? p.x_jaccard_incr : useUmap ? p.x_umap : p.x,
-      y: embMode === "abstract" ? p.y_emb_abstract : embMode === "combined" ? p.y_emb_combined : embMode === "tags" ? p.y_emb_tags : embMode === "tags_consolidated" ? p.y_emb_tags_consolidated : embMode === "jaccard_incr" ? p.y_jaccard_incr : useUmap ? p.y_umap : p.y,
+      x: embMode === "abstract" ? p.x_emb_abstract : embMode === "combined" ? p.x_emb_combined : embMode === "tags" ? p.x_emb_tags : embMode === "tags_consolidated" ? p.x_emb_tags_consolidated : embMode === "jaccard_incr" ? p.x_jaccard_incr : embMode === "jaccard_topics" ? p.x_jaccard_topics : embMode === "jaccard_methods" ? p.x_jaccard_methods : embMode === "jaccard_domains" ? p.x_jaccard_domains : embMode === "jaccard_concepts" ? p.x_jaccard_concepts : useUmap ? p.x_umap : p.x,
+      y: embMode === "abstract" ? p.y_emb_abstract : embMode === "combined" ? p.y_emb_combined : embMode === "tags" ? p.y_emb_tags : embMode === "tags_consolidated" ? p.y_emb_tags_consolidated : embMode === "jaccard_incr" ? p.y_jaccard_incr : embMode === "jaccard_topics" ? p.y_jaccard_topics : embMode === "jaccard_methods" ? p.y_jaccard_methods : embMode === "jaccard_domains" ? p.y_jaccard_domains : embMode === "jaccard_concepts" ? p.y_jaccard_concepts : useUmap ? p.y_umap : p.y,
       title: p.title,
       cluster: p.cluster,
       score: p.score,
@@ -169,6 +175,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
               : embMode === "tags" ? "emb_tags"
               : embMode === "tags_consolidated" ? "emb_tags_consolidated"
               : embMode === "jaccard_incr" ? "jaccard_incr"
+              : embMode?.startsWith("jaccard_") ? embMode
               : useUmap ? "umap" : "mds";
             const perK = data.silhouettes_per_k?.[methodKey];
             if (perK && perK[String(nClusters)] !== undefined) return perK[String(nClusters)];
@@ -212,8 +219,13 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
           {data.has_jaccard_incr &&
             <button onClick={() => { setUseUmap(false); setEmbMode("jaccard_incr"); }}
               className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "jaccard_incr" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
-            >Jaccard (incremental)</button>
+            >Jaccard: All</button>
           }
+          {data.has_jaccard_per_key && ["topics", "methods", "domains", "concepts"].map(key =>
+            <button key={key} onClick={() => { setUseUmap(false); setEmbMode(`jaccard_${key}`); }}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === `jaccard_${key}` ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >Jaccard: {key.charAt(0).toUpperCase() + key.slice(1)}</button>
+          )}
         </div>
         <div className="flex items-center gap-1.5 text-xs">
           <span className="text-muted-foreground">Clusters:</span>
