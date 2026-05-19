@@ -45,6 +45,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
     const labelsSource = embMode === "abstract" ? data.emb_abstract_cluster_labels
       : embMode === "combined" ? data.emb_combined_cluster_labels
       : embMode === "tags" ? data.emb_tags_cluster_labels
+      : embMode === "tags_consolidated" ? data.emb_tags_consolidated_cluster_labels
       : useUmap ? data.umap_cluster_labels : data.cluster_labels;
     if (labelsSource?.[String(k)]) {
       const labels = labelsSource[String(k)];
@@ -58,6 +59,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       if (embMode === "abstract") return [p.x_emb_abstract || p.x, p.y_emb_abstract || p.y];
       if (embMode === "combined") return [p.x_emb_combined || p.x, p.y_emb_combined || p.y];
       if (embMode === "tags") return [p.x_emb_tags || p.x, p.y_emb_tags || p.y];
+      if (embMode === "tags_consolidated") return [p.x_emb_tags_consolidated || p.x, p.y_emb_tags_consolidated || p.y];
       return [useUmap ? p.x_umap : p.x, useUmap ? p.y_umap : p.y];
     });
     // Initialize centroids from random papers
@@ -93,8 +95,8 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
   const chartData = useMemo(() => {
     if (!clustered.length) return [];
     return clustered.map(p => ({
-      x: embMode === "abstract" ? p.x_emb_abstract : embMode === "combined" ? p.x_emb_combined : embMode === "tags" ? p.x_emb_tags : useUmap ? p.x_umap : p.x,
-      y: embMode === "abstract" ? p.y_emb_abstract : embMode === "combined" ? p.y_emb_combined : embMode === "tags" ? p.y_emb_tags : useUmap ? p.y_umap : p.y,
+      x: embMode === "abstract" ? p.x_emb_abstract : embMode === "combined" ? p.x_emb_combined : embMode === "tags" ? p.x_emb_tags : embMode === "tags_consolidated" ? p.x_emb_tags_consolidated : useUmap ? p.x_umap : p.x,
+      y: embMode === "abstract" ? p.y_emb_abstract : embMode === "combined" ? p.y_emb_combined : embMode === "tags" ? p.y_emb_tags : embMode === "tags_consolidated" ? p.y_emb_tags_consolidated : useUmap ? p.y_umap : p.y,
       title: p.title,
       cluster: p.cluster,
       score: p.score,
@@ -161,6 +163,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
             const methodKey = embMode === "abstract" ? "emb_abstract"
               : embMode === "combined" ? "emb_combined"
               : embMode === "tags" ? "emb_tags"
+              : embMode === "tags_consolidated" ? "emb_tags_consolidated"
               : useUmap ? "umap" : "mds";
             const perK = data.silhouettes_per_k?.[methodKey];
             if (perK && perK[String(nClusters)] !== undefined) return perK[String(nClusters)];
@@ -195,6 +198,11 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
             <button onClick={() => { setUseUmap(false); setEmbMode("tags"); }}
               className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "tags" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
             >Emb: Tags</button>
+          }
+          {data.has_consolidated_tags &&
+            <button onClick={() => { setUseUmap(false); setEmbMode("tags_consolidated"); }}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "tags_consolidated" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >Emb: Tags (consolidated)</button>
           }
         </div>
         <div className="flex items-center gap-1.5 text-xs">
@@ -384,6 +392,25 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
                     ))}
                   </div>
                 </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Consolidated tags */}
+      {data.consolidated_tag_summary && (
+        <div className="border border-border rounded-lg p-4 bg-card">
+          <h3 className="text-sm font-medium mb-1">Consolidated Tags</h3>
+          <p className="text-xs text-muted-foreground mb-3">2,856 raw tags clustered into 150 canonical groups via embedding similarity. Synonyms like "Monte Carlo simulation" and "Monte Carlo sampling" are merged under the most frequent variant.</p>
+          <div className="flex flex-wrap gap-1.5">
+            {Object.entries(data.consolidated_tag_summary).sort((a, b) => b[1] - a[1]).map(([tag, count]) => {
+              const maxCount = Math.max(...Object.values(data.consolidated_tag_summary));
+              const opacity = 0.4 + (count / maxCount) * 0.6;
+              return (
+                <span key={tag} className="px-2 py-0.5 rounded-full border border-border text-xs" style={{ opacity }}>
+                  {tag} <span className="text-muted-foreground/60">{count}</span>
+                </span>
               );
             })}
           </div>
