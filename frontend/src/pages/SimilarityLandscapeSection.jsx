@@ -111,7 +111,9 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
 
   const clusterNames = useMemo(() => {
     // Use pre-generated LLM titles matching the current view
-    const titlesSource = embMode ? null : useUmap ? data?.umap_cluster_titles : data?.cluster_titles;
+    const titlesSource = embMode === "jaccard_incr" ? data?.jaccard_incr_cluster_titles
+      : embMode ? null
+      : useUmap ? data?.umap_cluster_titles : data?.cluster_titles;
     if (titlesSource?.[String(nClusters)]) {
       return titlesSource[String(nClusters)];
     }
@@ -353,6 +355,10 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
             The 2,856 unique raw tags are themselves embedded, then clustered into 150 canonical groups using agglomerative clustering on cosine distances. Each group is named after its most frequent member (e.g. "Monte Carlo simulation" and "Monte Carlo sampling" merge under "Monte Carlo simulation"). Papers are represented as binary vectors over these 150 groups, and cosine similarity is computed directly — no text embedding needed. This tests whether synonym consolidation improves clustering quality.
           </div>
           <div>
+            <span className="text-foreground font-medium">8. Jaccard on Incremental Tags.</span>{" "}
+            Instead of extracting tags independently per paper, Claude processes papers sequentially — each paper sees the full vocabulary extracted so far and is instructed to reuse existing tags where suitable, only coining new terms when genuinely needed. This reduces 2,856 fragmented tags to 658 canonical terms (77% reduction) with only 15% hapax tags (vs 82% for independent extraction). Similarity is computed as Jaccard index (tag set overlap) directly — no embeddings needed. This method achieves the highest silhouette score (0.444 at K=6) of all tested methods.
+          </div>
+          <div>
             <span className="text-foreground font-medium">8. Embedding UMAP.</span>{" "}
             All embedding distance matrices are projected to 2D using UMAP with the same parameters. Because these matrices are dense (every pair has a real similarity), UMAP recovers local structure more reliably than the sparse LLM pairwise matrix.
           </div>
@@ -373,7 +379,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
 
           <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Cost Comparison</div>
           <div>
-            The LLM pairwise approach requires N&times;20 Claude calls (~$7.50 for 249 papers, ~85 min). Abstract/summary embeddings require N OpenAI embedding calls (~$0.01, ~30 sec). Tag embeddings require N Claude calls for extraction + N embedding calls (~$0.75, ~8 min). Consolidated tags add a one-time embedding of all unique tags (~$0.02) plus agglomerative clustering (instant). In this experiment, raw tag embeddings achieved the highest silhouette (0.429 at K=6), slightly ahead of abstract embeddings (0.424 at K=3). Consolidation reduced vocabulary from 2,856 to 150 canonical terms but did not improve clustering (0.400), suggesting the aggressive merging lost some discriminating signal.
+            The LLM pairwise approach requires N&times;20 Claude calls (~$7.50 for 249 papers, ~85 min). Abstract/summary embeddings require N OpenAI embedding calls (~$0.01, ~30 sec). Tag embeddings require N Claude calls for extraction + N embedding calls (~$0.75, ~8 min). Consolidated tags add a one-time embedding of all unique tags (~$0.02) plus agglomerative clustering (instant). Incremental tag extraction costs the same as raw tags (~$0.75, ~12 min sequential) but produces a self-consistent vocabulary that works with simple Jaccard similarity — no embeddings needed. In this experiment, Jaccard on incremental tags achieved the highest silhouette (0.444 at K=6), ahead of raw tag embeddings (0.429) and abstract embeddings (0.424).
           </div>
         </div>
       </div>
@@ -423,6 +429,38 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
                 <span key={tag} className="px-2 py-0.5 rounded-full border border-border text-xs" style={{ opacity }}>
                   {tag} <span className="text-muted-foreground/60">{count}</span>
                 </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Incremental vocabulary tags */}
+      {data.incremental_tag_summary && (
+        <div className="border border-border rounded-lg p-4 bg-card">
+          <h3 className="text-sm font-medium mb-1">Incremental Vocabulary Tags</h3>
+          <p className="text-xs text-muted-foreground mb-4">Tags extracted sequentially — each paper sees the growing vocabulary and reuses existing terms. Reduces 2,856 independent tags to 658 canonical terms (77% reduction, 15% hapax vs 82% original).</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {["topics", "methods", "domains", "concepts"].map(key => {
+              const tags = data.incremental_tag_summary[key];
+              if (!tags) return null;
+              const entries = Object.entries(tags).sort((a, b) => b[1] - a[1]);
+              const maxCount = entries[0]?.[1] || 1;
+              return (
+                <div key={key}>
+                  <div className="text-xs font-medium text-foreground mb-2 capitalize">{key}</div>
+                  <div className="space-y-0.5">
+                    {entries.slice(0, 15).map(([tag, count]) => (
+                      <div key={tag} className="flex items-center gap-2 text-xs">
+                        <div className="flex-1 flex items-center gap-1.5">
+                          <div className="h-1.5 rounded-full bg-blue-500/50" style={{ width: `${count / maxCount * 100}%`, minWidth: 4 }} />
+                          <span className="text-muted-foreground truncate">{tag}</span>
+                        </div>
+                        <span className="text-muted-foreground/60 tabular-nums shrink-0">{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               );
             })}
           </div>
