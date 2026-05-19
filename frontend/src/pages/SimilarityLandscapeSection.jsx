@@ -103,8 +103,8 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
   const chartData = useMemo(() => {
     if (!clustered.length) return [];
     return clustered.map(p => ({
-      x: embMode === "abstract" ? p.x_emb_abstract : embMode === "combined" ? p.x_emb_combined : embMode === "tags" ? p.x_emb_tags : embMode === "tags_consolidated" ? p.x_emb_tags_consolidated : embMode === "jaccard_incr" ? p.x_jaccard_incr : embMode === "jaccard_topics" ? p.x_jaccard_topics : embMode === "jaccard_methods" ? p.x_jaccard_methods : embMode === "jaccard_domains" ? p.x_jaccard_domains : embMode === "jaccard_concepts" ? p.x_jaccard_concepts : useUmap ? p.x_umap : p.x,
-      y: embMode === "abstract" ? p.y_emb_abstract : embMode === "combined" ? p.y_emb_combined : embMode === "tags" ? p.y_emb_tags : embMode === "tags_consolidated" ? p.y_emb_tags_consolidated : embMode === "jaccard_incr" ? p.y_jaccard_incr : embMode === "jaccard_topics" ? p.y_jaccard_topics : embMode === "jaccard_methods" ? p.y_jaccard_methods : embMode === "jaccard_domains" ? p.y_jaccard_domains : embMode === "jaccard_concepts" ? p.y_jaccard_concepts : useUmap ? p.y_umap : p.y,
+      x: embMode === "abstract" ? p.x_emb_abstract : embMode === "combined" ? p.x_emb_combined : embMode === "tags" ? p.x_emb_tags : embMode === "tags_consolidated" ? p.x_emb_tags_consolidated : embMode?.startsWith("jaccard_") ? (p[`x_${embMode}`] || p.x) : useUmap ? p.x_umap : p.x,
+      y: embMode === "abstract" ? p.y_emb_abstract : embMode === "combined" ? p.y_emb_combined : embMode === "tags" ? p.y_emb_tags : embMode === "tags_consolidated" ? p.y_emb_tags_consolidated : embMode?.startsWith("jaccard_") ? (p[`y_${embMode}`] || p.y) : useUmap ? p.y_umap : p.y,
       title: p.title,
       cluster: p.cluster,
       score: p.score,
