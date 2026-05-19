@@ -118,6 +118,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
   const clusterNames = useMemo(() => {
     // Use pre-generated LLM titles matching the current view
     const titlesSource = embMode === "jaccard_incr" ? data?.jaccard_incr_cluster_titles
+      : embMode === "jaccard_laplacian" ? data?.jaccard_laplacian_cluster_titles
       : embMode?.startsWith("jaccard_") ? data?.[`${embMode}_cluster_titles`]
       : embMode ? null
       : useUmap ? data?.umap_cluster_titles : data?.cluster_titles;
@@ -227,6 +228,11 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
               className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === `jaccard_${key}` ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
             >Jaccard: {key.charAt(0).toUpperCase() + key.slice(1)}</button>
           )}
+          {data.has_jaccard_laplacian &&
+            <button onClick={() => { setUseUmap(false); setEmbMode("jaccard_laplacian"); }}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "jaccard_laplacian" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >Jaccard: Filtered</button>
+          }
         </div>
         <div className="flex items-center gap-1.5 text-xs">
           <span className="text-muted-foreground">Clusters:</span>
@@ -334,7 +340,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       <div className="border border-border rounded-lg p-4 bg-card space-y-3">
         <h3 className="text-sm font-medium">Methodology</h3>
         <div className="text-xs text-muted-foreground space-y-2.5 leading-relaxed max-w-3xl">
-          <p className="text-foreground font-medium text-sm">This page offers four different embedding methods to compare. The first two (MDS, UMAP) use LLM-based pairwise similarity scores. The last two use vector embeddings computed from paper text.</p>
+          <p className="text-foreground font-medium text-sm">This page compares multiple methods for mapping research papers in 2D. LLM pairwise scoring, text embeddings, tag-based similarity (Jaccard), and Laplacian-filtered tag selection are tested side by side.</p>
 
           <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">LLM Pairwise Methods (MDS &amp; UMAP)</div>
           <div>
@@ -372,27 +378,31 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
             Instead of extracting tags independently per paper, Claude processes papers sequentially — each paper sees the full vocabulary extracted so far and is instructed to reuse existing tags where suitable, only coining new terms when genuinely needed. This reduces 2,856 fragmented tags to 658 canonical terms (77% reduction) with only 15% hapax tags (vs 82% for independent extraction). Similarity is computed as Jaccard index (tag set overlap) directly — no embeddings needed. Five views are available: <em>All</em> (combined tags, silhouette 0.444), <em>Topics</em> (research subfields, 0.475), <em>Methods</em> (computational techniques, 0.457), <em>Domains</em> (application areas, 0.829 — near-perfect separation with only 14 terms), and <em>Concepts</em> (scientific concepts, 0.422). The per-criterion views reveal which dimension drives clustering: domain membership produces the clearest separation, while concepts are too fragmented to cluster well.
           </div>
           <div>
-            <span className="text-foreground font-medium">8. Embedding UMAP.</span>{" "}
-            All embedding distance matrices are projected to 2D using UMAP with the same parameters. Because these matrices are dense (every pair has a real similarity), UMAP recovers local structure more reliably than the sparse LLM pairwise matrix.
+            <span className="text-foreground font-medium">9. Laplacian-Filtered Jaccard.</span>{" "}
+            Not all tags are equally useful for clustering. Tags that appear in only 1-2 papers are noise; tags that appear in 80% of papers (e.g. "computational physics") don't discriminate. Beyond simple frequency filtering, the <em>Laplacian score</em> measures whether a tag preserves local neighborhood structure: if two papers are similar (by other tags), do they agree on this tag? Tags with low Laplacian scores are structure-preserving — they capture meaningful groupings rather than random variation. The pipeline: (1) remove tags appearing in fewer than 3 papers, (2) rank remaining tags by Laplacian score, (3) keep the top 100. This reduces 558 tags to 100 and improves silhouette from 0.444 to 0.510 — a 15% improvement from principled feature selection alone.
+          </div>
+          <div>
+            <span className="text-foreground font-medium">10. UMAP Projection.</span>{" "}
+            All distance matrices (LLM pairwise, embedding cosine, Jaccard) are projected to 2D using UMAP with the same parameters (n_neighbors=12, min_dist=0.5, spread=2.0). Dense matrices (embeddings, Jaccard) produce more reliable local structure than the sparse LLM pairwise matrix.
           </div>
 
           <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Shared</div>
           <div>
-            <span className="text-foreground font-medium">9. Clustering.</span>{" "}
+            <span className="text-foreground font-medium">11. Clustering.</span>{" "}
             K-Means is applied independently to each embedding's 2D coordinates for K=1 through 10. Clusters are view-specific — switching between methods shows clusters computed on that method's layout. The default K maximizes silhouette score.
           </div>
           <div>
-            <span className="text-foreground font-medium">10. Cluster Titles.</span>{" "}
+            <span className="text-foreground font-medium">12. Cluster Titles.</span>{" "}
             For the LLM pairwise methods, Claude Opus 4.6 generates contrastive cluster titles by seeing abstracts from ALL clusters simultaneously. For embedding methods, titles fall back to keyword extraction from paper titles within each cluster.
           </div>
           <div>
-            <span className="text-foreground font-medium">11. Dot Sizing.</span>{" "}
+            <span className="text-foreground font-medium">13. Dot Sizing.</span>{" "}
             Each paper's dot radius reflects its Kurate impact score in 5 tiers: &ge;1500 (largest), 1400, 1300, 1200, and &lt;1200 (smallest).
           </div>
 
           <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Cost Comparison</div>
           <div>
-            The LLM pairwise approach requires N&times;20 Claude calls (~$7.50 for 249 papers, ~85 min). Abstract/summary embeddings require N OpenAI embedding calls (~$0.01, ~30 sec). Tag embeddings require N Claude calls for extraction + N embedding calls (~$0.75, ~8 min). Consolidated tags add a one-time embedding of all unique tags (~$0.02) plus agglomerative clustering (instant). Incremental tag extraction costs the same as raw tags (~$0.75, ~12 min sequential) but produces a self-consistent vocabulary that works with simple Jaccard similarity — no embeddings needed. In this experiment, Jaccard on incremental tags achieved the highest silhouette (0.444 at K=6), ahead of raw tag embeddings (0.429) and abstract embeddings (0.424).
+            The LLM pairwise approach requires N&times;20 Claude calls (~$7.50 for 249 papers, ~85 min). Abstract/summary embeddings require N OpenAI embedding calls (~$0.01, ~30 sec). Tag embeddings require N Claude calls for extraction + N embedding calls (~$0.75, ~8 min). Consolidated tags add a one-time embedding of all unique tags (~$0.02) plus agglomerative clustering (instant). Incremental tag extraction costs the same as raw tags (~$0.75, ~12 min sequential) but produces a self-consistent vocabulary that works with simple Jaccard similarity — no embeddings needed. Laplacian-filtered Jaccard on 100 selected tags achieved the highest silhouette (0.510), followed by Jaccard on all incremental tags (0.444) and abstract embeddings (0.424).
           </div>
         </div>
       </div>
