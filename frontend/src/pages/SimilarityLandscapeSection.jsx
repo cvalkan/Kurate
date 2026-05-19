@@ -101,6 +101,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       published: p.published,
       id: p.id,
       r: scoreToRadius(p.score),
+      tags: p.tags,
     }));
   }, [clustered, useUmap, embMode]);
 
@@ -156,10 +157,18 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
         <span><b className="text-foreground">{data.n_papers}</b> papers</span>
         <span><b className="text-foreground">{data.n_pairs?.toLocaleString()}</b> similarity comparisons</span>
         <span><b className="text-foreground">{nClusters}</b> clusters (silhouette {
-          embMode === "abstract" ? data.emb_abstract_silhouette
-          : embMode === "combined" ? data.emb_combined_silhouette
-          : embMode === "tags" ? data.emb_tags_silhouette
-          : data.silhouette
+          (() => {
+            const methodKey = embMode === "abstract" ? "emb_abstract"
+              : embMode === "combined" ? "emb_combined"
+              : embMode === "tags" ? "emb_tags"
+              : useUmap ? "umap" : "mds";
+            const perK = data.silhouettes_per_k?.[methodKey];
+            if (perK && perK[String(nClusters)] !== undefined) return perK[String(nClusters)];
+            if (embMode === "abstract") return data.emb_abstract_silhouette;
+            if (embMode === "combined") return data.emb_combined_silhouette;
+            if (embMode === "tags") return data.emb_tags_silhouette;
+            return data.silhouette;
+          })()
         })</span>
         <span>Model: {data.model}</span>
         <span>Score range: {data.score_range}</span>
@@ -219,8 +228,10 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
               content={({ active, payload }) => {
                 if (!active || !payload?.length) return null;
                 const d = payload[0]?.payload;
+                const tags = d.tags || {};
+                const allTags = [...(tags.topics || []), ...(tags.methods || []), ...(tags.domains || []), ...(tags.concepts || [])];
                 return (
-                  <div className="rounded-lg border border-border bg-popover p-3 shadow-lg text-xs max-w-72">
+                  <div className="rounded-lg border border-border bg-popover p-3 shadow-lg text-xs max-w-80">
                     <div className="font-medium text-sm leading-tight">{d.title}</div>
                     <div className="flex gap-3 mt-1.5 text-muted-foreground">
                       <span>Score: <b className="text-foreground">{d.score}</b></span>
@@ -228,7 +239,14 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
                         {clusterNames[d.cluster] || `Cluster ${d.cluster}`}
                       </span>
                     </div>
-                    {d.published && <div className="text-muted-foreground mt-0.5">{d.published}</div>}
+                    {allTags.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {allTags.slice(0, 8).map((tag, i) => (
+                          <span key={i} className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px]">{tag}</span>
+                        ))}
+                      </div>
+                    )}
+                    {d.published && <div className="text-muted-foreground mt-1">{d.published}</div>}
                   </div>
                 );
               }}
@@ -305,14 +323,18 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
             UMAP constructs a k-nearest-neighbor graph from the distance matrix, then optimizes a layout preserving topological structure. Prioritizes local neighborhoods over global distances, producing more visually separated clusters.
           </div>
 
-          <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Embedding Methods (Emb: Abstract &amp; Emb: Summary)</div>
+          <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Embedding Methods (Emb: Abstract, Emb: Summary &amp; Emb: Tags)</div>
           <div>
             <span className="text-foreground font-medium">5. Text Embeddings.</span>{" "}
             Each paper is embedded into a 1536-dimensional vector using OpenAI <code className="text-[11px]">text-embedding-3-small</code>. Two variants are compared: <em>Abstract</em> (abstract text only) and <em>Summary</em> (abstract + Claude Opus 4.6 impact assessment). Cosine similarity between all N&times;N paper pairs produces a dense distance matrix with 100% coverage — no missing pairs, no sampling needed.
           </div>
           <div>
-            <span className="text-foreground font-medium">6. Embedding UMAP.</span>{" "}
-            The embedding distance matrix is projected to 2D using UMAP with the same parameters as the LLM-based UMAP. Because the distance matrix is dense (every pair has a real similarity, not a default placeholder), UMAP can recover local structure more reliably. This typically produces tighter, more separated clusters.
+            <span className="text-foreground font-medium">6. Tag Embeddings.</span>{" "}
+            Claude Opus 4.6 extracts structured tags from each paper's summary: topics (3-5), methods (2-4), application domains (1-2), and key concepts (3-5), using canonical terminology to reduce synonyms. The concatenated tag string is then embedded using the same embedding model. This combines Claude's domain-aware semantic understanding with embedding-based fuzzy matching for related-but-not-identical terms.
+          </div>
+          <div>
+            <span className="text-foreground font-medium">7. Embedding UMAP.</span>{" "}
+            All embedding distance matrices are projected to 2D using UMAP with the same parameters. Because these matrices are dense (every pair has a real similarity), UMAP recovers local structure more reliably than the sparse LLM pairwise matrix.
           </div>
 
           <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Shared</div>
@@ -331,10 +353,42 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
 
           <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Cost Comparison</div>
           <div>
-            The LLM pairwise approach requires N&times;20 Claude calls (~$7.50 for 249 papers, ~85 min). The embedding approach requires N OpenAI embedding calls (~$0.01, ~30 sec) with better clustering quality (higher silhouette scores) due to 100% pairwise coverage.
+            The LLM pairwise approach requires N&times;20 Claude calls (~$7.50 for 249 papers, ~85 min). Abstract/summary embeddings require N OpenAI embedding calls (~$0.01, ~30 sec). Tag embeddings require N Claude calls for extraction + N embedding calls (~$0.75, ~8 min) — the best clustering quality at moderate cost.
           </div>
         </div>
       </div>
+
+      {/* Tag overview */}
+      {data.tag_summary && (
+        <div className="border border-border rounded-lg p-4 bg-card">
+          <h3 className="text-sm font-medium mb-3">Extracted Tags</h3>
+          <p className="text-xs text-muted-foreground mb-4">Tags extracted by Claude Opus 4.6 from paper summaries. Shown: top tags by frequency across {data.n_papers} papers.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {["topics", "methods", "domains", "concepts"].map(key => {
+              const tags = data.tag_summary[key];
+              if (!tags) return null;
+              const entries = Object.entries(tags).sort((a, b) => b[1] - a[1]);
+              const maxCount = entries[0]?.[1] || 1;
+              return (
+                <div key={key}>
+                  <div className="text-xs font-medium text-foreground mb-2 capitalize">{key}</div>
+                  <div className="space-y-0.5">
+                    {entries.slice(0, 15).map(([tag, count]) => (
+                      <div key={tag} className="flex items-center gap-2 text-xs">
+                        <div className="flex-1 flex items-center gap-1.5">
+                          <div className="h-1.5 rounded-full bg-accent/50" style={{ width: `${count / maxCount * 100}%`, minWidth: 4 }} />
+                          <span className="text-muted-foreground truncate">{tag}</span>
+                        </div>
+                        <span className="text-muted-foreground/60 tabular-nums shrink-0">{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Paper list by cluster */}
       <div className="border border-border rounded-lg p-4 bg-card">
