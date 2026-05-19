@@ -125,7 +125,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       published: p.published,
       id: p.id,
       r: scoreToRadius(p.score),
-      tags: p.tags,
+      tags: embMode?.startsWith("jaccard_") ? (p.tags_incremental || p.tags) : p.tags,
     }));
   }, [clustered, useUmap, embMode]);
 
