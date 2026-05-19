@@ -35,6 +35,19 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       .catch(() => setLoading(false));
   }, [category]);
 
+  // Update default K when switching view mode
+  useEffect(() => {
+    if (!data) return;
+    const bestK = embMode === "abstract" ? data.emb_abstract_best_k
+      : embMode === "combined" ? data.emb_combined_best_k
+      : embMode === "tags" ? data.emb_tags_best_k
+      : embMode === "tags_consolidated" ? data.emb_tags_consolidated_best_k
+      : embMode === "jaccard_laplacian" ? data.jaccard_laplacian_best_k
+      : embMode?.startsWith("jaccard_") ? data[`${embMode}_best_k`]
+      : data.n_clusters;
+    if (bestK) setNClusters(bestK);
+  }, [data, embMode, useUmap]);
+
   // Re-cluster: use precomputed labels matching the current view (MDS vs UMAP)
   const clustered = useMemo(() => {
     if (!data?.papers || !nClusters) return data?.papers || [];
