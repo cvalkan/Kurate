@@ -341,27 +341,31 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
             Claude Opus 4.6 extracts structured tags from each paper's summary: topics (3-5), methods (2-4), application domains (1-2), and key concepts (3-5), using canonical terminology to reduce synonyms. The concatenated tag string is then embedded using the same embedding model. This combines Claude's domain-aware semantic understanding with embedding-based fuzzy matching for related-but-not-identical terms.
           </div>
           <div>
-            <span className="text-foreground font-medium">7. Embedding UMAP.</span>{" "}
+            <span className="text-foreground font-medium">7. Consolidated Tag Embeddings.</span>{" "}
+            The 2,856 unique raw tags are themselves embedded, then clustered into 150 canonical groups using agglomerative clustering on cosine distances. Each group is named after its most frequent member (e.g. "Monte Carlo simulation" and "Monte Carlo sampling" merge under "Monte Carlo simulation"). Papers are represented as binary vectors over these 150 groups, and cosine similarity is computed directly — no text embedding needed. This tests whether synonym consolidation improves clustering quality.
+          </div>
+          <div>
+            <span className="text-foreground font-medium">8. Embedding UMAP.</span>{" "}
             All embedding distance matrices are projected to 2D using UMAP with the same parameters. Because these matrices are dense (every pair has a real similarity), UMAP recovers local structure more reliably than the sparse LLM pairwise matrix.
           </div>
 
           <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Shared</div>
           <div>
-            <span className="text-foreground font-medium">7. Clustering.</span>{" "}
+            <span className="text-foreground font-medium">9. Clustering.</span>{" "}
             K-Means is applied independently to each embedding's 2D coordinates for K=1 through 10. Clusters are view-specific — switching between methods shows clusters computed on that method's layout. The default K maximizes silhouette score.
           </div>
           <div>
-            <span className="text-foreground font-medium">8. Cluster Titles.</span>{" "}
+            <span className="text-foreground font-medium">10. Cluster Titles.</span>{" "}
             For the LLM pairwise methods, Claude Opus 4.6 generates contrastive cluster titles by seeing abstracts from ALL clusters simultaneously. For embedding methods, titles fall back to keyword extraction from paper titles within each cluster.
           </div>
           <div>
-            <span className="text-foreground font-medium">9. Dot Sizing.</span>{" "}
+            <span className="text-foreground font-medium">11. Dot Sizing.</span>{" "}
             Each paper's dot radius reflects its Kurate impact score in 5 tiers: &ge;1500 (largest), 1400, 1300, 1200, and &lt;1200 (smallest).
           </div>
 
           <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Cost Comparison</div>
           <div>
-            The LLM pairwise approach requires N&times;20 Claude calls (~$7.50 for 249 papers, ~85 min). Abstract/summary embeddings require N OpenAI embedding calls (~$0.01, ~30 sec). Tag embeddings require N Claude calls for extraction + N embedding calls (~$0.75, ~8 min) — the best clustering quality at moderate cost.
+            The LLM pairwise approach requires N&times;20 Claude calls (~$7.50 for 249 papers, ~85 min). Abstract/summary embeddings require N OpenAI embedding calls (~$0.01, ~30 sec). Tag embeddings require N Claude calls for extraction + N embedding calls (~$0.75, ~8 min). Consolidated tags add a one-time embedding of all unique tags (~$0.02) plus agglomerative clustering (instant). In this experiment, raw tag embeddings achieved the highest silhouette (0.429 at K=6), slightly ahead of abstract embeddings (0.424 at K=3). Consolidation reduced vocabulary from 2,856 to 150 canonical terms but did not improve clustering (0.400), suggesting the aggressive merging lost some discriminating signal.
           </div>
         </div>
       </div>
