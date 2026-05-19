@@ -52,8 +52,12 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
 
     if (k === data.n_clusters) return papers;
 
-    // Simple k-means on 2D coords
-    const coords = papers.map(p => [useUmap ? p.x_umap : p.x, useUmap ? p.y_umap : p.y]);
+    // Simple k-means fallback on current view's 2D coords
+    const coords = papers.map(p => {
+      if (embMode === "abstract") return [p.x_emb_abstract || p.x, p.y_emb_abstract || p.y];
+      if (embMode === "combined") return [p.x_emb_combined || p.x, p.y_emb_combined || p.y];
+      return [useUmap ? p.x_umap : p.x, useUmap ? p.y_umap : p.y];
+    });
     // Initialize centroids from random papers
     const idxs = [];
     while (idxs.length < k) {
@@ -171,8 +175,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
               className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "combined" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
             >Emb: Summary</button>
           </>}
-          </div>
-        )}
+        </div>
         <div className="flex items-center gap-1.5 text-xs">
           <span className="text-muted-foreground">Clusters:</span>
           {[3, 5, 7, 10].map(k => (
@@ -270,33 +273,53 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       <div className="border border-border rounded-lg p-4 bg-card space-y-3">
         <h3 className="text-sm font-medium">Methodology</h3>
         <div className="text-xs text-muted-foreground space-y-2.5 leading-relaxed max-w-3xl">
+          <p className="text-foreground font-medium text-sm">This page offers four different embedding methods to compare. The first two (MDS, UMAP) use LLM-based pairwise similarity scores. The last two use vector embeddings computed from paper text.</p>
+
+          <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">LLM Pairwise Methods (MDS &amp; UMAP)</div>
           <div>
             <span className="text-foreground font-medium">1. Pairwise Similarity Scoring.</span>{" "}
-            Each paper is compared with 20 randomly selected papers from the same category. For each pair, Claude Opus 4.6 rates topical similarity on an integer scale from 1 (unrelated) to 20 (identical research question), using the paper's abstract and AI impact assessment as input. This produces a sparse similarity matrix covering ~10% of all possible pairs — sufficient for local neighborhood recovery in dimensionality reduction.
+            Each paper is compared with 20 randomly selected papers from the same category. For each pair, Claude Opus 4.6 rates topical similarity on an integer scale from 1 (unrelated) to 20 (identical research question), using the paper's abstract and AI impact assessment as input. This produces a sparse similarity matrix covering ~10% of all possible pairs.
           </div>
           <div>
             <span className="text-foreground font-medium">2. Distance Matrix.</span>{" "}
-            Similarity scores are converted to distances (distance = 20 &minus; similarity). Uncompared pairs receive the median distance (10), which positions them neutrally — neither close nor far — avoiding bias from missing data.
+            Similarity scores are converted to distances (distance = 20 &minus; similarity). Uncompared pairs receive the median distance (10), positioning them neutrally.
           </div>
           <div>
             <span className="text-foreground font-medium">3. MDS Embedding.</span>{" "}
-            Multidimensional Scaling (MDS) projects the distance matrix into 2D by minimizing <em>stress</em> — the difference between the original distances and the 2D distances. MDS preserves global structure (overall arrangement of clusters) but can distort local neighborhoods. It uses 4 random initializations with up to 500 iterations each, selecting the lowest-stress result.
+            Multidimensional Scaling projects the distance matrix into 2D by minimizing <em>stress</em> — the difference between original and 2D distances. Preserves global structure but can distort local neighborhoods.
           </div>
           <div>
             <span className="text-foreground font-medium">4. UMAP Embedding.</span>{" "}
-            Uniform Manifold Approximation and Projection (UMAP) constructs a k-nearest-neighbor graph (k=10) from the distance matrix, then optimizes a low-dimensional layout that preserves the graph's topological structure. Unlike MDS, UMAP prioritizes local neighborhoods (nearby papers stay nearby) while allowing global distances to stretch, producing more visually separated clusters. Parameters: min_dist=0.8 (controls spacing between points), spread=2.5 (controls overall scale).
+            UMAP constructs a k-nearest-neighbor graph from the distance matrix, then optimizes a layout preserving topological structure. Prioritizes local neighborhoods over global distances, producing more visually separated clusters.
+          </div>
+
+          <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Embedding Methods (Emb: Abstract &amp; Emb: Summary)</div>
+          <div>
+            <span className="text-foreground font-medium">5. Text Embeddings.</span>{" "}
+            Each paper is embedded into a 1536-dimensional vector using OpenAI <code className="text-[11px]">text-embedding-3-small</code>. Two variants are compared: <em>Abstract</em> (abstract text only) and <em>Summary</em> (abstract + Claude Opus 4.6 impact assessment). Cosine similarity between all N&times;N paper pairs produces a dense distance matrix with 100% coverage — no missing pairs, no sampling needed.
           </div>
           <div>
-            <span className="text-foreground font-medium">5. Clustering.</span>{" "}
-            K-Means clustering is applied to the MDS coordinates for K=1 through 10. The default K is selected by maximizing the silhouette score (a measure of cluster cohesion vs. separation). All K values are pre-computed — switching K in the UI uses pre-stored labels, not a live recomputation.
+            <span className="text-foreground font-medium">6. Embedding UMAP.</span>{" "}
+            The embedding distance matrix is projected to 2D using UMAP with the same parameters as the LLM-based UMAP. Because the distance matrix is dense (every pair has a real similarity, not a default placeholder), UMAP can recover local structure more reliably. This typically produces tighter, more separated clusters.
+          </div>
+
+          <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Shared</div>
+          <div>
+            <span className="text-foreground font-medium">7. Clustering.</span>{" "}
+            K-Means is applied independently to each embedding's 2D coordinates for K=1 through 10. Clusters are view-specific — switching between methods shows clusters computed on that method's layout. The default K maximizes silhouette score.
           </div>
           <div>
-            <span className="text-foreground font-medium">6. Cluster Titles.</span>{" "}
-            For each K, Claude Opus 4.6 is shown a sample of abstracts from ALL clusters simultaneously and asked to generate a short (2-5 word) distinguishing label for each one. By seeing all clusters at once, the model produces contrastive titles that highlight what makes each cluster unique rather than what they share. Titles are pre-generated for all K values and stored alongside the embedding data.
+            <span className="text-foreground font-medium">8. Cluster Titles.</span>{" "}
+            For the LLM pairwise methods, Claude Opus 4.6 generates contrastive cluster titles by seeing abstracts from ALL clusters simultaneously. For embedding methods, titles fall back to keyword extraction from paper titles within each cluster.
           </div>
           <div>
-            <span className="text-foreground font-medium">7. Dot Sizing.</span>{" "}
-            Each paper's dot radius reflects its Kurate impact score in 5 tiers: &ge;1500 (largest), 1400, 1300, 1200, and &lt;1200 (smallest). This makes high-impact papers visually prominent regardless of their cluster membership.
+            <span className="text-foreground font-medium">9. Dot Sizing.</span>{" "}
+            Each paper's dot radius reflects its Kurate impact score in 5 tiers: &ge;1500 (largest), 1400, 1300, 1200, and &lt;1200 (smallest).
+          </div>
+
+          <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Cost Comparison</div>
+          <div>
+            The LLM pairwise approach requires N&times;20 Claude calls (~$7.50 for 249 papers, ~85 min). The embedding approach requires N OpenAI embedding calls (~$0.01, ~30 sec) with better clustering quality (higher silhouette scores) due to 100% pairwise coverage.
           </div>
         </div>
       </div>
