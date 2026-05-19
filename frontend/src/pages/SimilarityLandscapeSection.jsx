@@ -43,6 +43,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       : embMode === "tags" ? data.emb_tags_best_k
       : embMode === "tags_consolidated" ? data.emb_tags_consolidated_best_k
       : embMode === "jaccard_laplacian" ? data.jaccard_laplacian_best_k
+      : embMode === "jaccard_lap14" ? data.jaccard_lap14_best_k
       : embMode?.startsWith("jaccard_") ? data[`${embMode}_best_k`]
       : data.n_clusters;
     if (bestK) setNClusters(bestK);
@@ -244,7 +245,12 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
           {data.has_jaccard_laplacian &&
             <button onClick={() => { setUseUmap(false); setEmbMode("jaccard_laplacian"); }}
               className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "jaccard_laplacian" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
-            >Jaccard: Filtered</button>
+            >Jaccard: Top 100</button>
+          }
+          {data.has_jaccard_lap14 &&
+            <button onClick={() => { setUseUmap(false); setEmbMode("jaccard_lap14"); }}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "jaccard_lap14" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >Jaccard: Top 14</button>
           }
         </div>
         <div className="flex items-center gap-1.5 text-xs">
@@ -392,7 +398,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
           </div>
           <div>
             <span className="text-foreground font-medium">9. Laplacian-Filtered Jaccard.</span>{" "}
-            Not all tags are equally useful for clustering. Tags that appear in only 1-2 papers are noise; tags that appear in 80% of papers (e.g. "computational physics") don't discriminate. Beyond simple frequency filtering, the <em>Laplacian score</em> measures whether a tag preserves local neighborhood structure: if two papers are similar (by other tags), do they agree on this tag? Tags with low Laplacian scores are structure-preserving — they capture meaningful groupings rather than random variation. The pipeline: (1) remove tags appearing in fewer than 3 papers, (2) rank remaining tags by Laplacian score, (3) keep the top 100. This reduces 558 tags to 100 and improves silhouette from 0.444 to 0.510 — a 15% improvement from principled feature selection alone.
+            Not all tags are equally useful for clustering. The <em>Laplacian score</em> measures whether a tag preserves local neighborhood structure: if two papers are similar (by other tags), do they agree on this tag? Tags with low Laplacian scores are structure-preserving — they capture meaningful groupings rather than random variation. Two variants are tested: <em>Top 100</em> keeps the 100 most structure-preserving tags (silhouette 0.760 at K=2). <em>Top 14</em> keeps only the 14 most discriminating tags — achieving silhouette <b>0.918</b> at K=7, the highest across all methods. The 14 selected tags include "physics-informed deep learning", "scientific machine learning", "computational chemistry", "nuclear physics", "machine-learned interatomic potentials" — a remarkably compact vocabulary that cleanly separates computational physics into 7 distinct research communities.
           </div>
           <div>
             <span className="text-foreground font-medium">10. UMAP Projection.</span>{" "}
@@ -415,7 +421,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
 
           <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Cost Comparison</div>
           <div>
-            The LLM pairwise approach requires N&times;20 Claude calls (~$7.50 for 249 papers, ~85 min). Abstract/summary embeddings require N OpenAI embedding calls (~$0.01, ~30 sec). Tag embeddings require N Claude calls for extraction + N embedding calls (~$0.75, ~8 min). Consolidated tags add a one-time embedding of all unique tags (~$0.02) plus agglomerative clustering (instant). Incremental tag extraction costs the same as raw tags (~$0.75, ~12 min sequential) but produces a self-consistent vocabulary that works with simple Jaccard similarity — no embeddings needed. Laplacian-filtered Jaccard on 100 selected tags achieved the highest silhouette (0.510), followed by Jaccard on all incremental tags (0.444) and abstract embeddings (0.424).
+            The LLM pairwise approach requires N&times;20 Claude calls (~$7.50 for 249 papers, ~85 min). Abstract/summary embeddings require N OpenAI embedding calls (~$0.01, ~30 sec). Tag embeddings require N Claude calls for extraction + N embedding calls (~$0.75, ~8 min). Incremental tag extraction costs the same (~$0.75, ~12 min sequential) but produces a self-consistent vocabulary that works with simple Jaccard similarity. Laplacian-filtered Jaccard on just 14 selected tags achieved the highest silhouette (<b>0.918</b> at K=7) — demonstrating that a tiny, carefully selected vocabulary outperforms both expensive pairwise LLM scoring and high-dimensional embeddings.
           </div>
         </div>
       </div>
