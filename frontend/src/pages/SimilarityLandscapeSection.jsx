@@ -44,6 +44,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       : embMode === "tags_consolidated" ? data.emb_tags_consolidated_best_k
       : embMode === "jaccard_laplacian" ? data.jaccard_laplacian_best_k
       : embMode === "jaccard_lap14" ? data.jaccard_lap14_best_k
+      : embMode === "jaccard_stable" ? data.jaccard_stable_best_k
       : embMode?.startsWith("jaccard_") ? data[`${embMode}_best_k`]
       : data.n_clusters;
     if (bestK) setNClusters(bestK);
@@ -252,6 +253,11 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
               className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "jaccard_lap14" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
             >Jaccard: Top 14</button>
           }
+          {data.has_jaccard_stable &&
+            <button onClick={() => { setUseUmap(false); setEmbMode("jaccard_stable"); }}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "jaccard_stable" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >Jaccard: Stable (35)</button>
+          }
         </div>
         <div className="flex items-center gap-1.5 text-xs">
           <span className="text-muted-foreground">Clusters:</span>
@@ -292,6 +298,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
                 const activeTagSet = new Set(
                   embMode === "jaccard_lap14" ? (data.laplacian14_tag_set || [])
                   : embMode === "jaccard_laplacian" ? (data.laplacian100_tag_set || [])
+                  : embMode === "jaccard_stable" ? (data.stable_tag_set || [])
                   : []
                 );
                 return (
@@ -409,7 +416,18 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
           </div>
           <div>
             <span className="text-foreground font-medium">9. Laplacian-Filtered Jaccard.</span>{" "}
-            Not all tags are equally useful for clustering. The <em>Laplacian score</em> measures whether a tag preserves local neighborhood structure: if two papers are similar (by other tags), do they agree on this tag? Tags with low Laplacian scores are structure-preserving — they capture meaningful groupings rather than random variation. Two variants are tested: <em>Top 100</em> keeps the 100 most structure-preserving tags (silhouette 0.760 at K=2). <em>Top 14</em> keeps only the 14 most discriminating tags — achieving silhouette <b>0.918</b> at K=7, the highest across all methods. The 14 selected tags include "physics-informed deep learning", "scientific machine learning", "computational chemistry", "nuclear physics", "machine-learned interatomic potentials" — a remarkably compact vocabulary that cleanly separates computational physics into 7 distinct research communities.
+            Not all tags are equally useful for clustering. The <em>Laplacian score</em> measures whether a tag preserves local neighborhood structure: if two papers are similar (by other tags), do they agree on this tag? Three variants are tested using the top-N Laplacian-ranked tags:
+          </div>
+          <div className="ml-4 space-y-1.5">
+            <div>
+              <span className="text-foreground font-medium">Top 14</span> (silhouette-optimized): achieves <b>0.918</b> at K=7 — the highest single silhouette across all methods. However, this operates in the "unstable" regime where adding one more tag significantly reorganizes the map.
+            </div>
+            <div>
+              <span className="text-foreground font-medium">Stable (35)</span> (stability-optimized): the cutoff is determined by <em>Procrustes stability analysis</em> — tags are added one by one and the layout change between consecutive maps is measured. The "elbow" where the smoothed Procrustes distance drops below 0.20 and stays there is at ~35 tags. This map is robust: adding tag #36 barely changes the layout. Achieves silhouette 0.804 at K=2.
+            </div>
+            <div>
+              <span className="text-foreground font-medium">Top 100</span>: broader vocabulary captures more nuance but dilutes cluster separation (silhouette 0.760 at K=2).
+            </div>
           </div>
           <div>
             <span className="text-foreground font-medium">10. UMAP Projection.</span>{" "}
@@ -532,6 +550,28 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
                 <div key={tag} className="flex items-center gap-2 text-xs">
                   <div className="flex-1 flex items-center gap-1.5">
                     <div className="h-1.5 rounded-full bg-purple-500/50" style={{ width: `${count / maxCount * 100}%`, minWidth: 4 }} />
+                    <span className="text-muted-foreground truncate">{tag}</span>
+                  </div>
+                  <span className="text-muted-foreground/60 tabular-nums shrink-0">{count}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Laplacian-selected tags: Top 100 */}
+      {data.stable_selected_tags && (
+        <div className="border border-border rounded-lg p-4 bg-card">
+          <h3 className="text-sm font-medium mb-1">Laplacian Stable Tags (35)</h3>
+          <p className="text-xs text-muted-foreground mb-3">The 35 most structure-preserving tags — the stability cutoff where adding more tags stops meaningfully changing the map (Procrustes distance &lt; 0.20).</p>
+          <div className="space-y-0.5">
+            {Object.entries(data.stable_selected_tags).sort((a, b) => b[1] - a[1]).map(([tag, count]) => {
+              const maxCount = Math.max(...Object.values(data.stable_selected_tags));
+              return (
+                <div key={tag} className="flex items-center gap-2 text-xs">
+                  <div className="flex-1 flex items-center gap-1.5">
+                    <div className="h-1.5 rounded-full bg-emerald-500/50" style={{ width: `${count / maxCount * 100}%`, minWidth: 4 }} />
                     <span className="text-muted-foreground truncate">{tag}</span>
                   </div>
                   <span className="text-muted-foreground/60 tabular-nums shrink-0">{count}</span>
