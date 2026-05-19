@@ -153,7 +153,11 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
         <span><b className="text-foreground">{data.n_papers}</b> papers</span>
         <span><b className="text-foreground">{data.n_pairs?.toLocaleString()}</b> similarity comparisons</span>
-        <span><b className="text-foreground">{nClusters}</b> clusters (silhouette {data.silhouette})</span>
+        <span><b className="text-foreground">{nClusters}</b> clusters (silhouette {
+          embMode === "abstract" ? data.emb_abstract_silhouette
+          : embMode === "combined" ? data.emb_combined_silhouette
+          : data.silhouette
+        })</span>
         <span>Model: {data.model}</span>
         <span>Score range: {data.score_range}</span>
       </div>
