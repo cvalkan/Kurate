@@ -509,6 +509,47 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
         </div>
       )}
 
+      {/* Laplacian-selected tags: Top 14 */}
+      {data.laplacian14_selected_tags && (
+        <div className="border border-border rounded-lg p-4 bg-card">
+          <h3 className="text-sm font-medium mb-1">Laplacian Top 14 Tags</h3>
+          <p className="text-xs text-muted-foreground mb-3">The 14 most structure-preserving tags by Laplacian score. This minimal vocabulary achieves silhouette 0.918 at K=7 — the highest of all methods.</p>
+          <div className="space-y-0.5">
+            {Object.entries(data.laplacian14_selected_tags).sort((a, b) => b[1] - a[1]).map(([tag, count]) => {
+              const maxCount = Math.max(...Object.values(data.laplacian14_selected_tags));
+              return (
+                <div key={tag} className="flex items-center gap-2 text-xs">
+                  <div className="flex-1 flex items-center gap-1.5">
+                    <div className="h-1.5 rounded-full bg-purple-500/50" style={{ width: `${count / maxCount * 100}%`, minWidth: 4 }} />
+                    <span className="text-muted-foreground truncate">{tag}</span>
+                  </div>
+                  <span className="text-muted-foreground/60 tabular-nums shrink-0">{count}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Laplacian-selected tags: Top 100 */}
+      {data.laplacian_selected_tags && (
+        <div className="border border-border rounded-lg p-4 bg-card">
+          <h3 className="text-sm font-medium mb-1">Laplacian Top 100 Tags</h3>
+          <p className="text-xs text-muted-foreground mb-3">The 100 most structure-preserving tags. Broader vocabulary captures more nuance but dilutes cluster separation (silhouette 0.760 at K=2).</p>
+          <div className="flex flex-wrap gap-1.5">
+            {Object.entries(data.laplacian_selected_tags).sort((a, b) => b[1] - a[1]).map(([tag, count]) => {
+              const maxCount = Math.max(...Object.values(data.laplacian_selected_tags));
+              const opacity = 0.4 + (count / maxCount) * 0.6;
+              return (
+                <span key={tag} className="px-2 py-0.5 rounded-full border border-border text-xs" style={{ opacity }}>
+                  {tag} <span className="text-muted-foreground/60">{count}</span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Paper list by cluster */}
       <div className="border border-border rounded-lg p-4 bg-card">
         <h3 className="text-sm font-medium mb-3">Papers by Cluster</h3>
