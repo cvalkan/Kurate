@@ -118,6 +118,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
   const clusterNames = useMemo(() => {
     // Use pre-generated LLM titles matching the current view
     const titlesSource = embMode === "jaccard_incr" ? data?.jaccard_incr_cluster_titles
+      : embMode?.startsWith("jaccard_") ? data?.[`${embMode}_cluster_titles`]
       : embMode ? null
       : useUmap ? data?.umap_cluster_titles : data?.cluster_titles;
     if (titlesSource?.[String(nClusters)]) {
@@ -368,7 +369,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
           </div>
           <div>
             <span className="text-foreground font-medium">8. Jaccard on Incremental Tags.</span>{" "}
-            Instead of extracting tags independently per paper, Claude processes papers sequentially — each paper sees the full vocabulary extracted so far and is instructed to reuse existing tags where suitable, only coining new terms when genuinely needed. This reduces 2,856 fragmented tags to 658 canonical terms (77% reduction) with only 15% hapax tags (vs 82% for independent extraction). Similarity is computed as Jaccard index (tag set overlap) directly — no embeddings needed. This method achieves the highest silhouette score (0.444 at K=6) of all tested methods.
+            Instead of extracting tags independently per paper, Claude processes papers sequentially — each paper sees the full vocabulary extracted so far and is instructed to reuse existing tags where suitable, only coining new terms when genuinely needed. This reduces 2,856 fragmented tags to 658 canonical terms (77% reduction) with only 15% hapax tags (vs 82% for independent extraction). Similarity is computed as Jaccard index (tag set overlap) directly — no embeddings needed. Five views are available: <em>All</em> (combined tags, silhouette 0.444), <em>Topics</em> (research subfields, 0.475), <em>Methods</em> (computational techniques, 0.457), <em>Domains</em> (application areas, 0.829 — near-perfect separation with only 14 terms), and <em>Concepts</em> (scientific concepts, 0.422). The per-criterion views reveal which dimension drives clustering: domain membership produces the clearest separation, while concepts are too fragmented to cluster well.
           </div>
           <div>
             <span className="text-foreground font-medium">8. Embedding UMAP.</span>{" "}
