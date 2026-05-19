@@ -44,6 +44,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
     // Use cluster labels matching the current view
     const labelsSource = embMode === "abstract" ? data.emb_abstract_cluster_labels
       : embMode === "combined" ? data.emb_combined_cluster_labels
+      : embMode === "tags" ? data.emb_tags_cluster_labels
       : useUmap ? data.umap_cluster_labels : data.cluster_labels;
     if (labelsSource?.[String(k)]) {
       const labels = labelsSource[String(k)];
@@ -56,6 +57,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
     const coords = papers.map(p => {
       if (embMode === "abstract") return [p.x_emb_abstract || p.x, p.y_emb_abstract || p.y];
       if (embMode === "combined") return [p.x_emb_combined || p.x, p.y_emb_combined || p.y];
+      if (embMode === "tags") return [p.x_emb_tags || p.x, p.y_emb_tags || p.y];
       return [useUmap ? p.x_umap : p.x, useUmap ? p.y_umap : p.y];
     });
     // Initialize centroids from random papers
@@ -91,8 +93,8 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
   const chartData = useMemo(() => {
     if (!clustered.length) return [];
     return clustered.map(p => ({
-      x: embMode === "abstract" ? p.x_emb_abstract : embMode === "combined" ? p.x_emb_combined : useUmap ? p.x_umap : p.x,
-      y: embMode === "abstract" ? p.y_emb_abstract : embMode === "combined" ? p.y_emb_combined : useUmap ? p.y_umap : p.y,
+      x: embMode === "abstract" ? p.x_emb_abstract : embMode === "combined" ? p.x_emb_combined : embMode === "tags" ? p.x_emb_tags : useUmap ? p.x_umap : p.x,
+      y: embMode === "abstract" ? p.y_emb_abstract : embMode === "combined" ? p.y_emb_combined : embMode === "tags" ? p.y_emb_tags : useUmap ? p.y_umap : p.y,
       title: p.title,
       cluster: p.cluster,
       score: p.score,
@@ -156,6 +158,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
         <span><b className="text-foreground">{nClusters}</b> clusters (silhouette {
           embMode === "abstract" ? data.emb_abstract_silhouette
           : embMode === "combined" ? data.emb_combined_silhouette
+          : embMode === "tags" ? data.emb_tags_silhouette
           : data.silhouette
         })</span>
         <span>Model: {data.model}</span>
@@ -179,6 +182,11 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
               className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "combined" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
             >Emb: Summary</button>
           </>}
+          {data.has_tag_embeddings &&
+            <button onClick={() => { setUseUmap(false); setEmbMode("tags"); }}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "tags" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >Emb: Tags</button>
+          }
         </div>
         <div className="flex items-center gap-1.5 text-xs">
           <span className="text-muted-foreground">Clusters:</span>
