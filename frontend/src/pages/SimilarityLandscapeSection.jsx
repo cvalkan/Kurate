@@ -30,7 +30,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
     const url = category === "cs.AI"
       ? `${API}/api/similarity-landscape`
       : `${API}/api/similarity-landscape/${category}`;
-    axios.get(url)
+    axios.get(url, { params: { _t: Date.now() } })
       .then(r => { setData(r.data); setNClusters(r.data.n_clusters); setLoading(false); })
       .catch(() => setLoading(false));
   }, [category]);
