@@ -86,7 +86,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       centroids = sums.map(s => s[2] > 0 ? [s[0] / s[2], s[1] / s[2]] : [0, 0]);
     }
     return papers.map((p, i) => ({ ...p, cluster: labels[i] }));
-  }, [data, nClusters, useUmap]);
+  }, [data, nClusters, useUmap, embMode]);
 
   const chartData = useMemo(() => {
     if (!clustered.length) return [];
@@ -100,7 +100,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       id: p.id,
       r: scoreToRadius(p.score),
     }));
-  }, [clustered, useUmap]);
+  }, [clustered, useUmap, embMode]);
 
   const clusterNames = useMemo(() => {
     // Use pre-generated LLM titles matching the current view
