@@ -16,12 +16,13 @@ sys.path.insert(0, "/app/backend")
 SEED = 42
 DATA_PATH = "/app/backend/data/precomputed/similarity_landscape.json"
 
-TITLE_PROMPT = """Given these paper abstracts from a cluster of AI research papers, generate a short (2-5 word) theme label that captures the common research topic.
+TITLE_PROMPT = """Below are paper abstracts from {n_clusters} different clusters of research papers. Each cluster contains topically similar papers. Generate a short (2-5 word) DISTINGUISHING theme label for Cluster {cluster_num}.
 
-Paper abstracts:
-{titles}
+{all_clusters_text}
 
-Respond with JSON only: {{"title": "Multi-Agent Systems"}}"""
+Focus on what makes Cluster {cluster_num} UNIQUE compared to the others. Avoid generic labels — be specific about the distinguishing topic, application domain, or methodology.
+
+Respond with JSON only: {{"title": "Molecular Dynamics Simulations"}}"""
 
 
 async def call_llm(prompt):
@@ -86,18 +87,23 @@ async def main():
                 cluster_papers_map[c] = []
             cluster_papers_map[c].append(p)
 
-        # Generate title for each cluster using abstracts
+        # Build context: all clusters' abstracts for differentiation
+        all_clusters_text_parts = []
+        for cc in sorted(cluster_papers_map.keys()):
+            sample = cluster_papers_map[cc][:10]
+            abstracts_block = "\n".join(f"  - {abstracts.get(p['id'], p['title'][:100])[:300]}" for p in sample)
+            all_clusters_text_parts.append(f"Cluster {cc} ({len(cluster_papers_map[cc])} papers):\n{abstracts_block}")
+        all_clusters_text = "\n\n".join(all_clusters_text_parts)
+
+        # Generate title for each cluster with full context
         titles = {}
         for c in sorted(cluster_papers_map.keys()):
-            cluster_p = cluster_papers_map[c]
-            # Use abstracts (truncated), fall back to title if no abstract
-            sample = cluster_p[:20]
-            abstracts_text = "\n\n".join(
-                f"- {abstracts.get(p['id'], p['title'])}" for p in sample
+            count = len(cluster_papers_map[c])
+            prompt = TITLE_PROMPT.format(
+                n_clusters=k, cluster_num=c,
+                all_clusters_text=all_clusters_text,
             )
-            prompt = TITLE_PROMPT.format(titles=abstracts_text)
             title = await call_llm(prompt)
-            count = len(cluster_p)
             if title:
                 titles[c] = f"{title} ({count})"
                 print(f"  Cluster {c}: {title} ({count} papers)")
