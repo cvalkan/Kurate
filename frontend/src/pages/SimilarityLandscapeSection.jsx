@@ -34,19 +34,20 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       .catch(() => setLoading(false));
   }, [category]);
 
-  // Re-cluster client-side with different K using simple k-means
+  // Re-cluster: use precomputed labels matching the current view (MDS vs UMAP)
   const clustered = useMemo(() => {
     if (!data?.papers || !nClusters) return data?.papers || [];
     const papers = data.papers;
     const k = nClusters;
 
-    // Use pre-generated labels if available
-    if (data.cluster_labels?.[String(k)]) {
-      const labels = data.cluster_labels[String(k)];
+    // Use UMAP-based clusters when viewing UMAP, MDS-based when viewing MDS
+    const labelsSource = useUmap ? data.umap_cluster_labels : data.cluster_labels;
+    if (labelsSource?.[String(k)]) {
+      const labels = labelsSource[String(k)];
       return papers.map((p, i) => ({ ...p, cluster: labels[i] }));
     }
 
-    if (k === data.n_clusters) return papers; // use server default clusters
+    if (k === data.n_clusters) return papers;
 
     // Simple k-means on 2D coords
     const coords = papers.map(p => [useUmap ? p.x_umap : p.x, useUmap ? p.y_umap : p.y]);
@@ -95,9 +96,10 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
   }, [clustered, useUmap]);
 
   const clusterNames = useMemo(() => {
-    // Use pre-generated LLM titles if available for this K
-    if (data?.cluster_titles?.[String(nClusters)]) {
-      return data.cluster_titles[String(nClusters)];
+    // Use pre-generated LLM titles matching the current view
+    const titlesSource = useUmap ? data?.umap_cluster_titles : data?.cluster_titles;
+    if (titlesSource?.[String(nClusters)]) {
+      return titlesSource[String(nClusters)];
     }
     // Fallback: keyword extraction
     const groups = {};
