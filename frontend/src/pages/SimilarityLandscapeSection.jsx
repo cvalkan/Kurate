@@ -285,7 +285,9 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
                 if (!active || !payload?.length) return null;
                 const d = payload[0]?.payload;
                 const tags = d.tags || {};
-                const allTags = [...(tags.topics || []), ...(tags.methods || []), ...(tags.domains || []), ...(tags.concepts || [])];
+                const allTagsRaw = [...(tags.topics || []), ...(tags.methods || []), ...(tags.domains || []), ...(tags.concepts || [])];
+                const seen = new Set();
+                const allTags = allTagsRaw.filter(t => { if (seen.has(t)) return false; seen.add(t); return true; });
                 // Determine which tags are "active" for the current view
                 const activeTagSet = new Set(
                   embMode === "jaccard_lap14" ? (data.laplacian14_tag_set || [])
