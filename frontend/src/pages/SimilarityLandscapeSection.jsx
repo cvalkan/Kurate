@@ -286,6 +286,12 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
                 const d = payload[0]?.payload;
                 const tags = d.tags || {};
                 const allTags = [...(tags.topics || []), ...(tags.methods || []), ...(tags.domains || []), ...(tags.concepts || [])];
+                // Determine which tags are "active" for the current view
+                const activeTagSet = new Set(
+                  embMode === "jaccard_lap14" ? (data.laplacian14_tag_set || [])
+                  : embMode === "jaccard_laplacian" ? (data.laplacian100_tag_set || [])
+                  : []
+                );
                 return (
                   <div className="rounded-lg border border-border bg-popover p-3 shadow-lg text-xs max-w-80">
                     <div className="font-medium text-sm leading-tight">{d.title}</div>
@@ -297,9 +303,12 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
                     </div>
                     {allTags.length > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-1">
-                        {allTags.slice(0, 8).map((tag, i) => (
-                          <span key={i} className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px]">{tag}</span>
-                        ))}
+                        {allTags.slice(0, 12).map((tag, i) => {
+                          const isActive = activeTagSet.size > 0 && activeTagSet.has(tag);
+                          return (
+                            <span key={i} className={`px-1.5 py-0.5 rounded text-[10px] ${isActive ? "bg-purple-500/20 text-purple-700 dark:text-purple-300 font-medium ring-1 ring-purple-400/30" : "bg-muted text-muted-foreground"}`}>{tag}</span>
+                          );
+                        })}
                       </div>
                     )}
                     {d.published && <div className="text-muted-foreground mt-1">{d.published}</div>}
