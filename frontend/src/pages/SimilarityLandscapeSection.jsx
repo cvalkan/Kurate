@@ -302,7 +302,9 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
                 if (!active || !payload?.length) return null;
                 const d = payload[0]?.payload;
                 const tags = d.tags || {};
-                const allTagsRaw = [...(tags.topics || []), ...(tags.methods || []), ...(tags.domains || []), ...(tags.concepts || [])];
+                // Handle both flat tags ({"tags": [...]}) and categorized ({"topics": [...], ...})
+                const allTagsRaw = Array.isArray(tags.tags) ? tags.tags
+                  : [...(tags.topics || []), ...(tags.methods || []), ...(tags.domains || []), ...(tags.concepts || [])];
                 const seen = new Set();
                 const allTags = allTagsRaw.filter(t => { if (seen.has(t)) return false; seen.add(t); return true; });
                 // Determine which tags are "active" for the current view
@@ -424,9 +426,34 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       <div className="border border-border rounded-lg p-4 bg-card space-y-3">
         <h3 className="text-sm font-medium">Methodology</h3>
         <div className="text-xs text-muted-foreground space-y-2.5 leading-relaxed max-w-3xl">
-          <p className="text-foreground font-medium text-sm">This page maps research papers in 2D using tag-based similarity. {data.category === "cs.GT" ? "Game theory papers were mapped using the optimized pipeline: incremental tag extraction → Laplacian feature selection → Procrustes stability analysis → UMAP with native Jaccard metric." : "Multiple methods are compared: LLM pairwise scoring, text embeddings, tag-based similarity (Jaccard), and Laplacian-filtered tag selection."}</p>
+          {data.method === "incremental_tags_laplacian_stable" ? <>
+            {/* Streamlined methodology for pipeline-generated maps (GT etc.) */}
+            <p className="text-foreground font-medium text-sm">Papers mapped using: incremental tag extraction → Laplacian feature selection → Procrustes stability analysis → UMAP with native Jaccard metric.</p>
+            <div>
+              <span className="text-foreground font-medium">1. Incremental Tag Extraction.</span>{" "}
+              Claude Opus 4.6 extracts 8-10 descriptive tags per paper as a flat list (topics, methods, domains, concepts combined). Each paper sees the full vocabulary extracted so far and reuses existing tags where suitable. This produces a self-consistent vocabulary with minimal synonyms — {data.n_papers} papers yielded {Object.keys(data.incremental_tag_summary || {}).length > 0 ? `${data.stable_cutoff ? "~" + Math.round(Object.keys(data.stable_selected_tags || {}).length / 0.3) : "?"} unique tags` : "a compact vocabulary"}.
+            </div>
+            <div>
+              <span className="text-foreground font-medium">2. Laplacian Feature Selection.</span>{" "}
+              Tags are ranked by their Laplacian score — measuring whether nearby papers (by other-tag similarity) agree on this tag. High-scoring tags capture meaningful structure; low-scoring ones are noise. The Procrustes stability chart above shows how much the map changes when adding each tag.
+            </div>
+            <div>
+              <span className="text-foreground font-medium">3. Stability Cutoff.</span>{" "}
+              Tags are added in Laplacian rank order until the map stabilizes — the point where adding more tags stops meaningfully reorganizing the layout (Procrustes distance &lt; 0.20). For this category: <b>{data.stable_cutoff} tags</b>. A silhouette-optimized "Top 10" view is also available for maximum cluster separation.
+            </div>
+            <div>
+              <span className="text-foreground font-medium">4. UMAP Projection.</span>{" "}
+              Papers are represented as binary tag vectors and projected to 2D using UMAP with native Jaccard metric (not a precomputed distance matrix). This lets UMAP build proper nearest-neighbor graphs directly from the binary data.
+            </div>
+            <div>
+              <span className="text-foreground font-medium">5. Clustering &amp; Titles.</span>{" "}
+              K-Means on the 2D UMAP coordinates for K=1-10, default K from best silhouette score. Claude Opus 4.6 generates contrastive cluster titles by seeing abstracts from all clusters simultaneously.
+            </div>
+          </> : <>
+            {/* Full comparative methodology for physics etc. */}
+            <p className="text-foreground font-medium text-sm">This page compares multiple methods for mapping research papers in 2D: LLM pairwise scoring, text embeddings, tag-based similarity (Jaccard), and Laplacian-filtered tag selection.</p>
 
-          <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">LLM Pairwise Methods (MDS &amp; UMAP)</div>
+            <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">LLM Pairwise Methods (MDS &amp; UMAP)</div>
           <div>
             <span className="text-foreground font-medium">1. Pairwise Similarity Scoring.</span>{" "}
             Each paper is compared with 20 randomly selected papers from the same category. For each pair, Claude Opus 4.6 rates topical similarity on an integer scale from 1 (unrelated) to 20 (identical research question), using the paper's abstract and AI impact assessment as input. This produces a sparse similarity matrix covering ~10% of all possible pairs.
@@ -499,10 +526,9 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
           <div>
             The LLM pairwise approach requires N&times;20 Claude calls (~$7.50 for 249 papers, ~85 min). Abstract/summary embeddings require N OpenAI embedding calls (~$0.01, ~30 sec). Tag embeddings require N Claude calls for extraction + N embedding calls (~$0.75, ~8 min). Incremental tag extraction costs the same (~$0.75, ~12 min sequential) but produces a self-consistent vocabulary that works with simple Jaccard similarity. Laplacian-filtered Jaccard on just 14 selected tags achieved the highest silhouette (<b>0.918</b> at K=7) — demonstrating that a tiny, carefully selected vocabulary outperforms both expensive pairwise LLM scoring and high-dimensional embeddings.
           </div>
+          </>}
         </div>
       </div>
-
-      {/* Tag overview */}
       {data.tag_summary && (
         <div className="border border-border rounded-lg p-4 bg-card">
           <h3 className="text-sm font-medium mb-3">Extracted Tags</h3>
