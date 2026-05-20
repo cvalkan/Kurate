@@ -198,33 +198,56 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
   return (
     <div className="space-y-4" data-testid="similarity-landscape">
       {/* Stats bar */}
-      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-        <span><b className="text-foreground">{data.n_papers}</b> papers</span>
-        <span><b className="text-foreground">{data.n_pairs?.toLocaleString()}</b> similarity comparisons</span>
-        <span><b className="text-foreground">{nClusters}</b> clusters (silhouette {
-          (() => {
-            const methodKey = embMode === "abstract" ? "emb_abstract"
-              : embMode === "combined" ? "emb_combined"
-              : embMode === "tags" ? "emb_tags"
-              : embMode === "tags_consolidated" ? "emb_tags_consolidated"
-              : embMode === "jaccard_incr" ? "jaccard_incr"
-              : embMode?.startsWith("jaccard_") ? embMode
-              : useUmap ? "umap" : "mds";
-            const perK = data.silhouettes_per_k?.[methodKey];
-            if (perK && perK[String(nClusters)] !== undefined) return perK[String(nClusters)];
-            if (embMode === "abstract") return data.emb_abstract_silhouette;
-            if (embMode === "combined") return data.emb_combined_silhouette;
-            if (embMode === "tags") return data.emb_tags_silhouette;
-            return data.silhouette;
-          })()
-        })</span>
-        <span>Model: {data.model}</span>
-        <span>Score range: {data.score_range}</span>
-      </div>
+      {(() => {
+        const methodKey = embMode === "abstract" ? "emb_abstract"
+          : embMode === "combined" ? "emb_combined"
+          : embMode === "tags" ? "emb_tags"
+          : embMode === "tags_consolidated" ? "emb_tags_consolidated"
+          : embMode === "jaccard_incr" ? "jaccard_incr"
+          : embMode === "emb_combined_large" ? "emb_combined_large"
+          : embMode?.startsWith("jaccard_") ? embMode
+          : useUmap ? "umap" : "mds";
+        const perK = data.silhouettes_per_k?.[methodKey];
+        const silhouette = (perK && perK[String(nClusters)] !== undefined)
+          ? perK[String(nClusters)]
+          : (data[`${methodKey}_silhouette`] ?? data.silhouette);
+        const bestK = data[`${methodKey}_best_k`];
+        const noise = data[`${methodKey}_noise`];
+        const noisePct = (noise !== undefined && data.n_papers)
+          ? ((noise / data.n_papers) * 100).toFixed(0)
+          : null;
+        // Per-cluster sizes for the current view
+        const clusterSizes = {};
+        clustered.forEach(p => { clusterSizes[p.cluster] = (clusterSizes[p.cluster] || 0) + 1; });
+        const sizes = Object.values(clusterSizes);
+        const minSize = sizes.length ? Math.min(...sizes) : 0;
+        const maxSize = sizes.length ? Math.max(...sizes) : 0;
+        return (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground" data-testid="landscape-metrics">
+            <span><b className="text-foreground">{data.n_papers}</b> papers</span>
+            {data.n_pairs > 0 && <span><b className="text-foreground">{data.n_pairs?.toLocaleString()}</b> pairs</span>}
+            <span><b className="text-foreground">{nClusters}</b> clusters</span>
+            {silhouette !== undefined && silhouette !== null && (
+              <span>Silhouette: <b className="text-foreground">{Number(silhouette).toFixed(3)}</b></span>
+            )}
+            {bestK !== undefined && (
+              <span>Best K: <b className="text-foreground">{bestK}</b></span>
+            )}
+            {noise !== undefined && (
+              <span>HDBSCAN noise: <b className="text-foreground">{noise}</b> ({noisePct}%)</span>
+            )}
+            {sizes.length > 0 && (
+              <span>Cluster size: <b className="text-foreground">{minSize}</b>–<b className="text-foreground">{maxSize}</b></span>
+            )}
+            <span>Model: {data.model}</span>
+            <span>Score range: {data.score_range}</span>
+          </div>
+        );
+      })()}
 
       {/* Controls */}
-      <div className="flex flex-wrap gap-4 items-center">
-        <div className="flex gap-1.5">
+      <div className="flex flex-wrap gap-x-4 gap-y-2 items-center">
+        <div className="flex flex-wrap gap-1.5 max-w-full" data-testid="landscape-map-modes">
           {(data.has_umap || data.cluster_labels) && <button onClick={() => { setUseUmap(false); setEmbMode(null); }}
             className={`px-2.5 py-1 text-xs rounded-md transition-colors ${!useUmap && !embMode ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
           >MDS</button>}
