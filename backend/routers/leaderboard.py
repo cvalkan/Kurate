@@ -2065,14 +2065,23 @@ async def match_mode_stats():
 
 
 
+_landscape_cache = {}
+_landscape_cache_mtime = {}
+
 @router.get("/similarity-landscape")
 async def get_similarity_landscape():
     """Serve precomputed similarity landscape data."""
     import json as _json
     path = "/app/backend/data/precomputed/similarity_landscape.json"
     try:
+        mtime = os.path.getmtime(path)
+        if path in _landscape_cache and _landscape_cache_mtime.get(path) == mtime:
+            return _landscape_cache[path]
         with open(path) as f:
-            return _json.load(f)
+            data = _json.load(f)
+        _landscape_cache[path] = data
+        _landscape_cache_mtime[path] = mtime
+        return data
     except FileNotFoundError:
         return {"papers": [], "n_papers": 0, "n_pairs": 0}
 
@@ -2086,7 +2095,13 @@ async def get_similarity_landscape_category(category: str):
     if not _os.path.exists(path):
         path = "/app/backend/data/precomputed/similarity_landscape.json"
     try:
+        mtime = _os.path.getmtime(path)
+        if path in _landscape_cache and _landscape_cache_mtime.get(path) == mtime:
+            return _landscape_cache[path]
         with open(path) as f:
-            return _json.load(f)
+            data = _json.load(f)
+        _landscape_cache[path] = data
+        _landscape_cache_mtime[path] = mtime
+        return data
     except FileNotFoundError:
         return {"papers": [], "n_papers": 0, "n_pairs": 0}
