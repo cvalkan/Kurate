@@ -53,6 +53,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       : embMode === "jaccard_lap10" ? data.jaccard_lap10_best_k
       : embMode === "jaccard_ce" ? data.jaccard_ce_best_k
       : embMode === "jaccard_ce10" ? data.jaccard_ce10_best_k
+      : embMode === "jaccard_pmi50" ? data.jaccard_pmi50_best_k
       : embMode?.startsWith("jaccard_") ? data[`${embMode}_best_k`]
       : data.n_clusters;
     if (bestK) setNClusters(bestK);
@@ -281,6 +282,11 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
               className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "jaccard_ce10" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
             >CE: Top 10</button>
           }
+          {data.has_jaccard_pmi50 &&
+            <button onClick={() => { setUseUmap(false); setEmbMode("jaccard_pmi50"); }}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "jaccard_pmi50" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >PMI: Top 50</button>
+          }
         </div>
         <div className="flex items-center gap-1.5 text-xs">
           <span className="text-muted-foreground">Clusters:</span>
@@ -327,6 +333,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
                   : embMode === "jaccard_stable" ? (data.stable_tag_set || [])
                   : embMode === "jaccard_ce" ? (data.ce_tag_set || [])
                   : embMode === "jaccard_ce10" ? (data.ce10_tag_set || [])
+                  : embMode === "jaccard_pmi50" ? (data.pmi50_tag_set || [])
                   : []
                 );
                 return (
@@ -449,7 +456,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
             </div>
             <div>
               <span className="text-foreground font-medium">2. Feature Selection.</span>{" "}
-              Two tag selection methods are compared. <em>Laplacian score</em> measures whether nearby papers agree on a tag — it preserves neighborhood structure but can include ubiquitous tags (e.g. "game theory") that don't discriminate. <em>Conditional Entropy</em> measures how much sharing a tag reduces uncertainty about other tags — it naturally excludes generic tags because knowing two papers both study "game theory" tells you nothing about their subtopics.{data.has_jaccard_ce && " Conditional Entropy produces more discriminating tag sets and higher silhouette scores for topically homogeneous categories."}
+              Three tag selection methods are compared. <em>Laplacian score</em> measures whether nearby papers agree on a tag — preserves neighborhood structure but includes ubiquitous tags. <em>Conditional Entropy</em> measures how much sharing a tag reduces uncertainty about other tags. <em>Pointwise Mutual Information (PMI)</em> selects tags with the strongest non-random co-occurrence patterns — it naturally excludes generic tags like "game theory" because they co-occur with everything at the expected rate. PMI at top-50 achieves the highest average silhouette (0.700 across K=2-10), producing the most robust clusters for homogeneous categories.
             </div>
             <div>
               <span className="text-foreground font-medium">3. Stability Cutoff.</span>{" "}
@@ -651,10 +658,29 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       {data.ce_selected_tags && (
         <div className="border border-border rounded-lg p-4 bg-card">
           <h3 className="text-sm font-medium mb-1">Conditional Entropy Stable Tags ({data.ce_stable_cutoff})</h3>
-          <p className="text-xs text-muted-foreground mb-3">CE-ranked tags at the Procrustes stability cutoff — the point where adding more tags stops changing the map.</p>
+          <p className="text-xs text-muted-foreground mb-3">CE-ranked tags at the Procrustes stability cutoff.</p>
           <div className="flex flex-wrap gap-1.5">
             {Object.entries(data.ce_selected_tags).sort((a, b) => b[1] - a[1]).map(([tag, count]) => {
               const maxCount = Math.max(...Object.values(data.ce_selected_tags));
+              const opacity = 0.4 + (count / maxCount) * 0.6;
+              return (
+                <span key={tag} className="px-2 py-0.5 rounded-full border border-border text-xs" style={{ opacity }}>
+                  {tag} <span className="text-muted-foreground/60">{count}</span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* PMI Top 50 tags */}
+      {data.pmi50_selected_tags && (
+        <div className="border border-border rounded-lg p-4 bg-card">
+          <h3 className="text-sm font-medium mb-1">PMI Top 50 Tags</h3>
+          <p className="text-xs text-muted-foreground mb-3">Tags ranked by average Pointwise Mutual Information — tags with the strongest non-random co-occurrence patterns. Excludes ubiquitous tags naturally. Best avg silhouette (0.700) across all methods at this scale. Note: 44% of papers have no PMI-top-50 tags and fall into a catch-all cluster.</p>
+          <div className="flex flex-wrap gap-1.5">
+            {Object.entries(data.pmi50_selected_tags).sort((a, b) => b[1] - a[1]).map(([tag, count]) => {
+              const maxCount = Math.max(...Object.values(data.pmi50_selected_tags));
               const opacity = 0.4 + (count / maxCount) * 0.6;
               return (
                 <span key={tag} className="px-2 py-0.5 rounded-full border border-border text-xs" style={{ opacity }}>
