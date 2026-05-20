@@ -31,7 +31,12 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       ? `${API}/api/similarity-landscape`
       : `${API}/api/similarity-landscape/${category}`;
     axios.get(url, { params: { _t: Date.now() } })
-      .then(r => { setData(r.data); setNClusters(r.data.n_clusters); setLoading(false); })
+      .then(r => {
+        setData(r.data);
+        setNClusters(r.data.n_clusters);
+        if (r.data.has_jaccard_stable && !r.data.cluster_labels) setEmbMode("jaccard_stable");
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, [category]);
 
@@ -209,9 +214,9 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       {/* Controls */}
       <div className="flex flex-wrap gap-4 items-center">
         <div className="flex gap-1.5">
-          <button onClick={() => { setUseUmap(false); setEmbMode(null); }}
+          {(data.has_umap || data.cluster_labels) && <button onClick={() => { setUseUmap(false); setEmbMode(null); }}
             className={`px-2.5 py-1 text-xs rounded-md transition-colors ${!useUmap && !embMode ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
-          >MDS</button>
+          >MDS</button>}
           {data.has_umap && <button onClick={() => { setUseUmap(true); setEmbMode(null); }}
             className={`px-2.5 py-1 text-xs rounded-md transition-colors ${useUmap && !embMode ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
           >UMAP</button>}
@@ -256,7 +261,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
           {data.has_jaccard_stable &&
             <button onClick={() => { setUseUmap(false); setEmbMode("jaccard_stable"); }}
               className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "jaccard_stable" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
-            >Jaccard: Stable (35)</button>
+            >Jaccard: Stable ({data.stable_cutoff || Object.keys(data.stable_selected_tags || {}).length})</button>
           }
         </div>
         <div className="flex items-center gap-1.5 text-xs">
