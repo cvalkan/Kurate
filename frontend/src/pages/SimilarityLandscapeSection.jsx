@@ -51,6 +51,8 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       : embMode === "jaccard_lap14" ? data.jaccard_lap14_best_k
       : embMode === "jaccard_stable" ? data.jaccard_stable_best_k
       : embMode === "jaccard_lap10" ? data.jaccard_lap10_best_k
+      : embMode === "jaccard_ce" ? data.jaccard_ce_best_k
+      : embMode === "jaccard_ce10" ? data.jaccard_ce10_best_k
       : embMode?.startsWith("jaccard_") ? data[`${embMode}_best_k`]
       : data.n_clusters;
     if (bestK) setNClusters(bestK);
@@ -269,6 +271,16 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
               className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "jaccard_lap10" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
             >Jaccard: Top 10</button>
           }
+          {data.has_jaccard_ce &&
+            <button onClick={() => { setUseUmap(false); setEmbMode("jaccard_ce"); }}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "jaccard_ce" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >CE: Stable ({data.ce_stable_cutoff})</button>
+          }
+          {data.has_jaccard_ce10 &&
+            <button onClick={() => { setUseUmap(false); setEmbMode("jaccard_ce10"); }}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "jaccard_ce10" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >CE: Top 10</button>
+          }
         </div>
         <div className="flex items-center gap-1.5 text-xs">
           <span className="text-muted-foreground">Clusters:</span>
@@ -313,6 +325,8 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
                   : embMode === "jaccard_lap10" ? (data.lap10_tag_set || [])
                   : embMode === "jaccard_laplacian" ? (data.laplacian100_tag_set || [])
                   : embMode === "jaccard_stable" ? (data.stable_tag_set || [])
+                  : embMode === "jaccard_ce" ? (data.ce_tag_set || [])
+                  : embMode === "jaccard_ce10" ? (data.ce10_tag_set || [])
                   : []
                 );
                 return (
@@ -428,26 +442,26 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
         <div className="text-xs text-muted-foreground space-y-2.5 leading-relaxed max-w-3xl">
           {data.method === "incremental_tags_laplacian_stable" ? <>
             {/* Streamlined methodology for pipeline-generated maps (GT etc.) */}
-            <p className="text-foreground font-medium text-sm">Papers mapped using: incremental tag extraction → Laplacian feature selection → Procrustes stability analysis → UMAP with native Jaccard metric.</p>
+            <p className="text-foreground font-medium text-sm">Papers mapped using: incremental tag extraction → feature selection → Procrustes stability analysis → UMAP with native Jaccard metric.</p>
             <div>
               <span className="text-foreground font-medium">1. Incremental Tag Extraction.</span>{" "}
-              Claude Opus 4.6 extracts 8-10 descriptive tags per paper as a flat list (topics, methods, domains, concepts combined). Each paper sees the full vocabulary extracted so far and reuses existing tags where suitable. This produces a self-consistent vocabulary with minimal synonyms — {data.n_papers} papers yielded {Object.keys(data.incremental_tag_summary || {}).length > 0 ? `${data.stable_cutoff ? "~" + Math.round(Object.keys(data.stable_selected_tags || {}).length / 0.3) : "?"} unique tags` : "a compact vocabulary"}.
+              Claude Opus 4.6 extracts 8-10 descriptive tags per paper as a flat list. Each paper sees the full vocabulary extracted so far and reuses existing tags where suitable, producing a self-consistent vocabulary with minimal synonyms ({data.n_papers} papers, ~{Object.keys(data.incremental_tag_summary || {}).length * 10} unique tags).
             </div>
             <div>
-              <span className="text-foreground font-medium">2. Laplacian Feature Selection.</span>{" "}
-              Tags are ranked by their Laplacian score — measuring whether nearby papers (by other-tag similarity) agree on this tag. High-scoring tags capture meaningful structure; low-scoring ones are noise. The Procrustes stability chart above shows how much the map changes when adding each tag.
+              <span className="text-foreground font-medium">2. Feature Selection.</span>{" "}
+              Two tag selection methods are compared. <em>Laplacian score</em> measures whether nearby papers agree on a tag — it preserves neighborhood structure but can include ubiquitous tags (e.g. "game theory") that don't discriminate. <em>Conditional Entropy</em> measures how much sharing a tag reduces uncertainty about other tags — it naturally excludes generic tags because knowing two papers both study "game theory" tells you nothing about their subtopics.{data.has_jaccard_ce && " Conditional Entropy produces more discriminating tag sets and higher silhouette scores for topically homogeneous categories."}
             </div>
             <div>
               <span className="text-foreground font-medium">3. Stability Cutoff.</span>{" "}
-              Tags are added in Laplacian rank order until the map stabilizes — the point where adding more tags stops meaningfully reorganizing the layout (Procrustes distance &lt; 0.20). For this category: <b>{data.stable_cutoff} tags</b>. A silhouette-optimized "Top 10" view is also available for maximum cluster separation.
+              Tags are added in rank order until the map stabilizes — the Procrustes distance between consecutive layouts drops below 0.20. The chart above shows this curve. Both "Stable" views use this principled cutoff.{data.has_jaccard_lap10 && " Silhouette-optimized 'Top 10' views are also available for maximum cluster separation at the cost of stability."}
             </div>
             <div>
               <span className="text-foreground font-medium">4. UMAP Projection.</span>{" "}
-              Papers are represented as binary tag vectors and projected to 2D using UMAP with native Jaccard metric (not a precomputed distance matrix). This lets UMAP build proper nearest-neighbor graphs directly from the binary data.
+              Papers are represented as binary tag vectors and projected to 2D using UMAP with native Jaccard metric. This lets UMAP build proper nearest-neighbor graphs directly from the binary data, avoiding ring artifacts from precomputed distance matrices.
             </div>
             <div>
               <span className="text-foreground font-medium">5. Clustering &amp; Titles.</span>{" "}
-              K-Means on the 2D UMAP coordinates for K=1-10, default K from best silhouette score. Claude Opus 4.6 generates contrastive cluster titles by seeing abstracts from all clusters simultaneously.
+              K-Means on the 2D UMAP coordinates for K=1-10, default K from best silhouette score. Claude Opus 4.6 generates contrastive cluster titles by seeing abstracts from all clusters simultaneously. Tags used for each view are highlighted in the paper tooltip.
             </div>
           </> : <>
             {/* Full comparative methodology for physics etc. */}
@@ -605,6 +619,47 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
                     ))}
                   </div>
                 </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* CE Top 10 tags */}
+      {data.ce10_selected_tags && (
+        <div className="border border-border rounded-lg p-4 bg-card">
+          <h3 className="text-sm font-medium mb-1">Conditional Entropy Top 10 Tags</h3>
+          <p className="text-xs text-muted-foreground mb-3">Tags ranked by conditional entropy — sharing these tags maximally reduces uncertainty about a paper's other tags. Unlike Laplacian, CE naturally excludes ubiquitous tags.</p>
+          <div className="space-y-0.5">
+            {Object.entries(data.ce10_selected_tags).sort((a, b) => b[1] - a[1]).map(([tag, count]) => {
+              const maxCount = Math.max(...Object.values(data.ce10_selected_tags));
+              return (
+                <div key={tag} className="flex items-center gap-2 text-xs">
+                  <div className="flex-1 flex items-center gap-1.5">
+                    <div className="h-1.5 rounded-full bg-rose-500/50" style={{ width: `${count / maxCount * 100}%`, minWidth: 4 }} />
+                    <span className="text-muted-foreground truncate">{tag}</span>
+                  </div>
+                  <span className="text-muted-foreground/60 tabular-nums shrink-0">{count}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* CE Stable tags */}
+      {data.ce_selected_tags && (
+        <div className="border border-border rounded-lg p-4 bg-card">
+          <h3 className="text-sm font-medium mb-1">Conditional Entropy Stable Tags ({data.ce_stable_cutoff})</h3>
+          <p className="text-xs text-muted-foreground mb-3">CE-ranked tags at the Procrustes stability cutoff — the point where adding more tags stops changing the map.</p>
+          <div className="flex flex-wrap gap-1.5">
+            {Object.entries(data.ce_selected_tags).sort((a, b) => b[1] - a[1]).map(([tag, count]) => {
+              const maxCount = Math.max(...Object.values(data.ce_selected_tags));
+              const opacity = 0.4 + (count / maxCount) * 0.6;
+              return (
+                <span key={tag} className="px-2 py-0.5 rounded-full border border-border text-xs" style={{ opacity }}>
+                  {tag} <span className="text-muted-foreground/60">{count}</span>
+                </span>
               );
             })}
           </div>
