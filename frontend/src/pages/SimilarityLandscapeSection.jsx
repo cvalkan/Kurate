@@ -476,105 +476,70 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
         <h3 className="text-sm font-medium">Methodology</h3>
         <div className="text-xs text-muted-foreground space-y-2.5 leading-relaxed max-w-3xl">
           {data.method === "incremental_tags_laplacian_stable" ? <>
-            {/* Streamlined methodology for pipeline-generated maps (GT etc.) */}
-            <p className="text-foreground font-medium text-sm">Papers mapped using: incremental tag extraction → feature selection → Procrustes stability analysis → UMAP with native Jaccard metric.</p>
+            {/* Pipeline-generated maps methodology */}
+            <p className="text-foreground font-medium text-sm">This page compares multiple similarity methods side by side. The recommended view is <b>Embedding: Combined</b> — the best overall map quality.</p>
+            
+            <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Recommended: Combined Embedding (text + tags)</div>
             <div>
-              <span className="text-foreground font-medium">1. Incremental Tag Extraction.</span>{" "}
-              Claude Opus 4.6 extracts 8-10 descriptive tags per paper as a flat list. Each paper sees the full vocabulary extracted so far and reuses existing tags where suitable, producing a self-consistent vocabulary with minimal synonyms ({data.n_papers} papers, ~{Object.keys(data.incremental_tag_summary || {}).length * 10} unique tags).
+              <span className="text-foreground font-medium">Pipeline.</span>{" "}
+              Each paper is represented by two embeddings: (1) the abstract + Claude Opus 4.6 impact summary, and (2) Claude's incremental tags as a comma-separated string. Both are embedded using OpenAI <code className="text-[11px]">text-embedding-3-large</code> (3072 dimensions) and averaged. The combined embedding captures both the full text context and Claude's domain-aware tag vocabulary. Cosine distance between all N&times;N pairs produces a dense similarity matrix with 100% coverage.
             </div>
             <div>
-              <span className="text-foreground font-medium">2. Feature Selection.</span>{" "}
-              Three tag selection methods are compared. <em>Laplacian score</em> measures whether nearby papers agree on a tag — preserves neighborhood structure but includes ubiquitous tags. <em>Conditional Entropy</em> measures how much sharing a tag reduces uncertainty about other tags. <em>Pointwise Mutual Information (PMI)</em> selects tags with the strongest non-random co-occurrence patterns — it naturally excludes generic tags like "game theory" because they co-occur with everything at the expected rate. PMI at top-50 achieves the highest average silhouette (0.700 across K=2-10), producing the most robust clusters for homogeneous categories.
+              <span className="text-foreground font-medium">Clustering.</span>{" "}
+              Following the ResearchDB methodology, embeddings are first reduced to 40 dimensions via UMAP (n_neighbors=120, min_dist=0.08), then clustered with HDBSCAN — a density-based algorithm that finds natural clusters without specifying K and honestly labels outlier papers as noise rather than forcing them into a cluster. The 2D visualization is a separate UMAP projection for display only; clustering happens in the richer 40D space.
             </div>
             <div>
-              <span className="text-foreground font-medium">3. Stability Cutoff.</span>{" "}
-              Tags are added in rank order until the map stabilizes — the Procrustes distance between consecutive layouts drops below 0.20. The chart above shows this curve. Both "Stable" views use this principled cutoff.{data.has_jaccard_lap10 && " Silhouette-optimized 'Top 10' views are also available for maximum cluster separation at the cost of stability."}
+              <span className="text-foreground font-medium">Why this wins.</span>{" "}
+              In side-by-side comparison across all quality metrics — trustworthiness (map faithfulness), neighborhood preservation, tag explainability, and full-space silhouette (cluster reality) — the combined embedding approach outperformed tag-based Jaccard methods, LLM pairwise scoring, and individual embedding variants. The key insight: Claude's tags provide domain-specific vocabulary that generic embeddings miss, while embeddings provide continuous semantic similarity that binary tags can't capture.
+            </div>
+
+            <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Tag-Based Methods (Jaccard views)</div>
+            <div>
+              <span className="text-foreground font-medium">Incremental Tag Extraction.</span>{" "}
+              Claude Opus 4.6 extracts 8-10 descriptive tags per paper sequentially — each paper sees the growing vocabulary and reuses existing terms. This produces a self-consistent vocabulary with minimal synonyms. Multiple tag selection methods were compared: Laplacian score (neighborhood preservation), Conditional Entropy (information value), and PMI (non-random co-occurrence). Tags are projected to 2D using UMAP with native Jaccard metric.
             </div>
             <div>
-              <span className="text-foreground font-medium">4. UMAP Projection.</span>{" "}
-              Papers are represented as binary tag vectors and projected to 2D using UMAP with native Jaccard metric. This lets UMAP build proper nearest-neighbor graphs directly from the binary data, avoiding ring artifacts from precomputed distance matrices.
+              <span className="text-foreground font-medium">Limitation.</span>{" "}
+              HDBSCAN on the full tag Jaccard distance matrix finds near-zero cluster structure (silhouette &lt; 0.06) for both physics and game theory — papers within a single arXiv category form a continuous similarity space, not discrete clusters. The visual clusters on tag-based maps are artifacts of UMAP's nonlinear projection. Tag methods remain valuable for explainability (tooltip tag highlighting) but not for map construction.
             </div>
+
+            <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Shared</div>
             <div>
-              <span className="text-foreground font-medium">5. Clustering &amp; Titles.</span>{" "}
-              K-Means on the 2D UMAP coordinates for K=1-10, default K from best silhouette score. Claude Opus 4.6 generates contrastive cluster titles by seeing abstracts from all clusters simultaneously. Tags used for each view are highlighted in the paper tooltip.
+              <span className="text-foreground font-medium">Cluster Titles.</span>{" "}
+              Claude Opus 4.6 generates contrastive titles by seeing abstracts from all clusters simultaneously. Dot size reflects Kurate impact score in 5 tiers. Tags from the incremental vocabulary are shown in paper tooltips, with active-view tags highlighted.
             </div>
           </> : <>
-            {/* Full comparative methodology for physics etc. */}
-            <p className="text-foreground font-medium text-sm">This page compares multiple methods for mapping research papers in 2D: LLM pairwise scoring, text embeddings, tag-based similarity (Jaccard), and Laplacian-filtered tag selection.</p>
+            {/* Physics comparative methodology */}
+            <p className="text-foreground font-medium text-sm">This page documents an extensive comparison of similarity methods for research paper mapping. The recommended view is <b>Embedding: Combined</b>.</p>
 
-            <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">LLM Pairwise Methods (MDS &amp; UMAP)</div>
-          <div>
-            <span className="text-foreground font-medium">1. Pairwise Similarity Scoring.</span>{" "}
-            Each paper is compared with 20 randomly selected papers from the same category. For each pair, Claude Opus 4.6 rates topical similarity on an integer scale from 1 (unrelated) to 20 (identical research question), using the paper's abstract and AI impact assessment as input. This produces a sparse similarity matrix covering ~10% of all possible pairs.
-          </div>
-          <div>
-            <span className="text-foreground font-medium">2. Distance Matrix.</span>{" "}
-            Similarity scores are converted to distances (distance = 20 &minus; similarity). Uncompared pairs receive the median distance (10), positioning them neutrally.
-          </div>
-          <div>
-            <span className="text-foreground font-medium">3. MDS Embedding.</span>{" "}
-            Multidimensional Scaling projects the distance matrix into 2D by minimizing <em>stress</em> — the difference between original and 2D distances. Preserves global structure but can distort local neighborhoods.
-          </div>
-          <div>
-            <span className="text-foreground font-medium">4. UMAP Embedding.</span>{" "}
-            UMAP constructs a k-nearest-neighbor graph from the distance matrix, then optimizes a layout preserving topological structure. Prioritizes local neighborhoods over global distances, producing more visually separated clusters.
-          </div>
-
-          <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Embedding Methods (Emb: Abstract, Emb: Summary &amp; Emb: Tags)</div>
-          <div>
-            <span className="text-foreground font-medium">5. Text Embeddings.</span>{" "}
-            Each paper is embedded into a 1536-dimensional vector using OpenAI <code className="text-[11px]">text-embedding-3-small</code>. Two variants are compared: <em>Abstract</em> (abstract text only) and <em>Summary</em> (abstract + Claude Opus 4.6 impact assessment). Cosine similarity between all N&times;N paper pairs produces a dense distance matrix with 100% coverage — no missing pairs, no sampling needed.
-          </div>
-          <div>
-            <span className="text-foreground font-medium">6. Tag Embeddings.</span>{" "}
-            Claude Opus 4.6 extracts structured tags from each paper's summary: topics (3-5), methods (2-4), application domains (1-2), and key concepts (3-5), using canonical terminology to reduce synonyms. The concatenated tag string is then embedded using the same embedding model. This combines Claude's domain-aware semantic understanding with embedding-based fuzzy matching for related-but-not-identical terms.
-          </div>
-          <div>
-            <span className="text-foreground font-medium">7. Consolidated Tag Embeddings.</span>{" "}
-            The 2,856 unique raw tags are themselves embedded, then clustered into 150 canonical groups using agglomerative clustering on cosine distances. Each group is named after its most frequent member (e.g. "Monte Carlo simulation" and "Monte Carlo sampling" merge under "Monte Carlo simulation"). Papers are represented as binary vectors over these 150 groups, and cosine similarity is computed directly — no text embedding needed. This tests whether synonym consolidation improves clustering quality.
-          </div>
-          <div>
-            <span className="text-foreground font-medium">8. Jaccard on Incremental Tags.</span>{" "}
-            Instead of extracting tags independently per paper, Claude processes papers sequentially — each paper sees the full vocabulary extracted so far and is instructed to reuse existing tags where suitable, only coining new terms when genuinely needed. This reduces 2,856 fragmented tags to 658 canonical terms (77% reduction) with only 15% hapax tags (vs 82% for independent extraction). Similarity is computed as Jaccard index (tag set overlap) directly — no embeddings needed. Five views are available: <em>All</em> (combined tags, silhouette 0.444), <em>Topics</em> (research subfields, 0.475), <em>Methods</em> (computational techniques, 0.457), <em>Domains</em> (application areas, 0.829 — near-perfect separation with only 14 terms), and <em>Concepts</em> (scientific concepts, 0.422). The per-criterion views reveal which dimension drives clustering: domain membership produces the clearest separation, while concepts are too fragmented to cluster well.
-          </div>
-          <div>
-            <span className="text-foreground font-medium">9. Laplacian-Filtered Jaccard.</span>{" "}
-            Not all tags are equally useful for clustering. The <em>Laplacian score</em> measures whether a tag preserves local neighborhood structure: if two papers are similar (by other tags), do they agree on this tag? Three variants are tested using the top-N Laplacian-ranked tags:
-          </div>
-          <div className="ml-4 space-y-1.5">
+            <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Key Finding</div>
             <div>
-              <span className="text-foreground font-medium">Top 14</span> (silhouette-optimized): achieves <b>0.918</b> at K=7 — the highest single silhouette across all methods. However, this operates in the "unstable" regime where adding one more tag significantly reorganizes the map.
+              Papers within a single arXiv category form a <em>continuous similarity space</em>, not discrete clusters. HDBSCAN on the full Jaccard distance matrix finds near-zero cluster structure (silhouette &lt; 0.06). The visual clusters on all maps are created by UMAP's nonlinear projection — local neighborhoods are real (trustworthiness 0.86-0.92), but cluster boundaries are artificial. The "best" map maximizes neighborhood fidelity, not cluster crispness.
+            </div>
+
+            <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Methods Tested (best → worst by neighborhood quality)</div>
+            <div>
+              <span className="text-foreground font-medium">1. Combined Embedding (recommended).</span>{" "}
+              Average of text embedding (abstract + summary) and tag embedding (Claude's incremental tags) using <code className="text-[11px]">text-embedding-3-large</code> (3072D). UMAP to 40D → HDBSCAN → 2D visualization. Best trustworthiness (0.92), best neighborhood preservation, 4.4 avg shared tags with nearest neighbors.
             </div>
             <div>
-              <span className="text-foreground font-medium">Stable (35)</span> (stability-optimized): the cutoff is determined by <em>Procrustes stability analysis</em> — tags are added one by one and the layout change between consecutive maps is measured. The "elbow" where the smoothed Procrustes distance drops below 0.20 and stays there is at ~35 tags. This map is robust: adding tag #36 barely changes the layout. Achieves silhouette 0.804 at K=2.
+              <span className="text-foreground font-medium">2. Tag-based methods (Jaccard views).</span>{" "}
+              Incremental tags → various feature selection (Laplacian, CE, PMI) → Jaccard → UMAP 2D → K-means. High 2D silhouette but lower trustworthiness (0.83-0.88). Visual clusters are crisper but less faithful to actual similarity structure. Valuable for tag-based explainability.
             </div>
             <div>
-              <span className="text-foreground font-medium">Top 100</span>: broader vocabulary captures more nuance but dilutes cluster separation (silhouette 0.760 at K=2).
+              <span className="text-foreground font-medium">3. LLM Pairwise Scoring (MDS/UMAP views).</span>{" "}
+              Claude rates similarity 1-20 for N&times;20 paper pairs (~10% coverage). Uncompared pairs receive default mid-distance, corrupting 90% of the distance matrix. Transitive inference can recover 81% of missing pairs (small-world effect), but embedding fallback for the remainder means the signal is mostly embeddings anyway. 375&times; more expensive than embeddings with worse map quality (1.8 vs 4.4 avg shared tags with neighbors).
             </div>
-          </div>
-          <div>
-            <span className="text-foreground font-medium">10. UMAP Projection.</span>{" "}
-            All distance matrices (LLM pairwise, embedding cosine, Jaccard) are projected to 2D using UMAP with the same parameters (n_neighbors=12, min_dist=0.5, spread=2.0). Dense matrices (embeddings, Jaccard) produce more reliable local structure than the sparse LLM pairwise matrix.
-          </div>
 
-          <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Shared</div>
-          <div>
-            <span className="text-foreground font-medium">11. Clustering.</span>{" "}
-            K-Means is applied independently to each embedding's 2D coordinates for K=1 through 10. Clusters are view-specific — switching between methods shows clusters computed on that method's layout. The default K maximizes silhouette score.
-          </div>
-          <div>
-            <span className="text-foreground font-medium">12. Cluster Titles.</span>{" "}
-            For the LLM pairwise methods, Claude Opus 4.6 generates contrastive cluster titles by seeing abstracts from ALL clusters simultaneously. For embedding methods, titles fall back to keyword extraction from paper titles within each cluster.
-          </div>
-          <div>
-            <span className="text-foreground font-medium">13. Dot Sizing.</span>{" "}
-            Each paper's dot radius reflects its Kurate impact score in 5 tiers: &ge;1500 (largest), 1400, 1300, 1200, and &lt;1200 (smallest).
-          </div>
+            <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Cost Comparison</div>
+            <div>
+              Combined embedding: ~$0.02, 30 seconds. Tag extraction + Jaccard: ~$0.75, 12 min. LLM pairwise: ~$7.50, 85 min. The cheapest method produces the best maps.
+            </div>
 
-          <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Cost Comparison</div>
-          <div>
-            The LLM pairwise approach requires N&times;20 Claude calls (~$7.50 for 249 papers, ~85 min). Abstract/summary embeddings require N OpenAI embedding calls (~$0.01, ~30 sec). Tag embeddings require N Claude calls for extraction + N embedding calls (~$0.75, ~8 min). Incremental tag extraction costs the same (~$0.75, ~12 min sequential) but produces a self-consistent vocabulary that works with simple Jaccard similarity. Laplacian-filtered Jaccard on just 14 selected tags achieved the highest silhouette (<b>0.918</b> at K=7) — demonstrating that a tiny, carefully selected vocabulary outperforms both expensive pairwise LLM scoring and high-dimensional embeddings.
-          </div>
+            <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">Visualization</div>
+            <div>
+              All views use UMAP for 2D projection and K-Means or HDBSCAN for clustering. Dot size = Kurate impact score (5 tiers). Cluster titles generated by Claude Opus 4.6 using contrastive prompting (sees all clusters simultaneously). Tags highlighted in tooltips for Jaccard views.
+            </div>
           </>}
         </div>
       </div>
