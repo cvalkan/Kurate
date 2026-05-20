@@ -34,7 +34,8 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       .then(r => {
         setData(r.data);
         setNClusters(r.data.n_clusters);
-        if (r.data.has_jaccard_stable && !r.data.cluster_labels) setEmbMode("jaccard_stable");
+        if (r.data.has_emb_combined_large) setEmbMode("emb_combined_large");
+        else if (r.data.has_jaccard_stable && !r.data.cluster_labels) setEmbMode("jaccard_stable");
         else if (r.data.has_jaccard_all && !r.data.cluster_labels && !r.data.has_jaccard_stable) setEmbMode("jaccard_all");
         setLoading(false);
       })
@@ -57,6 +58,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       : embMode === "jaccard_ce10" ? data.jaccard_ce10_best_k
       : embMode === "jaccard_pmi50" ? data.jaccard_pmi50_best_k
       : embMode === "jaccard_pmi60" ? data.jaccard_pmi60_best_k
+      : embMode === "emb_combined_large" ? (data.emb_combined_large_best_k || 4)
       : embMode?.startsWith("jaccard_") ? data[`${embMode}_best_k`]
       : data.n_clusters;
     if (bestK) setNClusters(bestK);
@@ -69,7 +71,8 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
     const k = nClusters;
 
     // Use cluster labels matching the current view
-    const labelsKey = embMode === "abstract" ? "emb_abstract_cluster_labels"
+    const labelsKey = embMode === "emb_combined_large" ? "emb_combined_large_cluster_labels"
+      : embMode === "abstract" ? "emb_abstract_cluster_labels"
       : embMode === "combined" ? "emb_combined_cluster_labels"
       : embMode === "tags" ? "emb_tags_cluster_labels"
       : embMode === "tags_consolidated" ? "emb_tags_consolidated_cluster_labels"
@@ -130,8 +133,8 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
   const chartData = useMemo(() => {
     if (!clustered.length) return [];
     return clustered.map(p => ({
-      x: embMode === "abstract" ? p.x_emb_abstract : embMode === "combined" ? p.x_emb_combined : embMode === "tags" ? p.x_emb_tags : embMode === "tags_consolidated" ? p.x_emb_tags_consolidated : embMode?.startsWith("jaccard_") ? (p[`x_${embMode}`] || p.x) : useUmap ? p.x_umap : p.x,
-      y: embMode === "abstract" ? p.y_emb_abstract : embMode === "combined" ? p.y_emb_combined : embMode === "tags" ? p.y_emb_tags : embMode === "tags_consolidated" ? p.y_emb_tags_consolidated : embMode?.startsWith("jaccard_") ? (p[`y_${embMode}`] || p.y) : useUmap ? p.y_umap : p.y,
+      x: embMode === "emb_combined_large" ? (p.x_emb_combined_large || p.x) : embMode === "abstract" ? p.x_emb_abstract : embMode === "combined" ? p.x_emb_combined : embMode === "tags" ? p.x_emb_tags : embMode === "tags_consolidated" ? p.x_emb_tags_consolidated : embMode?.startsWith("jaccard_") ? (p[`x_${embMode}`] || p.x) : useUmap ? p.x_umap : p.x,
+      y: embMode === "emb_combined_large" ? (p.y_emb_combined_large || p.y) : embMode === "abstract" ? p.y_emb_abstract : embMode === "combined" ? p.y_emb_combined : embMode === "tags" ? p.y_emb_tags : embMode === "tags_consolidated" ? p.y_emb_tags_consolidated : embMode?.startsWith("jaccard_") ? (p[`y_${embMode}`] || p.y) : useUmap ? p.y_umap : p.y,
       title: p.title,
       cluster: p.cluster,
       score: p.score,
@@ -144,7 +147,8 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
 
   const clusterNames = useMemo(() => {
     // Use pre-generated LLM titles matching the current view
-    const titlesSource = embMode === "jaccard_incr" ? data?.jaccard_incr_cluster_titles
+    const titlesSource = embMode === "emb_combined_large" ? data?.emb_combined_large_cluster_titles
+      : embMode === "jaccard_incr" ? data?.jaccard_incr_cluster_titles
       : embMode === "jaccard_laplacian" ? data?.jaccard_laplacian_cluster_titles
       : embMode?.startsWith("jaccard_") ? data?.[`${embMode}_cluster_titles`]
       : embMode ? null
@@ -299,6 +303,11 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
             <button onClick={() => { setUseUmap(false); setEmbMode("jaccard_pmi60"); }}
               className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "jaccard_pmi60" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
             >PMI: Stable (60)</button>
+          }
+          {data.has_emb_combined_large &&
+            <button onClick={() => { setUseUmap(false); setEmbMode("emb_combined_large"); }}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "emb_combined_large" ? "bg-foreground text-background font-medium" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >Embedding: Combined</button>
           }
         </div>
         <div className="flex items-center gap-1.5 text-xs">
