@@ -35,6 +35,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
         setData(r.data);
         setNClusters(r.data.n_clusters);
         if (r.data.has_jaccard_stable && !r.data.cluster_labels) setEmbMode("jaccard_stable");
+        else if (r.data.has_jaccard_all && !r.data.cluster_labels && !r.data.has_jaccard_stable) setEmbMode("jaccard_all");
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -50,6 +51,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       : embMode === "jaccard_laplacian" ? data.jaccard_laplacian_best_k
       : embMode === "jaccard_lap14" ? data.jaccard_lap14_best_k
       : embMode === "jaccard_stable" ? data.jaccard_stable_best_k
+      : embMode === "jaccard_all" ? data.jaccard_all_best_k
       : embMode === "jaccard_lap10" ? data.jaccard_lap10_best_k
       : embMode === "jaccard_ce" ? data.jaccard_ce_best_k
       : embMode === "jaccard_ce10" ? data.jaccard_ce10_best_k
@@ -267,6 +269,11 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
             <button onClick={() => { setUseUmap(false); setEmbMode("jaccard_stable"); }}
               className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "jaccard_stable" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
             >Jaccard: Stable ({data.stable_cutoff || Object.keys(data.stable_selected_tags || {}).length})</button>
+          }
+          {data.has_jaccard_all &&
+            <button onClick={() => { setUseUmap(false); setEmbMode("jaccard_all"); }}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "jaccard_all" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >Jaccard: All tags</button>
           }
           {data.has_jaccard_lap10 &&
             <button onClick={() => { setUseUmap(false); setEmbMode("jaccard_lap10"); }}
