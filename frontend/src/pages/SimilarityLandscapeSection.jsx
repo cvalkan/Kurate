@@ -1,8 +1,49 @@
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, BarChart, Bar } from "recharts";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "../components/ui/tooltip";
 
 const API = process.env.REACT_APP_BACKEND_URL;
+
+// Quality-metric definitions. `dir`: "high" = higher is better, "low" = lower is better.
+const METRIC_DEFS = {
+  silhouette: {
+    label: "Silhouette",
+    dir: "high",
+    range: "[-1, 1]",
+    desc: "How well each paper sits inside its assigned cluster vs the nearest other cluster. Computed on the 2D layout (or feature space for embeddings).",
+  },
+  trustworthiness: {
+    label: "Trustworthiness",
+    dir: "high",
+    range: "[0, 1]",
+    desc: "Fraction of close neighbors in the original similarity space that remain close in the 2D map. Penalizes spurious neighborhoods introduced by projection.",
+  },
+  continuity: {
+    label: "Continuity",
+    dir: "high",
+    range: "[0, 1]",
+    desc: "Mirror of trustworthiness: fraction of close neighbors in the 2D map that were also close in the original space. Penalizes torn-apart neighborhoods.",
+  },
+  neighborhood_preservation: {
+    label: "Neighborhood preservation",
+    dir: "high",
+    range: "[0, 1]",
+    desc: "Overlap of each paper's k-nearest neighbors between the original space and the 2D map. Direct measure of local-structure fidelity.",
+  },
+  explainability: {
+    label: "Explainability",
+    dir: "high",
+    range: "[0, 1]",
+    desc: "Average fraction of a paper's nearest neighbors on the map that share at least one Claude-extracted tag. Higher = clusters are tag-coherent.",
+  },
+  davies_bouldin: {
+    label: "Davies-Bouldin",
+    dir: "low",
+    range: "[0, ∞)",
+    desc: "Average ratio of within-cluster scatter to between-cluster separation. Sensitive to overlapping or fuzzy clusters.",
+  },
+};
 
 const CLUSTER_COLORS = [
   "#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6",
@@ -199,9 +240,6 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
     <div className="space-y-4" data-testid="similarity-landscape">
       {/* Stats bar */}
       {(() => {
-        const isMds = !embMode && !useUmap;
-        const isUmap = !embMode && useUmap;
-        const isHdbscan = embMode === "emb_combined_large";
         const methodKey = embMode === "abstract" ? "emb_abstract"
           : embMode === "combined" ? "emb_combined"
           : embMode === "tags" ? "emb_tags"
@@ -210,77 +248,53 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
           : embMode === "emb_combined_large" ? "emb_combined_large"
           : embMode?.startsWith("jaccard_") ? embMode
           : useUmap ? "umap" : "mds";
+        // Silhouette uses the live K when available
         const perK = data.silhouettes_per_k?.[methodKey];
-        const silhouettePerK = (perK && perK[String(nClusters)] !== undefined) ? perK[String(nClusters)] : null;
-        const silhouetteBest = data[`${methodKey}_silhouette`] ?? data.silhouette;
-        const bestK = data[`${methodKey}_best_k`];
-        const noise = data[`${methodKey}_noise`];
-        const noisePct = (noise !== undefined && data.n_papers)
-          ? ((noise / data.n_papers) * 100).toFixed(0)
-          : null;
-        const coverage = (noise !== undefined && data.n_papers)
-          ? (100 - (noise / data.n_papers) * 100).toFixed(0)
-          : null;
-        // Per-cluster sizes for the current view
-        const clusterSizes = {};
-        clustered.forEach(p => { clusterSizes[p.cluster] = (clusterSizes[p.cluster] || 0) + 1; });
-        const sizes = Object.values(clusterSizes);
-        const minSize = sizes.length ? Math.min(...sizes) : 0;
-        const maxSize = sizes.length ? Math.max(...sizes) : 0;
-        const meanSize = sizes.length ? Math.round(sizes.reduce((a, b) => a + b, 0) / sizes.length) : 0;
-        const balance = (minSize && maxSize) ? (minSize / maxSize).toFixed(2) : null;
-        // Tag-based view: how many tags selected and Procrustes cutoff
-        const tagSelectionMap = {
-          jaccard_stable: { count: Object.keys(data.stable_selected_tags || {}).length || data.stable_cutoff, cutoff: data.stable_cutoff, type: "Laplacian" },
-          jaccard_laplacian: { count: Object.keys(data.laplacian_selected_tags || {}).length, type: "Laplacian Top 100" },
-          jaccard_lap14: { count: Object.keys(data.laplacian14_selected_tags || {}).length || 14, type: "Laplacian Top 14" },
-          jaccard_lap10: { count: Object.keys(data.lap10_selected_tags || {}).length || 10, type: "Laplacian Top 10" },
-          jaccard_ce: { count: Object.keys(data.ce_selected_tags || {}).length || data.ce_stable_cutoff, cutoff: data.ce_stable_cutoff, type: "Conditional Entropy" },
-          jaccard_ce10: { count: Object.keys(data.ce10_selected_tags || {}).length || 10, type: "Conditional Entropy Top 10" },
-          jaccard_pmi50: { count: Object.keys(data.pmi50_selected_tags || {}).length || 50, type: "PMI Top 50" },
-          jaccard_pmi60: { count: Object.keys(data.pmi60_selected_tags || {}).length || data.pmi_stable_cutoff, cutoff: data.pmi_stable_cutoff, type: "PMI" },
-          jaccard_all: { type: "All tags" },
+        const silhouetteVal = (perK && perK[String(nClusters)] !== undefined)
+          ? perK[String(nClusters)]
+          : (data[`${methodKey}_silhouette`] ?? data.silhouette);
+        const metricValues = {
+          silhouette: silhouetteVal,
+          trustworthiness: data[`${methodKey}_trustworthiness`],
+          continuity: data[`${methodKey}_continuity`],
+          neighborhood_preservation: data[`${methodKey}_neighborhood_preservation`],
+          explainability: data[`${methodKey}_explainability`],
+          davies_bouldin: data[`${methodKey}_davies_bouldin`],
         };
-        const tagInfo = embMode ? tagSelectionMap[embMode] : null;
-        const mdsStress = isMds ? data.mds_stress : null;
+        const renderMetric = (key) => {
+          const def = METRIC_DEFS[key];
+          const val = metricValues[key];
+          if (val === undefined || val === null) return null;
+          const arrow = def.dir === "high" ? "↑" : "↓";
+          return (
+            <Tooltip key={key} delayDuration={150}>
+              <TooltipTrigger asChild>
+                <span className="cursor-help underline decoration-dotted decoration-muted-foreground/40 underline-offset-4" data-testid={`metric-${key}`}>
+                  {def.label}: <b className="text-foreground">{Number(val).toFixed(3)}</b>
+                  <span className="text-muted-foreground/60 ml-1">{arrow}</span>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs bg-popover text-popover-foreground border border-border">
+                <div className="font-medium mb-1">{def.label} <span className="text-muted-foreground/70 font-normal">· {def.range}</span></div>
+                <div className="text-[11px] leading-snug">{def.desc}</div>
+                <div className="text-[11px] mt-1 text-muted-foreground">
+                  {def.dir === "high" ? "↑ Higher is better" : "↓ Lower is better"}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          );
+        };
         return (
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground" data-testid="landscape-metrics">
-            <span><b className="text-foreground">{data.n_papers}</b> papers</span>
-            {data.n_pairs > 0 && <span><b className="text-foreground">{data.n_pairs?.toLocaleString()}</b> pairs</span>}
-            {data.comps_per_paper > 0 && <span><b className="text-foreground">{data.comps_per_paper}</b> comps/paper</span>}
-            <span><b className="text-foreground">{nClusters}</b> clusters</span>
-            {silhouettePerK !== null && (
-              <span>Silhouette @K={nClusters}: <b className="text-foreground">{Number(silhouettePerK).toFixed(3)}</b></span>
-            )}
-            {silhouetteBest !== undefined && silhouetteBest !== null && (
-              <span>Silhouette (best): <b className="text-foreground">{Number(silhouetteBest).toFixed(3)}</b></span>
-            )}
-            {bestK !== undefined && (
-              <span>Best K: <b className="text-foreground">{bestK}</b></span>
-            )}
-            {mdsStress !== undefined && mdsStress !== null && (
-              <span>MDS stress: <b className="text-foreground">{mdsStress.toLocaleString()}</b></span>
-            )}
-            {noise !== undefined && (
-              <>
-                <span>HDBSCAN noise: <b className="text-foreground">{noise}</b> ({noisePct}%)</span>
-                <span>Coverage: <b className="text-foreground">{coverage}%</b></span>
-              </>
-            )}
-            {sizes.length > 0 && (
-              <>
-                <span>Cluster size: <b className="text-foreground">{minSize}</b>–<b className="text-foreground">{maxSize}</b> (μ={meanSize})</span>
-                {balance && <span>Balance: <b className="text-foreground">{balance}</b></span>}
-              </>
-            )}
-            {tagInfo?.count && (
-              <span>{tagInfo.type} tags: <b className="text-foreground">{tagInfo.count}</b>
-                {tagInfo.cutoff && <> (Procrustes cutoff: <b className="text-foreground">{tagInfo.cutoff}</b>)</>}
-              </span>
-            )}
-            <span>Model: {data.model}</span>
-            <span>Score range: {data.score_range}</span>
-          </div>
+          <TooltipProvider>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground items-center" data-testid="landscape-metrics">
+              <span><b className="text-foreground">{data.n_papers}</b> papers</span>
+              {data.n_pairs > 0 && <span><b className="text-foreground">{data.n_pairs?.toLocaleString()}</b> similarity comparisons</span>}
+              <span><b className="text-foreground">{nClusters}</b> clusters</span>
+              {Object.keys(METRIC_DEFS).map(renderMetric)}
+              <span>Model: {data.model}</span>
+              <span>Score range: {data.score_range}</span>
+            </div>
+          </TooltipProvider>
         );
       })()}
 
