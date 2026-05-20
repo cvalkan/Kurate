@@ -50,6 +50,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       : embMode === "jaccard_laplacian" ? data.jaccard_laplacian_best_k
       : embMode === "jaccard_lap14" ? data.jaccard_lap14_best_k
       : embMode === "jaccard_stable" ? data.jaccard_stable_best_k
+      : embMode === "jaccard_lap10" ? data.jaccard_lap10_best_k
       : embMode?.startsWith("jaccard_") ? data[`${embMode}_best_k`]
       : data.n_clusters;
     if (bestK) setNClusters(bestK);
@@ -263,6 +264,11 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
               className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "jaccard_stable" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
             >Jaccard: Stable ({data.stable_cutoff || Object.keys(data.stable_selected_tags || {}).length})</button>
           }
+          {data.has_jaccard_lap10 &&
+            <button onClick={() => { setUseUmap(false); setEmbMode("jaccard_lap10"); }}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "jaccard_lap10" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >Jaccard: Top 10</button>
+          }
         </div>
         <div className="flex items-center gap-1.5 text-xs">
           <span className="text-muted-foreground">Clusters:</span>
@@ -302,6 +308,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
                 // Determine which tags are "active" for the current view
                 const activeTagSet = new Set(
                   embMode === "jaccard_lap14" ? (data.laplacian14_tag_set || [])
+                  : embMode === "jaccard_lap10" ? (data.lap10_tag_set || [])
                   : embMode === "jaccard_laplacian" ? (data.laplacian100_tag_set || [])
                   : embMode === "jaccard_stable" ? (data.stable_tag_set || [])
                   : []
@@ -378,11 +385,46 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
         </div>
       )}
 
+      {/* Procrustes stability chart */}
+      {data.procrustes_data && data.procrustes_data.length > 0 && (
+        <div className="border border-border rounded-lg p-4 bg-card">
+          <h3 className="text-sm font-medium mb-1">Procrustes Stability</h3>
+          <p className="text-xs text-muted-foreground mb-3">How much the map changes when adding one more tag (lower = more stable). The vertical line marks the stability cutoff ({data.stable_cutoff} tags) where the curve flattens.</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={data.procrustes_data} margin={{ top: 5, right: 10, bottom: 5, left: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
+              <XAxis dataKey="top_n" tick={{ fontSize: 10 }} label={{ value: "Number of tags", position: "bottom", fontSize: 11, offset: -5 }} />
+              <YAxis tick={{ fontSize: 10 }} width={40} label={{ value: "Layout change", angle: -90, position: "insideLeft", fontSize: 11 }} />
+              <RechartsTooltip
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const d = payload[0]?.payload;
+                  return (
+                    <div className="rounded-lg border border-border bg-popover px-2.5 py-1.5 shadow-lg text-xs">
+                      {d.top_n} tags: <b>{d.disparity.toFixed(3)}</b> Procrustes distance
+                    </div>
+                  );
+                }}
+              />
+              <Bar dataKey="disparity" radius={[2, 2, 0, 0]}
+                fill="#3b82f6" opacity={0.6}
+                shape={(props) => {
+                  const { x, y, width, height, payload } = props;
+                  const isStable = payload.top_n === data.stable_cutoff;
+                  return <rect x={x} y={y} width={width} height={height} rx={2}
+                    fill={isStable ? "#10b981" : "#3b82f6"} fillOpacity={isStable ? 0.9 : 0.5} />;
+                }}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
       {/* Methodology */}
       <div className="border border-border rounded-lg p-4 bg-card space-y-3">
         <h3 className="text-sm font-medium">Methodology</h3>
         <div className="text-xs text-muted-foreground space-y-2.5 leading-relaxed max-w-3xl">
-          <p className="text-foreground font-medium text-sm">This page compares multiple methods for mapping research papers in 2D. LLM pairwise scoring, text embeddings, tag-based similarity (Jaccard), and Laplacian-filtered tag selection are tested side by side.</p>
+          <p className="text-foreground font-medium text-sm">This page maps research papers in 2D using tag-based similarity. {data.category === "cs.GT" ? "Game theory papers were mapped using the optimized pipeline: incremental tag extraction → Laplacian feature selection → Procrustes stability analysis → UMAP with native Jaccard metric." : "Multiple methods are compared: LLM pairwise scoring, text embeddings, tag-based similarity (Jaccard), and Laplacian-filtered tag selection."}</p>
 
           <div className="mt-3 mb-1 text-foreground font-medium text-xs uppercase tracking-wider">LLM Pairwise Methods (MDS &amp; UMAP)</div>
           <div>
@@ -536,6 +578,28 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
                       </div>
                     ))}
                   </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Laplacian Top 10 tags */}
+      {data.lap10_selected_tags && (
+        <div className="border border-border rounded-lg p-4 bg-card">
+          <h3 className="text-sm font-medium mb-1">Laplacian Top 10 Tags</h3>
+          <p className="text-xs text-muted-foreground mb-3">The 10 most structure-preserving tags — silhouette-optimized for maximum cluster separation ({data.jaccard_lap10_silhouette} at K={data.jaccard_lap10_best_k}).</p>
+          <div className="space-y-0.5">
+            {Object.entries(data.lap10_selected_tags).sort((a, b) => b[1] - a[1]).map(([tag, count]) => {
+              const maxCount = Math.max(...Object.values(data.lap10_selected_tags));
+              return (
+                <div key={tag} className="flex items-center gap-2 text-xs">
+                  <div className="flex-1 flex items-center gap-1.5">
+                    <div className="h-1.5 rounded-full bg-amber-500/50" style={{ width: `${count / maxCount * 100}%`, minWidth: 4 }} />
+                    <span className="text-muted-foreground truncate">{tag}</span>
+                  </div>
+                  <span className="text-muted-foreground/60 tabular-nums shrink-0">{count}</span>
                 </div>
               );
             })}
