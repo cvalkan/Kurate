@@ -199,6 +199,9 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
     <div className="space-y-4" data-testid="similarity-landscape">
       {/* Stats bar */}
       {(() => {
+        const isMds = !embMode && !useUmap;
+        const isUmap = !embMode && useUmap;
+        const isHdbscan = embMode === "emb_combined_large";
         const methodKey = embMode === "abstract" ? "emb_abstract"
           : embMode === "combined" ? "emb_combined"
           : embMode === "tags" ? "emb_tags"
@@ -208,13 +211,15 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
           : embMode?.startsWith("jaccard_") ? embMode
           : useUmap ? "umap" : "mds";
         const perK = data.silhouettes_per_k?.[methodKey];
-        const silhouette = (perK && perK[String(nClusters)] !== undefined)
-          ? perK[String(nClusters)]
-          : (data[`${methodKey}_silhouette`] ?? data.silhouette);
+        const silhouettePerK = (perK && perK[String(nClusters)] !== undefined) ? perK[String(nClusters)] : null;
+        const silhouetteBest = data[`${methodKey}_silhouette`] ?? data.silhouette;
         const bestK = data[`${methodKey}_best_k`];
         const noise = data[`${methodKey}_noise`];
         const noisePct = (noise !== undefined && data.n_papers)
           ? ((noise / data.n_papers) * 100).toFixed(0)
+          : null;
+        const coverage = (noise !== undefined && data.n_papers)
+          ? (100 - (noise / data.n_papers) * 100).toFixed(0)
           : null;
         // Per-cluster sizes for the current view
         const clusterSizes = {};
@@ -222,22 +227,56 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
         const sizes = Object.values(clusterSizes);
         const minSize = sizes.length ? Math.min(...sizes) : 0;
         const maxSize = sizes.length ? Math.max(...sizes) : 0;
+        const meanSize = sizes.length ? Math.round(sizes.reduce((a, b) => a + b, 0) / sizes.length) : 0;
+        const balance = (minSize && maxSize) ? (minSize / maxSize).toFixed(2) : null;
+        // Tag-based view: how many tags selected and Procrustes cutoff
+        const tagSelectionMap = {
+          jaccard_stable: { count: Object.keys(data.stable_selected_tags || {}).length || data.stable_cutoff, cutoff: data.stable_cutoff, type: "Laplacian" },
+          jaccard_laplacian: { count: Object.keys(data.laplacian_selected_tags || {}).length, type: "Laplacian Top 100" },
+          jaccard_lap14: { count: Object.keys(data.laplacian14_selected_tags || {}).length || 14, type: "Laplacian Top 14" },
+          jaccard_lap10: { count: Object.keys(data.lap10_selected_tags || {}).length || 10, type: "Laplacian Top 10" },
+          jaccard_ce: { count: Object.keys(data.ce_selected_tags || {}).length || data.ce_stable_cutoff, cutoff: data.ce_stable_cutoff, type: "Conditional Entropy" },
+          jaccard_ce10: { count: Object.keys(data.ce10_selected_tags || {}).length || 10, type: "Conditional Entropy Top 10" },
+          jaccard_pmi50: { count: Object.keys(data.pmi50_selected_tags || {}).length || 50, type: "PMI Top 50" },
+          jaccard_pmi60: { count: Object.keys(data.pmi60_selected_tags || {}).length || data.pmi_stable_cutoff, cutoff: data.pmi_stable_cutoff, type: "PMI" },
+          jaccard_all: { type: "All tags" },
+        };
+        const tagInfo = embMode ? tagSelectionMap[embMode] : null;
+        const mdsStress = isMds ? data.mds_stress : null;
         return (
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground" data-testid="landscape-metrics">
             <span><b className="text-foreground">{data.n_papers}</b> papers</span>
             {data.n_pairs > 0 && <span><b className="text-foreground">{data.n_pairs?.toLocaleString()}</b> pairs</span>}
+            {data.comps_per_paper > 0 && <span><b className="text-foreground">{data.comps_per_paper}</b> comps/paper</span>}
             <span><b className="text-foreground">{nClusters}</b> clusters</span>
-            {silhouette !== undefined && silhouette !== null && (
-              <span>Silhouette: <b className="text-foreground">{Number(silhouette).toFixed(3)}</b></span>
+            {silhouettePerK !== null && (
+              <span>Silhouette @K={nClusters}: <b className="text-foreground">{Number(silhouettePerK).toFixed(3)}</b></span>
+            )}
+            {silhouetteBest !== undefined && silhouetteBest !== null && (
+              <span>Silhouette (best): <b className="text-foreground">{Number(silhouetteBest).toFixed(3)}</b></span>
             )}
             {bestK !== undefined && (
               <span>Best K: <b className="text-foreground">{bestK}</b></span>
             )}
+            {mdsStress !== undefined && mdsStress !== null && (
+              <span>MDS stress: <b className="text-foreground">{mdsStress.toLocaleString()}</b></span>
+            )}
             {noise !== undefined && (
-              <span>HDBSCAN noise: <b className="text-foreground">{noise}</b> ({noisePct}%)</span>
+              <>
+                <span>HDBSCAN noise: <b className="text-foreground">{noise}</b> ({noisePct}%)</span>
+                <span>Coverage: <b className="text-foreground">{coverage}%</b></span>
+              </>
             )}
             {sizes.length > 0 && (
-              <span>Cluster size: <b className="text-foreground">{minSize}</b>–<b className="text-foreground">{maxSize}</b></span>
+              <>
+                <span>Cluster size: <b className="text-foreground">{minSize}</b>–<b className="text-foreground">{maxSize}</b> (μ={meanSize})</span>
+                {balance && <span>Balance: <b className="text-foreground">{balance}</b></span>}
+              </>
+            )}
+            {tagInfo?.count && (
+              <span>{tagInfo.type} tags: <b className="text-foreground">{tagInfo.count}</b>
+                {tagInfo.cutoff && <> (Procrustes cutoff: <b className="text-foreground">{tagInfo.cutoff}</b>)</>}
+              </span>
             )}
             <span>Model: {data.model}</span>
             <span>Score range: {data.score_range}</span>
