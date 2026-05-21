@@ -2105,3 +2105,25 @@ async def get_similarity_landscape_category(category: str):
         return data
     except FileNotFoundError:
         return {"papers": [], "n_papers": 0, "n_pairs": 0}
+
+
+@router.get("/topn-subtournament/{category}")
+async def get_topn_subtournament(category: str):
+    """Top-N isolated sub-tournament results: live vs iso vs SI rankings."""
+    import json as _json, os as _os
+    safe_cat = category.replace("/", "_").replace("..", "").replace(".", "_").replace("-", "_")
+    path = f"/app/backend/data/precomputed/topN_{safe_cat}_subtournament.json"
+    if not _os.path.exists(path):
+        return {"error": "not_found", "category": category}
+    try:
+        mtime = _os.path.getmtime(path)
+        if path in _landscape_cache and _landscape_cache_mtime.get(path) == mtime:
+            return _landscape_cache[path]
+        with open(path) as f:
+            data = _json.load(f)
+        _landscape_cache[path] = data
+        _landscape_cache_mtime[path] = mtime
+        return data
+    except FileNotFoundError:
+        return {"error": "not_found", "category": category}
+

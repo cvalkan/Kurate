@@ -29,6 +29,7 @@ import SamePairsSection from "./SamePairsSection";
 import InstitutionBiasSamePairSection from "./InstitutionBiasSamePairSection";
 import SingleItemScoringSection from "./SingleItemScoringSection";
 import SimilarityLandscapeSection from "./SimilarityLandscapeSection";
+import TopNSubtournamentSection from "./TopNSubtournamentSection";
 import ValidationReportPage from "./ValidationReportPage";
 import AllPairsSection from "./AllPairsSection";
 import HumanAIBenchmarkSection, { HumanAIBenchmarkUnfilteredSection, HumanAIBenchmarkFixedSection, ICLR2026BenchmarkSection, ICLR2026WithinLabelBenchmarkSection } from "./HumanAIBenchmarkSection";
@@ -233,6 +234,7 @@ export default function ValidationHubPage() {
       "exp-similarity-landscape": { title: "Similarity Landscape — cs.AI", desc: "200 latest AI papers embedded in 2D via pairwise similarity scores (1-20, Claude Opus 4.6). Dot size = Kurate impact score, color = auto-detected cluster." },
       "exp-similarity-physics": { title: "Similarity Landscape — Computational Physics", desc: "249 computational physics papers. Multiple similarity methods compared: LLM pairwise, embeddings, Jaccard on incremental tags with Laplacian feature selection." },
       "exp-similarity-gt": { title: "Similarity Landscape — Game Theory", desc: "360 game theory papers mapped via incremental tag extraction + Laplacian stability-based feature selection + Jaccard similarity." },
+      "exp-topn-quant-ph": { title: "Top-50 Sub-Tournament — Quantum Physics", desc: "The 50 highest single-item-rated quant-ph papers, run through a fresh round-robin tournament with ~20 matches per paper (500 isolated matches). Compares the resulting ranking (ISO) to the production tournament ranking (LIVE) and the single-item ranking (SI)." },
       "report-summary": { title: "Validation Summary Report", desc: "Comprehensive analysis across all datasets: single-item vs pairwise, the GT generation hypothesis, the Gap score signal, and practical recommendations." },
       "exp-institution-bias": { title: "Institution Bias", desc: "Do AI judges favor papers from prestigious institutions (Google, Stanford, MIT) more than human reviewers? Analysis across 12 datasets using author affiliation extraction." },
       "exp-institution-bias-samepair": { title: "Institution Bias — Same Pairs", desc: "Same analysis but controlled: only pairs where all 3 judges (Opus 4.6, GPT-5.2, Gemini 3 Pro) evaluated the exact same pair. Eliminates pair-selection confounds." },
@@ -394,6 +396,9 @@ export default function ValidationHubPage() {
                 <NavItem item={{ id: "exp-similarity-physics", label: "Comp Physics", sub: "249 papers" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-similarity-gt", label: "Game Theory", sub: "360 papers" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
+              <CollapsibleGroup label="Sub-Tournaments" defaultOpen={selected?.startsWith("exp-topn-")}>
+                <NavItem item={{ id: "exp-topn-quant-ph", label: "Quantum Physics Top-50", sub: "500 isolated matches" }} selected={selected} onSelect={setSelected} />
+              </CollapsibleGroup>
             </CollapsibleGroup>
 
         </nav>
@@ -469,6 +474,7 @@ export default function ValidationHubPage() {
           {selected === "exp-similarity-landscape" && <SimilarityLandscapeSection category="cs.AI" />}
           {selected === "exp-similarity-physics" && <SimilarityLandscapeSection category="physics.comp-ph" />}
           {selected === "exp-similarity-gt" && <SimilarityLandscapeSection category="cs.GT" />}
+          {selected === "exp-topn-quant-ph" && <TopNSubtournamentSection category="quant-ph" label="Quantum Physics" />}
           {selected === "exp-institution-bias-samepair" && <InstitutionBiasSamePairSection />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
           {selected === "t-iclr2026-validation" && <ICLR2026TournamentSection />}
