@@ -102,6 +102,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       : embMode === "emb_combined_large" ? (data.emb_combined_large_best_k || 4)
       : embMode === "emb_scincl" ? (data.emb_scincl_best_k || 5)
       : embMode === "emb_specter" ? (data.emb_specter_best_k || 5)
+      : embMode === "emb_qwen3" ? (data.emb_qwen3_best_k || 5)
       : embMode?.startsWith("jaccard_") ? data[`${embMode}_best_k`]
       : data.n_clusters;
     if (bestK) setNClusters(bestK);
@@ -117,6 +118,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
     const labelsKey = embMode === "emb_combined_large" ? "emb_combined_large_cluster_labels"
       : embMode === "emb_scincl" ? "emb_scincl_cluster_labels"
       : embMode === "emb_specter" ? "emb_specter_cluster_labels"
+      : embMode === "emb_qwen3" ? "emb_qwen3_cluster_labels"
       : embMode === "abstract" ? "emb_abstract_cluster_labels"
       : embMode === "combined" ? "emb_combined_cluster_labels"
       : embMode === "tags" ? "emb_tags_cluster_labels"
@@ -138,6 +140,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       if (embMode === "combined") return [p.x_emb_combined || p.x, p.y_emb_combined || p.y];
       if (embMode === "tags") return [p.x_emb_tags || p.x, p.y_emb_tags || p.y];
       if (embMode === "tags_consolidated") return [p.x_emb_tags_consolidated || p.x, p.y_emb_tags_consolidated || p.y];
+      if (embMode === "emb_qwen3") return [p.x_emb_qwen3 || p.x, p.y_emb_qwen3 || p.y];
       if (embMode === "jaccard_incr") return [p.x_jaccard_incr || p.x, p.y_jaccard_incr || p.y];
       if (embMode?.startsWith("jaccard_")) {
         const key = embMode;
@@ -178,8 +181,8 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
   const chartData = useMemo(() => {
     if (!clustered.length) return [];
     return clustered.map(p => ({
-      x: embMode === "emb_combined_large" ? (p.x_emb_combined_large || p.x) : embMode === "emb_scincl" ? (p.x_emb_scincl || p.x) : embMode === "emb_specter" ? (p.x_emb_specter || p.x) : embMode === "abstract" ? p.x_emb_abstract : embMode === "combined" ? p.x_emb_combined : embMode === "tags" ? p.x_emb_tags : embMode === "tags_consolidated" ? p.x_emb_tags_consolidated : embMode?.startsWith("jaccard_") ? (p[`x_${embMode}`] || p.x) : useUmap ? p.x_umap : p.x,
-      y: embMode === "emb_combined_large" ? (p.y_emb_combined_large || p.y) : embMode === "emb_scincl" ? (p.y_emb_scincl || p.y) : embMode === "emb_specter" ? (p.y_emb_specter || p.y) : embMode === "abstract" ? p.y_emb_abstract : embMode === "combined" ? p.y_emb_combined : embMode === "tags" ? p.y_emb_tags : embMode === "tags_consolidated" ? p.y_emb_tags_consolidated : embMode?.startsWith("jaccard_") ? (p[`y_${embMode}`] || p.y) : useUmap ? p.y_umap : p.y,
+      x: embMode === "emb_combined_large" ? (p.x_emb_combined_large || p.x) : embMode === "emb_scincl" ? (p.x_emb_scincl || p.x) : embMode === "emb_specter" ? (p.x_emb_specter || p.x) : embMode === "emb_qwen3" ? (p.x_emb_qwen3 || p.x) : embMode === "abstract" ? p.x_emb_abstract : embMode === "combined" ? p.x_emb_combined : embMode === "tags" ? p.x_emb_tags : embMode === "tags_consolidated" ? p.x_emb_tags_consolidated : embMode?.startsWith("jaccard_") ? (p[`x_${embMode}`] || p.x) : useUmap ? p.x_umap : p.x,
+      y: embMode === "emb_combined_large" ? (p.y_emb_combined_large || p.y) : embMode === "emb_scincl" ? (p.y_emb_scincl || p.y) : embMode === "emb_specter" ? (p.y_emb_specter || p.y) : embMode === "emb_qwen3" ? (p.y_emb_qwen3 || p.y) : embMode === "abstract" ? p.y_emb_abstract : embMode === "combined" ? p.y_emb_combined : embMode === "tags" ? p.y_emb_tags : embMode === "tags_consolidated" ? p.y_emb_tags_consolidated : embMode?.startsWith("jaccard_") ? (p[`y_${embMode}`] || p.y) : useUmap ? p.y_umap : p.y,
       title: p.title,
       cluster: p.cluster,
       score: p.score,
@@ -252,6 +255,7 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
           : embMode === "emb_combined_large" ? "emb_combined_large"
           : embMode === "emb_scincl" ? "emb_scincl"
           : embMode === "emb_specter" ? "emb_specter"
+          : embMode === "emb_qwen3" ? "emb_qwen3"
           : embMode?.startsWith("jaccard_") ? embMode
           : useUmap ? "umap" : "mds";
         // Silhouette uses the live K when available
@@ -400,6 +404,11 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
             <button onClick={() => { setUseUmap(false); setEmbMode("emb_specter"); }}
               className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "emb_specter" ? "bg-foreground text-background font-medium" : "bg-muted text-muted-foreground hover:text-foreground"}`}
             >Embedding: SPECTER</button>
+          }
+          {data.has_emb_qwen3 &&
+            <button data-testid="emb-qwen3-btn" onClick={() => { setUseUmap(false); setEmbMode("emb_qwen3"); }}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "emb_qwen3" ? "bg-foreground text-background font-medium" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >Embedding: Qwen3-0.6B</button>
           }
         </div>
         <div className="flex items-center gap-1.5 text-xs">

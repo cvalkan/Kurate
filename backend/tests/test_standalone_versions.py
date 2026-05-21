@@ -29,7 +29,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 MONGO = os.environ["MONGO_URL"]
 DBN = os.environ["DB_NAME"]
-API = os.environ.get("PREVIEW_URL") or "https://ai-judge-hub-1.preview.emergentagent.com"
+API = os.environ.get("PREVIEW_URL") or "https://validation-hub-46.preview.emergentagent.com"
 ADMIN_PW = os.environ["ADMIN_PASSWORD"]
 
 passed, failed = 0, 0
