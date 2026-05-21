@@ -152,10 +152,10 @@ function TopNSubtournamentSection({ category = "quant-ph", label = "Quantum Phys
           <RankColumn
             rows={data.rows} rankKey="iso_rank"
             title="ISO  (isolated tournament)"
-            sub="500 fresh matches · TrueSkill μ−3σ"
+            sub="500 fresh matches · same Elo scale as LIVE"
             accent="bg-emerald-500/5"
             hoveredId={hoveredId} onHover={setHoveredId}
-            highlight={(r) => ({ value: r.iso_score.toFixed(1), title: `TrueSkill μ−3σ · μ=${r.iso_mu.toFixed(2)} σ=${r.iso_sigma.toFixed(2)} · ${r.iso_wins}-${r.iso_losses}` })}
+            highlight={(r) => ({ value: r.iso_elo, title: `Elo = round((μ−3σ)·10 + 1200) · μ=${r.iso_mu.toFixed(2)} σ=${r.iso_sigma.toFixed(2)} · ${r.iso_wins}-${r.iso_losses}` })}
           />
           <RankColumn
             rows={data.rows} rankKey="si_rank"
