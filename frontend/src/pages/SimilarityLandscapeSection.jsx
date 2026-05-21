@@ -100,6 +100,8 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
       : embMode === "jaccard_pmi50" ? data.jaccard_pmi50_best_k
       : embMode === "jaccard_pmi60" ? data.jaccard_pmi60_best_k
       : embMode === "emb_combined_large" ? (data.emb_combined_large_best_k || 4)
+      : embMode === "emb_scincl" ? (data.emb_scincl_best_k || 5)
+      : embMode === "emb_specter" ? (data.emb_specter_best_k || 5)
       : embMode?.startsWith("jaccard_") ? data[`${embMode}_best_k`]
       : data.n_clusters;
     if (bestK) setNClusters(bestK);
@@ -113,6 +115,8 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
 
     // Use cluster labels matching the current view
     const labelsKey = embMode === "emb_combined_large" ? "emb_combined_large_cluster_labels"
+      : embMode === "emb_scincl" ? "emb_scincl_cluster_labels"
+      : embMode === "emb_specter" ? "emb_specter_cluster_labels"
       : embMode === "abstract" ? "emb_abstract_cluster_labels"
       : embMode === "combined" ? "emb_combined_cluster_labels"
       : embMode === "tags" ? "emb_tags_cluster_labels"
@@ -174,8 +178,8 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
   const chartData = useMemo(() => {
     if (!clustered.length) return [];
     return clustered.map(p => ({
-      x: embMode === "emb_combined_large" ? (p.x_emb_combined_large || p.x) : embMode === "abstract" ? p.x_emb_abstract : embMode === "combined" ? p.x_emb_combined : embMode === "tags" ? p.x_emb_tags : embMode === "tags_consolidated" ? p.x_emb_tags_consolidated : embMode?.startsWith("jaccard_") ? (p[`x_${embMode}`] || p.x) : useUmap ? p.x_umap : p.x,
-      y: embMode === "emb_combined_large" ? (p.y_emb_combined_large || p.y) : embMode === "abstract" ? p.y_emb_abstract : embMode === "combined" ? p.y_emb_combined : embMode === "tags" ? p.y_emb_tags : embMode === "tags_consolidated" ? p.y_emb_tags_consolidated : embMode?.startsWith("jaccard_") ? (p[`y_${embMode}`] || p.y) : useUmap ? p.y_umap : p.y,
+      x: embMode === "emb_combined_large" ? (p.x_emb_combined_large || p.x) : embMode === "emb_scincl" ? (p.x_emb_scincl || p.x) : embMode === "emb_specter" ? (p.x_emb_specter || p.x) : embMode === "abstract" ? p.x_emb_abstract : embMode === "combined" ? p.x_emb_combined : embMode === "tags" ? p.x_emb_tags : embMode === "tags_consolidated" ? p.x_emb_tags_consolidated : embMode?.startsWith("jaccard_") ? (p[`x_${embMode}`] || p.x) : useUmap ? p.x_umap : p.x,
+      y: embMode === "emb_combined_large" ? (p.y_emb_combined_large || p.y) : embMode === "emb_scincl" ? (p.y_emb_scincl || p.y) : embMode === "emb_specter" ? (p.y_emb_specter || p.y) : embMode === "abstract" ? p.y_emb_abstract : embMode === "combined" ? p.y_emb_combined : embMode === "tags" ? p.y_emb_tags : embMode === "tags_consolidated" ? p.y_emb_tags_consolidated : embMode?.startsWith("jaccard_") ? (p[`y_${embMode}`] || p.y) : useUmap ? p.y_umap : p.y,
       title: p.title,
       cluster: p.cluster,
       score: p.score,
@@ -246,6 +250,8 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
           : embMode === "tags_consolidated" ? "emb_tags_consolidated"
           : embMode === "jaccard_incr" ? "jaccard_incr"
           : embMode === "emb_combined_large" ? "emb_combined_large"
+          : embMode === "emb_scincl" ? "emb_scincl"
+          : embMode === "emb_specter" ? "emb_specter"
           : embMode?.startsWith("jaccard_") ? embMode
           : useUmap ? "umap" : "mds";
         // Silhouette uses the live K when available
@@ -383,7 +389,17 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
           {data.has_emb_combined_large &&
             <button onClick={() => { setUseUmap(false); setEmbMode("emb_combined_large"); }}
               className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "emb_combined_large" ? "bg-foreground text-background font-medium" : "bg-muted text-muted-foreground hover:text-foreground"}`}
-            >Embedding: Combined</button>
+            >Embedding: OpenAI 3-large</button>
+          }
+          {data.has_emb_scincl &&
+            <button onClick={() => { setUseUmap(false); setEmbMode("emb_scincl"); }}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "emb_scincl" ? "bg-foreground text-background font-medium" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >Embedding: SciNCL</button>
+          }
+          {data.has_emb_specter &&
+            <button onClick={() => { setUseUmap(false); setEmbMode("emb_specter"); }}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${embMode === "emb_specter" ? "bg-foreground text-background font-medium" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >Embedding: SPECTER</button>
           }
         </div>
         <div className="flex items-center gap-1.5 text-xs">
