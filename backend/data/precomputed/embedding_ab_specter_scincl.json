@@ -1,0 +1,80 @@
+{
+  "cs.GT": {
+    "category": "cs.GT",
+    "n_papers": 360,
+    "methods": {
+      "openai_text_embedding_3_large": {
+        "dim": 3072,
+        "trustworthiness": 0.918,
+        "continuity": 0.89,
+        "neighborhood_preservation": 0.402,
+        "explainability": 0.981,
+        "davies_bouldin": 0.56,
+        "silhouette_2d": 0.565,
+        "hdbscan_clusters": 8,
+        "hdbscan_noise": 44
+      },
+      "scincl": {
+        "dim": 768,
+        "trustworthiness": 0.905,
+        "continuity": 0.903,
+        "neighborhood_preservation": 0.449,
+        "explainability": 0.96,
+        "davies_bouldin": 0.689,
+        "silhouette_2d": 0.447,
+        "hdbscan_clusters": 11,
+        "hdbscan_noise": 34
+      },
+      "specter": {
+        "dim": 768,
+        "trustworthiness": 0.871,
+        "continuity": 0.884,
+        "neighborhood_preservation": 0.403,
+        "explainability": 0.939,
+        "davies_bouldin": 1.23,
+        "silhouette_2d": 0.408,
+        "hdbscan_clusters": 8,
+        "hdbscan_noise": 49
+      }
+    }
+  },
+  "physics.comp-ph": {
+    "category": "physics.comp-ph",
+    "n_papers": 249,
+    "methods": {
+      "openai_text_embedding_3_large": {
+        "dim": 3072,
+        "trustworthiness": 0.886,
+        "continuity": 0.85,
+        "neighborhood_preservation": 0.458,
+        "explainability": 0.942,
+        "davies_bouldin": 0.505,
+        "silhouette_2d": 0.381,
+        "hdbscan_clusters": 4,
+        "hdbscan_noise": 46
+      },
+      "scincl": {
+        "dim": 768,
+        "trustworthiness": 0.918,
+        "continuity": 0.885,
+        "neighborhood_preservation": 0.494,
+        "explainability": 0.907,
+        "davies_bouldin": 1.159,
+        "silhouette_2d": 0.405,
+        "hdbscan_clusters": 13,
+        "hdbscan_noise": 22
+      },
+      "specter": {
+        "dim": 768,
+        "trustworthiness": 0.888,
+        "continuity": 0.868,
+        "neighborhood_preservation": 0.462,
+        "explainability": 0.908,
+        "davies_bouldin": 0.77,
+        "silhouette_2d": 0.395,
+        "hdbscan_clusters": 10,
+        "hdbscan_noise": 17
+      }
+    }
+  }
+}
