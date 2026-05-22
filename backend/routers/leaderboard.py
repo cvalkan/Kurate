@@ -512,17 +512,24 @@ async def get_categories():
         get_group = lambda x: "Other"
     settings = await get_settings()
     active = settings.get("active_categories", list(CATEGORIES.keys()))
+    featured = settings.get("featured_categories", None)
+    # Backward compat: if featured not set, use first 5 of active
+    if not featured:
+        featured = active[:5]
     cats = []
     for cat_id in active:
         name = CATEGORIES.get(cat_id) or ARXIV_TAXONOMY.get(cat_id) or cat_id
         cats.append({"id": cat_id, "name": name, "group": get_group(cat_id)})
-    # First 5 preserve admin order (tabs), rest sorted alphabetically by group then name
-    top5 = cats[:5]
-    rest = sorted(cats[5:], key=lambda c: (c["group"], c["name"]))
-    cats = top5 + rest
+    # Featured preserve order, rest sorted alphabetically by group then name
+    featured_set = set(featured)
+    featured_cats = [c for c in cats if c["id"] in featured_set]
+    featured_cats.sort(key=lambda c: featured.index(c["id"]))
+    rest = sorted([c for c in cats if c["id"] not in featured_set], key=lambda c: (c["group"], c["name"]))
+    cats = featured_cats + rest
     return {
         "categories": cats,
-        "default": active[0] if active else "cs.RO",
+        "featured": featured,
+        "default": featured[0] if featured else (active[0] if active else "cs.RO"),
         "new_categories": settings.get("new_categories", []),
     }
 

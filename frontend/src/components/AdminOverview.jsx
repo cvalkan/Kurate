@@ -177,19 +177,18 @@ export function AdminOverview({
   return (
     <div className="space-y-4" data-testid="admin-overview">
       {categories.length > 1 && (
-        <div className="flex items-center gap-1 p-1 bg-primary/5 rounded-lg overflow-x-auto scrollbar-none" data-testid="admin-cat-tabs">
-          {categories.map((c) => (
-            <Button
-              key={c.id}
-              variant={adminCat === c.id ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setAdminCat(c.id)}
-              className="text-xs h-8 shrink-0"
-              data-testid={`admin-cat-${c.id}`}
-            >
-              {c.name}
-            </Button>
-          ))}
+        <div className="flex items-center gap-2" data-testid="admin-cat-selector">
+          <span className="text-xs text-muted-foreground">Category:</span>
+          <select
+            value={adminCat}
+            onChange={(e) => setAdminCat(e.target.value)}
+            className="h-8 px-2 text-xs rounded-md border border-border bg-background cursor-pointer"
+            data-testid="admin-cat-dropdown"
+          >
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name} ({c.id})</option>
+            ))}
+          </select>
         </div>
       )}
 

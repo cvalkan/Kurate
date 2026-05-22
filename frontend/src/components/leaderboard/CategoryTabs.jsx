@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { ChevronDown, Lock, Lightbulb, Search } from "lucide-react";
 
 export function CategoryTabs({
-  categories, category, setCategory, isTagMode, isLoggedIn,
+  categories, featured, category, setCategory, isTagMode, isLoggedIn,
   requireAuth, setSelectedTags, setTagFilterOpen, onSuggest,
 }) {
   const [moreCatsOpen, setMoreCatsOpen] = useState(false);
@@ -27,13 +27,17 @@ export function CategoryTabs({
     if (!moreCatsOpen) setSearch("");
   }, [moreCatsOpen]);
 
+  // Use featured list for tabs, rest goes to "More"
+  const featuredSet = new Set(featured || []);
+  const featuredCats = (featured || []).map(id => categories.find(c => c.id === id)).filter(Boolean);
+  const overflowCats = categories.filter(c => !featuredSet.has(c.id));
+
   // Group overflow categories by their domain
   const groupedOverflow = useMemo(() => {
-    const overflow = categories.slice(5);
     const lc = search.toLowerCase();
     const filtered = lc
-      ? overflow.filter(c => c.name.toLowerCase().includes(lc) || c.id.toLowerCase().includes(lc))
-      : overflow;
+      ? overflowCats.filter(c => c.name.toLowerCase().includes(lc) || c.id.toLowerCase().includes(lc))
+      : overflowCats;
 
     const groups = {};
     const groupOrder = [];
@@ -46,7 +50,7 @@ export function CategoryTabs({
       groups[g].push(c);
     }
     return { groups, groupOrder };
-  }, [categories, search]);
+  }, [overflowCats, search]);
 
   if (categories.length <= 1) return null;
 
@@ -56,12 +60,12 @@ export function CategoryTabs({
     setTagFilterOpen(false);
   };
 
-  const overflowCount = categories.length - 5;
+  const overflowCount = overflowCats.length;
 
   return (
     <div className={`mb-3 transition-opacity ${isTagMode ? "opacity-40 pointer-events-none" : ""}`}>
       <div className="flex items-center gap-1 p-1 bg-primary/5 rounded-lg overflow-x-auto scrollbar-none" data-testid="category-tabs">
-        {categories.slice(0, 5).map((c) => (
+        {featuredCats.map((c) => (
           <Button
             key={c.id}
             variant={!isTagMode && category === c.id ? "default" : "ghost"}
@@ -74,18 +78,18 @@ export function CategoryTabs({
             {c.name}
           </Button>
         ))}
-        {categories.length > 5 && (
+        {overflowCats.length > 0 && (
           <div className="relative shrink-0" ref={moreCatsRef}>
             {isLoggedIn ? (
               <Button
-                variant={!isTagMode && categories.slice(5).some(c => c.id === category) ? "default" : "ghost"}
+                variant={!isTagMode && overflowCats.some(c => c.id === category) ? "default" : "ghost"}
                 size="sm"
                 className="text-xs h-8 gap-1 shrink-0"
                 onClick={() => setMoreCatsOpen(v => !v)}
                 disabled={isTagMode}
                 data-testid="more-categories-btn"
               >
-                {categories.slice(5).find(c => c.id === category)?.name || `More (${overflowCount})`}
+                {overflowCats.find(c => c.id === category)?.name || `More (${overflowCount})`}
                 <ChevronDown className={`h-3 w-3 transition-transform ${moreCatsOpen ? "rotate-180" : ""}`} />
               </Button>
             ) : (

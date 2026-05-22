@@ -1938,6 +1938,8 @@ async def get_arxiv_categories():
     settings = await get_settings()
     active_list = settings.get("active_categories", list(CATEGORIES.keys()))
     active_set = set(active_list)
+    featured_list = settings.get("featured_categories", active_list[:5])
+    featured_set = set(featured_list)
 
     cats = []
     for cat_id, name in sorted(ARXIV_TAXONOMY.items()):
@@ -1946,8 +1948,14 @@ async def get_arxiv_categories():
             "name": name,
             "group": get_group(cat_id),
             "active": cat_id in active_set,
+            "featured": cat_id in featured_set,
         })
-    return {"categories": cats, "active": active_list, "new_categories": settings.get("new_categories", [])}
+    return {
+        "categories": cats,
+        "active": active_list,
+        "featured": featured_list,
+        "new_categories": settings.get("new_categories", []),
+    }
 
 
 class CategoryAction(BaseModel):
@@ -2060,8 +2068,74 @@ async def reorder_categories(body: dict):
     return {"status": "ok", "active_categories": new_order}
 
 
+@router.post("/categories/set-featured", dependencies=[Depends(verify_admin)])
+async def set_featured_categories(body: dict):
+    """Save the ordered list of featured categories (homepage tabs)."""
+    featured = body.get("featured", [])
+    if not isinstance(featured, list):
+        raise HTTPException(400, "featured must be a list of category IDs")
 
-@router.get("/category-estimate/{cat_id}", dependencies=[Depends(verify_admin)])
+    settings = await get_settings()
+    active_set = set(settings.get("active_categories", []))
+
+    # All featured must be active
+    for cat_id in featured:
+        if cat_id not in active_set:
+            raise HTTPException(400, f"{cat_id} is not an active category")
+
+    await db.settings.update_one(
+        {"key": "global"},
+        {"$set": {"featured_categories": featured}},
+        upsert=True,
+    )
+    _invalidate_admin_cache()
+    return {"status": "ok", "featured": featured}
+
+
+@router.post("/categories/toggle-featured", dependencies=[Depends(verify_admin)])
+async def toggle_featured_category(body: CategoryAction):
+    """Toggle a category's featured status. Adds to end if featuring, removes if unfeaturing."""
+    cat_id = body.category_id.strip()
+    settings = await get_settings()
+    active = settings.get("active_categories", list(CATEGORIES.keys()))
+    if cat_id not in active:
+        raise HTTPException(400, f"{cat_id} is not an active category")
+
+    featured = settings.get("featured_categories", active[:5])
+    if cat_id in featured:
+        featured = [c for c in featured if c != cat_id]
+    else:
+        featured.append(cat_id)
+
+    await db.settings.update_one(
+        {"key": "global"},
+        {"$set": {"featured_categories": featured}},
+        upsert=True,
+    )
+    _invalidate_admin_cache()
+    return {"status": "ok", "featured": featured}
+
+
+@router.post("/categories/reorder-featured", dependencies=[Depends(verify_admin)])
+async def reorder_featured_categories(body: dict):
+    """Save a new display order for featured categories only."""
+    new_order = body.get("featured", [])
+    if not isinstance(new_order, list):
+        raise HTTPException(400, "featured must be a list")
+
+    settings = await get_settings()
+    current_featured = set(settings.get("featured_categories", settings.get("active_categories", [])[:5]))
+
+    if set(new_order) != current_featured:
+        raise HTTPException(400, "Must contain exactly the current featured categories")
+
+    await db.settings.update_one(
+        {"key": "global"},
+        {"$set": {"featured_categories": new_order}},
+        upsert=True,
+    )
+    _invalidate_admin_cache()
+    return {"status": "ok", "featured": new_order}
 async def estimate_category(cat_id: str):
     """Estimate weekly paper volume and tournament cost for a category."""
     from core.arxiv_categories import ARXIV_TAXONOMY

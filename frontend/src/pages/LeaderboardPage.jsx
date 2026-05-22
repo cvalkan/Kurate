@@ -21,6 +21,7 @@ export default function LeaderboardPage() {
   // State — initialized from URL params for back-navigation restore
   const [leaderboard, setLeaderboard] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [featured, setFeatured] = useState([]);
   const [newCategoryNames, setNewCategoryNames] = useState([]);
   const [category, setCategory] = useState(searchParams.get("cat") || "");
   const [period, setPeriod] = useState(searchParams.get("period") || "week");
@@ -126,6 +127,7 @@ export default function LeaderboardPage() {
   useEffect(() => {
     axios.get(`${API}/api/categories`).then(res => {
       setCategories(res.data.categories || []);
+      setFeatured(res.data.featured || []);
       if (!category) setCategory(res.data.default || "cs.RO");
       // Build "New" category names from IDs
       const newIds = res.data.new_categories || [];
@@ -382,7 +384,7 @@ export default function LeaderboardPage() {
       {!isLoggedIn && <SignupCTA onClick={requireAuth} categories={categories} />}
 
       <CategoryTabs
-        categories={categories} category={category}
+        categories={categories} featured={featured} category={category}
         setCategory={(cat) => { setCategory(cat); if (activeArchive) { setActiveArchive(null); setPeriod("week"); const p = new URLSearchParams(window.location.search); p.delete("archive"); window.history.replaceState(null, "", `?${p.toString()}`); } }}
         isTagMode={isTagMode} isLoggedIn={isLoggedIn} requireAuth={requireAuth}
         setSelectedTags={setSelectedTags} setTagFilterOpen={setTagFilterOpen}
