@@ -59,7 +59,6 @@ export default function AdminPage() {
   const [manualMatches, setManualMatches] = useState(null);
   const [summaryPrompt, setSummaryPrompt] = useState(null);
   const [editSummaryPrompt, setEditSummaryPrompt] = useState({});
-  const [editPredictionPrompt, setEditPredictionPrompt] = useState({});
   const [categories, setCategories] = useState([]);
   const [adminCat, setAdminCat] = useState("");
 
@@ -98,11 +97,10 @@ export default function AdminPage() {
   const fetchGlobalSettings = useCallback(async () => {
     const headers = getAdminHeaders();
     try {
-      const [settingsRes, promptRes, summaryPromptRes, predPromptRes] = await Promise.all([
+      const [settingsRes, promptRes, summaryPromptRes] = await Promise.all([
         axios.get(`${API}/api/admin/settings`, { headers }),
         axios.get(`${API}/api/admin/prompt`, { headers }),
         axios.get(`${API}/api/admin/summary-prompt`, { headers }),
-        axios.get(`${API}/api/admin/prediction-prompt`, { headers }),
       ]);
       setSettings(settingsRes.data.settings);
       setEditSettings(settingsRes.data.settings);
@@ -110,7 +108,6 @@ export default function AdminPage() {
       setEditPrompt(promptRes.data);
       setSummaryPrompt(summaryPromptRes.data);
       setEditSummaryPrompt(summaryPromptRes.data);
-      setEditPredictionPrompt(predPromptRes.data);
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {
         sessionStorage.removeItem("admin_token");
@@ -564,32 +561,6 @@ export default function AdminPage() {
             }} className="gap-2" data-testid="save-summary-prompt">
               <Save className="h-4 w-4" />
               Save Summary Prompt
-            </Button>
-          </div>
-
-          <div className="space-y-4 border-t border-border pt-6">
-            <h3 className="text-sm font-medium flex items-center gap-2">
-              <FlaskConical className="h-4 w-4 text-accent" />
-              Prediction Prompt (Gap Score)
-            </h3>
-            <p className="text-xs text-muted-foreground">Used for the prediction tournament comparisons.</p>
-            <div>
-              <Label className="text-xs">System Prompt</Label>
-              <Textarea rows={10} value={editPredictionPrompt.system_prompt || ""} onChange={(e) => setEditPredictionPrompt({ ...editPredictionPrompt, system_prompt: e.target.value })} className="font-mono text-xs" />
-            </div>
-            <div>
-              <Label className="text-xs">User Prompt Template</Label>
-              <Textarea rows={6} value={editPredictionPrompt.user_prompt || ""} onChange={(e) => setEditPredictionPrompt({ ...editPredictionPrompt, user_prompt: e.target.value })} className="font-mono text-xs" />
-              <p className="text-xs text-muted-foreground mt-1">Variables: {"{paper1_title}"}, {"{paper1_content}"}, {"{paper2_title}"}, {"{paper2_content}"}</p>
-            </div>
-            <Button onClick={async () => {
-              try {
-                await axios.put(`${API}/api/admin/prediction-prompt`, { system_prompt: editPredictionPrompt.system_prompt, user_prompt: editPredictionPrompt.user_prompt }, { headers: getAdminHeaders() });
-                toast.success("Prediction prompt saved");
-              } catch { toast.error("Save failed"); }
-            }} className="gap-2">
-              <Save className="h-4 w-4" />
-              Save Prediction Prompt
             </Button>
           </div>
         </div>

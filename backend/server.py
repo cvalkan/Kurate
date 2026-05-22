@@ -428,6 +428,21 @@ async def startup():
     except Exception as e:
         logger.warning(f"Precomputed cache load failed: {e}")
 
+    # One-time migration: delete obsolete prediction experiment matches.
+    # These are ~2,490 matches with mode="prediction" or "prediction-fulltext".
+    # After deletion, all remaining matches have no `mode` field, making the
+    # `mode: {$exists: False}` safety-net filter a no-op (kept for defense).
+    try:
+        del_result = await db.matches.delete_many({"mode": {"$type": "string"}})
+        if del_result.deleted_count > 0:
+            logger.info(f"Deleted {del_result.deleted_count} obsolete prediction experiment matches")
+        # Also unset mode on matches where mode=null (preview DB artifact)
+        unset_result = await db.matches.update_many({"mode": None}, {"$unset": {"mode": ""}})
+        if unset_result.modified_count > 0:
+            logger.info(f"Unset mode field on {unset_result.modified_count} matches (null cleanup)")
+    except Exception as e:
+        logger.warning(f"Prediction match cleanup failed: {e}")
+
     # Start accepting connections NOW — everything else runs in background
     asyncio.create_task(_deferred_startup())
     from core.memlog import log_mem, ensure_ttl_index
@@ -589,6 +604,10 @@ async def _deferred_startup():
         await db.matches.create_index([("primary_category", 1), ("completed", 1), ("created_at", -1)], name="cat_completed_recent")
         await db.matches.create_index([("primary_category", 1), ("completed", 1), ("failed", 1), ("mode", 1)], name="cat_completed_mode")
         await db.matches.create_index("created_at")
+        # Compound index for timeseries aggregation — covers the primary $match + $group by day/category
+        await db.matches.create_index([
+            ("completed", 1), ("failed", 1), ("mode", 1), ("primary_category", 1), ("created_at", 1)
+        ], name="timeseries_agg_idx")
         await db.matches.create_index([
             ("primary_category", 1), ("completed", 1), ("failed", 1), ("mode", 1)
         ])
