@@ -199,6 +199,19 @@ export function AdminCategories({ onCategoriesChanged }) {
                             <span className={`text-sm truncate flex-1 ${!isActive ? "text-muted-foreground" : ""}`}>{c.name}</span>
                             {isActive && (
                               <button
+                                className={`h-5 px-1 text-[9px] font-medium rounded transition-colors shrink-0 ${
+                                  newCats.has(c.id)
+                                    ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                                    : "text-muted-foreground/30 hover:text-emerald-500 hover:bg-emerald-50"
+                                }`}
+                                onClick={() => toggleNew(c.id)}
+                                title={newCats.has(c.id) ? "Remove 'New' badge" : "Mark as 'New' on homepage"}
+                              >
+                                New
+                              </button>
+                            )}
+                            {isActive && (
+                              <button
                                 className={`h-5 w-5 flex items-center justify-center shrink-0 rounded transition-colors ${
                                   isFeatured ? "text-amber-500" : "text-muted-foreground/30 hover:text-amber-400"
                                 }`}
