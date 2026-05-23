@@ -175,6 +175,8 @@ async def export_users():
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=kurate_users_{datetime.now(timezone.utc).strftime('%Y%m%d')}.csv"},
     )
+
+@router.get("/admin/users/registrations", dependencies=[Depends(verify_admin)])
 async def user_registrations():
     """Return daily and cumulative user registration counts for charting."""
     from collections import defaultdict
@@ -184,8 +186,8 @@ async def user_registrations():
         {"_id": 0, "created_at": 1, "provider": 1}
     ):
         created = u.get("created_at", "")
-        if isinstance(created, str) and len(created) >= 10:
-            day = created[:10]
+        day = str(created)[:10]
+        if len(day) >= 10:
             daily[day] += 1
     # Sort and compute cumulative
     sorted_days = sorted(daily.items())
