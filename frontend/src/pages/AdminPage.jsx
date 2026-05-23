@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Settings, Activity, LogOut, FileText, Save, HelpCircle, FlaskConical, MessageSquare, Users,
-  Sliders, Twitter, Mail, ScrollText,
+  Sliders, Twitter, Mail, ScrollText, Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminOverview } from "@/components/AdminOverview";
@@ -688,7 +688,24 @@ function AdminUsers() {
     <div className="space-y-4" data-testid="admin-users">
       <div className="flex items-center justify-between">
         <h2 className="font-heading text-lg font-medium">Registered Users</h2>
-        <span className="text-xs text-muted-foreground">{total} total</span>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-7 text-xs gap-1"
+            onClick={() => {
+              const link = document.createElement("a");
+              link.href = `${API}/api/admin/users/export`;
+              link.setAttribute("download", "");
+              // Need to fetch with auth header
+              fetch(`${API}/api/admin/users/export`, { headers: getAdminHeaders() })
+                .then(r => r.blob())
+                .then(blob => { const url = URL.createObjectURL(blob); link.href = url; link.click(); URL.revokeObjectURL(url); })
+                .catch(() => toast.error("Export failed"));
+            }}
+            data-testid="export-users-btn"
+          >
+            <Download className="h-3 w-3" /> Export CSV
+          </Button>
+          <span className="text-xs text-muted-foreground">{total} total</span>
+        </div>
       </div>
 
       {users.length === 0 ? (

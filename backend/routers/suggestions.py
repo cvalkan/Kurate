@@ -1,6 +1,9 @@
 import uuid
+import csv
+import io
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 
@@ -79,7 +82,27 @@ async def get_users(offset: int = 0, limit: int = 100, page: int = None):
     return {"users": users, "total": total, "offset": offset, "limit": limit}
 
 
-@router.get("/admin/users/registrations", dependencies=[Depends(verify_admin)])
+@router.get("/admin/users/export", dependencies=[Depends(verify_admin)])
+async def export_users():
+    """Export all users as CSV (name, email, provider, status, registered)."""
+    users = await db.users.find(
+        {}, {"_id": 0, "password_hash": 0, "verification_token": 0}
+    ).sort("created_at", -1).to_list(None)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["name", "email", "provider", "status", "registered"])
+    for u in users:
+        status = "deactivated" if u.get("active") is False else ("verified" if u.get("email_verified") else "unverified")
+        registered = str(u.get("created_at") or "")[:10]
+        writer.writerow([u.get("name", ""), u.get("email", ""), u.get("provider", ""), status, registered])
+
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=kurate_users_{datetime.now(timezone.utc).strftime('%Y%m%d')}.csv"},
+    )
 async def user_registrations():
     """Return daily and cumulative user registration counts for charting."""
     from collections import defaultdict
