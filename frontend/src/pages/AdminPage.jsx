@@ -277,24 +277,24 @@ export default function AdminPage() {
         </Button>
       </div>
 
-      <div className="flex items-center gap-0.5 mb-6 p-1 bg-secondary/50 rounded-lg w-fit max-w-full overflow-x-auto flex-nowrap" data-testid="admin-tabs">
+      <div className="flex items-center gap-0.5 mb-6 p-1 bg-secondary/50 rounded-lg w-fit max-w-full flex-nowrap" data-testid="admin-tabs">
         {tabs.map((t) => {
           const Icon = t.icon;
           return (
             <Button key={t.key} variant={activeTab === t.key ? "default" : "ghost"} size="sm"
-              onClick={() => setActiveTab(t.key)} className="gap-1 text-[11px] h-7 px-2 shrink-0" data-testid={`tab-${t.key}`}
+              onClick={() => setActiveTab(t.key)} className="gap-1 text-xs h-7 px-2.5 shrink-0" data-testid={`tab-${t.key}`}
             >
-              <Icon className="h-3 w-3" />
+              <Icon className="h-3.5 w-3.5" />
               {t.label}
             </Button>
           );
         })}
-        <a href="/admin/outreach" className="inline-flex items-center gap-1 text-[11px] h-7 px-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors shrink-0" data-testid="tab-outreach">
-          <Twitter className="h-3 w-3" />
-          X Outreach
+        <a href="/admin/outreach" className="inline-flex items-center gap-1 text-xs h-7 px-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors shrink-0" data-testid="tab-outreach">
+          <Twitter className="h-3.5 w-3.5" />
+          X
         </a>
-        <a href="/admin/outreach/email" className="inline-flex items-center gap-1 text-[11px] h-7 px-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors shrink-0" data-testid="tab-email-outreach">
-          <Mail className="h-3 w-3" />
+        <a href="/admin/outreach/email" className="inline-flex items-center gap-1 text-xs h-7 px-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors shrink-0" data-testid="tab-email-outreach">
+          <Mail className="h-3.5 w-3.5" />
           Email
         </a>
       </div>
