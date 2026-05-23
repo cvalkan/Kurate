@@ -185,9 +185,22 @@ export function AdminOverview({
             className="h-8 px-2 text-xs rounded-md border border-border bg-background cursor-pointer"
             data-testid="admin-cat-dropdown"
           >
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name} ({c.id})</option>
-            ))}
+            {(() => {
+              const groups = {};
+              const groupOrder = [];
+              for (const c of categories) {
+                const g = c.group || "Other";
+                if (!groups[g]) { groups[g] = []; groupOrder.push(g); }
+                groups[g].push(c);
+              }
+              return groupOrder.map(g => (
+                <optgroup key={g} label={g}>
+                  {groups[g].map(c => (
+                    <option key={c.id} value={c.id}>{c.name} ({c.id})</option>
+                  ))}
+                </optgroup>
+              ));
+            })()}
           </select>
         </div>
       )}
