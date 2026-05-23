@@ -12,6 +12,7 @@ import {
   Sliders, Twitter, Mail, ScrollText, Download,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ResponsiveContainer, ComposedChart, CartesianGrid, XAxis, YAxis, Tooltip as RTooltip, Area } from "recharts";
 import { AdminOverview } from "@/components/AdminOverview";
 import { AdminLogs } from "@/components/AdminLogs";
 import { AdminStatistics } from "@/components/AdminStatistics";
@@ -783,7 +784,6 @@ function AdminUsers() {
           </div>
           <div className="h-[180px]">
             {(() => {
-              const { ResponsiveContainer, ComposedChart, CartesianGrid, XAxis, YAxis, Tooltip: RTooltip, Area } = require("recharts");
               const withZero = [{ date: "", cumulative: 0 }, ...regData];
               return (
                 <ResponsiveContainer width="100%" height="100%">
