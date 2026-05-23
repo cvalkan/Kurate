@@ -612,43 +612,6 @@ export function AdminStatistics({ categories }) {
         </div>
       )}
 
-      {/* User Registrations */}
-      {registrationData && registrationData.length > 0 && (() => {
-        const regWithZero = [{ date: "", cumulative: 0 }, ...registrationData];
-        return (
-        <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="registration-chart">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-medium">User Registrations</h3>
-            <span className="text-xs text-muted-foreground">
-              Total: {registrationData[registrationData.length - 1]?.cumulative ?? 0}
-            </span>
-          </div>
-          <div className="h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={regWithZero} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-                <XAxis
-                  dataKey="date" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))"
-                  tickFormatter={(d) => {
-                    if (!d) return "";
-                    const dt = new Date(d + "T00:00:00Z");
-                    return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-                  }}
-                />
-                <YAxis yAxisId="cumulative" orientation="left" tick={{ fontSize: 10 }} stroke="#3b82f6" domain={[0, 'auto']} />
-                <RechartsTooltip
-                  contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }}
-                  labelFormatter={(d) => d ? new Date(d + "T00:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : "Start"}
-                />
-                <Area yAxisId="cumulative" type="monotone" dataKey="cumulative" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.1} strokeWidth={2} dot={false} name="Total users" />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-        );
-      })()}
-
       {/* Chart controls */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md">
