@@ -534,6 +534,33 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
         </div>
       )}
 
+      {/* Surprise score distribution */}
+      {data.surprise_distribution && data.surprise_distribution.length > 0 && (
+        <div className="border border-border rounded-lg p-4 bg-card">
+          <h3 className="text-sm font-medium mb-1">Multidisciplinarity Distribution</h3>
+          <p className="text-xs text-muted-foreground mb-3">Tag-pair surprise (PMI) scores across all papers. Right = more unusual tag combinations.</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={data.surprise_distribution} margin={{ top: 5, right: 10, bottom: 5, left: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
+              <XAxis dataKey="bin" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 11 }} width={40} />
+              <RechartsTooltip
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const d = payload[0]?.payload;
+                  return (
+                    <div className="rounded-lg border border-border bg-popover px-2.5 py-1.5 shadow-lg text-xs">
+                      Surprise {d.bin}: <b>{d.count}</b> papers
+                    </div>
+                  );
+                }}
+              />
+              <Bar dataKey="count" fill="#8b5cf6" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
       {/* Score distribution — proper bar chart */}
       {histogramData.length > 0 && (
         <div className="border border-border rounded-lg p-4 bg-card">
