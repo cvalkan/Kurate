@@ -277,7 +277,7 @@ export default function AdminPage() {
         </Button>
       </div>
 
-      <div className="flex items-center gap-0.5 mb-6 p-1 bg-secondary/50 rounded-lg w-fit max-w-full flex-nowrap" data-testid="admin-tabs">
+      <div className="flex items-center gap-0.5 mb-6 p-1 bg-secondary/50 rounded-lg max-w-full overflow-x-auto flex-nowrap" data-testid="admin-tabs">
         {tabs.map((t) => {
           const Icon = t.icon;
           return (
