@@ -506,6 +506,34 @@ function SimilarityLandscapeSection({ category = "cs.AI" }) {
         ))}
       </div>
 
+      {/* Surprise / Multidisciplinarity ranking */}
+      {data.surprise_ranking && data.surprise_ranking.length > 0 && (
+        <div className="border border-border rounded-lg p-4 bg-card" data-testid="surprise-ranking">
+          <h3 className="text-sm font-medium mb-1">Most Multidisciplinary Papers</h3>
+          <p className="text-xs text-muted-foreground mb-3">
+            Ranked by tag-pair surprise (PMI). High score = unusual combination of research topics that rarely co-occur in the corpus.
+          </p>
+          <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
+            {data.surprise_ranking.slice(0, 20).map((r) => (
+              <div key={r.id} className="flex items-start gap-2 py-1.5 border-b border-border/30 last:border-0">
+                <span className="text-[10px] font-mono text-muted-foreground w-5 shrink-0 text-right pt-0.5">{r.rank}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium truncate">{r.title}</span>
+                    <span className="text-[10px] font-mono text-accent shrink-0">{(r.score * 100).toFixed(0)}%</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {r.tags.slice(0, 6).map((tag, i) => (
+                      <span key={i} className="px-1.5 py-0.5 rounded text-[10px] bg-muted text-muted-foreground">{tag}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Score distribution — proper bar chart */}
       {histogramData.length > 0 && (
         <div className="border border-border rounded-lg p-4 bg-card">
