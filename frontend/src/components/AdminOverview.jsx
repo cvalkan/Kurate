@@ -1,13 +1,99 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
-  RefreshCw, Swords, FileText, CheckCircle2, XCircle, Search,
+  RefreshCw, Swords, FileText, CheckCircle2, XCircle, Search, ChevronDown,
   Clock, Download, Activity, Plus,
 } from "lucide-react";
 import { ModelBadge } from "@/components/ModelBadge";
 import { toast } from "sonner";
+
+
+function AdminCatPicker({ categories, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = React.useRef(null);
+  const searchRef = React.useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    if (open && searchRef.current) searchRef.current.focus();
+    if (!open) setSearch("");
+  }, [open]);
+
+  const lc = search.toLowerCase();
+  const filtered = lc
+    ? categories.filter(c => c.name.toLowerCase().includes(lc) || c.id.toLowerCase().includes(lc))
+    : categories;
+  const groups = {};
+  const groupOrder = [];
+  for (const c of filtered) {
+    const g = c.group || "Other";
+    if (!groups[g]) { groups[g] = []; groupOrder.push(g); }
+    groups[g].push(c);
+  }
+
+  const current = categories.find(c => c.id === value);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        className="h-8 px-3 text-xs rounded-md border border-border bg-background hover:bg-accent/5 cursor-pointer flex items-center gap-1.5 transition-colors"
+        onClick={() => setOpen(v => !v)}
+        data-testid="admin-cat-dropdown"
+      >
+        <span className="font-mono text-accent">{value}</span>
+        <span>{current?.name || value}</span>
+        <ChevronDown className={`h-3 w-3 text-muted-foreground ml-1 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 bg-background border border-border rounded-lg shadow-lg py-1"
+          style={{ width: 300, maxHeight: "min(420px, 60vh)", overflowY: "auto" }}
+        >
+          {categories.length > 6 && (
+            <div className="px-2 py-1.5 border-b border-border/50 sticky top-0 bg-background z-10">
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-muted/50">
+                <Search className="h-3 w-3 text-muted-foreground shrink-0" />
+                <input
+                  ref={searchRef}
+                  type="text" value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Filter categories..."
+                  className="bg-transparent text-xs outline-none w-full placeholder:text-muted-foreground/60"
+                />
+              </div>
+            </div>
+          )}
+          {groupOrder.length === 0 && (
+            <div className="px-3 py-3 text-xs text-muted-foreground text-center">No matching categories</div>
+          )}
+          {groupOrder.map(g => (
+            <div key={g}>
+              <div className="px-3 pt-3 pb-1 text-xs font-extrabold uppercase tracking-wide text-foreground/80 select-none">{g}</div>
+              {groups[g].map(c => (
+                <button
+                  key={c.id}
+                  className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent/10 transition-colors ${value === c.id ? "bg-accent/10 text-accent font-medium" : ""}`}
+                  onClick={() => { onChange(c.id); setOpen(false); }}
+                  data-testid={`admin-cat-${c.id}`}
+                >
+                  <span className="font-mono text-[11px] text-muted-foreground mr-2">{c.id}</span>
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -179,29 +265,7 @@ export function AdminOverview({
       {categories.length > 1 && (
         <div className="flex items-center gap-2" data-testid="admin-cat-selector">
           <span className="text-xs text-muted-foreground">Category:</span>
-          <select
-            value={adminCat}
-            onChange={(e) => setAdminCat(e.target.value)}
-            className="h-8 px-2 text-xs rounded-md border border-border bg-background cursor-pointer"
-            data-testid="admin-cat-dropdown"
-          >
-            {(() => {
-              const groups = {};
-              const groupOrder = [];
-              for (const c of categories) {
-                const g = c.group || "Other";
-                if (!groups[g]) { groups[g] = []; groupOrder.push(g); }
-                groups[g].push(c);
-              }
-              return groupOrder.map(g => (
-                <optgroup key={g} label={g}>
-                  {groups[g].map(c => (
-                    <option key={c.id} value={c.id}>{c.name} ({c.id})</option>
-                  ))}
-                </optgroup>
-              ));
-            })()}
-          </select>
+          <AdminCatPicker categories={categories} value={adminCat} onChange={setAdminCat} />
         </div>
       )}
 
