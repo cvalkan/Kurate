@@ -11,8 +11,8 @@ const API = process.env.REACT_APP_BACKEND_URL;
 
 const NAV_LINKS = [
   { path: "/", label: "Leaderboard", icon: Trophy, exact: true },
-  { path: "/correlation", label: "Model Analysis", icon: BarChart3 },
   { path: "/methodology", label: "Methodology", icon: BookOpen },
+  { path: "/correlation", label: "Model Analysis", icon: BarChart3 },
   { path: "/validation", label: "Validation", icon: FlaskConical },
 ];
 
