@@ -158,9 +158,6 @@ export function AdminCategories({ onCategoriesChanged }) {
               <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500 shrink-0" />
               <span className="font-mono text-xs text-accent">{c.id}</span>
               <span className="text-sm font-medium truncate">{c.name}</span>
-              {newCats.has(c.id) && (
-                <span className="text-[9px] px-1 py-0.5 rounded bg-emerald-100 text-emerald-700 font-medium">New</span>
-              )}
               <div className="ml-auto flex items-center gap-1 shrink-0">
                 <button
                   className={`h-6 px-1.5 text-[10px] font-medium rounded transition-colors ${
