@@ -219,6 +219,26 @@ export function AdminCategories({ onCategoriesChanged }) {
             </div>
           )}
         </div>
+        {/* Active category pills */}
+        {activeIds.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {activeIds.map(id => {
+              const cat = allCategories.find(c => c.id === id);
+              return (
+                <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-secondary/50 text-[11px] font-mono text-muted-foreground">
+                  {id}
+                  <button
+                    className="text-muted-foreground/40 hover:text-red-500 transition-colors"
+                    onClick={() => toggleActive(id)}
+                    title={`Remove ${cat?.name || id}`}
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Featured categories (homepage tabs) */}

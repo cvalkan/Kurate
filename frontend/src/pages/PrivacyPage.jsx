@@ -2,7 +2,7 @@ export default function PrivacyPage() {
   return (
     <div className="container mx-auto px-4 max-w-3xl py-10">
       <h1 className="text-2xl font-bold mb-6">Privacy Policy</h1>
-      <p className="text-sm text-muted-foreground mb-8">Last updated: April 14, 2026</p>
+      <p className="text-sm text-muted-foreground mb-8">Last updated: May 22, 2026</p>
 
       <div className="prose prose-sm dark:prose-invert max-w-none space-y-6 text-sm leading-relaxed">
         <section>
@@ -46,13 +46,28 @@ export default function PrivacyPage() {
             We have enabled IP anonymization and do not use GA4 for cross-site tracking or advertising.
           </p>
 
-          <h3 className="font-medium mt-4 mb-2">2.3 Server Logs</h3>
+          <h3 className="font-medium mt-4 mb-2">2.3 Search Performance Data (Google Search Console)</h3>
+          <p>
+            We use Google Search Console to monitor how the Service appears in Google Search results.
+            Google Search Console provides us with aggregated data about:
+          </p>
+          <ul className="list-disc ml-5 space-y-1">
+            <li>Search queries that led users to the Service</li>
+            <li>Click-through rates, impressions, and average ranking positions</li>
+            <li>Crawl errors and indexing status of our pages</li>
+          </ul>
+          <p className="mt-2">
+            This data is aggregated and does not contain personally identifiable information.
+            It is processed by Google LLC under our Google Workspace account.
+          </p>
+
+          <h3 className="font-medium mt-4 mb-2">2.4 Server Logs</h3>
           <p>
             Our hosting infrastructure automatically logs HTTP requests, including IP addresses, request paths, timestamps,
             and user-agent strings. These logs are retained for up to 30 days for security and debugging purposes.
           </p>
 
-          <h3 className="font-medium mt-4 mb-2">2.4 Cookies and Local Storage</h3>
+          <h3 className="font-medium mt-4 mb-2">2.5 Cookies and Local Storage</h3>
           <p>
             We use essential cookies and browser local storage for authentication session management.
             Google Analytics sets its own cookies (<code>_ga</code>, <code>_ga_*</code>) for visitor identification across sessions.
@@ -60,7 +75,7 @@ export default function PrivacyPage() {
             advertising effectiveness (see section 2.5).
           </p>
 
-          <h3 className="font-medium mt-4 mb-2">2.5 Reddit Advertising Pixel</h3>
+          <h3 className="font-medium mt-4 mb-2">2.6 Reddit Advertising Pixel</h3>
           <p>
             We use the <strong>Reddit Pixel</strong> to measure the effectiveness of advertising campaigns we may
             run on reddit.com. The pixel fires a single <code>PageVisit</code> event when you load the site and
@@ -96,6 +111,7 @@ export default function PrivacyPage() {
               <tr><td className="py-2 pr-4">User authentication (Google Sign-In)</td><td className="py-2">Consent / Contract performance</td></tr>
               <tr><td className="py-2 pr-4">Personalization (bookmarks, reading lists)</td><td className="py-2">Contract performance</td></tr>
               <tr><td className="py-2 pr-4">Website analytics (Google Analytics)</td><td className="py-2">Legitimate interest / Consent</td></tr>
+              <tr><td className="py-2 pr-4">Search performance monitoring (Google Search Console)</td><td className="py-2">Legitimate interest</td></tr>
               <tr><td className="py-2 pr-4">Advertising measurement (Reddit Pixel)</td><td className="py-2">Legitimate interest / Consent</td></tr>
               <tr><td className="py-2 pr-4">Security and abuse prevention</td><td className="py-2">Legitimate interest</td></tr>
               <tr><td className="py-2 pr-4">Email notifications (if opted in)</td><td className="py-2">Consent</td></tr>
@@ -110,6 +126,7 @@ export default function PrivacyPage() {
           </p>
           <ul className="list-disc ml-5 space-y-1">
             <li><strong>Google Analytics 4</strong> — analytics data processed by Google LLC, USA</li>
+            <li><strong>Google Search Console</strong> — aggregated search performance data processed by Google LLC, USA</li>
             <li><strong>Google OAuth</strong> — authentication data processed by Google LLC, USA</li>
             <li><strong>Reddit Pixel</strong> — advertising measurement data processed by Reddit Inc., USA</li>
             <li><strong>Cloudflare</strong> — CDN and security services, data may transit through global servers</li>
@@ -160,7 +177,7 @@ export default function PrivacyPage() {
         <section>
           <h2 className="text-lg font-semibold mt-8 mb-3">8. Third-Party Services</h2>
           <ul className="list-disc ml-5 space-y-2">
-            <li><strong>Google LLC</strong> (Google Sign-In, Google Analytics) — <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">Privacy Policy</a></li>
+            <li><strong>Google LLC</strong> (Google Sign-In, Google Analytics, Google Search Console) — <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">Privacy Policy</a></li>
             <li><strong>Cloudflare Inc.</strong> (CDN, DDoS protection) — <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">Privacy Policy</a></li>
             <li><strong>MongoDB Inc.</strong> (database hosting) — <a href="https://www.mongodb.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">Privacy Policy</a></li>
           </ul>

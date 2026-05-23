@@ -264,6 +264,7 @@ export default function AdminPage() {
     { key: "prompt", label: "Prompt", icon: FileText },
     { key: "logs", label: "Logs", icon: ScrollText },
     { key: "suggestions", label: "Suggestions", icon: MessageSquare },
+    { key: "messages", label: "Messages", icon: Mail },
     { key: "users", label: "Users", icon: Users },
   ];
 
@@ -276,25 +277,25 @@ export default function AdminPage() {
         </Button>
       </div>
 
-      <div className="flex items-center gap-1 mb-6 p-1 bg-secondary/50 rounded-lg w-fit max-w-full overflow-x-auto flex-nowrap" data-testid="admin-tabs">
+      <div className="flex items-center gap-0.5 mb-6 p-1 bg-secondary/50 rounded-lg w-fit max-w-full overflow-x-auto flex-nowrap" data-testid="admin-tabs">
         {tabs.map((t) => {
           const Icon = t.icon;
           return (
             <Button key={t.key} variant={activeTab === t.key ? "default" : "ghost"} size="sm"
-              onClick={() => setActiveTab(t.key)} className="gap-1.5 text-xs h-8 shrink-0" data-testid={`tab-${t.key}`}
+              onClick={() => setActiveTab(t.key)} className="gap-1 text-[11px] h-7 px-2 shrink-0" data-testid={`tab-${t.key}`}
             >
-              <Icon className="h-3.5 w-3.5" />
+              <Icon className="h-3 w-3" />
               {t.label}
             </Button>
           );
         })}
-        <a href="/admin/outreach" className="inline-flex items-center gap-1.5 text-xs h-8 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors shrink-0" data-testid="tab-outreach">
-          <Twitter className="h-3.5 w-3.5" />
+        <a href="/admin/outreach" className="inline-flex items-center gap-1 text-[11px] h-7 px-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors shrink-0" data-testid="tab-outreach">
+          <Twitter className="h-3 w-3" />
           X Outreach
         </a>
-        <a href="/admin/outreach/email" className="inline-flex items-center gap-1.5 text-xs h-8 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors shrink-0" data-testid="tab-email-outreach">
-          <Mail className="h-3.5 w-3.5" />
-          Email Outreach
+        <a href="/admin/outreach/email" className="inline-flex items-center gap-1 text-[11px] h-7 px-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors shrink-0" data-testid="tab-email-outreach">
+          <Mail className="h-3 w-3" />
+          Email
         </a>
       </div>
 
@@ -570,6 +571,8 @@ export default function AdminPage() {
 
       {activeTab === "suggestions" && <AdminSuggestions />}
 
+      {activeTab === "messages" && <AdminMessages />}
+
       {activeTab === "users" && <AdminUsers />}
     </div>
   );
@@ -637,6 +640,80 @@ function AdminSuggestions() {
               <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
                 <span>{s.user_name || s.user_email}</span>
                 <span>{new Date(s.created_at).toLocaleString()}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function AdminMessages() {
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchMessages = async () => {
+    try {
+      const res = await axios.get(`${API}/api/admin/contact-messages`, { headers: getAdminHeaders() });
+      setMessages(res.data.messages || []);
+    } catch (err) {
+      console.error("Failed to load messages:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchMessages(); }, []);
+
+  const updateStatus = async (id, status) => {
+    try {
+      await axios.post(`${API}/api/admin/contact-messages/${id}/status`, { status }, { headers: getAdminHeaders() });
+      toast.success(`Marked as ${status}`);
+      fetchMessages();
+    } catch { toast.error("Failed"); }
+  };
+
+  if (loading) return <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-secondary/30 rounded-lg animate-pulse" />)}</div>;
+
+  const unread = messages.filter(m => m.status === "unread").length;
+
+  return (
+    <div className="space-y-4" data-testid="admin-messages">
+      <div className="flex items-center justify-between">
+        <h2 className="font-heading text-lg font-medium">Contact Messages</h2>
+        <span className="text-xs text-muted-foreground">
+          {messages.length} total{unread > 0 && <span className="text-amber-600 ml-1">({unread} unread)</span>}
+        </span>
+      </div>
+
+      {messages.length === 0 ? (
+        <div className="p-8 text-center text-muted-foreground border border-border rounded-lg">
+          <Mail className="h-8 w-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">No contact messages yet.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {messages.map(m => (
+            <div key={m.message_id} className={`p-4 border rounded-lg ${m.status === "unread" ? "border-accent/30 bg-accent/5" : "border-border/50 bg-secondary/10"}`} data-testid={`message-${m.message_id}`}>
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${m.status === "unread" ? "bg-amber-50 text-amber-700 font-medium" : "bg-green-50 text-green-700"}`}>
+                    {m.status}
+                  </span>
+                  <span className="text-xs font-medium">{m.name || "Anonymous"}</span>
+                  <a href={`mailto:${m.email}`} className="text-xs text-accent hover:underline">{m.email}</a>
+                </div>
+                {m.status === "unread" && (
+                  <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={() => updateStatus(m.message_id, "read")}>
+                    Mark read
+                  </Button>
+                )}
+              </div>
+              <p className="text-sm whitespace-pre-wrap">{m.message}</p>
+              <div className="text-[10px] text-muted-foreground mt-2">
+                {new Date(m.created_at).toLocaleString()}
               </div>
             </div>
           ))}

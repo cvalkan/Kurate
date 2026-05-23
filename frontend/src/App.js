@@ -28,6 +28,7 @@ import NewBadgeTest from "@/pages/NewBadgeTest";
 import SimulatedMemChart from "@/pages/SimulatedMemChart";
 import PrivacyPage from "@/pages/PrivacyPage";
 import ImpressumPage from "@/pages/ImpressumPage";
+import ContactPage from "@/pages/ContactPage";
 import StartRedirect from "@/pages/StartRedirect";
 import Navbar from "@/components/Navbar";
 import { BookmarkProvider } from "@/contexts/BookmarkContext";
@@ -71,12 +72,15 @@ function AppRouter() {
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/impressum" element={<ImpressumPage />} />
+          <Route path="/contact" element={<ContactPage />} />
         </Routes>
       </main>
       <footer className="border-t border-border py-4 text-center text-xs text-muted-foreground">
         <a href="/privacy" className="hover:underline">Privacy Policy</a>
         <span className="mx-2">·</span>
         <a href="/impressum" className="hover:underline">Impressum</a>
+        <span className="mx-2">·</span>
+        <a href="/contact" className="hover:underline">Contact</a>
       </footer>
       <Toaster position="bottom-right" />
     </>

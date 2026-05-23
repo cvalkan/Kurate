@@ -14,7 +14,6 @@ const NAV_LINKS = [
   { path: "/correlation", label: "Model Analysis", icon: BarChart3 },
   { path: "/methodology", label: "Methodology", icon: BookOpen },
   { path: "/validation", label: "Validation", icon: FlaskConical },
-  { path: "/admin", label: "Admin", icon: Shield, prefix: true },
 ];
 
 export default function Navbar() {

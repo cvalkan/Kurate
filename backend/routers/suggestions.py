@@ -71,6 +71,78 @@ async def update_suggestion_status(suggestion_id: str, request: Request):
     return {"status": "ok"}
 
 
+# ── Contact form (public, no auth) ──
+
+_contact_rate_limit: dict = {}  # {ip: [timestamps]}
+CONTACT_RATE_WINDOW = 3600  # 1 hour
+CONTACT_RATE_MAX = 5  # max submissions per window
+
+
+class ContactCreate(BaseModel):
+    name: str
+    email: str
+    message: str
+    website: str = ""  # honeypot field — should be empty
+
+
+@router.post("/contact")
+async def create_contact(req: ContactCreate, request: Request):
+    # Honeypot check
+    if req.website.strip():
+        # Bot filled the hidden field — silently accept to not reveal the trap
+        return {"status": "ok"}
+
+    if not req.message.strip():
+        raise HTTPException(400, "Message cannot be empty")
+    if not req.email.strip() or "@" not in req.email:
+        raise HTTPException(400, "Valid email is required")
+
+    # Rate limiting by IP
+    ip = request.headers.get("x-forwarded-for", request.client.host or "").split(",")[0].strip()
+    now = datetime.now(timezone.utc).timestamp()
+    timestamps = _contact_rate_limit.get(ip, [])
+    timestamps = [t for t in timestamps if now - t < CONTACT_RATE_WINDOW]
+    if len(timestamps) >= CONTACT_RATE_MAX:
+        raise HTTPException(429, "Too many messages. Please try again later.")
+    timestamps.append(now)
+    _contact_rate_limit[ip] = timestamps
+
+    doc = {
+        "message_id": f"msg_{uuid.uuid4().hex[:12]}",
+        "name": req.name.strip()[:200],
+        "email": req.email.strip()[:200],
+        "message": req.message.strip()[:5000],
+        "status": "unread",
+        "ip": ip,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.contact_messages.insert_one(doc)
+    logger.info(f"New contact message from {req.email.strip()}: {req.message[:50]}")
+
+    return {"status": "ok"}
+
+
+@router.get("/admin/contact-messages", dependencies=[Depends(verify_admin)])
+async def get_contact_messages():
+    messages = await db.contact_messages.find(
+        {}, {"_id": 0}
+    ).sort("created_at", -1).to_list(200)
+    return {"messages": messages}
+
+
+@router.post("/admin/contact-messages/{message_id}/status", dependencies=[Depends(verify_admin)])
+async def update_contact_message_status(message_id: str, request: Request):
+    body = await request.json()
+    new_status = body.get("status", "read")
+    result = await db.contact_messages.update_one(
+        {"message_id": message_id},
+        {"$set": {"status": new_status, "reviewed_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    if result.modified_count == 0:
+        raise HTTPException(404, "Message not found")
+    return {"status": "ok"}
+
+
 @router.get("/admin/users", dependencies=[Depends(verify_admin)])
 async def get_users(offset: int = 0, limit: int = 100, page: int = None):
     if page is not None and page > 0:
