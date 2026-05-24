@@ -467,7 +467,16 @@ async def main():
     parser.add_argument("--limit", type=int, default=0, help="Limit matches (0 = all)")
     parser.add_argument("--csv", type=str, default=str(CSV_PATH), help="Input CSV path")
     parser.add_argument("--output", type=str, default=str(OUTPUT_PATH), help="Output JSONL path")
+    parser.add_argument("--summaries", type=str, default=str(SUMMARIES_PATH), help="Summaries JSONL path")
+    parser.add_argument("--abstracts", type=str, default=str(ABSTRACTS_CACHE), help="Abstracts JSONL path")
+    parser.add_argument("--dataset-id", type=str, default=DATASET_ID, help="Dataset ID for DB storage")
+    parser.add_argument("--exclude", type=str, default="", help="Comma-separated openreview IDs to exclude")
     args = parser.parse_args()
+
+    # Override module-level vars from args
+    import sys
+    sys.modules[__name__].DATASET_ID = args.dataset_id
+    sys.modules[__name__].ABSTRACTS_CACHE = Path(args.abstracts)
 
     print("=" * 60)
     print("Validation Match Pipeline")
@@ -478,9 +487,17 @@ async def main():
     matches = load_matches(args.csv)
     print(f"   {len(matches):,} pairs loaded")
 
+    # 1b. Apply exclusions
+    exclude_ids = set(x.strip() for x in args.exclude.split(",") if x.strip())
+    if exclude_ids:
+        before = len(matches)
+        matches = [(a, b) for a, b in matches if a not in exclude_ids and b not in exclude_ids]
+        print(f"   Excluded {len(exclude_ids)} papers, removed {before - len(matches)} pairs, {len(matches)} remaining")
+
     # 2. Load summaries
-    print(f"\n2. Loading summaries from {SUMMARIES_PATH}")
-    summaries = load_summaries(SUMMARIES_PATH)
+    summaries_path = Path(args.summaries)
+    print(f"\n2. Loading summaries from {summaries_path}")
+    summaries = load_summaries(summaries_path)
     print(f"   {len(summaries):,} papers with summaries")
 
     # 3. Filter runnable matches
