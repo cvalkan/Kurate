@@ -14,7 +14,7 @@ import os
 from datetime import datetime, timezone
 
 # Use the backend URL from frontend .env
-BACKEND_URL = "https://validation-hub-46.preview.emergentagent.com"
+BACKEND_URL = "https://validation-hub-47.preview.emergentagent.com"
 API_BASE = f"{BACKEND_URL}/api"
 
 def log_test(message):
