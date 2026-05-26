@@ -84,34 +84,41 @@ async def generate_summary(title, content, prompt_config, sem):
             "custom_llm_provider": "openai",
         }
         t0 = time.time()
-        try:
-            loop = asyncio.get_event_loop()
-            resp = await loop.run_in_executor(None, lambda: litellm.completion(**params))
-            text = resp.choices[0].message.content
-            if text is None:
-                return {"error": "Model refused", "elapsed_s": round(time.time() - t0, 1)}
-            text = text.strip()
-            tokens_in = resp.usage.prompt_tokens if resp.usage else 0
-            tokens_out = resp.usage.completion_tokens if resp.usage else 0
+        for attempt in range(3):
+            try:
+                loop = asyncio.get_event_loop()
+                resp = await loop.run_in_executor(None, lambda: litellm.completion(**params))
+                text = resp.choices[0].message.content
+                if text is None or not text.strip():
+                    if attempt < 2:
+                        await asyncio.sleep(3)
+                        continue
+                    return {"error": "Model returned empty/None content after 3 attempts", "elapsed_s": round(time.time() - t0, 1)}
+                text = text.strip()
+                tokens_in = resp.usage.prompt_tokens if resp.usage else 0
+                tokens_out = resp.usage.completion_tokens if resp.usage else 0
 
-            ratings = None
-            match = re.search(r'\{[^{}]*"score"[^}]*\}', text[-800:], re.DOTALL)
-            if match:
-                try:
-                    ratings = json.loads(match.group())
-                except json.JSONDecodeError:
-                    pass
+                ratings = None
+                match = re.search(r'\{[^{}]*"score"[^}]*\}', text[-800:], re.DOTALL)
+                if match:
+                    try:
+                        ratings = json.loads(match.group())
+                    except json.JSONDecodeError:
+                        pass
 
-            return {
-                "summary": text,
-                "ratings": ratings,
-                "tokens_in": tokens_in,
-                "tokens_out": tokens_out,
-                "elapsed_s": round(time.time() - t0, 1),
-                "error": None,
-            }
-        except Exception as e:
-            return {"error": str(e)[:300], "elapsed_s": round(time.time() - t0, 1)}
+                return {
+                    "summary": text,
+                    "ratings": ratings,
+                    "tokens_in": tokens_in,
+                    "tokens_out": tokens_out,
+                    "elapsed_s": round(time.time() - t0, 1),
+                    "error": None,
+                }
+            except Exception as e:
+                if attempt < 2 and "Budget" not in str(e):
+                    await asyncio.sleep(3)
+                    continue
+                return {"error": str(e)[:300], "elapsed_s": round(time.time() - t0, 1)}
 
 
 async def load_top_papers(n):
