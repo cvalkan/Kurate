@@ -88,54 +88,60 @@ function ExtendedDimensionsSection() {
                 </BarChart>
               </ResponsiveContainer>
 
-              {/* Ranked paper list */}
-              {(() => {
-                const dimName = dim.name;
-                const reasonKey = `${dimName}_reason`;
-                const ranked = papers
-                  .filter(p => p.ratings?.[dimName] != null)
-                  .map(p => ({ ...p, val: p.ratings[dimName], reason: p.ratings[reasonKey] || "" }))
-                  .sort((a, b) => b.val - a.val);
-                const isExpanded = expandedDim === dimName;
-                const shown = isExpanded ? ranked : ranked.slice(0, 5);
-                return (
-                  <div className="mt-3">
-                    <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
-                      All papers ranked by {cfg.label.toLowerCase()}
-                    </div>
-                    <div className={`space-y-1 ${isExpanded ? "max-h-[400px] overflow-y-auto" : ""}`}>
-                      {shown.map((p, i) => (
-                        <div key={p.paper_id} className="flex items-start gap-2 py-1 border-b border-border/30 last:border-0">
-                          <span className="text-[10px] font-mono text-muted-foreground w-4 shrink-0 text-right pt-0.5">{i + 1}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs truncate">{p.title}</span>
-                              <span className="text-[10px] font-mono shrink-0" style={{ color: cfg.color }}>{p.val.toFixed(1)}</span>
-                            </div>
-                            {p.reason && (
-                              <div className="text-[10px] text-muted-foreground italic mt-0.5 leading-snug">
-                                {p.reason.slice(0, 150)}{p.reason.length > 150 ? "..." : ""}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {ranked.length > 5 && (
-                      <button
-                        className="text-[10px] text-accent hover:underline mt-1.5"
-                        onClick={() => setExpandedDim(isExpanded ? null : dimName)}
-                      >
-                        {isExpanded ? "Show less" : `Show all ${ranked.length} papers`}
-                      </button>
-                    )}
-                  </div>
-                );
-              })()}
+              {/* Histogram only - lists moved below */}
             </div>
           );
         })}
       </div>
+
+      {/* Full-width ranked lists per dimension */}
+      {ext.map(dim => {
+        const cfg = DIM_CONFIG[dim.name] || { color: "#666", label: dim.name, desc: "" };
+        const dimName = dim.name;
+        const reasonKey = `${dimName}_reason`;
+        const ranked = papers
+          .filter(p => p.ratings?.[dimName] != null)
+          .map(p => ({ ...p, val: p.ratings[dimName], reason: p.ratings[reasonKey] || "" }))
+          .sort((a, b) => b.val - a.val);
+        const isExpanded = expandedDim === dimName;
+        const shown = isExpanded ? ranked : ranked.slice(0, 10);
+        return (
+          <div key={`list-${dimName}`} className="border border-border rounded-lg p-4 bg-card" data-testid={`list-${dimName}`}>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cfg.color }} />
+              <h3 className="text-sm font-medium">Papers Ranked by {cfg.label}</h3>
+              <span className="text-[10px] text-muted-foreground">{ranked.length} papers</span>
+            </div>
+            <div className={`space-y-1 ${isExpanded ? "max-h-[600px] overflow-y-auto" : ""}`}>
+              {shown.map((p, i) => (
+                <div key={p.paper_id} className="flex items-start gap-2 py-1.5 border-b border-border/30 last:border-0">
+                  <span className="text-[10px] font-mono text-muted-foreground w-5 shrink-0 text-right pt-0.5">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium truncate">{p.title}</span>
+                      <span className="text-xs font-mono shrink-0 px-1.5 py-0.5 rounded" style={{ color: cfg.color, backgroundColor: `${cfg.color}15` }}>{p.val.toFixed(1)}</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{p.category}</span>
+                    </div>
+                    {p.reason && (
+                      <div className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                        {p.reason}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {ranked.length > 10 && (
+              <button
+                className="text-xs text-accent hover:underline mt-2"
+                onClick={() => setExpandedDim(isExpanded ? null : dimName)}
+              >
+                {isExpanded ? "Show top 10" : `Show all ${ranked.length} papers`}
+              </button>
+            )}
+          </div>
+        );
+      })}
 
       {/* Methodology note */}
       <div className="text-xs text-muted-foreground border-t border-border pt-3">
