@@ -210,8 +210,16 @@ async def load_top_papers(n):
 
 
 async def run_experiment(experiment, papers, parallel):
-    prompt_config = IMPACT_ASSESSMENT_PROMPT if experiment == 1 else PROMPT_WITH_REASONS
-    label = "baseline" if experiment == 1 else "with_reasons"
+    if experiment == 1:
+        prompt_config = IMPACT_ASSESSMENT_PROMPT
+        label = "baseline"
+    elif experiment == 2:
+        prompt_config = PROMPT_WITH_REASONS
+        label = "with_reasons"
+    elif experiment == 3:
+        from prompts.extended_impact_v2 import EXTENDED_IMPACT_PROMPT_V2
+        prompt_config = EXTENDED_IMPACT_PROMPT_V2
+        label = "extended"
     output_path = OUTPUT_DIR / f"prompt_stability_exp{experiment}_{label}.jsonl"
 
     # Load already completed
@@ -285,8 +293,9 @@ def analyze():
 
     dims = ["score", "significance", "rigor", "novelty", "clarity"]
 
-    for exp in [1, 2]:
-        label = "baseline" if exp == 1 else "with_reasons"
+    for exp in [1, 2, 3]:
+        labels = {1: "baseline", 2: "with_reasons", 3: "extended"}
+        label = labels[exp]
         path = OUTPUT_DIR / f"prompt_stability_exp{exp}_{label}.jsonl"
         if not path.exists():
             print(f"\nExperiment {exp}: no data yet")
@@ -334,8 +343,8 @@ def analyze():
         print(f"  Overall mean shift: {(all_new[valid] - all_orig[valid]).mean():+.2f}")
         print(f"  Pearson r (all dims): {sp_stats.pearsonr(all_orig[valid], all_new[valid])[0]:.3f}")
 
-        # Check for reason fields in experiment 2
-        if exp == 2 and records:
+        # Check for reason fields in experiment 2+3
+        if exp >= 2 and records:
             reason_fields = [k for k in records[0].get("new_ratings", {}) if k.endswith("_reason")]
             if reason_fields:
                 print(f"\n  Reason fields present: {reason_fields}")
@@ -343,11 +352,26 @@ def analyze():
                 for rf in reason_fields[:3]:
                     print(f"    {rf}: {sample.get(rf, '')[:80]}")
 
+        # Extended dimensions for experiment 3
+        if exp == 3 and records:
+            ext_dims = ["difficulty", "surprisingness", "reproducibility", "translational_potential"]
+            print(f"\n  Extended dimensions (new):")
+            for dim in ext_dims:
+                vals = [r["new_ratings"].get(dim) for r in records if r.get("new_ratings", {}).get(dim) is not None]
+                if vals:
+                    arr = np.array(vals, dtype=float)
+                    null_count = sum(1 for r in records if r.get("new_ratings", {}).get(dim) is None)
+                    print(f"    {dim:<25} mean={arr.mean():.2f}  std={arr.std():.2f}  range=[{arr.min():.1f}, {arr.max():.1f}]  n={len(vals)}  null={null_count}")
+                    reason_key = f"{dim}_reason"
+                    sample_reason = next((r["new_ratings"].get(reason_key, "") for r in records if r.get("new_ratings", {}).get(reason_key)), "")
+                    if sample_reason:
+                        print(f"      sample: {sample_reason[:90]}")
+
 
 async def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--experiment", type=int, choices=[1, 2], help="Which experiment to run")
+    parser.add_argument("--experiment", type=int, choices=[1, 2, 3], help="Which experiment to run")
     parser.add_argument("--n", type=int, default=100)
     parser.add_argument("--parallel", type=int, default=10)
     parser.add_argument("--dry-run", action="store_true")
