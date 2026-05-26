@@ -115,14 +115,19 @@ async def generate_summary(title, content, prompt_config, sem):
 
 
 async def load_top_papers(n):
-    """Load top N papers by ts_score with their original ratings."""
-    top = await db.rankings.find(
+    """Load N random papers (with full text and original ratings) across all categories."""
+    import random
+
+    # Get all papers with sufficient comparisons
+    all_ranked = await db.rankings.find(
         {"comparisons": {"$gte": 10}},
         {"_id": 0, "paper_id": 1, "category": 1, "ts_score": 1, "score": 1},
-    ).sort("ts_score", -1).limit(n * 2).to_list(n * 2)
+    ).to_list(10000)
+
+    random.shuffle(all_ranked)
 
     papers = []
-    for rank_doc in top:
+    for rank_doc in all_ranked:
         if len(papers) >= n:
             break
         paper = await db.papers.find_one(
@@ -301,6 +306,7 @@ async def main():
     parser.add_argument("--parallel", type=int, default=10)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--analyze", action="store_true")
+    parser.add_argument("--paper-ids", type=str, default=None, help="JSON file with fixed paper IDs to use")
     args = parser.parse_args()
 
     if args.analyze:
@@ -308,6 +314,35 @@ async def main():
         return
 
     papers = await load_top_papers(args.n)
+    
+    # If fixed paper IDs provided, filter to only those
+    if args.paper_ids:
+        fixed_ids = set(json.load(open(args.paper_ids)))
+        papers = [p for p in papers if p["id"] in fixed_ids]
+        # Also load any missing papers that were in the fixed set but not in random sample
+        loaded_ids = {p["id"] for p in papers}
+        missing = fixed_ids - loaded_ids
+        if missing:
+            for pid in missing:
+                rank_doc = await db.rankings.find_one({"paper_id": pid}, {"_id": 0, "paper_id": 1, "category": 1, "ts_score": 1, "score": 1})
+                if not rank_doc: continue
+                paper = await db.papers.find_one(
+                    {"id": pid, "full_text": {"$exists": True, "$ne": ""}},
+                    {"_id": 0, "id": 1, "title": 1, "abstract": 1, "full_text": 1,
+                     "summaries.anthropic:claude-opus-4-6:thinking": 1, "ai_rating": 1},
+                )
+                if not paper: continue
+                summary = (paper.get("summaries") or {}).get("anthropic:claude-opus-4-6:thinking", "")
+                original_ratings = None
+                match = re.search(r'\{[^{}]*"score"[^}]*\}', summary[-400:], re.DOTALL)
+                if match:
+                    try: original_ratings = json.loads(match.group())
+                    except: pass
+                if original_ratings:
+                    papers.append({"id": paper["id"], "title": paper["title"], "abstract": paper.get("abstract", ""),
+                                   "full_text": paper["full_text"], "category": rank_doc["category"],
+                                   "elo_score": rank_doc["score"], "original_ratings": original_ratings})
+    
     print(f"Loaded {len(papers)} papers with original ratings")
 
     if args.dry_run:
