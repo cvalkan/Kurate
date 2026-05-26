@@ -12,6 +12,17 @@ Build and maintain a sophisticated AI paper-judging system that uses multiple LL
 
 ## What's Been Implemented
 
+### Homepage (May 2026)
+- Full homepage at `/` with 15 sections: Hero, Live Metrics, Positioning Strip, What Kurate Does, Why Discovery Needs Ranking, How It Works, Ranking Signal, Categories, Research Intelligence, Institutional Intelligence, Live Research Pulse, Use Cases, Responsible AI, FAQ, Footer
+- Backend `/api/homepage/stats` endpoint aggregates live data (total papers, categories, matches, top papers, etc.)
+- Clean `/` → homepage; `/?period=recent` (or any leaderboard param) → leaderboard
+- Navbar Leaderboard link updated to `/?period=recent`; logo returns to homepage
+- Category label hidden in navbar on homepage
+- Custom homepage footer with social links (X, LinkedIn, GitHub, Instagram, Facebook)
+- Default app footer hidden on homepage, shown on all other routes
+- FAQ section with accordion, responsive layout, dark-blue feature panels
+- SEO metadata (OG tags, Twitter cards, canonical URL)
+
 ### Embedding A/B Test: Qwen3-0.6B (May 2026)
 - Evaluated Qwen/Qwen3-Embedding-0.6B (local CPU via sentence-transformers) for Similarity Landscape
 - Computed for both cs.GT (360 papers) and physics.comp-ph (249 papers)
