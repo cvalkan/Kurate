@@ -71,54 +71,93 @@ PROMPT_WITH_REASONS = {
 
 
 async def generate_summary(title, content, prompt_config, sem):
+    """Generate summary using same retry/fallback logic as production pipeline."""
     async with sem:
         prompt = prompt_config["user_prompt"].format(title=title, content=content)
-        params = {
-            "model": "claude-opus-4-6",
-            "messages": [
-                {"role": "system", "content": prompt_config["system_prompt"]},
-                {"role": "user", "content": prompt},
-            ],
-            "api_key": EMERGENT_LLM_KEY,
-            "api_base": PROXY_URL,
-            "custom_llm_provider": "openai",
-        }
+
+        ANTHROPIC_DIRECT = os.environ.get("ANTHROPIC_API_KEY")
         t0 = time.time()
+
+        # Attempt 1: Emergent proxy (up to 3 retries with backoff)
         for attempt in range(3):
             try:
+                params = {
+                    "model": "claude-opus-4-6",
+                    "messages": [
+                        {"role": "system", "content": prompt_config["system_prompt"]},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "api_key": EMERGENT_LLM_KEY,
+                    "api_base": PROXY_URL,
+                    "custom_llm_provider": "openai",
+                }
                 loop = asyncio.get_event_loop()
                 resp = await loop.run_in_executor(None, lambda: litellm.completion(**params))
-                text = resp.choices[0].message.content
-                if text is None or not text.strip():
-                    if attempt < 2:
-                        await asyncio.sleep(3)
-                        continue
-                    return {"error": "Model returned empty/None content after 3 attempts", "elapsed_s": round(time.time() - t0, 1)}
-                text = text.strip()
-                tokens_in = resp.usage.prompt_tokens if resp.usage else 0
-                tokens_out = resp.usage.completion_tokens if resp.usage else 0
-
-                ratings = None
-                match = re.search(r'\{[^{}]*"score"[^}]*\}', text[-800:], re.DOTALL)
-                if match:
-                    try:
-                        ratings = json.loads(match.group())
-                    except json.JSONDecodeError:
-                        pass
-
-                return {
-                    "summary": text,
-                    "ratings": ratings,
-                    "tokens_in": tokens_in,
-                    "tokens_out": tokens_out,
-                    "elapsed_s": round(time.time() - t0, 1),
-                    "error": None,
-                }
+                text = resp.choices[0].message.content if resp.choices else ""
+                if text and text.strip():
+                    return _parse_result(text.strip(), resp.usage, t0)
+                # Empty response — retry
+                if attempt < 2:
+                    await asyncio.sleep(2 ** attempt)
             except Exception as e:
-                if attempt < 2 and "Budget" not in str(e):
-                    await asyncio.sleep(3)
-                    continue
-                return {"error": str(e)[:300], "elapsed_s": round(time.time() - t0, 1)}
+                err = str(e).lower()
+                is_budget = any(k in err for k in ("budget", "balance", "credit", "quota"))
+                if is_budget and ANTHROPIC_DIRECT:
+                    break  # Skip to direct fallback
+                if attempt < 2:
+                    await asyncio.sleep(2 ** attempt)
+
+        # Attempt 2: Direct Anthropic API key fallback
+        if ANTHROPIC_DIRECT:
+            try:
+                params = {
+                    "model": "anthropic/claude-opus-4-6",
+                    "messages": [
+                        {"role": "system", "content": prompt_config["system_prompt"]},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "api_key": ANTHROPIC_DIRECT,
+                    "timeout": 120,
+                }
+                loop = asyncio.get_event_loop()
+                resp = await loop.run_in_executor(None, lambda: litellm.completion(**params))
+                text = resp.choices[0].message.content if resp.choices else ""
+                if text and text.strip():
+                    return _parse_result(text.strip(), resp.usage, t0)
+                return {"error": "Direct API returned empty content", "elapsed_s": round(time.time() - t0, 1)}
+            except Exception as e:
+                return {"error": f"Direct fallback failed: {str(e)[:200]}", "elapsed_s": round(time.time() - t0, 1)}
+
+        return {"error": "All attempts failed (no direct key available)", "elapsed_s": round(time.time() - t0, 1)}
+
+
+def _parse_result(text, usage, t0):
+    tokens_in = usage.prompt_tokens if usage else 0
+    tokens_out = usage.completion_tokens if usage else 0
+    ratings = None
+    # Multi-line JSON: find the last ```json ... ``` block, or last { ... } with "score"
+    json_match = re.search(r'```json\s*(\{.*?\})\s*```', text[-1500:], re.DOTALL)
+    if json_match:
+        try:
+            ratings = json.loads(json_match.group(1))
+        except json.JSONDecodeError:
+            pass
+    if not ratings:
+        # Fallback: find last { ... } containing "score"
+        matches = list(re.finditer(r'\{[^{}]*"score"[^{}]*\}', text[-800:]))
+        if matches:
+            try:
+                ratings = json.loads(matches[-1].group())
+            except json.JSONDecodeError:
+                pass
+    return {
+        "summary": text,
+        "ratings": ratings,
+        "tokens_in": tokens_in,
+        "tokens_out": tokens_out,
+        "elapsed_s": round(time.time() - t0, 1),
+        "error": None,
+    }
 
 
 async def load_top_papers(n):
