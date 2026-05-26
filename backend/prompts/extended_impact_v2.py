@@ -36,6 +36,8 @@ After your assessment, provide numerical ratings as a JSON block. Each dimension
 - **surprisingness**: How unexpected are the *results and conclusions* relative to the field's current understanding? 1 = fully expected, 10 = overturns conventional assumptions. Note: this is about the results, not the approach — a novel method with expected outcomes is not surprising. Use null if not applicable (e.g., surveys).
 - **reproducibility**: Could an independent researcher replicate the main results using only this paper? Consider: method detail, hyperparameters, pseudocode, dataset specification, code/data availability. 1 = key details missing, 10 = fully specified with code and data. Use null for purely theoretical work with no empirical component.
 - **translational_potential**: How close is this work to real-world application? 1 = pure theory with no foreseeable application, 5 = clear potential for applied follow-up, 10 = directly applicable to industry, clinical use, or deployment. Use null if not meaningfully assessable.
+- **evidence_strength**: How well do the paper's proofs, experiments, ablations, baselines, and statistical analyses support its main claims? 1 = claims largely unsupported, 10 = every claim backed by rigorous evidence. Distinct from rigor (which rates methodology design) — a rigorous setup can still produce weak evidence if experiments are too few or cherry-picked. Use null for position papers or surveys with no original claims.
+- **generalisability**: How broadly do the findings apply beyond the specific conditions tested? Consider dataset diversity, task diversity, theoretical scope, and whether conclusions transfer to other settings. 1 = results only hold under narrow conditions, 10 = broadly applicable across domains and scales. Use null if not meaningfully assessable.
 
 Use `null` (not "N/A") for any extended dimension that genuinely does not apply to the paper.
 
@@ -53,7 +55,11 @@ Use `null` (not "N/A") for any extended dimension that genuinely does not apply 
   "reproducibility": 7.0,
   "reproducibility_reason": "Algorithm fully specified with pseudocode; no code released but datasets are public",
   "translational_potential": 3.0,
-  "translational_potential_reason": "Foundational improvement that could eventually benefit network optimization tools"
+  "translational_potential_reason": "Foundational improvement that could eventually benefit network optimization tools",
+  "evidence_strength": 6.5,
+  "evidence_strength_reason": "Three datasets tested with ablations, but no statistical significance tests or error bars reported",
+  "generalisability": 4.0,
+  "generalisability_reason": "Only evaluated on English-language benchmarks; unclear if approach transfers to low-resource settings"
 }
 ```""",
 

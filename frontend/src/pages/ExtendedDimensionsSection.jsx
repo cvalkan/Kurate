@@ -12,6 +12,8 @@ const DIM_CONFIG = {
   surprisingness: { color: "#ec4899", label: "Surprisingness", desc: "How unexpected are the results and conclusions. 1 = fully expected, 10 = overturns conventional assumptions." },
   reproducibility: { color: "#06b6d4", label: "Reproducibility", desc: "Could an independent researcher replicate the results from this paper alone? 1 = key details missing, 10 = fully specified with code/data." },
   translational_potential: { color: "#f97316", label: "Translational Potential", desc: "Proximity to real-world application. 1 = pure theory, 5 = clear applied potential, 10 = directly deployable." },
+  evidence_strength: { color: "#14b8a6", label: "Evidence Strength", desc: "How well do proofs, experiments, ablations, and statistical analyses support the main claims? Distinct from rigor (methodology design)." },
+  generalisability: { color: "#f43f5e", label: "Generalisability", desc: "How broadly do findings apply beyond the tested conditions? 1 = narrow results, 10 = broadly applicable across domains and scales." },
 };
 
 function ExtendedDimensionsSection() {
@@ -146,12 +148,14 @@ function ExtendedDimensionsSection() {
       {/* Methodology note */}
       <div className="text-xs text-muted-foreground border-t border-border pt-3">
         <p>
-          <b>Methodology:</b> Extended prompt adds 4 new numerical dimensions to the existing 5-dimension impact assessment.
+          <b>Methodology:</b> Extended prompt adds 6 new numerical dimensions to the existing 5-dimension impact assessment.
           Each dimension uses a 1.0-10.0 scale with a one-sentence justification. Dimensions support null for non-applicable cases
           (e.g., reproducibility for purely theoretical papers). Tested on {n} randomly sampled papers assessed by Claude Opus 4.6
           using full paper text. Histograms show the actual score distribution at 0.5-point granularity with mean indicated by dashed line.
           Surprisingness measures unexpected results (not novelty of approach). Reproducibility assesses methodological detail
-          and code/data availability. Translational potential rates proximity to real-world deployment, standardized to 1-10 scale.
+          and code/data availability. Translational potential rates proximity to real-world deployment.
+          Evidence strength measures how well claims are supported (distinct from rigor which rates methodology design).
+          Generalisability assesses how broadly findings apply beyond tested conditions.
         </p>
       </div>
     </div>
