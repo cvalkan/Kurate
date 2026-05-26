@@ -26,7 +26,9 @@ function ExtendedDimensionsSection() {
 
   const ext = data?.exp3?.extended;
   const histograms = data?.exp3?.histograms;
+  const papers = data?.exp3?.papers || [];
   const n = data?.exp3?.n || 0;
+  const [expandedDim, setExpandedDim] = useState(null);
 
   if (loading) return <div className="text-sm text-muted-foreground py-8 text-center">Loading...</div>;
   if (!ext || ext.length === 0) return <div className="text-sm text-muted-foreground py-8 text-center">No extended dimension data available. Run Experiment 3 first.</div>;
@@ -86,17 +88,50 @@ function ExtendedDimensionsSection() {
                 </BarChart>
               </ResponsiveContainer>
 
-              {/* Sample reasons */}
-              {dim.sample_reasons && dim.sample_reasons.length > 0 && (
-                <div className="mt-3 space-y-1.5">
-                  <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Sample justifications</div>
-                  {dim.sample_reasons.slice(0, 3).map((reason, i) => (
-                    <div key={i} className="text-xs text-muted-foreground italic pl-2 border-l-2 border-border">
-                      "{reason.slice(0, 120)}{reason.length > 120 ? "..." : ""}"
+              {/* Ranked paper list */}
+              {(() => {
+                const dimName = dim.name;
+                const reasonKey = `${dimName}_reason`;
+                const ranked = papers
+                  .filter(p => p.ratings?.[dimName] != null)
+                  .map(p => ({ ...p, val: p.ratings[dimName], reason: p.ratings[reasonKey] || "" }))
+                  .sort((a, b) => b.val - a.val);
+                const isExpanded = expandedDim === dimName;
+                const shown = isExpanded ? ranked : ranked.slice(0, 5);
+                return (
+                  <div className="mt-3">
+                    <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+                      All papers ranked by {cfg.label.toLowerCase()}
                     </div>
-                  ))}
-                </div>
-              )}
+                    <div className={`space-y-1 ${isExpanded ? "max-h-[400px] overflow-y-auto" : ""}`}>
+                      {shown.map((p, i) => (
+                        <div key={p.paper_id} className="flex items-start gap-2 py-1 border-b border-border/30 last:border-0">
+                          <span className="text-[10px] font-mono text-muted-foreground w-4 shrink-0 text-right pt-0.5">{i + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs truncate">{p.title}</span>
+                              <span className="text-[10px] font-mono shrink-0" style={{ color: cfg.color }}>{p.val.toFixed(1)}</span>
+                            </div>
+                            {p.reason && (
+                              <div className="text-[10px] text-muted-foreground italic mt-0.5 leading-snug">
+                                {p.reason.slice(0, 150)}{p.reason.length > 150 ? "..." : ""}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {ranked.length > 5 && (
+                      <button
+                        className="text-[10px] text-accent hover:underline mt-1.5"
+                        onClick={() => setExpandedDim(isExpanded ? null : dimName)}
+                      >
+                        {isExpanded ? "Show less" : `Show all ${ranked.length} papers`}
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           );
         })}
