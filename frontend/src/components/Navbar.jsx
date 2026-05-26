@@ -10,7 +10,7 @@ import { AuthModal } from "@/components/AuthModal";
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const NAV_LINKS = [
-  { path: "/", label: "Leaderboard", icon: Trophy, exact: true },
+  { path: "/?period=recent", label: "Leaderboard", icon: Trophy },
   { path: "/correlation", label: "Model Analysis", icon: BarChart3 },
   { path: "/methodology", label: "Methodology", icon: BookOpen },
   { path: "/validation", label: "Validation", icon: FlaskConical },
@@ -53,7 +53,10 @@ export default function Navbar() {
   }, [location.pathname]);
 
   const isActive = (link) => {
-    if (link.exact) return location.pathname === link.path;
+    if (link.path === "/?period=recent") {
+      // Leaderboard is active when on / with any query params
+      return location.pathname === "/" && location.search.length > 0;
+    }
     if (link.prefix) return location.pathname.startsWith(link.path);
     return location.pathname === link.path;
   };
@@ -67,7 +70,7 @@ export default function Navbar() {
           <Link to="/" className="flex items-center gap-[10px] hover:opacity-80 transition-opacity min-w-0" data-testid="navbar-logo">
             <Trophy className="h-5 w-5 text-accent shrink-0 -translate-y-[2px]" />
             <img src="/kurate-logo.png" alt="Kurate.org" className="h-6 shrink-0" />
-            {activeLabel && (
+            {activeLabel && !(location.pathname === "/" && !new URLSearchParams(location.search).has("cat") && !new URLSearchParams(location.search).has("period")) && (
               <span className="hidden sm:inline text-xs text-muted-foreground font-mono border border-border rounded px-1.5 py-0.5 ml-1">
                 {activeLabel.toUpperCase()}
               </span>

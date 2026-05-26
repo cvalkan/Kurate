@@ -121,6 +121,7 @@ from routers.sync import router as sync_router
 from routers.human_ai_benchmark import router as benchmark_router
 from routers.si_benchmark import router as si_benchmark_router
 from routers.unified_benchmark import router as unified_benchmark_router
+from routers.homepage import router as homepage_router
 from services.scheduler import start_scheduler
 
 app = FastAPI(title="Kurate.org - AI Paper Rankings")
@@ -248,6 +249,7 @@ app.include_router(reading_lists_router)
 app.include_router(benchmark_router)
 app.include_router(si_benchmark_router)
 app.include_router(unified_benchmark_router)
+app.include_router(homepage_router)
 
 _cors_raw = os.environ.get("CORS_ORIGINS", "https://kurate.org,https://www.kurate.org,https://papersumo.kurate.org")
 _cors_allow_all = _cors_raw.strip() == "*"

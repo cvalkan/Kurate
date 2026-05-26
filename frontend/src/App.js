@@ -1,9 +1,10 @@
 import "@/App.css";
 import "katex/dist/katex.min.css";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, useSearchParams } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import LeaderboardPage from "@/pages/LeaderboardPage";
+import HomePage from "@/pages/HomePage";
 import CorrelationPage from "@/pages/CorrelationPage";
 import MethodologyPage from "@/pages/MethodologyPage";
 import PaperPage from "@/pages/PaperPage";
@@ -32,6 +33,14 @@ import StartRedirect from "@/pages/StartRedirect";
 import Navbar from "@/components/Navbar";
 import { BookmarkProvider } from "@/contexts/BookmarkContext";
 
+function HomeOrLeaderboard() {
+  const [searchParams] = useSearchParams();
+  const hasLeaderboardParams = searchParams.has("cat") || searchParams.has("period") ||
+    searchParams.has("tags") || searchParams.has("q") || searchParams.has("archive") ||
+    searchParams.has("tagMode") || searchParams.has("tagOpen") || searchParams.has("sort");
+  return hasLeaderboardParams ? <LeaderboardPage /> : <HomePage />;
+}
+
 function AppRouter() {
   const location = useLocation();
   // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
@@ -39,12 +48,19 @@ function AppRouter() {
   if (location.hash?.includes("session_id=")) {
     return <AuthCallback />;
   }
+  const isHomePage = location.pathname === "/" && !(
+    new URLSearchParams(location.search).has("cat") ||
+    new URLSearchParams(location.search).has("period") ||
+    new URLSearchParams(location.search).has("tags") ||
+    new URLSearchParams(location.search).has("q") ||
+    new URLSearchParams(location.search).has("sort")
+  );
   return (
     <>
       <Navbar />
-      <main className="pb-12">
+      <main className={isHomePage ? "" : "pb-12"}>
         <Routes>
-          <Route path="/" element={<LeaderboardPage />} />
+          <Route path="/" element={<HomeOrLeaderboard />} />
           <Route path="/start" element={<StartRedirect />} />
           <Route path="/leaderboard/:category/:year/:weekOrMonth" element={<ArchivePage />} />
           <Route path="/correlation" element={<CorrelationPage />} />
@@ -73,11 +89,13 @@ function AppRouter() {
           <Route path="/impressum" element={<ImpressumPage />} />
         </Routes>
       </main>
-      <footer className="border-t border-border py-4 text-center text-xs text-muted-foreground">
-        <a href="/privacy" className="hover:underline">Privacy Policy</a>
-        <span className="mx-2">·</span>
-        <a href="/impressum" className="hover:underline">Impressum</a>
-      </footer>
+      {!isHomePage && (
+        <footer className="border-t border-border py-4 text-center text-xs text-muted-foreground">
+          <a href="/privacy" className="hover:underline">Privacy Policy</a>
+          <span className="mx-2">·</span>
+          <a href="/impressum" className="hover:underline">Impressum</a>
+        </footer>
+      )}
       <Toaster position="bottom-right" />
     </>
   );
