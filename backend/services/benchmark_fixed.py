@@ -18,10 +18,18 @@ from collections import defaultdict, Counter
 import numpy as np
 from scipy import stats as scipy_stats
 
-from routers.human_ai_benchmark import (
-    collect_all, build_expert_ratings, norm_tier, TIER_SCORE,
-    _wilson_ci,
-)
+from routers.validation_utils import collect_all, build_expert_ratings, norm_tier, TIER_SCORE
+
+
+def _wilson_ci(agree, total, z=1.96):
+    """Wilson score confidence interval (returns percentage values)."""
+    if total == 0:
+        return [0, 0]
+    p = agree / total
+    denom = 1 + z * z / total
+    center = (p + z * z / (2 * total)) / denom
+    spread = z * (p * (1 - p) / total + z * z / (4 * total * total)) ** 0.5 / denom
+    return [round((center - spread) * 100, 1), round((center + spread) * 100, 1)]
 
 
 def _rate(a, t):

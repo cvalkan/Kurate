@@ -268,9 +268,11 @@ async def process_paper(sem, api_key, db, http_client, paper_id, meta, idx, tota
 
 
 async def main():
-    api_key = open("/app/backend/.env").read().split("ANTHROPIC_API_KEY=")[1].split("\n")[0].strip()
-    mongo_url = open("/app/backend/.env").read().split("MONGO_URL=")[1].split("\n")[0].strip().strip('"')
-    db_name = open("/app/backend/.env").read().split("DB_NAME=")[1].split("\n")[0].strip().strip('"')
+    from dotenv import load_dotenv
+    load_dotenv("/app/backend/.env")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    mongo_url = os.environ.get("MONGO_URL")
+    db_name = os.environ.get("DB_NAME")
 
     client = AsyncIOMotorClient(mongo_url)
     db = client[db_name]

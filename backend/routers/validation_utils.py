@@ -53,6 +53,7 @@ STANDALONE_GT_DATASETS = {
 # ─── Tier Normalization ────────────────────────────────────────────────────────
 
 TIER_ORDER = {"oral": 0, "spotlight": 1, "poster": 2, "reject": 3, "withdrawn": 4, "desk rejected": 4}
+TIER_SCORE = {"oral": 4, "spotlight": 3, "poster": 2, "reject": 1, "withdrawn": 0, "desk rejected": 0}
 RANKABLE_TIERS = {"oral", "spotlight", "poster", "reject"}
 
 
