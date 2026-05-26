@@ -2,8 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
-  ResponsiveContainer, Legend, Cell, RadarChart, Radar, PolarGrid,
-  PolarAngleAxis, PolarRadiusAxis,
+  ResponsiveContainer, Legend,
 } from "recharts";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -59,19 +58,6 @@ function PromptStabilitySection() {
       }
       return entry;
     });
-  }, [data]);
-
-  const extData = useMemo(() => {
-    if (!data?.exp3?.extended) return [];
-    return data.exp3.extended.map(d => ({
-      name: d.name.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
-      mean: d.mean,
-      std: d.std,
-      min: d.min,
-      max: d.max,
-      n: d.n,
-      nulls: d.nulls,
-    }));
   }, [data]);
 
   if (loading) return <div className="text-sm text-muted-foreground py-8 text-center">Loading experiment results...</div>;
@@ -177,43 +163,6 @@ function PromptStabilitySection() {
         </ResponsiveContainer>
       </div>
 
-      {/* Extended dimensions from Exp 3 */}
-      {extData.length > 0 && (
-        <div className="border border-border rounded-lg p-4 bg-card">
-          <h3 className="text-sm font-medium mb-1">Extended Dimensions (Experiment 3)</h3>
-          <p className="text-xs text-muted-foreground mb-3">
-            Four new rating dimensions added in the extended prompt. Scale: 1.0-10.0. Null = not applicable.
-          </p>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={extData} margin={{ top: 5, right: 10, bottom: 5, left: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} domain={[0, 10]} />
-              <RechartsTooltip
-                contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }}
-                formatter={(value, name) => [Number(value).toFixed(2), name]}
-              />
-              <Bar dataKey="mean" fill="#8b5cf6" name="Mean" radius={[3, 3, 0, 0]}>
-                {extData.map((_, i) => <Cell key={i} fill={["#8b5cf6", "#ec4899", "#06b6d4", "#f97316"][i % 4]} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-          <div className="mt-3 space-y-2">
-            {data.exp3.extended.map(d => (
-              <div key={d.name} className="text-xs">
-                <span className="font-medium font-mono">{d.name}</span>
-                <span className="text-muted-foreground ml-2">
-                  mean={d.mean} std={d.std} range=[{d.min}, {d.max}] n={d.n}{d.nulls > 0 ? ` nulls=${d.nulls}` : ""}
-                </span>
-                {d.sample_reasons?.[0] && (
-                  <div className="text-muted-foreground ml-4 mt-0.5 italic">"{d.sample_reasons[0].slice(0, 100)}"</div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Methodology note */}
       <div className="text-xs text-muted-foreground border-t border-border pt-3">
         <p>
@@ -221,7 +170,8 @@ function PromptStabilitySection() {
           Each paper re-assessed by Claude Opus 4.6 using full paper text (same as production).
           Original ratings from the production summary pipeline serve as ground truth.
           Experiment 1 re-runs the exact production prompt. Experiment 2 adds one-sentence justifications per dimension.
-          Experiment 3 adds 4 new dimensions (difficulty, surprisingness, reproducibility, translational potential) with null support and per-dimension reasoning.
+          Experiment 3 adds 4 new dimensions (difficulty, surprisingness, reproducibility, translational potential)
+          with null support and per-dimension reasoning. See the Extended Dimensions page for detailed results on the new metrics.
         </p>
       </div>
     </div>
