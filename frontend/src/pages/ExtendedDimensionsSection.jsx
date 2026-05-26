@@ -40,7 +40,7 @@ function ExtendedDimensionsSection() {
       <div>
         <h2 className="text-lg font-semibold mb-1">Extended Rating Dimensions</h2>
         <p className="text-sm text-muted-foreground">
-          Four new dimensions extracted alongside the core 5 ratings using an extended summarization prompt.
+          Six new dimensions extracted alongside the core 5 ratings using an extended summarization prompt.
           Each dimension includes a one-sentence justification and supports null for non-applicable cases.
           Tested on {n} randomly sampled papers using Claude Opus 4.6 with full paper text.
         </p>
@@ -95,6 +95,82 @@ function ExtendedDimensionsSection() {
           );
         })}
       </div>
+
+      {/* Correlation matrix */}
+      {data?.exp3?.correlation_matrix && (() => {
+        const cm = data.exp3.correlation_matrix;
+        const dims = cm.dimensions;
+        const matrix = cm.matrix;
+        const SHORT = {
+          score: "Score", significance: "Signif.", rigor: "Rigor", novelty: "Novelty",
+          clarity: "Clarity", difficulty: "Diffic.", surprisingness: "Surpris.",
+          reproducibility: "Reprod.", translational_potential: "Transl.",
+          evidence_strength: "Evid.Str.", generalisability: "General.",
+        };
+        const colorScale = (v) => {
+          if (v === null) return "transparent";
+          if (v === 1) return "hsl(var(--accent))";
+          const abs = Math.abs(v);
+          if (abs > 0.8) return v > 0 ? "#059669" : "#dc2626";
+          if (abs > 0.6) return v > 0 ? "#10b981" : "#ef4444";
+          if (abs > 0.4) return v > 0 ? "#6ee7b7" : "#fca5a5";
+          if (abs > 0.2) return v > 0 ? "#d1fae5" : "#fee2e2";
+          return "transparent";
+        };
+        return (
+          <div className="border border-border rounded-lg p-4 bg-card" data-testid="correlation-matrix">
+            <h3 className="text-sm font-medium mb-1">Correlation Matrix (all 11 dimensions)</h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              Pearson correlation between all rating dimensions across {n} papers. Green = positive, red = negative.
+              Strong correlations (&gt;0.8) suggest redundancy; weak correlations confirm independent signal.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="text-[10px] font-mono border-collapse">
+                <thead>
+                  <tr>
+                    <th className="p-1 text-left"></th>
+                    {dims.map(d => (
+                      <th key={d} className="p-1 text-center font-medium" style={{ writingMode: "vertical-lr", height: 70, transform: "rotate(180deg)" }}>
+                        {SHORT[d] || d}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {dims.map((d1, i) => (
+                    <tr key={d1}>
+                      <td className="p-1 pr-2 text-right font-medium whitespace-nowrap">{SHORT[d1] || d1}</td>
+                      {dims.map((d2, j) => {
+                        const v = matrix[i][j];
+                        return (
+                          <td key={d2} className="p-0">
+                            <div
+                              className="w-9 h-7 flex items-center justify-center text-[9px]"
+                              style={{
+                                backgroundColor: i === j ? "hsl(var(--muted))" : colorScale(v),
+                                color: v !== null && Math.abs(v) > 0.6 && i !== j ? "white" : "inherit",
+                                opacity: i === j ? 0.4 : 1,
+                              }}
+                              title={`${d1} × ${d2}: ${v !== null ? v.toFixed(3) : "N/A"}`}
+                            >
+                              {v !== null ? (i === j ? "" : v.toFixed(2)) : ""}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-4 mt-3 text-[10px] text-muted-foreground">
+              <span>Notable: <b>rigor ↔ evidence_strength = 0.95</b> (near-redundant)</span>
+              <span><b>reproducibility</b> most independent (low corr with everything)</span>
+              <span><b>novelty ↔ surprisingness = 0.86</b> (related but distinct)</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Full-width ranked lists per dimension */}
       {ext.map(dim => {
