@@ -110,9 +110,9 @@ async def _add_admin_session(token: str):
 
 
 async def _is_valid_session(token: str) -> bool:
-    """Check if a token exists in the admin sessions."""
-    doc = await db.admin_sessions.find_one({"key": "sessions", "tokens": token})
-    return doc is not None
+    """Delegate to shared module (kept for backward compat with any internal callers)."""
+    from core.admin_sessions import is_valid_admin_session
+    return await is_valid_admin_session(token)
 
 
 @router.post("/login")

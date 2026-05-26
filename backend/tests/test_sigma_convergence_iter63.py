@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 load_dotenv("/app/frontend/.env")
 BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
-ADMIN_PASSWORD = "papersumo2025"
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "papersumo2025")
 CAT = "cs.AI"
 
 

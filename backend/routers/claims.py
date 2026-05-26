@@ -1,6 +1,7 @@
 """Author paper claiming via ORCID + Semantic Scholar verification."""
 
 import os
+import re
 import httpx
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Request, Query, Depends
@@ -210,7 +211,7 @@ async def _verify_authorship(orcid_id: str, arxiv_id: str, orcid_name: str = "",
     # Check name match on DB author list (for admin context only)
     if orcid_name and not name_match_result:
         paper_doc = await db.papers.find_one(
-            {"arxiv_id": {"$regex": f"^{__import__('re').escape(arxiv_id)}"}},
+            {"arxiv_id": {"$regex": f"^{re.escape(arxiv_id)}"}},
             {"_id": 0, "authors": 1},
         )
         if paper_doc and paper_doc.get("authors"):

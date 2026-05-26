@@ -205,8 +205,8 @@ async def gmail_send(body: EmailSendRequest, request: Request):
             msg["subject"] = body.subject
             raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
             await asyncio.to_thread(
-                lambda: service.users().messages().send(
-                    userId="me", body={"raw": raw}
+                lambda _raw=raw: service.users().messages().send(
+                    userId="me", body={"raw": _raw}
                 ).execute()
             )
         logger.info(f"Gmail sent by {user['email']} to {body.to_emails}")

@@ -17,7 +17,7 @@ async def get_settings():
 async def verify_admin(x_admin_token: str = Header(None)):
     if not x_admin_token:
         raise HTTPException(status_code=401, detail="Admin token required")
-    from routers.admin import _is_valid_session
-    if await _is_valid_session(x_admin_token):
+    from core.admin_sessions import is_valid_admin_session
+    if await is_valid_admin_session(x_admin_token):
         return True
     raise HTTPException(status_code=403, detail="Invalid admin credentials")

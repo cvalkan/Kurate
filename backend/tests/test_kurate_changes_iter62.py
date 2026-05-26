@@ -30,7 +30,7 @@ def _load_base():
     raise RuntimeError("REACT_APP_BACKEND_URL not set and frontend/.env missing")
 
 BASE = _load_base()
-ADMIN_PASSWORD = "papersumo2025"
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "papersumo2025")
 
 
 @pytest.fixture(scope="module")

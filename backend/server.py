@@ -476,7 +476,7 @@ async def startup():
     try:
         import hashlib, glob
         _build_files = sorted(glob.glob("/app/backend/**/*.py", recursive=True))[:50]
-        _build_hash = hashlib.md5("".join(open(f).read() for f in _build_files if os.path.isfile(f)).encode()).hexdigest()[:12]
+        _build_hash = hashlib.sha256("".join(open(f).read() for f in _build_files if os.path.isfile(f)).encode()).hexdigest()[:12]
         _prev_hash = await db.system_logs.find_one(
             {"event": "server_started", "build_hash": {"$exists": True}},
             sort=[("ts", -1)], projection={"_id": 0, "build_hash": 1},
@@ -1167,12 +1167,12 @@ async def _prewarm_summary_bias_caches():
         for cat in sb_cats:
             try:
                 result = await _compute_results(cat)
-                _sb_cache[("results", cat)] = {"data": result, "ts": __import__("time").time()}
+                _sb_cache[("results", cat)] = {"data": result, "ts": _time.time()}
             except Exception:
                 pass
             try:
                 result = await _compute_sb_convergence(cat, 15)
-                _sb_cache[("convergence", cat)] = {"data": result, "ts": __import__("time").time()}
+                _sb_cache[("convergence", cat)] = {"data": result, "ts": _time.time()}
             except Exception:
                 pass
         if sb_cats:

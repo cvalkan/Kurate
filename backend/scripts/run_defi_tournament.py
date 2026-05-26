@@ -35,7 +35,7 @@ async def load_papers():
          f"summaries.{SUMMARY_KEY}": 1, "ai_rating": 1,
          "openalex_id": 1, "doi": 1, "paper_id": 1, "publication_date": 1}
     ):
-        pid = doc.get("paper_id") or doc.get("doi") or doc.get("openalex_id") or hashlib.md5(doc["title"].encode()).hexdigest()[:16]
+        pid = doc.get("paper_id") or doc.get("doi") or doc.get("openalex_id") or hashlib.sha256(doc["title"].encode()).hexdigest()[:16]
         summary = (doc.get("summaries") or {}).get(SUMMARY_KEY, "")
         papers.append({
             "id": pid, "title": doc.get("title", ""),

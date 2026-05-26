@@ -19,7 +19,7 @@ import asyncio
 from datetime import datetime, timezone
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
-ADMIN_PASSWORD = "papersumo2025"
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "papersumo2025")
 TEST_CATEGORY = "q-bio.BM"  # Category with real data (73 papers/4900 matches)
 
 
