@@ -30,6 +30,7 @@ import InstitutionBiasSamePairSection from "./InstitutionBiasSamePairSection";
 import SingleItemScoringSection from "./SingleItemScoringSection";
 import SimilarityLandscapeSection from "./SimilarityLandscapeSection";
 import TopNSubtournamentSection from "./TopNSubtournamentSection";
+import PromptStabilitySection from "./PromptStabilitySection";
 import ValidationReportPage from "./ValidationReportPage";
 import AllPairsSection from "./AllPairsSection";
 import HumanAIBenchmarkSection, { HumanAIBenchmarkUnfilteredSection, HumanAIBenchmarkFixedSection, ICLR2026BenchmarkSection, ICLR2026WithinLabelBenchmarkSection } from "./HumanAIBenchmarkSection";
@@ -399,6 +400,9 @@ export default function ValidationHubPage() {
               <CollapsibleGroup label="Sub-Tournaments" defaultOpen={selected?.startsWith("exp-topn-")}>
                 <NavItem item={{ id: "exp-topn-quant-ph", label: "Quantum Physics Top-50", sub: "500 isolated matches" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
+              <CollapsibleGroup label="Prompt Stability" defaultOpen={selected === "exp-prompt-stability"}>
+                <NavItem item={{ id: "exp-prompt-stability", label: "Rating Stability", sub: "88 papers, 3 variants" }} selected={selected} onSelect={setSelected} />
+              </CollapsibleGroup>
             </CollapsibleGroup>
 
         </nav>
@@ -475,6 +479,7 @@ export default function ValidationHubPage() {
           {selected === "exp-similarity-physics" && <SimilarityLandscapeSection category="physics.comp-ph" />}
           {selected === "exp-similarity-gt" && <SimilarityLandscapeSection category="cs.GT" />}
           {selected === "exp-topn-quant-ph" && <TopNSubtournamentSection category="quant-ph" label="Quantum Physics" />}
+          {selected === "exp-prompt-stability" && <PromptStabilitySection />}
           {selected === "exp-institution-bias-samepair" && <InstitutionBiasSamePairSection />}
           {activeDataset && <DatasetView ds={activeDataset} isAdmin={isAdmin} hideHeader />}
           {selected === "t-iclr2026-validation" && <ICLR2026TournamentSection />}

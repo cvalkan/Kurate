@@ -2134,3 +2134,15 @@ async def get_topn_subtournament(category: str):
     except FileNotFoundError:
         return {"error": "not_found", "category": category}
 
+
+
+@router.get("/prompt-stability-results")
+async def get_prompt_stability_results():
+    """Serve precomputed prompt stability experiment results."""
+    import json as _json, os as _os
+    path = "/app/backend/data/precomputed/prompt_stability_results.json"
+    try:
+        with open(path) as f:
+            return _json.load(f)
+    except FileNotFoundError:
+        return {}
