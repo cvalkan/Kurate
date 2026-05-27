@@ -232,7 +232,7 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
       </div>
 
       {/* SI vs PW Simulation */}
-      <SimulationTable siMode={siMode} siCorr={siCorr} />
+      <SimulationTable siMode={siMode} />
 
     </div>
   );
@@ -246,26 +246,16 @@ const PAIR_LABELS_SHORT = {
   "gemini vs gpt": "Gemini vs GPT",
 };
 
-function SimulationTable({ siMode, siCorr }) {
+function SimulationTable({ siMode }) {
   const [data, setData] = useState(null);
   useEffect(() => {
     axios.get(`${API_SIM}/api/si-pw-simulation`).then(r => setData(r.data)).catch(() => {});
   }, []);
 
   if (!data || (!data.full && !data.length)) return null;
-
   const rows = data[siMode] || data.full || data;
   if (!rows || !rows.length) return null;
   const mppValues = rows[0]?.simulated?.map(s => s.mpp) || [];
-
-  // Use live SI correlations from the tables above (exact same numbers)
-  const getLiveSi = (pair) => {
-    if (!siCorr) return null;
-    const key = pair; // "claude vs gemini"
-    const parts = pair.split(" vs ");
-    const altKey = `${parts[1]} vs ${parts[0]}`;
-    return siCorr[key] || siCorr[altKey];
-  };
 
   return (
     <div className="mt-4 border border-border rounded-lg overflow-hidden" data-testid="simulation-table">
@@ -292,17 +282,12 @@ function SimulationTable({ siMode, siCorr }) {
           <tbody>
             <tr className="border-b border-border/20 bg-violet-500/5">
               <td className="py-1.5 px-3 font-medium">SI (direct scores)</td>
-              {rows.map(d => {
-                const live = getLiveSi(d.pair);
-                const rho = live ? live.spearman : d.si_correlation;
-                const n = live ? live.n : d.n_papers;
-                return (
-                  <td key={d.pair} className="py-1.5 px-3 text-right font-mono font-semibold">
-                    {rho?.toFixed(3) ?? "—"}
-                    <span className="text-[9px] text-muted-foreground ml-1">n={n}</span>
-                  </td>
-                );
-              })}
+              {rows.map(d => (
+                <td key={d.pair} className="py-1.5 px-3 text-right font-mono font-semibold">
+                  {d.si_correlation.toFixed(3)}
+                  <span className="text-[9px] text-muted-foreground ml-1">n={d.n_papers}</span>
+                </td>
+              ))}
             </tr>
             {mppValues.map(mpp => (
               <tr key={mpp} className="border-b border-border/20">
