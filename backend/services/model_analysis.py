@@ -365,6 +365,51 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
     # --- SI Rating Stats ---
     si_result = _compute_si_stats(papers)
 
+    # --- Controlled SI inter-model: restrict to papers with PW matches ---
+    if si_result and si_result.get("inter_model_si"):
+        import scipy.stats as _sp
+        si_model_scores = {}
+        for mk in ("claude", "gpt", "gemini"):
+            scores = {}
+            for p in papers:
+                si = p.get("si_ratings", {}).get(mk)
+                if isinstance(si, dict) and si.get("score"):
+                    scores[p["paper_id"]] = si["score"]
+            if scores:
+                si_model_scores[mk] = scores
+
+        controlled = {}
+        mk_to_full = {"claude": None, "gpt": None, "gemini": None}
+        for mk in si_model_scores:
+            for full_key in model_paper_ts:
+                if mk in full_key.lower():
+                    mk_to_full[mk] = full_key
+                    break
+
+        for i, m1 in enumerate(sorted(si_model_scores)):
+            for j, m2 in enumerate(sorted(si_model_scores)):
+                if j <= i:
+                    continue
+                fk1, fk2 = mk_to_full.get(m1), mk_to_full.get(m2)
+                pw_papers = set()
+                if fk1:
+                    pw_papers.update(model_paper_ts.get(fk1, {}).keys())
+                    pw_papers.update(model_wr.get(fk1, {}).keys())
+                pw_papers2 = set()
+                if fk2:
+                    pw_papers2.update(model_paper_ts.get(fk2, {}).keys())
+                    pw_papers2.update(model_wr.get(fk2, {}).keys())
+                common_pw = pw_papers & pw_papers2
+                common_si = set(si_model_scores[m1].keys()) & set(si_model_scores[m2].keys())
+                pool = sorted(common_pw & common_si)
+                if len(pool) >= 10:
+                    v1 = [si_model_scores[m1][p] for p in pool]
+                    v2 = [si_model_scores[m2][p] for p in pool]
+                    rho, _ = _sp.spearmanr(v1, v2)
+                    if not np.isnan(rho):
+                        controlled[f"{m1} vs {m2}"] = {"spearman": round(float(rho), 3), "n": len(pool)}
+        si_result["controlled_inter_model_si"] = controlled
+
     # --- PW vs SI (WR/TS only, OS empty) ---
     pw_vs_si = _compute_pw_vs_si(
         papers, wr_scores, ts_scores, {}, {}, {},
@@ -1084,6 +1129,9 @@ def _compute_si_stats(papers):
                 if not np.isnan(rho):
                     inter_model_si[f"{m1} vs {m2}"] = {"spearman": round(float(rho), 3), "n": len(common)}
 
+    # Controlled variant computed in compute_live_analysis where model_wr is available
+    controlled_inter_model_si = {}
+
     # Model comparison
     model_comparison = {}
     for mk in ("claude", "gpt", "gemini"):
@@ -1170,6 +1218,7 @@ def _compute_si_stats(papers):
         "per_model_distributions": per_model_distributions,
         "metric_correlations": metric_correlations,
         "inter_model_si": inter_model_si,
+        "controlled_inter_model_si": controlled_inter_model_si,
         "model_comparison": model_comparison,
         "available_models": [{"id": mk, "count": c} for mk, c in model_counts.items() if c >= 5],
     }
