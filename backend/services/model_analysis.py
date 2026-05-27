@@ -438,13 +438,14 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                     si_match_full[pair_key] = {"agree": agree, "disagree": total - agree, "total": total, "rate": round(agree / total * 100, 1)}
         si_result["si_match_agreement"] = si_match_full
 
-        # Controlled SI match agreement (only PW pairs judged by BOTH models)
+        # Controlled SI match agreement: same pairs as PW Match Agreement
+        # (pairs judged by BOTH models in PW, where both papers also have SI from both)
         si_match_ctrl = {}
         for i, m1 in enumerate(sorted(si_model_scores)):
             for j, m2 in enumerate(sorted(si_model_scores)):
                 if j <= i: continue
                 pair_key = f"{m1} vs {m2}"
-                # Intersection: pairs that both models judged in PW
+                # Same pair set as PW Match Agreement: intersection of both models' PW pairs
                 shared_pw_pairs = pw_pairs_for_si.get(m1, set()) & pw_pairs_for_si.get(m2, set())
                 agree = total = 0
                 for pa, pb in shared_pw_pairs:
@@ -461,17 +462,16 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
         si_result["si_match_agreement_controlled"] = si_match_ctrl
         si_result["pw_match_agreement"] = pw_match_agreement
 
-        # Controlled ranking correlation
+        # Controlled ranking correlation: papers appearing in PW pairs judged by both models
         controlled_corr = {}
         for i, m1 in enumerate(sorted(si_model_scores)):
             for j, m2 in enumerate(sorted(si_model_scores)):
                 if j <= i: continue
-                # Papers appearing in PW pairs judged by both models
                 shared_pw = pw_pairs_for_si.get(m1, set()) & pw_pairs_for_si.get(m2, set())
-                pw_papers = set()
+                pw_paper_pool = set()
                 for p1, p2 in shared_pw:
-                    pw_papers.add(p1); pw_papers.add(p2)
-                common = sorted(pw_papers & set(si_model_scores[m1].keys()) & set(si_model_scores[m2].keys()))
+                    pw_paper_pool.add(p1); pw_paper_pool.add(p2)
+                common = sorted(pw_paper_pool & set(si_model_scores[m1].keys()) & set(si_model_scores[m2].keys()))
                 if len(common) >= 10:
                     v1 = [si_model_scores[m1][p] for p in common]
                     v2 = [si_model_scores[m2][p] for p in common]
