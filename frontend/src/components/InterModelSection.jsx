@@ -122,7 +122,7 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
       {(Object.keys(pwAgreement).length > 0 || hasSiAgreement) && (
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Match-Level Agreement</h3>
+            <h3 className="text-sm font-semibold">Match-Level Agreement</h3>
             {hasControlled && <ModeToggle value={siMode} onChange={setSiMode} />}
           </div>
           {siMode === "controlled" && (
@@ -232,7 +232,7 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
       </div>
 
       {/* SI vs PW Simulation */}
-      <SimulationTable />
+      <SimulationTable siMode={siMode} />
 
     </div>
   );
@@ -246,14 +246,18 @@ const PAIR_LABELS_SHORT = {
   "gemini vs gpt": "Gemini vs GPT",
 };
 
-function SimulationTable() {
+function SimulationTable({ siMode }) {
   const [data, setData] = useState(null);
   useEffect(() => {
     axios.get(`${API_SIM}/api/si-pw-simulation`).then(r => setData(r.data)).catch(() => {});
   }, []);
 
-  if (!data || !data.length) return null;
-  const mppValues = data[0]?.simulated?.map(s => s.mpp) || [];
+  if (!data || (!data.full && !data.length)) return null;
+
+  // Support both old format (array) and new format ({full, controlled})
+  const rows = data[siMode] || data.full || data;
+  if (!rows || !rows.length) return null;
+  const mppValues = rows[0]?.simulated?.map(s => s.mpp) || [];
 
   return (
     <div className="mt-4 border border-border rounded-lg overflow-hidden" data-testid="simulation-table">
@@ -266,15 +270,13 @@ function SimulationTable() {
         The gap between "SI direct" and the simulated rows quantifies the information loss
         from converting absolute scores to binary win/loss. Only ranking correlation varies —
         match-level agreement stays constant (see tables above).
-        Note: SI correlations here are computed on the subset of papers appearing in shared PW pairs (~2,800),
-        which may differ slightly from the full SI Inter-Model correlations above (~5,400 papers).
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-border text-muted-foreground bg-secondary/5">
               <th className="py-1.5 px-3 text-left font-medium">Method</th>
-              {data.map(d => (
+              {rows.map(d => (
                 <th key={d.pair} className="py-1.5 px-3 text-right font-medium">{PAIR_LABELS_SHORT[d.pair] || d.pair}</th>
               ))}
             </tr>
@@ -282,7 +284,7 @@ function SimulationTable() {
           <tbody>
             <tr className="border-b border-border/20 bg-violet-500/5">
               <td className="py-1.5 px-3 font-medium">SI (direct scores)</td>
-              {data.map(d => (
+              {rows.map(d => (
                 <td key={d.pair} className="py-1.5 px-3 text-right font-mono font-semibold">
                   {d.si_correlation.toFixed(3)}
                   <span className="text-[9px] text-muted-foreground ml-1">n={d.n_papers}</span>
@@ -292,7 +294,7 @@ function SimulationTable() {
             {mppValues.map(mpp => (
               <tr key={mpp} className="border-b border-border/20">
                 <td className="py-1.5 px-3 text-muted-foreground">Simulated PW @ {mpp} m/p</td>
-                {data.map(d => {
+                {rows.map(d => {
                   const sim = d.simulated.find(s => s.mpp === mpp);
                   return (
                     <td key={d.pair} className="py-1.5 px-3 text-right font-mono">{sim?.correlation.toFixed(3) ?? "\u2014"}</td>
