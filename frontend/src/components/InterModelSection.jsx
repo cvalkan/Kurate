@@ -266,6 +266,8 @@ function SimulationTable() {
         The gap between "SI direct" and the simulated rows quantifies the information loss
         from converting absolute scores to binary win/loss. Only ranking correlation varies —
         match-level agreement stays constant (see tables above).
+        Note: SI correlations here are computed on the subset of papers appearing in shared PW pairs (~2,800),
+        which may differ slightly from the full SI Inter-Model correlations above (~5,400 papers).
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
@@ -281,7 +283,10 @@ function SimulationTable() {
             <tr className="border-b border-border/20 bg-violet-500/5">
               <td className="py-1.5 px-3 font-medium">SI (direct scores)</td>
               {data.map(d => (
-                <td key={d.pair} className="py-1.5 px-3 text-right font-mono font-semibold">{d.si_correlation.toFixed(3)}</td>
+                <td key={d.pair} className="py-1.5 px-3 text-right font-mono font-semibold">
+                  {d.si_correlation.toFixed(3)}
+                  <span className="text-[9px] text-muted-foreground ml-1">n={d.n_papers}</span>
+                </td>
               ))}
             </tr>
             {mppValues.map(mpp => (
