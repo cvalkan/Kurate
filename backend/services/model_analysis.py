@@ -372,6 +372,42 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
         _rng = _rnd.Random(42)
         si_model_scores = si_result.pop("_si_model_scores")
 
+        # Enrich si_model_scores from summaries for papers missing si_ratings
+        SUMMARY_KEYS = {
+            "claude": "anthropic:claude-opus-4-6:thinking",
+            "gpt": "openai:gpt-5_2",
+            "gemini": "gemini:gemini-3-pro-preview",
+        }
+        paper_ids_needed = set()
+        for p in papers:
+            pid = p["paper_id"]
+            for mk in SUMMARY_KEYS:
+                if pid not in si_model_scores.get(mk, {}):
+                    paper_ids_needed.add(pid)
+        if paper_ids_needed:
+            async for doc in db.papers.find(
+                {"id": {"$in": list(paper_ids_needed)}, "summaries": {"$exists": True}},
+                {"_id": 0, "id": 1, "summaries": 1},
+            ):
+                for mk, skey in SUMMARY_KEYS.items():
+                    if doc["id"] in si_model_scores.get(mk, {}):
+                        continue
+                    summary = (doc.get("summaries") or {}).get(skey, "")
+                    if not summary:
+                        continue
+                    import re as _re
+                    match = _re.search(r'```json\s*(\{.*?\})\s*```', summary[-800:], _re.DOTALL)
+                    if not match:
+                        match = _re.search(r'\{[^{}]*"score"[^{}]*\}', summary[-400:])
+                    if match:
+                        try:
+                            import json as _json
+                            score = _json.loads(match.group(1) if '```' in match.group() else match.group()).get("score")
+                            if score:
+                                si_model_scores.setdefault(mk, {})[doc["id"]] = float(score)
+                        except (ValueError, KeyError):
+                            pass
+
         # Load PW match pairs for controlled comparison + PW pair-level agreement
         match_q = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
         if category:
@@ -438,14 +474,12 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                     si_match_full[pair_key] = {"agree": agree, "disagree": total - agree, "total": total, "rate": round(agree / total * 100, 1)}
         si_result["si_match_agreement"] = si_match_full
 
-        # Controlled SI match agreement: same pairs as PW Match Agreement
-        # (pairs judged by BOTH models in PW, where both papers also have SI from both)
+        # Controlled: SI agreement on the same shared PW pairs
         si_match_ctrl = {}
         for i, m1 in enumerate(sorted(si_model_scores)):
             for j, m2 in enumerate(sorted(si_model_scores)):
                 if j <= i: continue
                 pair_key = f"{m1} vs {m2}"
-                # Same pair set as PW Match Agreement: intersection of both models' PW pairs
                 shared_pw_pairs = pw_pairs_for_si.get(m1, set()) & pw_pairs_for_si.get(m2, set())
                 agree = total = 0
                 for pa, pb in shared_pw_pairs:
