@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import axios from "axios";
 import { GitCompare } from "lucide-react";
 
 const METHOD_ORDER = ["reg_wr", "trueskill", "openskill"];
@@ -228,6 +229,74 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
             </table>
           </div>
         )}
+      </div>
+
+      {/* SI vs PW Simulation */}
+      <SimulationTable />
+
+    </div>
+  );
+}
+
+
+const API_SIM = process.env.REACT_APP_BACKEND_URL;
+const PAIR_LABELS_SHORT = {
+  "claude vs gemini": "Claude vs Gemini",
+  "claude vs gpt": "Claude vs GPT",
+  "gemini vs gpt": "Gemini vs GPT",
+};
+
+function SimulationTable() {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    axios.get(`${API_SIM}/api/si-pw-simulation`).then(r => setData(r.data)).catch(() => {});
+  }, []);
+
+  if (!data || !data.length) return null;
+  const mppValues = data[0]?.simulated?.map(s => s.mpp) || [];
+
+  return (
+    <div className="mt-4 border border-border rounded-lg overflow-hidden" data-testid="simulation-table">
+      <div className="px-3 py-2 bg-amber-500/5 border-b border-border">
+        <span className="text-xs font-semibold">Ranking Correlation: SI Scores vs Simulated Pairwise Tournament</span>
+      </div>
+      <div className="px-3 py-2 text-[10px] text-muted-foreground border-b border-border bg-secondary/5">
+        Each model's SI scores deterministically resolve simulated matches (higher score wins).
+        TrueSkill rankings are then computed from these virtual matches at different depths.
+        The gap between "SI direct" and the simulated rows quantifies the information loss
+        from converting absolute scores to binary win/loss. Only ranking correlation varies —
+        match-level agreement stays constant (see tables above).
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-border text-muted-foreground bg-secondary/5">
+              <th className="py-1.5 px-3 text-left font-medium">Method</th>
+              {data.map(d => (
+                <th key={d.pair} className="py-1.5 px-3 text-right font-medium">{PAIR_LABELS_SHORT[d.pair] || d.pair}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-border/20 bg-violet-500/5">
+              <td className="py-1.5 px-3 font-medium">SI (direct scores)</td>
+              {data.map(d => (
+                <td key={d.pair} className="py-1.5 px-3 text-right font-mono font-semibold">{d.si_correlation.toFixed(3)}</td>
+              ))}
+            </tr>
+            {mppValues.map(mpp => (
+              <tr key={mpp} className="border-b border-border/20">
+                <td className="py-1.5 px-3 text-muted-foreground">Simulated PW @ {mpp} m/p</td>
+                {data.map(d => {
+                  const sim = d.simulated.find(s => s.mpp === mpp);
+                  return (
+                    <td key={d.pair} className="py-1.5 px-3 text-right font-mono">{sim?.correlation.toFixed(3) ?? "\u2014"}</td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

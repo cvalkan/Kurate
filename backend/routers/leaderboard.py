@@ -2146,3 +2146,14 @@ async def get_prompt_stability_results():
             return _json.load(f)
     except FileNotFoundError:
         return {}
+
+@router.get("/si-pw-simulation")
+async def get_si_pw_simulation():
+    """Precomputed SI vs PW simulation results."""
+    import json as _json
+    try:
+        with open("/app/backend/data/precomputed/si_pw_simulation_results.json") as f:
+            return _json.load(f)
+    except FileNotFoundError:
+        return []
+
