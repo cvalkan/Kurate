@@ -372,12 +372,13 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
         _rng = _rnd.Random(42)
         si_model_scores = si_result.pop("_si_model_scores")
 
-        # Load PW match pairs for controlled comparison
+        # Load PW match pairs for controlled comparison + PW pair-level agreement
         match_q = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
         if category:
             match_q["primary_category"] = category
         pw_pairs_for_si = {}  # {model_key: set of (pa, pb)}
-        async for m in db.matches.find(match_q, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "model_used": 1}):
+        pw_pair_winners = {}  # {model_key: {(pa, pb): winner_direction}}
+        async for m in db.matches.find(match_q, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1}):
             mu = m.get("model_used", {})
             raw = f"{mu.get('provider','')}/{mu.get('model','')}"
             if "claude" in raw or "opus" in raw: mk = "claude"
@@ -387,6 +388,24 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
             p1, p2 = m["paper1_id"], m["paper2_id"]
             pair = (p1, p2) if p1 < p2 else (p2, p1)
             pw_pairs_for_si.setdefault(mk, set()).add(pair)
+            # Store winner direction (1 = first in sorted pair wins, -1 = second wins)
+            winner = 1 if m.get("winner_id") == pair[0] else -1
+            pw_pair_winners.setdefault(mk, {})[pair] = winner
+
+        # PW pair-level match agreement (actual: when both models judged the same pair)
+        pw_match_agreement = {}
+        for i, m1 in enumerate(sorted(pw_pair_winners)):
+            for j, m2 in enumerate(sorted(pw_pair_winners)):
+                if j <= i: continue
+                pair_key = f"{m1} vs {m2}"
+                shared = set(pw_pair_winners[m1].keys()) & set(pw_pair_winners[m2].keys())
+                if not shared: continue
+                agree = sum(1 for p in shared if pw_pair_winners[m1][p] == pw_pair_winners[m2][p])
+                total = len(shared)
+                pw_match_agreement[pair_key] = {
+                    "agree": agree, "disagree": total - agree, "total": total,
+                    "rate": round(agree / total * 100, 1),
+                }
 
         # Full SI match agreement (random pairs)
         si_match_full = {}
@@ -439,6 +458,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                 if total > 0:
                     si_match_ctrl[pair_key] = {"agree": agree, "disagree": total - agree, "total": total, "rate": round(agree / total * 100, 1)}
         si_result["si_match_agreement_controlled"] = si_match_ctrl
+        si_result["pw_match_agreement"] = pw_match_agreement
 
         # Controlled ranking correlation
         controlled_corr = {}
@@ -806,6 +826,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
         "avg_correlations": dict(sorted(avg_correlations.items())),
         "avg_ts_correlations": dict(sorted(avg_ts_correlations.items())),
         "agreement": dict(sorted(agreement.items())),
+        "pw_match_agreement": si_result.pop("pw_match_agreement", {}) if si_result else {},
         "avg_agreement": dict(sorted(avg_agreement.items())) if avg_agreement else None,
         "scatter_data": scatter_data,
         "ts_scatter_data": ts_scatter_data,

@@ -69,8 +69,8 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
   const hasOs = pwRows.some(r => Object.keys(r.methods || {}).some(k => k.startsWith("openskill")));
   const hasControlled = Object.keys(siCorrControlled).length > 0;
 
-  // PW match-level agreement
-  const pwAgreement = (isAvg ? pwData?.avg_agreement : pwData?.agreement) || {};
+  // PW match-level agreement (actual pair-level, not median-split)
+  const pwAgreement = pwData?.pw_match_agreement || (isAvg ? pwData?.avg_agreement : pwData?.agreement) || {};
 
   // SI match-level agreement
   const siAgreementFull = siData?.si_match_agreement || {};

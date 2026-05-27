@@ -1,0 +1,37 @@
+{
+  "summary": "Frontend-only testing of the Inter-Model Agreement section on /correlation. All four tables render correctly (PW Match Agreement, SI Score Agreement, PW Inter-Model ranking, SI Inter-Model ranking). The Full/Controlled toggle inside the InterModelSection correctly switches BOTH the SI agreement table and the SI ranking correlation table simultaneously, while leaving the PW tables unchanged. Agreement rates match expected ranges. However, the 'Total pairs' direction for the SI Controlled view is OPPOSITE to what the spec states.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "SI Controlled agreement totals direction",
+        "issue": "Spec says 'Full should show higher total pairs than Controlled' and agent note says 'When switching to Controlled, SI agreement Total should decrease (fewer pairs)'. Observed behavior is the OPPOSITE — on cs.RO category, Full totals are 36,984 / 41,820 / 35,740 while Controlled totals are 41,449 / 48,180 / 38,970 (Controlled > Full). Agreement rates (Full ~85.6-86.6%, Controlled ~82.4-86.0%, drop of 0-4pp) match expectations, only the totals direction is inverted. Likely a backend computation issue in /app/backend/services/model_analysis.py (si_match_agreement_controlled), not a UI rendering problem.",
+        "affected_selectors": ["[data-testid=\"si-agreement-table\"]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Investigate why si_match_agreement_controlled returns HIGHER pair counts than si_match_agreement (Full). Spec/agent note both say Controlled should restrict to PW match pairs and thus have FEWER total pairs. Check /app/backend/services/model_analysis.py — likely the controlled subset is iterating over a wider set (e.g., all combinations within PW pool papers) instead of strictly the PW match pair list.",
+    "Confirm whether 'All Categories' vs 'cs.RO' should produce different agreement numbers — both pages currently show identical PW/SI agreement table values (PW 72.1/71.0/72.8%, SI Full 86.3/86.6/85.6%), which suggests either cs.RO dominates the corpus OR the category filter is not being applied to the inter-model agreement computations."
+  ],
+  "critical_code_review_comments": [
+    "InterModelSection.jsx (235 lines) — clean and focused, good use of data-testid. Toggle (siMode) correctly drives both SI tables via shared state.",
+    "The PAIR_LABELS map at the top covers both pretty-name and slash-separated keys — robust.",
+    "AgreementTable component handles empty data gracefully (returns null).",
+    "Toggle button text/aria isn't differentiated for the two Full/Controlled groups on the page (PwVsSiSection also has one) — initial test selector hit the wrong toggle. Consider adding aria-label or distinct data-testids like 'inter-model-mode-toggle-full/controlled' for testability."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "90%"},
+  "test_credentials": "none required",
+  "seed_data_creation": "",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "When verifying the Full/Controlled toggle inside InterModelSection, scope the selector to the section because PwVsSiSection above also has a Full/Controlled toggle. Use selector: [data-testid=\"inter-model-section\"] button:has-text(\"Controlled\"). Verified on cs.RO: Full SI totals 36,984/41,820/35,740, Controlled SI totals 41,449/48,180/38,970, Full rates 86.3/86.6/85.6%, Controlled rates 82.4/86.0/82.4%. PW unchanged at 72.1/71.0/72.8%. Toggle also flips SI Inter-Model n from 5383/5383/5400 (full) to 5259/5259/5275 (controlled). PW Inter-Model and PW Match Agreement do NOT change on toggle.",
+  "rca of the issue": "Symptom: Controlled SI agreement Total pairs > Full SI agreement Total pairs, contradicting the spec/agent note. Reproduction: Open /correlation?category=cs.RO, scroll to Inter-Model Agreement section, click 'Controlled' toggle, observe the 'Total' column. Likely root cause: backend service model_analysis.py — the controlled pair enumeration is probably expanding rather than restricting (e.g., enumerating ordered pairs while Full uses unordered, or pooling SI scores across all papers that appear in ANY PW match instead of restricting to the exact PW pair list). Recommended next step: log the size of the controlled pair set in si_match_agreement_controlled and compare to len(pw_match_agreement.total) for the same model pair — they should be equal or smaller, never larger."
+}
