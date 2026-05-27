@@ -365,114 +365,98 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
     # --- SI Rating Stats ---
     si_result = _compute_si_stats(papers)
 
-    # --- Controlled SI inter-model: restrict to papers with PW matches ---
-    if si_result and si_result.get("inter_model_si"):
+    # SI match-level agreement + controlled (using actual PW pairs)
+    if si_result and si_result.get("_si_model_scores"):
         import scipy.stats as _sp
-        si_model_scores = {}
-        for mk in ("claude", "gpt", "gemini"):
-            scores = {}
-            for p in papers:
-                si = p.get("si_ratings", {}).get(mk)
-                if isinstance(si, dict) and si.get("score"):
-                    scores[p["paper_id"]] = si["score"]
-            if scores:
-                si_model_scores[mk] = scores
-
-        controlled = {}
-        mk_to_full = {"claude": None, "gpt": None, "gemini": None}
-        for mk in si_model_scores:
-            for full_key in model_paper_ts:
-                if mk in full_key.lower():
-                    mk_to_full[mk] = full_key
-                    break
-
-        for i, m1 in enumerate(sorted(si_model_scores)):
-            for j, m2 in enumerate(sorted(si_model_scores)):
-                if j <= i:
-                    continue
-                fk1, fk2 = mk_to_full.get(m1), mk_to_full.get(m2)
-                pw_papers = set()
-                if fk1:
-                    pw_papers.update(model_paper_ts.get(fk1, {}).keys())
-                    pw_papers.update(model_wr.get(fk1, {}).keys())
-                pw_papers2 = set()
-                if fk2:
-                    pw_papers2.update(model_paper_ts.get(fk2, {}).keys())
-                    pw_papers2.update(model_wr.get(fk2, {}).keys())
-                common_pw = pw_papers & pw_papers2
-                common_si = set(si_model_scores[m1].keys()) & set(si_model_scores[m2].keys())
-                pool = sorted(common_pw & common_si)
-                if len(pool) >= 10:
-                    v1 = [si_model_scores[m1][p] for p in pool]
-                    v2 = [si_model_scores[m2][p] for p in pool]
-                    rho, _ = _sp.spearmanr(v1, v2)
-                    if not np.isnan(rho):
-                        controlled[f"{m1} vs {m2}"] = {"spearman": round(float(rho), 3), "n": len(pool)}
-        si_result["controlled_inter_model_si"] = controlled
-
-        # SI match-level agreement: for sampled paper pairs, do models agree on ordering?
         import random as _rnd
         _rng = _rnd.Random(42)
-        si_match_agreement = {}
-        si_match_agreement_controlled = {}
+        si_model_scores = si_result.pop("_si_model_scores")
+
+        # Load PW match pairs for controlled comparison
+        match_q = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+        if category:
+            match_q["primary_category"] = category
+        pw_pairs_for_si = {}  # {model_key: set of (pa, pb)}
+        async for m in db.matches.find(match_q, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "model_used": 1}):
+            mu = m.get("model_used", {})
+            raw = f"{mu.get('provider','')}/{mu.get('model','')}"
+            if "claude" in raw or "opus" in raw: mk = "claude"
+            elif "gemini" in raw: mk = "gemini"
+            elif "gpt" in raw: mk = "gpt"
+            else: continue
+            p1, p2 = m["paper1_id"], m["paper2_id"]
+            pair = (p1, p2) if p1 < p2 else (p2, p1)
+            pw_pairs_for_si.setdefault(mk, set()).add(pair)
+
+        # Full SI match agreement (random pairs)
+        si_match_full = {}
         for i, m1 in enumerate(sorted(si_model_scores)):
             for j, m2 in enumerate(sorted(si_model_scores)):
-                if j <= i:
-                    continue
+                if j <= i: continue
                 pair_key = f"{m1} vs {m2}"
-                # Full: all papers with SI from both
-                common_full = sorted(set(si_model_scores[m1].keys()) & set(si_model_scores[m2].keys()))
-                # Controlled: also must have PW matches
-                fk1, fk2 = mk_to_full.get(m1), mk_to_full.get(m2)
-                pw1 = set()
-                if fk1:
-                    pw1.update(model_paper_ts.get(fk1, {}).keys())
-                    pw1.update(model_wr.get(fk1, {}).keys())
-                pw2 = set()
-                if fk2:
-                    pw2.update(model_paper_ts.get(fk2, {}).keys())
-                    pw2.update(model_wr.get(fk2, {}).keys())
-                common_ctrl = sorted((pw1 & pw2) & set(common_full))
+                common = sorted(set(si_model_scores[m1].keys()) & set(si_model_scores[m2].keys()))
+                if len(common) < 20: continue
+                max_pairs = min(50000, len(common) * (len(common) - 1) // 2)
+                if len(common) <= 320:
+                    from itertools import combinations
+                    sampled = list(combinations(common, 2))
+                else:
+                    sampled, seen = [], set()
+                    for _ in range(max_pairs * 3):
+                        if len(sampled) >= max_pairs: break
+                        a, b = _rng.sample(common, 2)
+                        k = (a, b) if a < b else (b, a)
+                        if k not in seen: seen.add(k); sampled.append(k)
+                agree = total = 0
+                for pa, pb in sampled:
+                    s1a, s1b = si_model_scores[m1].get(pa), si_model_scores[m1].get(pb)
+                    s2a, s2b = si_model_scores[m2].get(pa), si_model_scores[m2].get(pb)
+                    if s1a is None or s1b is None or s2a is None or s2b is None: continue
+                    if s1a == s1b or s2a == s2b: continue
+                    total += 1
+                    if (s1a > s1b) == (s2a > s2b): agree += 1
+                if total > 0:
+                    si_match_full[pair_key] = {"agree": agree, "disagree": total - agree, "total": total, "rate": round(agree / total * 100, 1)}
+        si_result["si_match_agreement"] = si_match_full
 
-                for pool, target in [(common_full, si_match_agreement), (common_ctrl, si_match_agreement_controlled)]:
-                    if len(pool) < 20:
-                        continue
-                    # Sample up to 50K pairs
-                    max_pairs = min(50000, len(pool) * (len(pool) - 1) // 2)
-                    if len(pool) <= 320:
-                        from itertools import combinations
-                        sampled = list(combinations(pool, 2))
-                    else:
-                        sampled = []
-                        seen = set()
-                        attempts = 0
-                        while len(sampled) < max_pairs and attempts < max_pairs * 3:
-                            a, b = _rng.sample(pool, 2)
-                            k = (a, b) if a < b else (b, a)
-                            if k not in seen:
-                                seen.add(k)
-                                sampled.append(k)
-                            attempts += 1
+        # Controlled SI match agreement (exact PW pairs)
+        si_match_ctrl = {}
+        for i, m1 in enumerate(sorted(si_model_scores)):
+            for j, m2 in enumerate(sorted(si_model_scores)):
+                if j <= i: continue
+                pair_key = f"{m1} vs {m2}"
+                pw_pairs = pw_pairs_for_si.get(m1, set()) | pw_pairs_for_si.get(m2, set())
+                agree = total = 0
+                for pa, pb in pw_pairs:
+                    s1a = si_model_scores[m1].get(pa)
+                    s1b = si_model_scores[m1].get(pb)
+                    s2a = si_model_scores[m2].get(pa)
+                    s2b = si_model_scores[m2].get(pb)
+                    if s1a is None or s1b is None or s2a is None or s2b is None: continue
+                    if s1a == s1b or s2a == s2b: continue
+                    total += 1
+                    if (s1a > s1b) == (s2a > s2b): agree += 1
+                if total > 0:
+                    si_match_ctrl[pair_key] = {"agree": agree, "disagree": total - agree, "total": total, "rate": round(agree / total * 100, 1)}
+        si_result["si_match_agreement_controlled"] = si_match_ctrl
 
-                    agree = total = 0
-                    for pa, pb in sampled:
-                        s1a, s1b = si_model_scores[m1].get(pa), si_model_scores[m1].get(pb)
-                        s2a, s2b = si_model_scores[m2].get(pa), si_model_scores[m2].get(pb)
-                        if s1a is None or s1b is None or s2a is None or s2b is None:
-                            continue
-                        if s1a == s1b or s2a == s2b:
-                            continue
-                        total += 1
-                        if (s1a > s1b) == (s2a > s2b):
-                            agree += 1
-                    if total > 0:
-                        target[pair_key] = {
-                            "agree": agree, "disagree": total - agree, "total": total,
-                            "rate": round(agree / total * 100, 1),
-                        }
-
-        si_result["si_match_agreement"] = si_match_agreement
-        si_result["si_match_agreement_controlled"] = si_match_agreement_controlled
+        # Controlled ranking correlation
+        controlled_corr = {}
+        for i, m1 in enumerate(sorted(si_model_scores)):
+            for j, m2 in enumerate(sorted(si_model_scores)):
+                if j <= i: continue
+                pw_papers = set()
+                for p1, p2 in (pw_pairs_for_si.get(m1, set()) | pw_pairs_for_si.get(m2, set())):
+                    pw_papers.add(p1); pw_papers.add(p2)
+                common = sorted(pw_papers & set(si_model_scores[m1].keys()) & set(si_model_scores[m2].keys()))
+                if len(common) >= 10:
+                    v1 = [si_model_scores[m1][p] for p in common]
+                    v2 = [si_model_scores[m2][p] for p in common]
+                    rho, _ = _sp.spearmanr(v1, v2)
+                    if not np.isnan(rho):
+                        controlled_corr[f"{m1} vs {m2}"] = {"spearman": round(float(rho), 3), "n": len(common)}
+        si_result["controlled_inter_model_si"] = controlled_corr
+        del pw_pairs_for_si
 
     # --- PW vs SI (WR/TS only, OS empty) ---
     pw_vs_si = _compute_pw_vs_si(
@@ -883,6 +867,16 @@ async def compute_openskill_cache(category: Optional[str] = None):
         if not category:
             force_gc()
 
+    # Collect actual PW match pairs per model-pair for controlled SI comparison
+    pw_pairs_by_model = {}  # {model_key: set of (sorted_pair_tuple)}
+    for m in all_matches:
+        mu = m.get("model_used", {})
+        raw_key = mu.get("_merged_key") or f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+        mk = _OPUS_MERGE.get(raw_key, raw_key).replace(".", "_")
+        p1, p2 = m["paper1_id"], m["paper2_id"]
+        pair = (p1, p2) if p1 < p2 else (p2, p1)
+        pw_pairs_by_model.setdefault(mk, set()).add(pair)
+
     all_matches_slim = [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"], "winner_id": m["winner_id"]}
                         for m in all_matches if m.get("winner_id")]
     all_pids = list(wr_scores.keys())
@@ -911,6 +905,8 @@ async def compute_openskill_cache(category: Optional[str] = None):
 
     del per_model_matches, all_matches
     force_gc()
+
+    del pw_pairs_by_model
 
     # Pre-compute OS vs WR/TS scoring method correlations (stored in cache for merge)
     scoring_os_correlations = []
@@ -1196,6 +1192,9 @@ def _compute_si_stats(papers):
     # Controlled variant computed in compute_live_analysis where model_wr is available
     controlled_inter_model_si = {}
 
+    # Export model_scores for use by controlled computation later
+    _si_model_scores_export = model_scores
+
     # Model comparison
     model_comparison = {}
     for mk in ("claude", "gpt", "gemini"):
@@ -1283,6 +1282,7 @@ def _compute_si_stats(papers):
         "metric_correlations": metric_correlations,
         "inter_model_si": inter_model_si,
         "controlled_inter_model_si": controlled_inter_model_si,
+        "_si_model_scores": _si_model_scores_export,
         "model_comparison": model_comparison,
         "available_models": [{"id": mk, "count": c} for mk, c in model_counts.items() if c >= 5],
     }
