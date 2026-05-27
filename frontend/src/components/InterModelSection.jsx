@@ -7,10 +7,7 @@ function bestInRow(methods) {
   let best = null;
   let bestVal = -Infinity;
   for (const [k, v] of Object.entries(methods)) {
-    if (v.rho > bestVal) {
-      bestVal = v.rho;
-      best = k;
-    }
+    if (v.rho > bestVal) { bestVal = v.rho; best = k; }
   }
   return best;
 }
@@ -19,10 +16,50 @@ const PAIR_LABELS = {
   "anthropic/claude-opus vs gemini/gemini-3-pro-preview": "Claude Opus vs Gemini Pro",
   "anthropic/claude-opus vs openai/gpt-5_2": "Claude Opus vs GPT-5.2",
   "gemini/gemini-3-pro-preview vs openai/gpt-5_2": "Gemini Pro vs GPT-5.2",
+  "claude vs gemini": "Claude Opus vs Gemini Pro",
+  "claude vs gpt": "Claude Opus vs GPT-5.2",
+  "gemini vs gpt": "Gemini Pro vs GPT-5.2",
 };
 
+function AgreementTable({ title, subtitle, color, data, testId }) {
+  if (!data || Object.keys(data).length === 0) return null;
+  const rows = Object.entries(data).map(([key, d]) => ({ pair: PAIR_LABELS[key] || key, ...d }));
+  return (
+    <div className="border border-border rounded-lg overflow-hidden" data-testid={testId}>
+      <div className={`px-3 py-2 ${color} border-b border-border`}>
+        <span className="text-xs font-semibold">{title}</span>
+        <span className="text-[10px] text-muted-foreground ml-1.5">{subtitle}</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-border text-muted-foreground bg-secondary/5">
+              <th className="py-1.5 px-3 text-left font-medium">Pair</th>
+              <th className="py-1.5 px-3 text-right font-medium">Agreement</th>
+              <th className="py-1.5 px-3 text-right font-medium">Agree</th>
+              <th className="py-1.5 px-3 text-right font-medium">Disagree</th>
+              <th className="py-1.5 px-3 text-right font-medium">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i} className="border-b border-border/20">
+                <td className="py-1.5 px-3 font-medium">{row.pair}</td>
+                <td className="py-1.5 px-3 text-right font-mono font-semibold">{row.rate?.toFixed(1)}%</td>
+                <td className="py-1.5 px-3 text-right font-mono text-muted-foreground">{row.agree?.toLocaleString()}</td>
+                <td className="py-1.5 px-3 text-right font-mono text-muted-foreground">{row.disagree?.toLocaleString()}</td>
+                <td className="py-1.5 px-3 text-right font-mono text-muted-foreground">{row.total?.toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUpdatedAt }) {
-  const [siMode, setSiMode] = useState("full"); // "full" | "controlled"
+  const [siMode, setSiMode] = useState("full");
   const isAvg = viewMode === "average";
   const pwRows = (isAvg && pwData?.avg_pw_inter_model?.length ? pwData.avg_pw_inter_model : pwData?.pw_inter_model) || [];
   const methodLabels = pwData?.method_labels || {};
@@ -33,7 +70,13 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
   const hasControlled = Object.keys(siCorrControlled).length > 0;
 
   // PW match-level agreement
-  const agreement = (isAvg ? pwData?.avg_agreement : pwData?.agreement) || {};
+  const pwAgreement = (isAvg ? pwData?.avg_agreement : pwData?.agreement) || {};
+
+  // SI match-level agreement
+  const siAgreementFull = siData?.si_match_agreement || {};
+  const siAgreementControlled = siData?.si_match_agreement_controlled || {};
+  const siAgreement = siMode === "controlled" ? siAgreementControlled : siAgreementFull;
+  const hasSiAgreement = Object.keys(siAgreementFull).length > 0;
 
   if (pwRows.length === 0 && Object.keys(siCorrFull).length === 0) return null;
 
@@ -46,27 +89,26 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
     const altKey = `${m2} vs ${m1}`;
     const data = siCorr[key] || siCorr[altKey];
     if (data) {
-      siRows.push({
-        pair: `${modelLabelMap[m1]} vs ${modelLabelMap[m2]}`,
-        rho: data.spearman,
-        n: data.n,
-      });
+      siRows.push({ pair: `${modelLabelMap[m1]} vs ${modelLabelMap[m2]}`, rho: data.spearman, n: data.n });
     }
   }
 
-  // Build agreement rows
-  const agreementRows = Object.entries(agreement).map(([key, data]) => ({
-    pair: PAIR_LABELS[key] || key,
-    ...data,
-  }));
+  const ModeToggle = ({ value, onChange }) => (
+    <div className="flex items-center gap-0.5 bg-secondary/50 rounded p-0.5">
+      <button className={`px-2 py-0.5 text-[10px] rounded transition-colors ${value === "full" ? "bg-background text-foreground font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+        onClick={() => onChange("full")}>Full</button>
+      <button className={`px-2 py-0.5 text-[10px] rounded transition-colors ${value === "controlled" ? "bg-background text-foreground font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+        onClick={() => onChange("controlled")}>Controlled</button>
+    </div>
+  );
 
   return (
     <div className="mb-8" data-testid="inter-model-section">
       <div className="mb-3">
         <h2 className="font-heading text-lg font-semibold tracking-tight flex items-center gap-2">
           <a href="#inter-model" className="flex items-center gap-2 hover:text-accent transition-colors">
-          <GitCompare className="h-4 w-4 text-muted-foreground" />
-          Inter-Model Agreement
+            <GitCompare className="h-4 w-4 text-muted-foreground" />
+            Inter-Model Agreement
           </a>
         </h2>
         <p className="text-muted-foreground text-xs mt-1 max-w-2xl">
@@ -75,44 +117,41 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
         </p>
       </div>
 
-      {/* Match-level agreement */}
-      {agreementRows.length > 0 && (
-        <div className="border border-border rounded-lg overflow-hidden mb-4" data-testid="pw-agreement-table">
-          <div className="px-3 py-2 bg-emerald-500/5 border-b border-border">
-            <span className="text-xs font-semibold">Match-Level Agreement</span>
-            <span className="text-[10px] text-muted-foreground ml-1.5">
-              (when two models judge the same paper pair, how often do they pick the same winner?)
-            </span>
+      {/* Match-level agreement: PW and SI side by side */}
+      {(Object.keys(pwAgreement).length > 0 || hasSiAgreement) && (
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Match-Level Agreement</h3>
+            {hasControlled && <ModeToggle value={siMode} onChange={setSiMode} />}
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground bg-secondary/5">
-                  <th className="py-1.5 px-3 text-left font-medium">Pair</th>
-                  <th className="py-1.5 px-3 text-right font-medium">Agreement</th>
-                  <th className="py-1.5 px-3 text-right font-medium">Agree</th>
-                  <th className="py-1.5 px-3 text-right font-medium">Disagree</th>
-                  <th className="py-1.5 px-3 text-right font-medium">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {agreementRows.map((row, i) => (
-                  <tr key={i} className="border-b border-border/20">
-                    <td className="py-1.5 px-3 font-medium">{row.pair}</td>
-                    <td className="py-1.5 px-3 text-right font-mono font-semibold">{row.rate?.toFixed(1)}%</td>
-                    <td className="py-1.5 px-3 text-right font-mono text-muted-foreground">{row.agree?.toLocaleString()}</td>
-                    <td className="py-1.5 px-3 text-right font-mono text-muted-foreground">{row.disagree?.toLocaleString()}</td>
-                    <td className="py-1.5 px-3 text-right font-mono text-muted-foreground">{row.total?.toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {siMode === "controlled" && (
+            <p className="text-[10px] text-muted-foreground mb-2">
+              SI restricted to papers that appear in both models' PW match pools — same paper set as the PW agreement.
+            </p>
+          )}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <AgreementTable
+              title="PW Match Agreement"
+              subtitle="(when two models judge the same pair, how often do they pick the same winner?)"
+              color="bg-sky-500/5"
+              data={pwAgreement}
+              testId="pw-agreement-table"
+            />
+            {hasSiAgreement && (
+              <AgreementTable
+                title={`SI Score Agreement (${siMode})`}
+                subtitle="(for paper pairs, how often do two models' SI scores agree on ordering?)"
+                color="bg-violet-500/5"
+                data={siAgreement}
+                testId="si-agreement-table"
+              />
+            )}
           </div>
         </div>
       )}
 
+      {/* Ranking correlations: PW and SI side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* PW Inter-Model */}
         {pwRows.length > 0 && (
           <div className="border border-border rounded-lg overflow-hidden" data-testid="pw-inter-model-table">
             <div className="px-3 py-2 bg-sky-500/5 border-b border-border">
@@ -161,34 +200,14 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
           </div>
         )}
 
-        {/* SI Inter-Model */}
-        {(siRows.length > 0 || hasControlled) && (
+        {siRows.length > 0 && (
           <div className="border border-border rounded-lg overflow-hidden" data-testid="si-inter-model-table">
-            <div className="px-3 py-2 bg-violet-500/5 border-b border-border flex items-center justify-between">
-              <div>
-                <span className="text-xs font-semibold">SI Inter-Model</span>
-                <span className="text-[10px] text-muted-foreground ml-1.5">
-                  (how similarly do models rate papers directly)
-                </span>
-              </div>
-              {hasControlled && (
-                <div className="flex items-center gap-0.5 bg-secondary/50 rounded p-0.5" data-testid="si-mode-toggle">
-                  <button
-                    className={`px-2 py-0.5 text-[10px] rounded transition-colors ${siMode === "full" ? "bg-background text-foreground font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                    onClick={() => setSiMode("full")}
-                  >Full</button>
-                  <button
-                    className={`px-2 py-0.5 text-[10px] rounded transition-colors ${siMode === "controlled" ? "bg-background text-foreground font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                    onClick={() => setSiMode("controlled")}
-                  >Controlled</button>
-                </div>
-              )}
+            <div className="px-3 py-2 bg-violet-500/5 border-b border-border">
+              <span className="text-xs font-semibold">SI Inter-Model ({siMode})</span>
+              <span className="text-[10px] text-muted-foreground ml-1.5">
+                (how similarly do models rate papers directly)
+              </span>
             </div>
-            {siMode === "controlled" && (
-              <div className="px-3 py-1.5 bg-violet-500/5 border-b border-border text-[10px] text-muted-foreground">
-                Restricted to papers that appear in both models' PW match pools — same paper set as the ranking correlations.
-              </div>
-            )}
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border text-muted-foreground bg-secondary/5">
@@ -198,15 +217,13 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
                 </tr>
               </thead>
               <tbody>
-                {siRows.length > 0 ? siRows.map((row, i) => (
+                {siRows.map((row, i) => (
                   <tr key={i} className="border-b border-border/20">
                     <td className="py-1.5 px-3 font-medium">{row.pair}</td>
                     <td className="py-1.5 px-3 text-right font-mono font-semibold">{row.rho?.toFixed(3) ?? "—"}</td>
                     <td className="py-1.5 px-3 text-right font-mono text-muted-foreground">{row.n}</td>
                   </tr>
-                )) : (
-                  <tr><td colSpan={3} className="py-3 px-3 text-center text-muted-foreground">No data for {siMode} mode</td></tr>
-                )}
+                ))}
               </tbody>
             </table>
           </div>

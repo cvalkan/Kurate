@@ -410,6 +410,70 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                         controlled[f"{m1} vs {m2}"] = {"spearman": round(float(rho), 3), "n": len(pool)}
         si_result["controlled_inter_model_si"] = controlled
 
+        # SI match-level agreement: for sampled paper pairs, do models agree on ordering?
+        import random as _rnd
+        _rng = _rnd.Random(42)
+        si_match_agreement = {}
+        si_match_agreement_controlled = {}
+        for i, m1 in enumerate(sorted(si_model_scores)):
+            for j, m2 in enumerate(sorted(si_model_scores)):
+                if j <= i:
+                    continue
+                pair_key = f"{m1} vs {m2}"
+                # Full: all papers with SI from both
+                common_full = sorted(set(si_model_scores[m1].keys()) & set(si_model_scores[m2].keys()))
+                # Controlled: also must have PW matches
+                fk1, fk2 = mk_to_full.get(m1), mk_to_full.get(m2)
+                pw1 = set()
+                if fk1:
+                    pw1.update(model_paper_ts.get(fk1, {}).keys())
+                    pw1.update(model_wr.get(fk1, {}).keys())
+                pw2 = set()
+                if fk2:
+                    pw2.update(model_paper_ts.get(fk2, {}).keys())
+                    pw2.update(model_wr.get(fk2, {}).keys())
+                common_ctrl = sorted((pw1 & pw2) & set(common_full))
+
+                for pool, target in [(common_full, si_match_agreement), (common_ctrl, si_match_agreement_controlled)]:
+                    if len(pool) < 20:
+                        continue
+                    # Sample up to 50K pairs
+                    max_pairs = min(50000, len(pool) * (len(pool) - 1) // 2)
+                    if len(pool) <= 320:
+                        from itertools import combinations
+                        sampled = list(combinations(pool, 2))
+                    else:
+                        sampled = []
+                        seen = set()
+                        attempts = 0
+                        while len(sampled) < max_pairs and attempts < max_pairs * 3:
+                            a, b = _rng.sample(pool, 2)
+                            k = (a, b) if a < b else (b, a)
+                            if k not in seen:
+                                seen.add(k)
+                                sampled.append(k)
+                            attempts += 1
+
+                    agree = total = 0
+                    for pa, pb in sampled:
+                        s1a, s1b = si_model_scores[m1].get(pa), si_model_scores[m1].get(pb)
+                        s2a, s2b = si_model_scores[m2].get(pa), si_model_scores[m2].get(pb)
+                        if s1a is None or s1b is None or s2a is None or s2b is None:
+                            continue
+                        if s1a == s1b or s2a == s2b:
+                            continue
+                        total += 1
+                        if (s1a > s1b) == (s2a > s2b):
+                            agree += 1
+                    if total > 0:
+                        target[pair_key] = {
+                            "agree": agree, "disagree": total - agree, "total": total,
+                            "rate": round(agree / total * 100, 1),
+                        }
+
+        si_result["si_match_agreement"] = si_match_agreement
+        si_result["si_match_agreement_controlled"] = si_match_agreement_controlled
+
     # --- PW vs SI (WR/TS only, OS empty) ---
     pw_vs_si = _compute_pw_vs_si(
         papers, wr_scores, ts_scores, {}, {}, {},
