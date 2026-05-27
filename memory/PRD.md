@@ -1,79 +1,61 @@
 # PRD — Kurate.org AI Paper Ranking Platform
 
 ## Problem Statement
-Build and maintain a sophisticated AI paper-judging system that uses multiple LLM judges to rank academic papers through pairwise tournaments, with validation experiments, convergence monitoring, and multi-category support.
+Build and maintain a sophisticated AI paper-judging system using multiple LLM judges to rank academic papers through pairwise tournaments, with validation experiments, convergence monitoring, and multi-category support.
 
 ## Architecture
 - **Backend**: FastAPI + MongoDB (Motor async) + Background scheduler
 - **Frontend**: React + Shadcn UI + Recharts
-- **LLMs**: Claude Opus 4-6 (Emergent key), GPT-5.2 (direct OpenAI key), Gemini 3.1 Pro (Emergent key)
+- **LLMs**: Claude Opus 4-6 (Emergent key), GPT-5.2/5.4 (direct key), Gemini 3 Pro (Emergent key)
 - **Scoring**: TrueSkill with sigma-based convergence + quality-based matchmaking
 - **Dual-Pod**: Leader election via MongoDB lock; follower runs lightweight startup
 
-## What's Been Implemented
+## What's Been Implemented (Latest Session)
+
+### Inter-Model Agreement Overhaul (May 2026)
+- PW Match Agreement: actual pair-level agreement (not median-split)
+- SI Score Agreement: with Full/Controlled toggle
+- Controlled = exact PW shared pairs (intersection of models' match pairs)
+- Both tables work for all-categories and per-category views
+
+### Prompt Stability Experiments (May 2026)
+- 3 experiments on 88-206 papers: baseline, with-reasons, extended (11 dimensions)
+- Extended prompt adds: difficulty, surprisingness, reproducibility, translational_potential, evidence_strength, generalisability
+- 11×11 correlation matrix, per-dimension histograms, ranked paper lists
+- Validation Hub pages: Rating Stability + Extended Dimensions
 
 ### Featured Categories System (May 2026)
 - Separated "featured" (homepage tabs) from "active" (tournament participation)
-- New `featured_categories` setting with backward-compatible fallback to first 5 of `active_categories`
-- Backend endpoints: `set-featured`, `toggle-featured`, `reorder-featured`
-- `/api/categories` returns `featured` list; `CategoryTabs.jsx` uses it
-- AdminCategories rewritten: drag-reorderable featured section + unified dropdown with active/featured toggles
-- AdminOverview: button ribbon replaced with dropdown selector (scales to 155+ categories)
+- AdminCategories rewritten: drag-reorderable featured + unified dropdown
 
-### Prediction Experiment Cleanup (May 2026)
-- Removed obsolete prediction experiment — code, endpoints, UI
-- Startup migration deletes prediction matches + unsets `mode: null` artifacts
-- Removed 3 backend endpoints, prediction prompt editor from AdminPage
+### ICLR Match Pipelines (May 2026)
+- Ran 16,395 matches across 4 ICLR sub-datasets (2025/2026 LLMs + Optimization)
+- Fetched abstracts + summaries for 911 new papers
+- Robust resumable pipeline with direct Anthropic fallback
 
-### Timeseries Endpoint Optimization (May 2026)
-- Split `/admin/timeseries` to return totals-only by default
-- Added `date_from`/`date_to` and `category` params
-- Added compound index for aggregation performance
-- Response reduced from ~800KB → ~30KB for default view
+### Other Changes
+- Prediction experiment cleanup + timeseries endpoint optimization
+- Qwen3-0.6B embedding evaluation
+- Contact form (/contact page, honeypot + rate limit, admin Messages tab)
+- User export CSV, privacy policy update (Google Search Console)
+- PMI surprise/multidisciplinarity scores for Similarity Landscape
 
-### Qwen3-0.6B Embedding Evaluation (May 2026)
-- Evaluated for Similarity Landscape (cs.GT + physics.comp-ph)
-- Added UI button and full quality metrics
-- Competitive on cs.GT, weaker on physics.comp-ph vs OpenAI/SciNCL
-
-### Previous Work
-- TrueSkill Sigma Convergence, Quality-Based Matchmaking
-- Similarity Landscape with multiple embedding methods (OpenAI, SciNCL, SPECTER, Qwen3)
-- Sub-tournament experiments, Dual-pod optimization
-- Archive system, Orphan rankings fix
-
-## Production Stats (May 22, 2026)
-- 20,891 papers, 492K matches across 32 categories
-- Match cost: $3,498 | Summary cost: $3,021 | Total: $6,519
-- $/paper: $0.75 (Feb) → $0.16 (May) — 5x decline
-- Dominant cost: Claude Opus thinking summaries (40% of total)
+## Production Stats (May 27, 2026)
+- 20K+ papers, 500K+ matches across 32 categories
+- Inter-model PW agreement: 71-73% (pair-level)
+- Inter-model SI agreement: 85-87% (full), 78-79% (controlled)
+- $/paper: $0.16 (current), down from $0.75 in February
 
 ## Known Issues
-- ChemRxiv papers: MOCKED from static JSON seed
+- ChemRxiv papers: MOCKED
 - Twitter/X mobile unfurling: BLOCKED (Cloudflare WAF)
-- K8s liveness probe misconfiguration: BLOCKED (infrastructure)
-- TweetAPI interaction endpoints: 504 timeouts (TweetAPI-side issue)
+- K8s liveness probes: BLOCKED (infrastructure)
 
 ## Pending Tasks
-- P0: Semantic Search & "Papers Like This"
-- P0: Multiple Reviewer Personas (ReviewerToo paper)
-- P0: Gemini embedding evaluation (needs direct Google API key)
+- P0: Deploy latest changes to production
+- P0: Add 5 categorical metrics to extended prompt (paper_type, contribution_type, code_available, research_maturity, comparative_result)
+- P1: Semantic Search & "Papers Like This"
+- P1: Multiple Reviewer Personas
 - P1: Live ChemRxiv Fetcher
-- P1: SSR for Bots/SEO
-- P1: AdminStatistics top-N category filter for charts
-- P1: Sub-topic matchmaking, Matryoshka-256 mode
-- P1: Sitemap.xml
-- P2: Author Verification (ORCID OAuth)
-- P2: Circular import cleanup
-- P2: Frontend render scaling (PixiJS/deck.gl)
-
-## Scaling Readiness
-- Backend: all-arXiv ready (155 categories, ~1600 papers/day)
-- Featured categories decoupled from active — homepage tabs independent of tournament scope
-- Estimated backfill for all arXiv: ~9,600 papers (capped at 100/category), ~$1,400
-- Timeseries optimized for 155 categories (totals-only default, per-category on demand)
-
-## Key Documents
-- /app/memory/TRUESKILL_CONVERGENCE_PLAN.md
-- /app/memory/ORPHAN_RANKINGS_PLAN.md
-- /app/tools/embed_qwen3_to_landscape.py
+- P1: All-arXiv category expansion (~$1,400 backfill)
+- P2: Scholarly positioning metric (highest-value skipped numerical metric)

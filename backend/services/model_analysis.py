@@ -415,8 +415,8 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                 pair_key = f"{m1} vs {m2}"
                 common = sorted(set(si_model_scores[m1].keys()) & set(si_model_scores[m2].keys()))
                 if len(common) < 20: continue
-                max_pairs = min(50000, len(common) * (len(common) - 1) // 2)
-                if len(common) <= 320:
+                max_pairs = min(100000, len(common) * (len(common) - 1) // 2)
+                if len(common) <= 450:
                     from itertools import combinations
                     sampled = list(combinations(common, 2))
                 else:
@@ -438,15 +438,16 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                     si_match_full[pair_key] = {"agree": agree, "disagree": total - agree, "total": total, "rate": round(agree / total * 100, 1)}
         si_result["si_match_agreement"] = si_match_full
 
-        # Controlled SI match agreement (exact PW pairs)
+        # Controlled SI match agreement (only PW pairs judged by BOTH models)
         si_match_ctrl = {}
         for i, m1 in enumerate(sorted(si_model_scores)):
             for j, m2 in enumerate(sorted(si_model_scores)):
                 if j <= i: continue
                 pair_key = f"{m1} vs {m2}"
-                pw_pairs = pw_pairs_for_si.get(m1, set()) | pw_pairs_for_si.get(m2, set())
+                # Intersection: pairs that both models judged in PW
+                shared_pw_pairs = pw_pairs_for_si.get(m1, set()) & pw_pairs_for_si.get(m2, set())
                 agree = total = 0
-                for pa, pb in pw_pairs:
+                for pa, pb in shared_pw_pairs:
                     s1a = si_model_scores[m1].get(pa)
                     s1b = si_model_scores[m1].get(pb)
                     s2a = si_model_scores[m2].get(pa)
@@ -465,8 +466,10 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
         for i, m1 in enumerate(sorted(si_model_scores)):
             for j, m2 in enumerate(sorted(si_model_scores)):
                 if j <= i: continue
+                # Papers appearing in PW pairs judged by both models
+                shared_pw = pw_pairs_for_si.get(m1, set()) & pw_pairs_for_si.get(m2, set())
                 pw_papers = set()
-                for p1, p2 in (pw_pairs_for_si.get(m1, set()) | pw_pairs_for_si.get(m2, set())):
+                for p1, p2 in shared_pw:
                     pw_papers.add(p1); pw_papers.add(p2)
                 common = sorted(pw_papers & set(si_model_scores[m1].keys()) & set(si_model_scores[m2].keys()))
                 if len(common) >= 10:
