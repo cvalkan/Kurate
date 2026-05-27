@@ -372,36 +372,42 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
         _rng = _rnd.Random(42)
         si_model_scores = si_result.pop("_si_model_scores")
 
-        # Enrich Claude SI scores from summaries (99% coverage)
-        CLAUDE_KEY = "anthropic:claude-opus-4-6:thinking"
+        # Enrich si_model_scores from ALL models' summaries for better coverage
+        SUMMARY_KEYS = {
+            "claude": "anthropic:claude-opus-4-6:thinking",
+            "gpt": "openai:gpt-5_2",
+            "gemini": "gemini:gemini-3-pro-preview",
+        }
         paper_ids_needed = set()
         for p in papers:
             pid = p["paper_id"]
-            if pid not in si_model_scores.get("claude", {}):
-                paper_ids_needed.add(pid)
+            for mk in SUMMARY_KEYS:
+                if pid not in si_model_scores.get(mk, {}):
+                    paper_ids_needed.add(pid)
         if paper_ids_needed:
             import re as _re
             import json as _json
             async for doc in db.papers.find(
-                {"id": {"$in": list(paper_ids_needed)}, f"summaries.{CLAUDE_KEY}": {"$exists": True}},
-                {"_id": 0, "id": 1, f"summaries.{CLAUDE_KEY}": 1},
+                {"id": {"$in": list(paper_ids_needed)}, "summaries": {"$exists": True}},
+                {"_id": 0, "id": 1, "summaries": 1},
             ):
-                if doc["id"] in si_model_scores.get("claude", {}):
-                    continue
-                summary = (doc.get("summaries") or {}).get(CLAUDE_KEY, "")
-                if not summary:
-                    continue
-                match = _re.search(r'```json\s*(\{.*?\})\s*```', summary[-800:], _re.DOTALL)
-                if not match:
-                    match = _re.search(r'\{[^{}]*"score"[^{}]*\}', summary[-400:])
-                if match:
-                    try:
-                        txt = match.group(1) if match.lastindex else match.group()
-                        score = _json.loads(txt).get("score")
-                        if score:
-                            si_model_scores.setdefault("claude", {})[doc["id"]] = float(score)
-                    except (ValueError, KeyError):
-                        pass
+                for mk, skey in SUMMARY_KEYS.items():
+                    if doc["id"] in si_model_scores.get(mk, {}):
+                        continue
+                    summary = (doc.get("summaries") or {}).get(skey, "")
+                    if not summary:
+                        continue
+                    match = _re.search(r'```json\s*(\{.*?\})\s*```', summary[-800:], _re.DOTALL)
+                    if not match:
+                        match = _re.search(r'\{[^{}]*"score"[^{}]*\}', summary[-400:])
+                    if match:
+                        try:
+                            txt = match.group(1) if match.lastindex else match.group()
+                            score = _json.loads(txt).get("score")
+                            if score:
+                                si_model_scores.setdefault(mk, {})[doc["id"]] = float(score)
+                        except (ValueError, KeyError):
+                            pass
 
         # Load PW match pairs for controlled comparison + PW pair-level agreement
         match_q = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
@@ -469,27 +475,26 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                     si_match_full[pair_key] = {"agree": agree, "disagree": total - agree, "total": total, "rate": round(agree / total * 100, 1)}
         si_result["si_match_agreement"] = si_match_full
 
-        # Controlled: on shared PW pairs, does Claude's SI score ordering
-        # predict the PW outcome? (All pairs, regardless of PW agreement)
+        # Controlled: on shared PW pairs, do both models' SI scores agree on
+        # which paper is better? (Same question as PW but using SI scores)
         si_match_ctrl = {}
-        claude_scores = si_model_scores.get("claude", {})
         for i, m1 in enumerate(sorted(pw_pair_winners)):
             for j, m2 in enumerate(sorted(pw_pair_winners)):
                 if j <= i: continue
                 pair_key = f"{m1} vs {m2}"
                 shared_pw_pairs = set(pw_pair_winners[m1].keys()) & set(pw_pair_winners[m2].keys())
+                m1_scores = si_model_scores.get(m1, {})
+                m2_scores = si_model_scores.get(m2, {})
                 agree = total = 0
                 for pa, pb in shared_pw_pairs:
-                    sa = claude_scores.get(pa)
-                    sb = claude_scores.get(pb)
-                    if sa is None or sb is None or sa == sb: continue
+                    s1a = m1_scores.get(pa)
+                    s1b = m1_scores.get(pb)
+                    s2a = m2_scores.get(pa)
+                    s2b = m2_scores.get(pb)
+                    if s1a is None or s1b is None or s2a is None or s2b is None: continue
+                    if s1a == s1b or s2a == s2b: continue
                     total += 1
-                    si_pred = 1 if sa > sb else -1
-                    w1 = pw_pair_winners[m1][(pa, pb)]
-                    w2 = pw_pair_winners[m2][(pa, pb)]
-                    # Count as agree if Claude SI matches both PW models
-                    if si_pred == w1 and si_pred == w2:
-                        agree += 1
+                    if (s1a > s1b) == (s2a > s2b): agree += 1
                 if total > 0:
                     si_match_ctrl[pair_key] = {"agree": agree, "disagree": total - agree, "total": total, "rate": round(agree / total * 100, 1)}
         si_result["si_match_agreement_controlled"] = si_match_ctrl
