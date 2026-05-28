@@ -71,7 +71,7 @@ export default function HeatmapView() {
       >
         <FilterBar state={state} setState={setState} papers={papers} showColumnToggle={true} />
 
-        <div className="flex items-center justify-between gap-3" data-testid="lv-count-row">
+        <div className="flex flex-wrap items-center justify-between gap-3" data-testid="lv-count-row">
           <div className="text-xs text-muted-foreground" data-testid="lv-count">
             {loading
               ? "Loading…"
@@ -105,7 +105,7 @@ export default function HeatmapView() {
           <table className="w-full text-xs border-collapse table-fixed">
             <colgroup>
               <col style={{ width: DATE_COL_WIDTH }} />
-              <col style={{ minWidth: 280, width: 340 }} />
+              <col style={{ minWidth: 220, width: 260 }} />
               {visibleMetrics.map(m => <col key={m.key} style={{ width: METRIC_COL_WIDTH }} />)}
             </colgroup>
             <thead className="sticky top-0 z-20 bg-card">
