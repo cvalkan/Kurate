@@ -105,7 +105,7 @@ export default function HeatmapView() {
           <table className="w-full text-xs border-collapse table-fixed">
             <colgroup>
               <col style={{ width: DATE_COL_WIDTH }} />
-              <col className="w-[260px] min-w-[230px] sm:w-[340px] sm:min-w-[280px]" />
+              <col className="w-[260px] min-w-[230px] sm:w-auto sm:min-w-[340px]" />
               {visibleMetrics.map(m => <col key={m.key} style={{ width: METRIC_COL_WIDTH }} />)}
             </colgroup>
             <thead className="sticky top-0 z-20 bg-card">
