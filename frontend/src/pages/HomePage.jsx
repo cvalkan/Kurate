@@ -73,42 +73,42 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Hero quick-link cards */}
+          {/* Hero quick-link cards — #5 larger text */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4" data-testid="hero-cards">
             <a href="/?period=recent" className="group bg-card border border-border rounded-lg p-5 hover:shadow-md hover:border-accent/40 transition-all" data-testid="hero-card-recent">
               <div className="flex items-center gap-2 mb-2">
-                <Clock className="h-4 w-4 text-accent" />
-                <span className="font-heading font-medium text-sm">Recent rankings</span>
+                <Clock className="h-5 w-5 text-accent" />
+                <span className="font-heading font-medium text-base">Recent rankings</span>
               </div>
-              <p className="text-muted-foreground text-xs leading-relaxed">Newly ranked preprints across all active categories.</p>
-              <span className="inline-flex items-center gap-1 text-accent text-xs mt-3 group-hover:gap-2 transition-all">View <ChevronRight className="h-3 w-3" /></span>
+              <p className="text-muted-foreground text-sm leading-relaxed">Newly ranked preprints across all active categories.</p>
+              <span className="inline-flex items-center gap-1 text-accent text-sm font-medium mt-3 group-hover:gap-2 transition-all">View rankings <ChevronRight className="h-4 w-4" /></span>
             </a>
             <a href="/?cat=cs.AI&period=recent" className="group bg-card border border-border rounded-lg p-5 hover:shadow-md hover:border-accent/40 transition-all" data-testid="hero-card-ai">
               <div className="flex items-center gap-2 mb-2">
-                <Brain className="h-4 w-4 text-accent" />
-                <span className="font-heading font-medium text-sm">AI papers</span>
+                <Brain className="h-5 w-5 text-accent" />
+                <span className="font-heading font-medium text-base">AI papers</span>
               </div>
-              <p className="text-muted-foreground text-xs leading-relaxed">Artificial Intelligence category rankings.</p>
-              <span className="inline-flex items-center gap-1 text-accent text-xs mt-3 group-hover:gap-2 transition-all">View <ChevronRight className="h-3 w-3" /></span>
+              <p className="text-muted-foreground text-sm leading-relaxed">Artificial Intelligence category rankings.</p>
+              <span className="inline-flex items-center gap-1 text-accent text-sm font-medium mt-3 group-hover:gap-2 transition-all">View rankings <ChevronRight className="h-4 w-4" /></span>
             </a>
             <a href="/?cat=quant-ph&period=recent" className="group bg-card border border-border rounded-lg p-5 hover:shadow-md hover:border-accent/40 transition-all" data-testid="hero-card-physics">
               <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="h-4 w-4 text-accent" />
-                <span className="font-heading font-medium text-sm">Quantum Physics</span>
+                <Sparkles className="h-5 w-5 text-accent" />
+                <span className="font-heading font-medium text-base">Quantum Physics</span>
               </div>
-              <p className="text-muted-foreground text-xs leading-relaxed">Quantum Physics category rankings.</p>
-              <span className="inline-flex items-center gap-1 text-accent text-xs mt-3 group-hover:gap-2 transition-all">View <ChevronRight className="h-3 w-3" /></span>
+              <p className="text-muted-foreground text-sm leading-relaxed">Quantum Physics category rankings.</p>
+              <span className="inline-flex items-center gap-1 text-accent text-sm font-medium mt-3 group-hover:gap-2 transition-all">View rankings <ChevronRight className="h-4 w-4" /></span>
             </a>
           </div>
         </div>
       </section>
 
-      {/* ── RESEARCH CATEGORIES (moved up) ── */}
+      {/* ── RESEARCH CATEGORIES ── */}
       <section className="bg-secondary/30 border-b border-border" data-testid="categories-section">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-14">
           <div className="flex items-center justify-between mb-6">
             <h2 className="font-heading text-lg md:text-xl font-medium tracking-tight">Research categories</h2>
-            <a href="/?tagOpen=1&period=recent" className="text-xs text-accent hover:underline">View all rankings</a>
+            <a href="/?tagOpen=1&period=recent" className="text-sm text-accent hover:underline">View all rankings</a>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
             {allCats.map(cat => (
@@ -126,39 +126,30 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── TOP RANKED PAPERS ── */}
-      {stats?.top_papers?.length > 0 && (
-        <section className="border-b border-border" data-testid="top-papers-section">
-          <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-14">
-            <div className="bg-card border border-border rounded-lg overflow-hidden max-w-4xl">
-              <div className="px-5 py-3 border-b border-border bg-secondary/40 flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Top ranked preprints</span>
-                <a href="/?tagOpen=1&period=recent" className="text-xs text-accent hover:underline" data-testid="view-all-rankings">View all rankings</a>
-              </div>
-              <div className="divide-y divide-border">
-                {stats.top_papers.slice(0, 5).map((p, i) => (
-                  <Link to={`/paper/${p.id}`} key={p.id} className="flex items-center gap-4 px-5 py-3 hover:bg-secondary/30 transition-colors" data-testid={`hero-paper-${i}`}>
-                    <span className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-mono font-semibold ${
-                      i === 0 ? "bg-amber-100 text-amber-700 border-2 border-amber-400 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-600"
-                      : i === 1 ? "bg-slate-100 text-slate-600 border-2 border-slate-400 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-500"
-                      : i === 2 ? "bg-orange-100 text-orange-700 border-2 border-orange-400 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-600"
-                      : "bg-secondary text-secondary-foreground"
-                    }`}>{i + 1}</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{p.title}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {p.primary_category} {p.ts_score ? `· Score ${p.ts_score.toFixed(0)}` : ""}
-                      </p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
+      {/* ── TOP RANKED PREPRINTS — #4 two-column category links ── */}
+      <section className="border-b border-border" data-testid="top-papers-section">
+        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-14">
+          <h2 className="font-heading text-lg md:text-xl font-medium tracking-tight mb-2">Top ranked preprints</h2>
+          <p className="text-muted-foreground text-sm mb-6">Explore the highest-ranked papers across active research categories.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 max-w-3xl">
+            {allCats.map(cat => (
+              <a
+                key={cat.id}
+                href={`/?cat=${cat.id}&period=recent&sort=rank&dir=asc`}
+                className="group flex items-center justify-between py-2.5 border-b border-border/60 hover:border-accent/40 transition-colors"
+                data-testid={`top-cat-${cat.id}`}
+              >
+                <span className="text-sm font-medium">{cat.name}</span>
+                <span className="text-xs text-accent opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                  View top papers <ChevronRight className="h-3 w-3" />
+                </span>
+              </a>
+            ))}
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
-      {/* ── PLATFORM METRICS (simplified) ── */}
+      {/* ── PLATFORM METRICS ── */}
       <section className="bg-secondary/30 border-b border-border" data-testid="metrics-section">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-14">
           <h2 className="font-heading text-lg md:text-xl font-medium tracking-tight mb-6">Platform overview</h2>
@@ -174,15 +165,15 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── HOW KURATE WORKS ── */}
+      {/* ── HOW KURATE WORKS — #3 larger text ── */}
       <section className="bg-[hsl(222,47%,11%)] text-white border-b" data-testid="how-it-works">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
           <h2 className="font-heading text-2xl md:text-3xl font-medium tracking-tight mb-3">How Kurate works</h2>
-          <p className="text-white/60 text-sm mb-8 max-w-2xl">
+          <p className="text-white/60 text-sm md:text-base mb-10 max-w-2xl">
             Kurate processes arXiv preprints daily, applies AI-assisted analysis, and produces
             category-level rankings to help users discover and compare research.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {[
               { icon: FileText, title: "Collect preprints", desc: "Kurate monitors new arXiv submissions and organises them by research category." },
               { icon: Brain, title: "Analyse research signals", desc: "Multiple AI models read paper content and evaluate research characteristics such as novelty, rigour, and potential impact." },
@@ -191,10 +182,10 @@ export default function HomePage() {
             ].map((s, i) => {
               const Icon = s.icon;
               return (
-                <div key={i} className="bg-white/[0.06] border border-white/10 rounded-lg p-5">
-                  <Icon className="h-5 w-5 text-blue-300 mb-3" />
-                  <h3 className="font-heading font-medium text-sm mb-2">{s.title}</h3>
-                  <p className="text-white/60 text-xs leading-relaxed">{s.desc}</p>
+                <div key={i} className="bg-white/[0.06] border border-white/10 rounded-lg p-6">
+                  <Icon className="h-6 w-6 text-blue-300 mb-4" />
+                  <h3 className="font-heading font-medium text-base mb-2">{s.title}</h3>
+                  <p className="text-white/70 text-sm leading-relaxed">{s.desc}</p>
                 </div>
               );
             })}
@@ -202,7 +193,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── RANKINGS ARE SIGNALS (merged responsibility section) ── */}
+      {/* ── RANKINGS ARE SIGNALS ── */}
       <section className="border-b border-border" data-testid="responsible-discovery">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
           <h2 className="font-heading text-2xl md:text-3xl font-medium tracking-tight mb-3">Rankings are signals, not verdicts</h2>
@@ -241,7 +232,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── CURRENT FEATURES & COMING SOON ── */}
+      {/* ── FEATURES & ROADMAP — #2 linked items ── */}
       <section className="bg-secondary/30 border-b border-border" data-testid="features-section">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
           <h2 className="font-heading text-2xl md:text-3xl font-medium tracking-tight mb-3">Features and roadmap</h2>
@@ -250,26 +241,36 @@ export default function HomePage() {
             Additional research intelligence features are in development.
           </p>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Current */}
+            {/* Current — linked */}
             <div>
               <h3 className="font-heading font-medium text-sm uppercase tracking-wider text-accent mb-4">Available now</h3>
               <div className="space-y-3">
                 {[
-                  { icon: FileText, title: "arXiv preprint discovery", desc: "Browse and search preprints across multiple research areas." },
-                  { icon: Trophy, title: "Category-based rankings", desc: "Papers ranked within their field by AI-assisted comparison." },
-                  { icon: BarChart3, title: "Model analysis", desc: "Compare how different AI judges agree and disagree on paper rankings." },
-                  { icon: FlaskConical, title: "Validation experiments", desc: "Ground-truth benchmarks that test ranking accuracy against expert judgements." },
-                  { icon: BookMarked, title: "Bookmarks and reading lists", desc: "Save papers and organise reading lists for later review." },
+                  { icon: FileText, title: "arXiv preprint discovery", desc: "Browse and search preprints across multiple research areas.", href: "/?tagOpen=1&period=recent" },
+                  { icon: Trophy, title: "Category-based rankings", desc: "Papers ranked within their field by AI-assisted comparison.", href: "/?period=recent" },
+                  { icon: BarChart3, title: "Model analysis", desc: "Compare how different AI judges agree and disagree on paper rankings.", to: "/correlation" },
+                  { icon: FlaskConical, title: "Validation experiments", desc: "Ground-truth benchmarks that test ranking accuracy against expert judgements.", to: "/validation" },
+                  { icon: BookMarked, title: "Bookmarks and reading lists", desc: "Save papers and organise reading lists for later review.", href: "/bookmarks" },
                 ].map((f, i) => {
                   const Icon = f.icon;
-                  return (
-                    <div key={i} className="flex items-start gap-3 bg-card border border-border rounded-lg p-4">
+                  const inner = (
+                    <>
                       <Icon className="h-4 w-4 text-accent shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium">{f.title}</p>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium group-hover:text-accent transition-colors">{f.title}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">{f.desc}</p>
                       </div>
-                    </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </>
+                  );
+                  return f.to ? (
+                    <Link key={i} to={f.to} className="group flex items-start gap-3 bg-card border border-border rounded-lg p-4 hover:border-accent/40 transition-all">
+                      {inner}
+                    </Link>
+                  ) : (
+                    <a key={i} href={f.href} className="group flex items-start gap-3 bg-card border border-border rounded-lg p-4 hover:border-accent/40 transition-all">
+                      {inner}
+                    </a>
                   );
                 })}
               </div>
@@ -353,14 +354,14 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── FOOTER ── */}
+      {/* ── FOOTER — #1 white logo text ── */}
       <footer className="bg-[hsl(222,47%,11%)] text-white" data-testid="homepage-footer">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-12 md:py-16">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <Trophy className="h-5 w-5 text-blue-300" />
-                <img src="/kurate-logo.png" alt="Kurate.org" className="h-6 invert" />
+                <img src="/kurate-logo.png" alt="Kurate.org" className="h-6 brightness-0 invert" />
               </div>
               <p className="text-white/60 text-sm leading-relaxed max-w-xs">
                 AI-assisted arXiv preprint rankings and research discovery across multiple fields.
@@ -398,7 +399,6 @@ export default function HomePage() {
   );
 }
 
-/* ─────────── sub-components ─────────── */
 function MetricCard({ icon: Icon, label, value, sub, testId }) {
   return (
     <div className="bg-card border border-border rounded-lg p-4" data-testid={testId}>
