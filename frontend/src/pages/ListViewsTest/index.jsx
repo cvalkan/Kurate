@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Table2, BarChart3, Grid3x3 } from "lucide-react";
+import { Table2, BarChart3, Grid3x3, LayoutGrid, Layers } from "lucide-react";
 import { useExtendedPapers } from "./_shared";
 
 const VIEWS = [
@@ -23,11 +23,32 @@ const VIEWS = [
     icon: Grid3x3,
     pitch: "Wide cell grid: rows = papers, columns = metrics, every cell colored from red→green by score. Hover any cell for value + reasoning. Sort by any column. Pattern-spotting view: where do the cold streaks and bright bands fall?",
     bestFor: "Finding outliers and visual patterns across a large set of papers.",
+    variant: "heatmap",
+  },
+  {
+    slug: "heatmap-editorial",
+    title: "E — Heatmap · Editorial",
+    icon: LayoutGrid,
+    pitch: "Heatmap reimagined for clarity: each metric gets its own brand hue (intensity = score) so columns are visually distinguishable. Hard divider between the 5 Core dims and the 6 Extended dims. Click any row to expand its full reasoning inline. Distribution sparkline floats above each column.",
+    bestFor: "Reading sessions — fewer competing visuals, click-to-deep-dive flow.",
+    variant: "heatmap",
+    badge: "New",
+  },
+  {
+    slug: "heatmap-quantile",
+    title: "F — Heatmap · Quantile",
+    icon: Layers,
+    pitch: "Cells colored by their rank within their own column (percentile), not absolute value, so outliers per metric pop even though most scores cluster 5-8. Viridis palette (colorblind-safe). Hover a column to focus it; click a cell to pin a detail side-panel that holds the paper's full breakdown.",
+    bestFor: "Outlier hunting and side-by-side metric exploration with persistent context.",
+    variant: "heatmap",
+    badge: "New",
   },
 ];
 
 export default function ListViewsIndex() {
   const { papers, loading, n } = useExtendedPapers();
+  const heatmaps = VIEWS.filter(v => v.variant === "heatmap");
+  const others = VIEWS.filter(v => v.variant !== "heatmap");
   return (
     <div className="container mx-auto max-w-5xl px-4 py-10 space-y-8">
       <div>
@@ -40,32 +61,23 @@ export default function ListViewsIndex() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {VIEWS.map(v => {
-          const Icon = v.icon;
-          return (
-            <Link
-              key={v.slug}
-              to={`/test/list-views/${v.slug}`}
-              className="group border border-border rounded-lg p-5 bg-card hover:border-accent transition-colors flex flex-col gap-3"
-              data-testid={`lv-card-${v.slug}`}
-            >
-              <div className="flex items-center gap-2">
-                <Icon className="h-4 w-4 text-accent" />
-                <h2 className="text-sm font-medium group-hover:text-accent">{v.title}</h2>
-              </div>
-              <p className="text-xs text-muted-foreground leading-relaxed flex-1">{v.pitch}</p>
-              <p className="text-[10px] text-muted-foreground border-t border-border/50 pt-2">
-                <span className="font-medium text-foreground">Best for:</span> {v.bestFor}
-              </p>
-            </Link>
-          );
-        })}
+      <div>
+        <h2 className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground mb-2">List candidates</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {others.map(v => <ViewCard key={v.slug} v={v} />)}
+        </div>
+      </div>
+
+      <div>
+        <h2 className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground mb-2">Heatmap family</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {heatmaps.map(v => <ViewCard key={v.slug} v={v} />)}
+        </div>
       </div>
 
       <div className="text-xs text-muted-foreground border-t border-border pt-4 space-y-1">
         <p>
-          <b>Shared mechanics</b> across all three views: keyword title search, category multi-filter, per-metric
+          <b>Shared mechanics</b> across every view: keyword title search, category multi-filter, per-metric
           minimum-score sliders, hide/show metric columns, include/exclude N/A papers, persistent state per view in localStorage.
         </p>
         <p>
@@ -81,5 +93,30 @@ export default function ListViewsIndex() {
         </pre>
       </details>
     </div>
+  );
+}
+
+function ViewCard({ v }) {
+  const Icon = v.icon;
+  return (
+    <Link
+      to={`/test/list-views/${v.slug}`}
+      className="group border border-border rounded-lg p-5 bg-card hover:border-accent transition-colors flex flex-col gap-3 relative"
+      data-testid={`lv-card-${v.slug}`}
+    >
+      {v.badge && (
+        <span className="absolute top-3 right-3 text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent text-accent-foreground">
+          {v.badge}
+        </span>
+      )}
+      <div className="flex items-center gap-2">
+        <Icon className="h-4 w-4 text-accent" />
+        <h2 className="text-sm font-medium group-hover:text-accent">{v.title}</h2>
+      </div>
+      <p className="text-xs text-muted-foreground leading-relaxed flex-1">{v.pitch}</p>
+      <p className="text-[10px] text-muted-foreground border-t border-border/50 pt-2">
+        <span className="font-medium text-foreground">Best for:</span> {v.bestFor}
+      </p>
+    </Link>
   );
 }

@@ -47,6 +47,89 @@ export function scoreTextColor(value) {
   return dist > 0.55 ? "#fff" : "inherit";
 }
 
+// Per-metric hue: each metric uses its brand color, intensity scaled by value.
+// Returns rgba string. Low value = pale wash, high value = saturated.
+export function metricHueColor(metric, value) {
+  if (value == null) return "transparent";
+  const hex = metric.color.replace("#", "");
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  // Non-linear ramp: emphasises high-end variation where most papers cluster
+  const t = Math.pow(value / 10, 1.4);
+  const a = 0.06 + 0.84 * t;
+  return `rgba(${r},${g},${b},${a.toFixed(3)})`;
+}
+export function metricHueTextColor(metric, value) {
+  if (value == null) return "var(--muted-foreground)";
+  const t = Math.pow(value / 10, 1.4);
+  return t > 0.55 ? "#fff" : "inherit";
+}
+
+// Viridis-like perceptually-uniform colormap, colorblind safe.
+const VIRIDIS_STOPS = [
+  [0.0,  [68, 1, 84]],     // dark purple
+  [0.25, [59, 82, 139]],   // blue
+  [0.5,  [33, 144, 140]],  // teal
+  [0.75, [94, 201, 98]],   // green
+  [1.0,  [253, 231, 36]],  // yellow
+];
+export function viridisColor(t) {
+  if (t == null || isNaN(t)) return "transparent";
+  t = Math.max(0, Math.min(1, t));
+  for (let i = 1; i < VIRIDIS_STOPS.length; i++) {
+    const [t1, c1] = VIRIDIS_STOPS[i - 1];
+    const [t2, c2] = VIRIDIS_STOPS[i];
+    if (t <= t2) {
+      const f = (t - t1) / (t2 - t1);
+      const r = Math.round(c1[0] + (c2[0] - c1[0]) * f);
+      const g = Math.round(c1[1] + (c2[1] - c1[1]) * f);
+      const b = Math.round(c1[2] + (c2[2] - c1[2]) * f);
+      return `rgb(${r},${g},${b})`;
+    }
+  }
+  return "rgb(253,231,36)";
+}
+export function viridisTextColor(t) {
+  if (t == null) return "var(--muted-foreground)";
+  return t < 0.55 ? "#fff" : "#0a0a0a";
+}
+
+// Compute per-paper percentile within a metric (excluding nulls).
+// Returns Map<paper_id, percentile in [0,1]>.
+export function computePercentileMap(papers, metricKey) {
+  const valued = papers
+    .map(p => ({ id: p.paper_id, v: p[metricKey] }))
+    .filter(x => x.v != null)
+    .sort((a, b) => a.v - b.v);
+  const n = valued.length;
+  const map = new Map();
+  // Average-rank ties so identical values get identical percentile.
+  let i = 0;
+  while (i < n) {
+    let j = i;
+    while (j < n && valued[j].v === valued[i].v) j++;
+    const avgRank = (i + j - 1) / 2;
+    const pct = n > 1 ? avgRank / (n - 1) : 0.5;
+    for (let k = i; k < j; k++) map.set(valued[k].id, pct);
+    i = j;
+  }
+  return map;
+}
+
+// Mini histogram strip data (8 bins from 1-10) for a metric across papers.
+export function computeMiniHistogram(papers, metricKey, bins = 8) {
+  const counts = new Array(bins).fill(0);
+  const values = papers.map(p => p[metricKey]).filter(v => v != null);
+  values.forEach(v => {
+    const idx = Math.min(bins - 1, Math.floor(((v - 1) / 9) * bins));
+    counts[idx]++;
+  });
+  const max = Math.max(1, ...counts);
+  const mean = values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+  return { counts, max, mean, n: values.length };
+}
+
 export function useExtendedPapers() {
   const [state, setState] = useState({ loading: true, papers: [], n: 0, error: null });
   useEffect(() => {
