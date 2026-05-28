@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Activity, Copy, AlertTriangle } from "lucide-react";
+import { Activity, Copy, AlertTriangle, Timer } from "lucide-react";
+import { usePerfDebounce } from "./_shared";
 
 /**
  * Phase 0 instrumentation overlay.
@@ -132,9 +133,11 @@ export function PerfOverlay({ className = "", title = "Performance overlay" }) {
   const longTaskMax = longTasks.reduce((m, e) => Math.max(m, e.duration), 0);
   const longTaskTotal = longTasks.reduce((s, e) => s + e.duration, 0);
 
+  const [debounceMs, setDebounceMs] = usePerfDebounce();
+
   return (
     <div className={`border border-border rounded-lg p-3 bg-card space-y-2 ${className}`} data-testid="perf-overlay">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Activity className="h-3.5 w-3.5 text-accent" />
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{title}</span>
         {!supported.measure && (
@@ -143,6 +146,19 @@ export function PerfOverlay({ className = "", title = "Performance overlay" }) {
           </span>
         )}
         <div className="flex-1" />
+        {/* Debounce control */}
+        <div className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground" title="Idle delay before committing search / slider drafts to the filter state. 0 = no debounce.">
+          <Timer className="h-3 w-3" />
+          <span className="hidden sm:inline">Debounce</span>
+          <input
+            type="range" min={0} max={500} step={10}
+            value={debounceMs}
+            onChange={(e) => setDebounceMs(parseInt(e.target.value, 10))}
+            className="w-24 accent-accent"
+            data-testid="perf-debounce-slider"
+          />
+          <span className="font-mono tabular-nums text-foreground w-10 text-right">{debounceMs} ms</span>
+        </div>
         <button onClick={reset} className="text-[10px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded border border-border" data-testid="perf-reset">
           Reset
         </button>

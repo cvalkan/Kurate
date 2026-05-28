@@ -174,6 +174,48 @@ export function computeMiniHistogram(papers, metricKey, bins = 8) {
   return { counts, max, mean, n: values.length };
 }
 
+// --- Configurable debounce -------------------------------------------------
+// Shared across FilterBar (search + slider commits) and the PerfOverlay's
+// control. Lives in localStorage so it survives reloads, and broadcasts via a
+// custom event so all subscribers update without prop-drilling or context.
+const PERF_DEBOUNCE_KEY = "perf:debounceMs";
+const PERF_DEBOUNCE_EVENT = "perf-debounce-changed";
+export const DEFAULT_DEBOUNCE_MS = 120;
+
+export function usePerfDebounce() {
+  const [ms, setMs] = useState(() => {
+    try {
+      const raw = localStorage.getItem(PERF_DEBOUNCE_KEY);
+      const v = raw != null ? parseInt(raw, 10) : NaN;
+      return Number.isFinite(v) ? v : DEFAULT_DEBOUNCE_MS;
+    } catch (_) { return DEFAULT_DEBOUNCE_MS; }
+  });
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === PERF_DEBOUNCE_KEY && e.newValue != null) {
+        const v = parseInt(e.newValue, 10);
+        if (Number.isFinite(v)) setMs(v);
+      }
+    };
+    const onCustom = (e) => {
+      if (typeof e.detail === "number" && Number.isFinite(e.detail)) setMs(e.detail);
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener(PERF_DEBOUNCE_EVENT, onCustom);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(PERF_DEBOUNCE_EVENT, onCustom);
+    };
+  }, []);
+  const setMsAndPersist = useCallback((next) => {
+    const v = Math.max(0, Math.min(2000, Math.round(next)));
+    setMs(v);
+    try { localStorage.setItem(PERF_DEBOUNCE_KEY, String(v)); } catch (_) { /* ignore */ }
+    window.dispatchEvent(new CustomEvent(PERF_DEBOUNCE_EVENT, { detail: v }));
+  }, []);
+  return [ms, setMsAndPersist];
+}
+
 // Flatten a paper's ratings into top-level fields. Shared by the precomputed,
 // scaling-test, and server-paged data hooks.
 export function flattenPaper(p) {
@@ -528,6 +570,8 @@ export const applySort = withTiming("perf:sort", _applySort);
 
 // Top filter bar shared across views
 export function FilterBar({ state, setState, papers, sortableKeys = null, showColumnToggle = false }) {
+  const [debounceMs] = usePerfDebounce();
+
   // Local search draft, debounced before committing to global state so each keystroke
   // doesn't trigger applyFilters on every character at 50k+ papers.
   const [searchDraft, setSearchDraft] = useState(state.search);
@@ -537,10 +581,11 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
   }, [state.search]);
   useEffect(() => {
     if (searchDraft === state.search) return;
-    const id = setTimeout(() => setState({ search: searchDraft }), 120);
+    if (debounceMs <= 0) { setState({ search: searchDraft }); return; }
+    const id = setTimeout(() => setState({ search: searchDraft }), debounceMs);
     return () => clearTimeout(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchDraft]);
+  }, [searchDraft, debounceMs]);
 
   // Local draft for per-metric thresholds. Slider drags fire ~20 events per slide; debouncing
   // collapses them into one commit so applyFilters / applySort / histogram only re-run once.
@@ -549,7 +594,6 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
     setThresholdDraft(state.metricMin || {});
   }, [state.metricMin]);
   useEffect(() => {
-    // Skip commit if drafts already match committed state (avoids initial render commit)
     const draft = thresholdDraft;
     const committed = state.metricMin || {};
     const keys = new Set([...Object.keys(draft), ...Object.keys(committed)]);
@@ -558,10 +602,11 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
       if (draft[k] !== committed[k]) { differs = true; break; }
     }
     if (!differs) return;
-    const id = setTimeout(() => setState({ metricMin: thresholdDraft }), 120);
+    if (debounceMs <= 0) { setState({ metricMin: thresholdDraft }); return; }
+    const id = setTimeout(() => setState({ metricMin: thresholdDraft }), debounceMs);
     return () => clearTimeout(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [thresholdDraft]);
+  }, [thresholdDraft, debounceMs]);
 
   const categories = useMemo(() => {
     const set = new Set();
