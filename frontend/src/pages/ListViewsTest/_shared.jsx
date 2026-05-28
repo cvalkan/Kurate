@@ -209,20 +209,29 @@ export function useExtendedPapers() {
 }
 
 // Custom hook bundling search / category / sort / metric-range state, persisted to localStorage.
+// Note: `dateRange` is intentionally NOT persisted — it always resets to "All Time" on page load.
 export function useListState(viewKey, defaults = {}) {
   const storageKey = `list-views:${viewKey}`;
   const [state, setStateRaw] = useState(() => {
     try {
       const stored = JSON.parse(localStorage.getItem(storageKey) || "null");
-      if (stored) return { ...buildDefaults(defaults), ...stored, categories: new Set(stored.categories || []), hidden: new Set(stored.hidden || []) };
+      if (stored) return {
+        ...buildDefaults(defaults),
+        ...stored,
+        dateRange: "all",            // always reset on load
+        categories: new Set(stored.categories || []),
+        hidden: new Set(stored.hidden || []),
+      };
     } catch (_) { /* ignore */ }
     return buildDefaults(defaults);
   });
   const setState = (patch) => setStateRaw(prev => {
     const next = typeof patch === "function" ? patch(prev) : { ...prev, ...patch };
     try {
+      // Strip dateRange before persisting so a fresh load always starts at "All Time".
+      const { dateRange: _ignored, ...persisted } = next;
       localStorage.setItem(storageKey, JSON.stringify({
-        ...next,
+        ...persisted,
         categories: Array.from(next.categories || []),
         hidden: Array.from(next.hidden || []),
       }));
@@ -378,35 +387,35 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
           )}
         </div>
 
+        {/* Date range pill selector — wraps below on narrow screens */}
+        <div className="flex flex-wrap items-center gap-1.5" data-testid="lv-date-range">
+          {DATE_RANGES.map(r => {
+            const Icon = r.icon;
+            const active = (state.dateRange || "all") === r.v;
+            return (
+              <button
+                key={r.v}
+                onClick={() => setState({ dateRange: r.v })}
+                className={`inline-flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-full border transition-colors ${
+                  active
+                    ? "bg-foreground text-background border-foreground"
+                    : "bg-background text-muted-foreground hover:text-foreground border-border"
+                }`}
+                data-testid={`lv-date-range-${r.v}`}
+                title={r.days != null ? `Papers published in the last ${r.days} day${r.days === 1 ? "" : "s"}` : "No date restriction"}
+              >
+                <Icon className="h-3 w-3" />
+                {r.label}
+              </button>
+            );
+          })}
+        </div>
+
         <div className="flex-1" />
 
         <button onClick={resetAll} className="text-xs py-1 px-2 rounded border border-border bg-background hover:bg-secondary" data-testid="lv-reset">
           Reset
         </button>
-      </div>
-
-      {/* Date range pill selector */}
-      <div className="flex flex-wrap items-center gap-1.5" data-testid="lv-date-range">
-        {DATE_RANGES.map(r => {
-          const Icon = r.icon;
-          const active = (state.dateRange || "all") === r.v;
-          return (
-            <button
-              key={r.v}
-              onClick={() => setState({ dateRange: r.v })}
-              className={`inline-flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-full border transition-colors ${
-                active
-                  ? "bg-foreground text-background border-foreground"
-                  : "bg-background text-muted-foreground hover:text-foreground border-border"
-              }`}
-              data-testid={`lv-date-range-${r.v}`}
-              title={r.days != null ? `Papers published in the last ${r.days} day${r.days === 1 ? "" : "s"}` : "No date restriction"}
-            >
-              <Icon className="h-3 w-3" />
-              {r.label}
-            </button>
-          );
-        })}
       </div>
 
       {/* Category multiselect */}
