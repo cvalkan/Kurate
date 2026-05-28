@@ -285,7 +285,8 @@ export function useServerPaperList(state, source) {
     abortRef.current = ctrl;
     setLoading(true);
     setError(null);
-    setPages({});
+    // Do NOT clear `pages` here — keep stale rows visible while the new page is in flight
+    // (stale-while-revalidate). The pages map is replaced atomically when the fetch resolves.
 
     const t0 = performance.now ? performance.now() : 0;
     fetch(`${API}/api/papers-list?${sig}&offset=0&limit=${PAGE_SIZE_SERVER}&include_categories=true`, { signal: ctrl.signal })
@@ -541,6 +542,27 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchDraft]);
 
+  // Local draft for per-metric thresholds. Slider drags fire ~20 events per slide; debouncing
+  // collapses them into one commit so applyFilters / applySort / histogram only re-run once.
+  const [thresholdDraft, setThresholdDraft] = useState(state.metricMin || {});
+  useEffect(() => {
+    setThresholdDraft(state.metricMin || {});
+  }, [state.metricMin]);
+  useEffect(() => {
+    // Skip commit if drafts already match committed state (avoids initial render commit)
+    const draft = thresholdDraft;
+    const committed = state.metricMin || {};
+    const keys = new Set([...Object.keys(draft), ...Object.keys(committed)]);
+    let differs = false;
+    for (const k of keys) {
+      if (draft[k] !== committed[k]) { differs = true; break; }
+    }
+    if (!differs) return;
+    const id = setTimeout(() => setState({ metricMin: thresholdDraft }), 120);
+    return () => clearTimeout(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thresholdDraft]);
+
   const categories = useMemo(() => {
     const set = new Set();
     papers.forEach(p => {
@@ -772,7 +794,7 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
           {visibleMetrics.map(m => {
-            const v = state.metricMin?.[m.key] ?? 0;
+            const v = thresholdDraft[m.key] ?? 0;
             const op = state.metricOp?.[m.key] || "gte";
             const symbol = op === "gte" ? "≥" : "≤";
             const isNoop = (op === "gte" && v === 0) || (op === "lte" && (v === 10 || v === 0));
@@ -787,7 +809,7 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
                 <input
                   type="range" min={0} max={10} step={0.5}
                   value={v}
-                  onChange={(e) => setState(prev => ({ ...prev, metricMin: { ...prev.metricMin, [m.key]: parseFloat(e.target.value) } }))}
+                  onChange={(e) => setThresholdDraft(prev => ({ ...prev, [m.key]: parseFloat(e.target.value) }))}
                   className="flex-1 accent-accent min-w-0"
                   data-testid={`lv-min-${m.key}`}
                 />
