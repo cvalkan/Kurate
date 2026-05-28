@@ -317,14 +317,14 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
       {categories.length > 0 && (() => {
         const mode = state.categoryMode || "any";
         const selected = Array.from(state.categories);
-        const modeLabel = mode === "primary" ? "Primary only" : mode === "cross-listed" ? "Cross-listed only" : "Any";
+        const modeLabel = mode === "primary" ? "Primary only" : mode === "cross-listed" ? "Secondary only" : "Any";
         const summaryText = selected.length === 0
           ? `${modeLabel} · all ${categories.length} categories`
           : `${modeLabel} · ${selected.slice(0, 3).join(", ")}${selected.length > 3 ? ` +${selected.length - 3}` : ""}`;
         return (
           <details className="border-t border-border/40 pt-2 group">
             <summary className="text-[10px] uppercase tracking-wider cursor-pointer select-none flex items-center gap-2 hover:text-foreground text-muted-foreground list-none [&::-webkit-details-marker]:hidden">
-              <span className="inline-block transition-transform group-open:rotate-90">▸</span>
+              <span className="text-sm leading-none inline-block transition-transform group-open:rotate-90">▸</span>
               <span>Category</span>
               <span className="normal-case tracking-normal text-[11px] text-foreground/70 font-normal">{summaryText}</span>
               {selected.length > 0 && (
@@ -356,8 +356,8 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
                         data-testid={`lv-cat-mode-${opt.v}`}
                         title={
                           opt.v === "primary" ? "Match only papers whose primary category is selected"
-                          : opt.v === "cross-listed" ? "Match only papers cross-listed (but not primary) in the selected category"
-                          : "Match papers with selected category as primary or cross-listed"
+                          : opt.v === "cross-listed" ? "Match only papers where the selected category is secondary (not primary)"
+                          : "Match papers where the selected category is primary or secondary"
                         }
                       >
                         {opt.label}
@@ -394,7 +394,7 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
       {/* Per-metric minimum filters */}
       <details className="border-t border-border/40 pt-2 group" open>
         <summary className="text-[10px] text-muted-foreground uppercase tracking-wider cursor-pointer select-none mb-2 hover:text-foreground flex items-center gap-2 list-none [&::-webkit-details-marker]:hidden">
-          <span className="inline-block transition-transform group-open:rotate-90">▸</span>
+          <span className="text-sm leading-none inline-block transition-transform group-open:rotate-90">▸</span>
           <span>Per-metric minimum (drag to filter)</span>
         </summary>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
