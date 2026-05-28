@@ -300,17 +300,6 @@ function MiniColumnChart({ metric, hist, active }) {
           />
         );
       })}
-      {/* Dashed mean marker */}
-      {mean != null && (
-        <line
-          x1={xForScore(mean)} x2={xForScore(mean)}
-          y1={0} y2={chartH}
-          stroke="currentColor"
-          strokeWidth={1}
-          strokeDasharray="2 1.5"
-          opacity={0.6}
-        />
-      )}
       {/* Baseline rule at the bottom — provides axis orientation without numbers */}
       <line x1={0} x2={w} y1={chartH + 0.5} y2={chartH + 0.5} stroke="currentColor" strokeWidth={0.5} opacity={0.4} />
     </svg>
