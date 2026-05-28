@@ -364,25 +364,29 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider w-[64px] shrink-0">Match</span>
                 <div className="inline-flex rounded-md bg-secondary/60 p-0.5 gap-0.5 -ml-0.5" data-testid="lv-cat-mode">
                   {[
-                    { v: "any", label: "Any" },
-                    { v: "primary", label: "Primary only" },
-                    { v: "cross-listed", label: "Secondary only" },
+                    { v: "any", label: "Any", tip: "Match papers where the selected category is listed as either the primary category or any secondary (cross-listed) category." },
+                    { v: "primary", label: "Primary only", tip: "Match only papers whose primary category is among the selected categories." },
+                    { v: "cross-listed", label: "Secondary only", tip: "Match only papers cross-listed in the selected categories, but where the primary category is something else." },
                   ].map(opt => {
                     const active = (state.categoryMode || "any") === opt.v;
                     return (
-                      <button
-                        key={opt.v}
-                        onClick={() => setState({ categoryMode: opt.v })}
-                        className={`text-[10px] px-2.5 py-1 rounded transition-colors ${active ? "bg-background text-foreground shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"}`}
-                        data-testid={`lv-cat-mode-${opt.v}`}
-                        title={
-                          opt.v === "primary" ? "Match only papers whose primary category is selected"
-                          : opt.v === "cross-listed" ? "Match only papers where the selected category is secondary (not primary)"
-                          : "Match papers where the selected category is primary or secondary"
-                        }
-                      >
-                        {opt.label}
-                      </button>
+                      <Tooltip key={opt.v}>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => setState({ categoryMode: opt.v })}
+                            className={`text-[10px] px-2.5 py-1 rounded transition-colors ${active ? "bg-background text-foreground shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"}`}
+                            data-testid={`lv-cat-mode-${opt.v}`}
+                          >
+                            {opt.label}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs bg-popover text-popover-foreground border border-border shadow-md">
+                          <div className="space-y-0.5">
+                            <div className="text-[11px] font-medium">{opt.label}</div>
+                            <p className="text-[11px] leading-snug text-muted-foreground">{opt.tip}</p>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
                     );
                   })}
                 </div>
@@ -444,20 +448,33 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
         <summary className="text-[10px] text-muted-foreground uppercase tracking-wider cursor-pointer select-none mb-2 hover:text-foreground flex items-center gap-2 list-none [&::-webkit-details-marker]:hidden">
           <span className="text-sm leading-none inline-block transition-transform group-open:rotate-90">▸</span>
           <span>Per-metric minimum (drag to filter)</span>
-          <label
-            className="ml-auto flex items-center gap-1 text-[10px] normal-case tracking-normal cursor-pointer text-muted-foreground hover:text-foreground"
-            onClick={(e) => e.stopPropagation()}
-            title="When ON, papers where this metric is N/A still pass the filter. When OFF, they are excluded."
-          >
-            <input
-              type="checkbox"
-              checked={state.includeNulls}
-              onChange={(e) => setState({ includeNulls: e.target.checked })}
-              className="accent-accent"
-              data-testid="lv-include-nulls"
-            />
-            Include N/A
-          </label>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <label
+                className="ml-auto flex items-center gap-1 text-[10px] normal-case tracking-normal cursor-pointer text-muted-foreground hover:text-foreground"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <input
+                  type="checkbox"
+                  checked={state.includeNulls}
+                  onChange={(e) => setState({ includeNulls: e.target.checked })}
+                  className="accent-accent"
+                  data-testid="lv-include-nulls"
+                />
+                Include N/A
+              </label>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs bg-popover text-popover-foreground border border-border shadow-md">
+              <div className="space-y-0.5">
+                <div className="text-[11px] font-medium">Include N/A</div>
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  Some extended metrics (reproducibility, evidence strength, etc.) are N/A for purely theoretical
+                  or position papers. When ON, those papers still pass the active threshold filters; when OFF,
+                  they are excluded as soon as any threshold is set on a metric they lack.
+                </p>
+              </div>
+            </TooltipContent>
+          </Tooltip>
         </summary>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
           {visibleMetrics.map(m => {
