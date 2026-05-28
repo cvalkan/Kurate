@@ -196,7 +196,8 @@ function buildDefaults(d) {
     categoryLogic: d.categoryLogic || "or", // "or" | "and" — combine multiple selected cats
     sortKey: d.sortKey || "score",
     sortDir: d.sortDir || "desc",
-    metricMin: d.metricMin || {}, // { metric: number }
+    metricMin: d.metricMin || {}, // { metric: number } — threshold value
+    metricOp: d.metricOp || {},   // { metric: "gte" | "lte" } — operator per metric, default "gte"
     hidden: new Set(d.hidden || []), // hidden metric keys
     includeNulls: d.includeNulls ?? true,
   };
@@ -208,6 +209,7 @@ export function applyFilters(papers, state) {
   const mode = state.categoryMode || "any";
   const logic = state.categoryLogic || "or";
   const minMap = state.metricMin || {};
+  const opMap = state.metricOp || {};
   return papers.filter(p => {
     if (q) {
       const titleMatch = p.title && p.title.toLowerCase().includes(q);
@@ -217,11 +219,10 @@ export function applyFilters(papers, state) {
     if (cats.size > 0) {
       const primary = p.category;
       const all = p.categories || (primary ? [primary] : []);
-      // Pick which side(s) of the paper's categories the selector should look at
       const lookup = (cat) => {
         if (mode === "primary") return cat === primary;
         if (mode === "cross-listed") return all.includes(cat) && cat !== primary;
-        return all.includes(cat); // "any"
+        return all.includes(cat);
       };
       const selected = Array.from(cats);
       const match = logic === "and"
@@ -229,14 +230,19 @@ export function applyFilters(papers, state) {
         : selected.some(lookup);
       if (!match) return false;
     }
-    for (const [k, v] of Object.entries(minMap)) {
-      if (v == null) continue;
+    for (const [k, threshold] of Object.entries(minMap)) {
+      if (threshold == null) continue;
+      const op = opMap[k] || "gte";
+      // No-op thresholds: gte at 0 lets everything through; lte at 10 lets everything through
+      if (op === "gte" && threshold === 0) continue;
+      if (op === "lte" && threshold === 10) continue;
       const val = p[k];
       if (val == null) {
         if (!state.includeNulls) return false;
         continue;
       }
-      if (val < v) return false;
+      if (op === "gte" && val < threshold) return false;
+      if (op === "lte" && val > threshold) return false;
     }
     return true;
   });
@@ -289,7 +295,8 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
     search: "", categories: new Set(),
     categoryMode: "any", categoryLogic: "or",
     sortKey: "score", sortDir: "desc",
-    metricMin: {}, hidden: new Set(),
+    metricMin: {}, metricOp: {},
+    hidden: new Set(),
     includeNulls: true,
   });
 
@@ -437,6 +444,12 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
           {visibleMetrics.map(m => {
             const v = state.metricMin?.[m.key] ?? 0;
+            const op = state.metricOp?.[m.key] || "gte";
+            const symbol = op === "gte" ? "≥" : "≤";
+            const flipOp = () => setState(prev => ({
+              ...prev,
+              metricOp: { ...(prev.metricOp || {}), [m.key]: op === "gte" ? "lte" : "gte" },
+            }));
             return (
               <div key={m.key} className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: m.color }} />
@@ -448,7 +461,14 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
                   className="flex-1 accent-accent min-w-0"
                   data-testid={`lv-min-${m.key}`}
                 />
-                <span className="text-[10px] font-mono w-9 text-right tabular-nums shrink-0">{v.toFixed(1)}+</span>
+                <button
+                  onClick={flipOp}
+                  className="text-[10px] font-mono w-12 text-right tabular-nums shrink-0 rounded px-1 py-0.5 hover:bg-secondary transition-colors cursor-pointer"
+                  title={`Currently: ${op === "gte" ? "≥ (at least)" : "≤ (at most)"}. Click to flip.`}
+                  data-testid={`lv-op-${m.key}`}
+                >
+                  {symbol} {v.toFixed(1)}
+                </button>
               </div>
             );
           })}
