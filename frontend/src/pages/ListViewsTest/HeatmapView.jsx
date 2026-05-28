@@ -301,7 +301,7 @@ function MiniColumnChart({ metric, hist, active }) {
         );
       })}
       {/* Baseline rule at the bottom — provides axis orientation without numbers */}
-      <line x1={0} x2={w} y1={chartH + 0.5} y2={chartH + 0.5} stroke="currentColor" strokeWidth={1.5} opacity={0.4} />
+      <line x1={0} x2={w} y1={chartH + 0.5} y2={chartH + 0.5} stroke="currentColor" strokeWidth={1} opacity={0.4} />
     </svg>
   );
 }
