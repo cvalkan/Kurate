@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
-import { ChevronLeft, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -540,11 +539,6 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
 export function ListViewShell({ title, subtitle, children }) {
   return (
     <div className="container mx-auto max-w-7xl px-4 py-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <Link to="/test/list-views" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" data-testid="lv-back">
-          <ChevronLeft className="h-3 w-3" /> Back to all list views
-        </Link>
-      </div>
       <div>
         <h1 className="text-xl font-semibold">{title}</h1>
         {subtitle && <p className="text-xs text-muted-foreground mt-1 max-w-2xl">{subtitle}</p>}
