@@ -8,6 +8,19 @@ import {
 
 const PAGE_SIZE = 40;
 
+function formatPublished(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d)) return null;
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+function formatAuthors(authors) {
+  if (!authors || authors.length === 0) return null;
+  if (authors.length <= 2) return authors.join(", ");
+  return `${authors[0]}, ${authors[1]} +${authors.length - 2}`;
+}
+
 export default function HeatmapView() {
   const { papers, loading, n } = useExtendedPapers();
   const [state, setState] = useListState("heatmap", { sortKey: "score", sortDir: "desc" });
@@ -15,11 +28,10 @@ export default function HeatmapView() {
   const visible = useMemo(() => applySort(applyFilters(papers, state), state), [papers, state]);
   const visibleMetrics = METRICS.filter(m => !state.hidden.has(m.key));
 
-  // Infinite scroll — render in pages of PAGE_SIZE
+  // Infinite scroll — render in pages of PAGE_SIZE on window scroll
   const [shown, setShown] = useState(PAGE_SIZE);
   const sentinelRef = useRef(null);
 
-  // Reset window when filter / sort / dataset changes
   useEffect(() => { setShown(PAGE_SIZE); }, [state.search, state.sortKey, state.sortDir, state.categories, state.metricMin, state.hidden, state.includeNulls, papers.length]);
 
   useEffect(() => {
@@ -29,7 +41,7 @@ export default function HeatmapView() {
       if (entry.isIntersecting) {
         setShown(prev => Math.min(prev + PAGE_SIZE, visible.length));
       }
-    }, { rootMargin: "400px" });
+    }, { rootMargin: "600px" });
     observer.observe(el);
     return () => observer.disconnect();
   }, [visible.length]);
@@ -57,56 +69,59 @@ export default function HeatmapView() {
             : `Showing ${rendered.length} of ${visible.length} filtered (n=${n} total)`}
         </div>
 
-        <div className="border border-border rounded-lg overflow-auto bg-card max-h-[80vh]" data-testid="lv-heatmap">
-          <table className="w-full text-xs border-separate border-spacing-0">
-            <thead className="sticky top-0 z-20 bg-secondary/80 backdrop-blur">
+        <div className="border border-border rounded-lg bg-card" data-testid="lv-heatmap">
+          <table className="w-full text-xs border-collapse">
+            <thead className="sticky top-14 z-20 bg-card">
               <tr>
-                <ColHeader sortKey="title" state={state} onSort={setSort}
-                  className="text-left pl-3 min-w-[280px] sticky left-0 z-30 bg-secondary/80 backdrop-blur">
-                  Paper
-                </ColHeader>
-                <ColHeader sortKey="category" state={state} onSort={setSort} className="text-left px-2">
-                  Cat
-                </ColHeader>
-                {visibleMetrics.map(m => (
-                  <th key={m.key} className="py-2 px-1 text-center border-b border-border" style={{ minWidth: 96 }}>
-                    <button
-                      onClick={() => setSort(m.key)}
-                      className={`flex flex-col items-center gap-0.5 w-full hover:text-foreground transition-colors ${state.sortKey === m.key ? "text-foreground" : "text-muted-foreground"}`}
-                      data-testid={`lv-th-${m.key}`}
-                      title={`${m.label} — ${m.desc}`}
+                <th className="text-left py-2 px-3 border-b border-border" style={{ width: 360 }}>
+                  <button
+                    onClick={() => setSort("title")}
+                    className={`text-[10px] font-medium uppercase tracking-wider hover:text-foreground transition-colors inline-flex items-center gap-1 ${state.sortKey === "title" ? "text-foreground" : "text-muted-foreground"}`}
+                    data-testid="lv-th-title"
+                  >
+                    Paper
+                    {state.sortKey === "title" && (state.sortDir === "asc" ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />)}
+                  </button>
+                </th>
+                {visibleMetrics.map(m => {
+                  const active = state.sortKey === m.key;
+                  return (
+                    <th
+                      key={m.key}
+                      className="py-2 px-1 text-center border-b border-border"
+                      style={{ width: 76 }}
                     >
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: m.color }} />
-                      <span className="text-[10px] font-medium leading-tight px-0.5" style={{ color: state.sortKey === m.key ? m.color : "inherit" }}>
-                        {m.label}
-                      </span>
-                      {state.sortKey === m.key && (
-                        state.sortDir === "asc"
-                          ? <ArrowUp className="h-2.5 w-2.5" />
-                          : <ArrowDown className="h-2.5 w-2.5" />
-                      )}
-                    </button>
-                  </th>
-                ))}
+                      <button
+                        onClick={() => setSort(m.key)}
+                        className="inline-flex items-center justify-center gap-1 text-[10px] px-1.5 py-0.5 rounded border w-full transition-all hover:brightness-110"
+                        style={{
+                          borderColor: m.color,
+                          backgroundColor: active ? m.color : `${m.color}1f`,
+                          color: active ? "#fff" : m.color,
+                          fontWeight: active ? 600 : 500,
+                        }}
+                        title={`${m.label} — ${m.desc}`}
+                        data-testid={`lv-th-${m.key}`}
+                      >
+                        <span className="truncate">{m.label}</span>
+                        {active && (state.sortDir === "asc" ? <ArrowUp className="h-2.5 w-2.5 shrink-0" /> : <ArrowDown className="h-2.5 w-2.5 shrink-0" />)}
+                      </button>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
               {rendered.map((p, i) => (
-                <tr key={p.paper_id} data-testid={`lv-row-${i}`}>
-                  <td
-                    className={`pl-3 pr-2 py-1.5 border-b border-border/30 sticky left-0 z-10 ${i % 2 === 0 ? "bg-background" : "bg-secondary/10"}`}
-                    style={{ maxWidth: 280 }}
-                  >
-                    <div className="text-xs font-medium leading-snug line-clamp-2" title={p.title}>{p.title}</div>
-                  </td>
-                  <td className={`px-2 py-1 border-b border-border/30 ${i % 2 === 0 ? "bg-background" : "bg-secondary/10"}`}>
-                    <span className="font-mono text-[10px] px-1 py-0.5 rounded bg-secondary text-muted-foreground">{p.category || "—"}</span>
+                <tr key={p.paper_id} data-testid={`lv-row-${i}`} className={i % 2 === 0 ? "bg-background" : "bg-secondary/10"}>
+                  <td className="py-2 px-3 border-b border-border/30 align-middle" style={{ width: 360 }}>
+                    <PaperCell paper={p} />
                   </td>
                   {visibleMetrics.map(m => {
                     const v = p[m.key];
                     const reason = m.reason ? p[`${m.key}_reason`] : null;
                     return (
-                      <td key={m.key} className="p-0 border-b border-border/30" data-testid={`cell-${i}-${m.key}`}>
+                      <td key={m.key} className="p-0 border-b border-border/30" style={{ width: 76 }} data-testid={`cell-${i}-${m.key}`}>
                         <MetricValue metric={m} value={v} reason={reason}>
                           <div
                             className="w-full h-7 flex items-center justify-center font-mono text-[11px] tabular-nums cursor-default"
@@ -124,7 +139,7 @@ export default function HeatmapView() {
                 </tr>
               ))}
               {!loading && visible.length === 0 && (
-                <tr><td colSpan={2 + visibleMetrics.length} className="py-12 text-center text-muted-foreground">No papers match current filters.</td></tr>
+                <tr><td colSpan={1 + visibleMetrics.length} className="py-12 text-center text-muted-foreground">No papers match current filters.</td></tr>
               )}
             </tbody>
           </table>
@@ -148,19 +163,25 @@ export default function HeatmapView() {
   );
 }
 
-function ColHeader({ children, sortKey, state, onSort, className = "" }) {
-  const active = state.sortKey === sortKey;
+function PaperCell({ paper }) {
+  const authors = formatAuthors(paper.authors);
+  const date = formatPublished(paper.published);
   return (
-    <th className={`py-2 text-[10px] font-medium uppercase tracking-wider border-b border-border ${className}`}>
-      <button
-        onClick={() => onSort(sortKey)}
-        className={`inline-flex items-center gap-0.5 hover:text-foreground transition-colors ${active ? "text-foreground" : "text-muted-foreground"}`}
-        data-testid={`lv-th-${sortKey}`}
-      >
-        {children}
-        {active && (state.sortDir === "asc" ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />)}
-      </button>
-    </th>
+    <div className="min-w-0">
+      <div className="text-xs font-medium leading-snug line-clamp-2" title={paper.title}>
+        {paper.title}
+      </div>
+      <div className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5 mt-1 text-[10px] text-muted-foreground">
+        <span className="font-mono px-1 py-px rounded bg-secondary/70 text-muted-foreground" title={paper.category}>
+          {paper.category || "—"}
+        </span>
+        {authors && <span className="truncate" title={(paper.authors || []).join(", ")}>{authors}</span>}
+        {date && <>
+          <span className="opacity-40">·</span>
+          <span className="font-mono whitespace-nowrap">{date}</span>
+        </>}
+      </div>
+    </div>
   );
 }
 

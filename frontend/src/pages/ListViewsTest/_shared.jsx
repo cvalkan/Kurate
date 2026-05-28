@@ -139,7 +139,14 @@ export function useExtendedPapers() {
       const papers = r.data?.exp3?.papers || [];
       // Pre-flatten ratings into top-level fields for easy sort/filter
       const flat = papers.map(p => {
-        const out = { paper_id: p.paper_id, title: p.title, category: p.category };
+        const out = {
+          paper_id: p.paper_id,
+          title: p.title,
+          category: p.category,
+          authors: p.authors || [],
+          published: p.published || null,
+          arxiv_id: p.arxiv_id || null,
+        };
         const ratings = p.ratings || {};
         METRICS.forEach(m => {
           out[m.key] = ratings[m.key] ?? null;

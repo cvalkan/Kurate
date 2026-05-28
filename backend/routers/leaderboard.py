@@ -2138,14 +2138,38 @@ async def get_topn_subtournament(category: str):
 
 @router.get("/prompt-stability-results")
 async def get_prompt_stability_results():
-    """Serve precomputed prompt stability experiment results."""
-    import json as _json, os as _os
+    """Serve precomputed prompt stability experiment results, enriched with paper metadata."""
+    import json as _json
     path = "/app/backend/data/precomputed/prompt_stability_results.json"
     try:
         with open(path) as f:
-            return _json.load(f)
+            data = _json.load(f)
     except FileNotFoundError:
         return {}
+
+    # Enrich exp3 papers with authors + published from the papers collection.
+    exp3 = data.get("exp3") or {}
+    papers = exp3.get("papers") or []
+    if papers:
+        ids = [p.get("paper_id") for p in papers if p.get("paper_id")]
+        meta = {}
+        cursor = db.papers.find(
+            {"id": {"$in": ids}},
+            {"id": 1, "authors": 1, "published": 1, "arxiv_id": 1, "_id": 0},
+        )
+        async for doc in cursor:
+            meta[doc["id"]] = {
+                "authors": doc.get("authors") or [],
+                "published": doc.get("published"),
+                "arxiv_id": doc.get("arxiv_id"),
+            }
+        for p in papers:
+            m = meta.get(p.get("paper_id"))
+            if m:
+                p["authors"] = m["authors"]
+                p["published"] = m["published"]
+                p["arxiv_id"] = m["arxiv_id"]
+    return data
 
 @router.get("/si-pw-simulation")
 async def get_si_pw_simulation():
