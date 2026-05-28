@@ -7,7 +7,7 @@ import {
 } from "./_shared";
 
 const PAGE_SIZE = 40;
-const METRIC_COL_WIDTH = 64;   // uniform width for every metric column
+const METRIC_COL_WIDTH = 56;   // uniform width for every metric column
 const DATE_COL_WIDTH = 78;     // dedicated Published column
 
 function formatPublished(iso) {
@@ -101,16 +101,16 @@ export default function HeatmapView() {
                 {visibleMetrics.map(m => {
                   const active = state.sortKey === m.key;
                   return (
-                    <th key={m.key} className="py-2 px-0.5 text-center border-b border-border">
+                    <th key={m.key} className="py-2 text-center border-b border-border">
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
                             onClick={() => setSort(m.key)}
-                            className={`inline-flex items-center justify-center gap-0.5 text-[10px] font-medium w-full transition-colors hover:text-foreground tabular-nums ${active ? "text-foreground" : "text-muted-foreground"}`}
+                            className={`inline-flex items-center justify-center text-[10px] font-medium w-full transition-colors hover:text-foreground tabular-nums ${active ? "text-foreground" : "text-muted-foreground"}`}
                             data-testid={`lv-th-${m.key}`}
                           >
                             <span className="truncate">{m.short}</span>
-                            {active && (state.sortDir === "asc" ? <ArrowUp className="h-2.5 w-2.5 shrink-0" /> : <ArrowDown className="h-2.5 w-2.5 shrink-0" />)}
+                            {active && (state.sortDir === "asc" ? <ArrowUp className="h-2 w-2 shrink-0 ml-px" /> : <ArrowDown className="h-2 w-2 shrink-0 ml-px" />)}
                           </button>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="max-w-xs bg-popover text-popover-foreground border border-border shadow-md">

@@ -310,51 +310,82 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
       </div>
 
       {/* Category multiselect */}
-      {categories.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 items-center">
-          <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-1">Category</span>
-
-          {/* Mode segmented control */}
-          <div className="inline-flex rounded border border-border overflow-hidden mr-1" data-testid="lv-cat-mode">
-            {[
-              { v: "any", label: "Any" },
-              { v: "primary", label: "Primary" },
-              { v: "cross-listed", label: "Cross-listed" },
-            ].map(opt => {
-              const active = (state.categoryMode || "any") === opt.v;
-              return (
+      {categories.length > 0 && (() => {
+        const mode = state.categoryMode || "any";
+        const selected = Array.from(state.categories);
+        const modeLabel = mode === "primary" ? "Primary only" : mode === "cross-listed" ? "Cross-listed only" : "Any";
+        const summaryText = selected.length === 0
+          ? `${modeLabel} · all ${categories.length} categories`
+          : `${modeLabel} · ${selected.slice(0, 3).join(", ")}${selected.length > 3 ? ` +${selected.length - 3}` : ""}`;
+        return (
+          <details className="border-t border-border/40 pt-2 group">
+            <summary className="text-[10px] uppercase tracking-wider cursor-pointer select-none flex items-center gap-2 hover:text-foreground text-muted-foreground">
+              <span className="inline-block transition-transform group-open:rotate-90">▸</span>
+              <span>Category</span>
+              <span className="normal-case tracking-normal text-[11px] text-foreground/70 font-normal">{summaryText}</span>
+              {selected.length > 0 && (
                 <button
-                  key={opt.v}
-                  onClick={() => setState({ categoryMode: opt.v })}
-                  className={`text-[10px] px-2 py-0.5 transition-colors ${active ? "bg-accent text-accent-foreground" : "bg-background hover:bg-secondary text-muted-foreground"}`}
-                  data-testid={`lv-cat-mode-${opt.v}`}
-                  title={
-                    opt.v === "primary" ? "Match only papers whose primary category is selected"
-                    : opt.v === "cross-listed" ? "Match only papers cross-listed (but not primary) in the selected category"
-                    : "Match papers with selected category as primary or cross-listed"
-                  }
+                  onClick={(e) => { e.preventDefault(); setState(prev => ({ ...prev, categories: new Set(), categoryMode: "any" })); }}
+                  className="ml-auto text-[10px] px-1.5 py-0.5 rounded border border-border hover:bg-secondary normal-case tracking-normal"
+                  data-testid="lv-cat-clear"
                 >
-                  {opt.label}
+                  Clear
                 </button>
-              );
-            })}
-          </div>
+              )}
+            </summary>
+            <div className="space-y-2 mt-2">
+              {/* Mode row — visually distinct from category tags */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider w-[64px] shrink-0">Match</span>
+                <div className="inline-flex rounded-md bg-secondary/60 p-0.5 gap-0.5" data-testid="lv-cat-mode">
+                  {[
+                    { v: "any", label: "Any" },
+                    { v: "primary", label: "Primary only" },
+                    { v: "cross-listed", label: "Cross-listed only" },
+                  ].map(opt => {
+                    const active = (state.categoryMode || "any") === opt.v;
+                    return (
+                      <button
+                        key={opt.v}
+                        onClick={() => setState({ categoryMode: opt.v })}
+                        className={`text-[10px] px-2.5 py-1 rounded transition-colors ${active ? "bg-background text-foreground shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"}`}
+                        data-testid={`lv-cat-mode-${opt.v}`}
+                        title={
+                          opt.v === "primary" ? "Match only papers whose primary category is selected"
+                          : opt.v === "cross-listed" ? "Match only papers cross-listed (but not primary) in the selected category"
+                          : "Match papers with selected category as primary or cross-listed"
+                        }
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
-          {categories.map(cat => {
-            const active = state.categories.has(cat);
-            return (
-              <button
-                key={cat}
-                onClick={() => toggleCategory(cat)}
-                className={`text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors ${active ? "bg-accent text-accent-foreground border-accent" : "border-border bg-background hover:bg-secondary text-muted-foreground"}`}
-                data-testid={`lv-cat-${cat}`}
-              >
-                {cat}
-              </button>
-            );
-          })}
-        </div>
-      )}
+              {/* Category tags row */}
+              <div className="flex flex-wrap gap-1 items-start">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider w-[64px] shrink-0 mt-0.5">Tags</span>
+                <div className="flex flex-wrap gap-1 flex-1">
+                  {categories.map(cat => {
+                    const active = state.categories.has(cat);
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => toggleCategory(cat)}
+                        className={`text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors ${active ? "bg-accent text-accent-foreground border-accent" : "border-border bg-background hover:bg-secondary text-muted-foreground"}`}
+                        data-testid={`lv-cat-${cat}`}
+                      >
+                        {cat}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </details>
+        );
+      })()}
 
       {/* Per-metric minimum filters */}
       <details className="border-t border-border/40 pt-2" open>
