@@ -279,7 +279,7 @@ function MiniColumnChart({ metric, hist, active }) {
   }
   const { counts, max, mean } = hist;
   const w = 48;
-  const h = 28;        // a bit taller to fit the axis labels at the bottom
+  const h = 22;        // back to compact height now that axis labels are gone
   const chartH = 20;   // histogram bars region height
   const barW = w / counts.length;
   const xForScore = (s) => ((s - 1) / 9) * w;
@@ -311,10 +311,8 @@ function MiniColumnChart({ metric, hist, active }) {
           opacity={0.6}
         />
       )}
-      {/* Baseline rule + axis labels at the bottom */}
+      {/* Baseline rule at the bottom — provides axis orientation without numbers */}
       <line x1={0} x2={w} y1={chartH + 0.5} y2={chartH + 0.5} stroke="currentColor" strokeWidth={0.5} opacity={0.4} />
-      <text x={0} y={h - 0.5} fontSize={7} fill="currentColor" opacity={0.55} textAnchor="start">1</text>
-      <text x={w} y={h - 0.5} fontSize={7} fill="currentColor" opacity={0.55} textAnchor="end">10</text>
     </svg>
   );
 }
