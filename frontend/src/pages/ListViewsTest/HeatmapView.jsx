@@ -25,8 +25,23 @@ function formatAuthors(authors) {
 }
 
 export default function HeatmapView() {
-  const { papers, loading, n } = useExtendedPapers();
-  const [state, setState] = useListState("heatmap", { sortKey: "score", sortDir: "desc" });
+  const data = useExtendedPapers();
+  return <HeatmapPage data={data} listStateKey="heatmap" />;
+}
+
+/**
+ * Reusable heatmap page that takes its data as a prop.
+ * Used by the production heatmap and by the scaling test environment.
+ *
+ * @param data           { papers, loading, n, error? }
+ * @param listStateKey   localStorage key for filter/sort state
+ * @param headerExtras   optional React node rendered above the filter bar (used by scaling test for controls)
+ * @param titleOverride  optional alternative page title
+ * @param subtitleOverride optional alternative subtitle
+ */
+export function HeatmapPage({ data, listStateKey = "heatmap", headerExtras = null, titleOverride, subtitleOverride }) {
+  const { papers, loading, n } = data;
+  const [state, setState] = useListState(listStateKey, { sortKey: "score", sortDir: "desc" });
 
   const visible = useMemo(() => applySort(applyFilters(papers, state), state), [papers, state]);
   const visibleMetrics = METRICS.filter(m => !state.hidden.has(m.key));
@@ -77,9 +92,10 @@ export default function HeatmapView() {
   return (
     <TooltipProvider delayDuration={120} skipDelayDuration={0} disableHoverableContent>
       <ListViewShell
-        title="D — Heatmap Matrix"
-        subtitle="Each row is a paper, each column a metric. Cell color = score (red → green). Hover a cell for value + reasoning, hover a column header for the metric description. Click a header to sort."
+        title={titleOverride ?? "D — Heatmap Matrix"}
+        subtitle={subtitleOverride ?? "Each row is a paper, each column a metric. Cell color = score (red → green). Hover a cell for value + reasoning, hover a column header for the metric description. Click a header to sort."}
       >
+        {headerExtras}
         <FilterBar state={state} setState={setState} papers={papers} showColumnToggle={true} />
 
         <div className="flex flex-wrap items-center justify-between gap-3" data-testid="lv-count-row">
