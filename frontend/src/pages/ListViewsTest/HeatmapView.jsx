@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ArrowUp, ArrowDown } from "lucide-react";
 import {
@@ -6,12 +6,36 @@ import {
   FilterBar, ListViewShell, MetricValue, scoreColor, scoreTextColor,
 } from "./_shared";
 
+const PAGE_SIZE = 40;
+
 export default function HeatmapView() {
   const { papers, loading, n } = useExtendedPapers();
   const [state, setState] = useListState("heatmap", { sortKey: "score", sortDir: "desc" });
 
   const visible = useMemo(() => applySort(applyFilters(papers, state), state), [papers, state]);
   const visibleMetrics = METRICS.filter(m => !state.hidden.has(m.key));
+
+  // Infinite scroll — render in pages of PAGE_SIZE
+  const [shown, setShown] = useState(PAGE_SIZE);
+  const sentinelRef = useRef(null);
+
+  // Reset window when filter / sort / dataset changes
+  useEffect(() => { setShown(PAGE_SIZE); }, [state.search, state.sortKey, state.sortDir, state.categories, state.metricMin, state.hidden, state.includeNulls, papers.length]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setShown(prev => Math.min(prev + PAGE_SIZE, visible.length));
+      }
+    }, { rootMargin: "400px" });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [visible.length]);
+
+  const rendered = visible.slice(0, shown);
+  const hasMore = shown < visible.length;
 
   const setSort = (key) => setState(prev => ({
     ...prev,
@@ -28,7 +52,9 @@ export default function HeatmapView() {
         <FilterBar state={state} setState={setState} papers={papers} showColumnToggle={true} />
 
         <div className="text-xs text-muted-foreground" data-testid="lv-count">
-          {loading ? "Loading…" : `${visible.length} of ${papers.length} papers (n=${n})`}
+          {loading
+            ? "Loading…"
+            : `Showing ${rendered.length} of ${visible.length} filtered (n=${n} total)`}
         </div>
 
         <div className="border border-border rounded-lg overflow-auto bg-card max-h-[80vh]" data-testid="lv-heatmap">
@@ -43,15 +69,16 @@ export default function HeatmapView() {
                   Cat
                 </ColHeader>
                 {visibleMetrics.map(m => (
-                  <th key={m.key} className="py-2 px-1 text-center border-b border-border" style={{ minWidth: 70 }}>
+                  <th key={m.key} className="py-2 px-1 text-center border-b border-border" style={{ minWidth: 96 }}>
                     <button
                       onClick={() => setSort(m.key)}
                       className={`flex flex-col items-center gap-0.5 w-full hover:text-foreground transition-colors ${state.sortKey === m.key ? "text-foreground" : "text-muted-foreground"}`}
                       data-testid={`lv-th-${m.key}`}
+                      title={`${m.label} — ${m.desc}`}
                     >
                       <span className="w-2 h-2 rounded-full" style={{ backgroundColor: m.color }} />
-                      <span className="text-[10px] font-medium" style={{ color: state.sortKey === m.key ? m.color : "inherit" }}>
-                        {m.short}
+                      <span className="text-[10px] font-medium leading-tight px-0.5" style={{ color: state.sortKey === m.key ? m.color : "inherit" }}>
+                        {m.label}
                       </span>
                       {state.sortKey === m.key && (
                         state.sortDir === "asc"
@@ -64,7 +91,7 @@ export default function HeatmapView() {
               </tr>
             </thead>
             <tbody>
-              {visible.map((p, i) => (
+              {rendered.map((p, i) => (
                 <tr key={p.paper_id} data-testid={`lv-row-${i}`}>
                   <td
                     className={`pl-3 pr-2 py-1.5 border-b border-border/30 sticky left-0 z-10 ${i % 2 === 0 ? "bg-background" : "bg-secondary/10"}`}
@@ -101,6 +128,18 @@ export default function HeatmapView() {
               )}
             </tbody>
           </table>
+
+          {/* Infinite-scroll sentinel */}
+          {hasMore && (
+            <div ref={sentinelRef} className="py-3 text-center text-[10px] text-muted-foreground" data-testid="lv-infinite-sentinel">
+              Loading more papers… ({visible.length - shown} remaining)
+            </div>
+          )}
+          {!hasMore && visible.length > PAGE_SIZE && (
+            <div className="py-3 text-center text-[10px] text-muted-foreground">
+              End of results · {visible.length} papers
+            </div>
+          )}
         </div>
 
         <ColorRamp />

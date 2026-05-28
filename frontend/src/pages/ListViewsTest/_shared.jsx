@@ -8,7 +8,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
 
 // Master metric configuration. `reason: true` ⇒ has `<name>_reason` field.
 export const METRICS = [
-  { key: "score",                  label: "Overall",      short: "Overall",  color: "#6366f1", core: true,  reason: false, desc: "Composite overall predicted scientific impact (1-10)." },
+  { key: "score",                  label: "Impact",       short: "Impact",   color: "#6366f1", core: true,  reason: false, desc: "Composite overall predicted scientific impact (1-10)." },
   { key: "significance",           label: "Significance", short: "Signif.",  color: "#0ea5e9", core: true,  reason: false, desc: "Likely influence on future research, practice or applications." },
   { key: "rigor",                  label: "Rigor",        short: "Rigor",    color: "#22c55e", core: true,  reason: false, desc: "Methodological soundness — proofs, baselines, experimental design." },
   { key: "novelty",                label: "Novelty",      short: "Novelty",  color: "#a855f7", core: true,  reason: false, desc: "Originality of the idea, method or framing." },
@@ -335,13 +335,13 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
         <summary className="text-[10px] text-muted-foreground uppercase tracking-wider cursor-pointer select-none mb-2 hover:text-foreground">
           Per-metric minimum (drag to filter)
         </summary>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
           {visibleMetrics.map(m => {
             const v = state.metricMin?.[m.key] ?? 0;
             return (
               <div key={m.key} className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: m.color }} />
-                <span className="text-[10px] text-muted-foreground w-16 shrink-0 truncate" title={m.label}>{m.short}</span>
+                <span className="text-[11px] text-foreground/80 w-32 shrink-0 truncate" title={`${m.label} — ${m.desc}`}>{m.label}</span>
                 <input
                   type="range" min={0} max={10} step={0.5}
                   value={v}
@@ -371,7 +371,7 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
                 data-testid={`lv-col-${m.key}`}
                 title={hidden ? `Show ${m.label}` : `Hide ${m.label}`}
               >
-                {m.short}
+                {m.label}
               </button>
             );
           })}
