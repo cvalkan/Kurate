@@ -534,6 +534,9 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
         <summary className="text-[10px] text-muted-foreground uppercase tracking-wider cursor-pointer select-none mb-2 hover:text-foreground flex items-center gap-2 list-none [&::-webkit-details-marker]:hidden">
           <span className="text-sm leading-none inline-block transition-transform group-open:rotate-90">▸</span>
           <span>Per-metric threshold (drag to filter)</span>
+        </summary>
+        <div className="space-y-3">
+          {/* Include N/A — affects the threshold filters below */}
           <HoverTooltip
             content={
               <div className="space-y-0.5">
@@ -546,10 +549,7 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
               </div>
             }
           >
-            <label
-              className="ml-auto flex items-center gap-1 text-[10px] normal-case tracking-normal cursor-pointer text-muted-foreground hover:text-foreground"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <label className="inline-flex items-center gap-1.5 text-[11px] cursor-pointer text-muted-foreground hover:text-foreground">
               <input
                 type="checkbox"
                 checked={state.includeNulls}
@@ -560,8 +560,8 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
               Include N/A
             </label>
           </HoverTooltip>
-        </summary>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
           {visibleMetrics.map(m => {
             const v = state.metricMin?.[m.key] ?? 0;
             const op = state.metricOp?.[m.key] || "gte";
@@ -593,6 +593,7 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
               </div>
             );
           })}
+          </div>
         </div>
       </details>
 
