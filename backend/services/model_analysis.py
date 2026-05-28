@@ -498,7 +498,33 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                 if total > 0:
                     si_match_ctrl[pair_key] = {"agree": agree, "disagree": total - agree, "total": total, "rate": round(agree / total * 100, 1)}
         si_result["si_match_agreement_controlled"] = si_match_ctrl
+
+        # Controlled PW agreement: same pairs as SI controlled (where SI coverage exists)
+        pw_match_agreement_controlled = {}
+        for pair_key, si_ctrl_data in si_match_ctrl.items():
+            parts = pair_key.split(" vs ")
+            m1, m2 = parts[0], parts[1]
+            shared_pw_pairs = set(pw_pair_winners[m1].keys()) & set(pw_pair_winners[m2].keys())
+            m1_scores = si_model_scores.get(m1, {})
+            m2_scores = si_model_scores.get(m2, {})
+            agree = total = 0
+            for pa, pb in shared_pw_pairs:
+                # Same filter as SI: both papers need SI from both models, no ties
+                s1a, s1b = m1_scores.get(pa), m1_scores.get(pb)
+                s2a, s2b = m2_scores.get(pa), m2_scores.get(pb)
+                if s1a is None or s1b is None or s2a is None or s2b is None: continue
+                if s1a == s1b or s2a == s2b: continue
+                total += 1
+                if pw_pair_winners[m1][(pa, pb)] == pw_pair_winners[m2][(pa, pb)]:
+                    agree += 1
+            if total > 0:
+                pw_match_agreement_controlled[pair_key] = {
+                    "agree": agree, "disagree": total - agree, "total": total,
+                    "rate": round(agree / total * 100, 1),
+                }
+
         si_result["pw_match_agreement"] = pw_match_agreement
+        si_result["pw_match_agreement_controlled"] = pw_match_agreement_controlled
 
         # Controlled ranking correlation: papers appearing in PW pairs judged by both models
         controlled_corr = {}
@@ -868,6 +894,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
         "avg_ts_correlations": dict(sorted(avg_ts_correlations.items())),
         "agreement": dict(sorted(agreement.items())),
         "pw_match_agreement": si_result.pop("pw_match_agreement", {}) if si_result else {},
+        "pw_match_agreement_controlled": si_result.pop("pw_match_agreement_controlled", {}) if si_result else {},
         "avg_agreement": dict(sorted(avg_agreement.items())) if avg_agreement else None,
         "scatter_data": scatter_data,
         "ts_scatter_data": ts_scatter_data,
