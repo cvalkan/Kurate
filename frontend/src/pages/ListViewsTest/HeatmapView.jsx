@@ -62,13 +62,16 @@ export default function HeatmapView() {
       >
         <FilterBar state={state} setState={setState} papers={papers} showColumnToggle={true} />
 
-        <div className="text-xs text-muted-foreground" data-testid="lv-count">
-          {loading
-            ? "Loading…"
-            : `Showing ${rendered.length} of ${visible.length} filtered (n=${n} total)`}
+        <div className="flex items-center justify-between gap-3" data-testid="lv-count-row">
+          <div className="text-xs text-muted-foreground" data-testid="lv-count">
+            {loading
+              ? "Loading…"
+              : `Showing ${rendered.length} of ${visible.length} filtered (${n} total)`}
+          </div>
+          <ColorRamp />
         </div>
 
-        <div className="border border-border rounded-lg bg-card" data-testid="lv-heatmap">
+        <div className="border border-border rounded-lg bg-card" style={{ overflow: "clip" }} data-testid="lv-heatmap">
           <table className="w-full text-xs border-collapse table-fixed">
             <colgroup>
               <col style={{ width: DATE_COL_WIDTH }} />
@@ -172,8 +175,6 @@ export default function HeatmapView() {
             </div>
           )}
         </div>
-
-        <ColorRamp />
       </ListViewShell>
     </TooltipProvider>
   );
@@ -222,17 +223,18 @@ function PaperCell({ paper }) {
 function ColorRamp() {
   const stops = [1, 2, 3, 4, 5, 5.5, 6, 7, 8, 9, 10];
   return (
-    <div className="text-[10px] text-muted-foreground flex items-center gap-2 border-t border-border/40 pt-3" data-testid="lv-color-ramp">
-      <span>Color scale</span>
-      <div className="flex">
+    <div className="text-[10px] text-muted-foreground inline-flex items-center gap-1.5 shrink-0" data-testid="lv-color-ramp">
+      <span>1</span>
+      <div className="inline-flex border border-border/40 rounded-sm overflow-hidden">
         {stops.map(s => (
-          <div key={s} className="w-5 h-3 flex items-center justify-center font-mono"
-            style={{ backgroundColor: scoreColor(s), color: scoreTextColor(s) }}
+          <div key={s} className="w-3 h-3"
+            style={{ backgroundColor: scoreColor(s) }}
             title={`Score ${s}`}
           />
         ))}
       </div>
-      <span>1 (low) → 10 (high)</span>
+      <span>10</span>
+      <span className="ml-1">cell score</span>
     </div>
   );
 }

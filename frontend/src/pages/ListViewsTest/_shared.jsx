@@ -334,21 +334,21 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
               )}
             </summary>
             <div className="space-y-2 mt-2">
-              {/* Mode row — visually distinct from category tags */}
+              {/* Mode row — distinct text-only buttons, naturally align with the tags row */}
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider w-[64px] shrink-0">Match</span>
-                <div className="inline-flex rounded-md bg-secondary/60 p-0.5 gap-0.5" data-testid="lv-cat-mode">
+                <div className="flex items-center gap-3" data-testid="lv-cat-mode">
                   {[
                     { v: "any", label: "Any" },
                     { v: "primary", label: "Primary only" },
-                    { v: "cross-listed", label: "Cross-listed only" },
+                    { v: "cross-listed", label: "Secondary only" },
                   ].map(opt => {
                     const active = (state.categoryMode || "any") === opt.v;
                     return (
                       <button
                         key={opt.v}
                         onClick={() => setState({ categoryMode: opt.v })}
-                        className={`text-[10px] px-2.5 py-1 rounded transition-colors ${active ? "bg-background text-foreground shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"}`}
+                        className={`text-[11px] transition-colors inline-flex items-center gap-1.5 ${active ? "text-foreground font-medium" : "text-muted-foreground hover:text-foreground"}`}
                         data-testid={`lv-cat-mode-${opt.v}`}
                         title={
                           opt.v === "primary" ? "Match only papers whose primary category is selected"
@@ -356,6 +356,12 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
                           : "Match papers with selected category as primary or cross-listed"
                         }
                       >
+                        <span
+                          className={`w-3 h-3 rounded-full border flex items-center justify-center transition-colors ${active ? "border-accent" : "border-muted-foreground/40"}`}
+                          aria-hidden
+                        >
+                          {active && <span className="w-1.5 h-1.5 rounded-full bg-accent" />}
+                        </span>
                         {opt.label}
                       </button>
                     );
