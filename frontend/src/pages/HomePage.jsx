@@ -166,7 +166,7 @@ export default function HomePage() {
       </section>
 
       {/* ── HOW KURATE WORKS — #3 larger text ── */}
-      <section className="bg-[hsl(222,47%,14%)] text-white border-b" data-testid="how-it-works">
+      <section className="bg-[hsl(220,55%,22%)] text-white border-b" data-testid="how-it-works">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
           <h2 className="font-heading text-2xl md:text-3xl font-medium tracking-tight mb-3">How Kurate works</h2>
           <p className="text-white/60 text-sm md:text-base mb-10 max-w-2xl">
@@ -355,7 +355,7 @@ export default function HomePage() {
       </section>
 
       {/* ── FOOTER — #1 white logo text ── */}
-      <footer className="bg-[hsl(222,47%,14%)] text-white" data-testid="homepage-footer">
+      <footer className="bg-[hsl(220,55%,22%)] text-white" data-testid="homepage-footer">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-12 md:py-16">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
