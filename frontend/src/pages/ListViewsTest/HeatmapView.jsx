@@ -14,7 +14,7 @@ function formatPublished(iso) {
   if (!iso) return null;
   const d = new Date(iso);
   if (isNaN(d)) return null;
-  return d.toLocaleDateString("en-US", { year: "2-digit", month: "short", day: "numeric", timeZone: "UTC" });
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
 }
 
 function formatAuthors(authors) {
