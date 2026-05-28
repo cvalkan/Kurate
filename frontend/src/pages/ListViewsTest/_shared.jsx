@@ -16,7 +16,7 @@ export const METRICS = [
   { key: "difficulty",             label: "Difficulty",   short: "Diffic.",  color: "#8b5cf6", core: false, reason: true,  desc: "Technical difficulty: 1 = accessible to undergrads, 10 = deep specialist expertise." },
   { key: "surprisingness",         label: "Surprisingness", short: "Surpris.", color: "#ec4899", core: false, reason: true,  desc: "How unexpected the results are vs. current understanding." },
   { key: "reproducibility",        label: "Reproducibility", short: "Reprod.", color: "#06b6d4", core: false, reason: true,  desc: "Could an independent researcher replicate the main results from this paper alone?" },
-  { key: "translational_potential",label: "Translational",  short: "Transl.", color: "#f97316", core: false, reason: true,  desc: "How close is this work to real-world application? Considers things like industrial usage, clinical deployment, and patentability. 1 = pure theory with no foreseeable application, 5 = clear potential for applied follow-up, 10 = directly applicable to industry, clinical use, or deployment." },
+  { key: "translational_potential",label: "Translational",  short: "Transl.", color: "#f97316", core: false, reason: true,  desc: "How close is this work to real-world application? 1 = pure theory with no foreseeable application, 5 = clear potential for applied follow-up, 10 = directly applicable to industry, clinical use, or deployment." },
   { key: "evidence_strength",      label: "Evidence",        short: "Evid.",   color: "#14b8a6", core: false, reason: true,  desc: "How well experiments, proofs and ablations support the claims." },
   { key: "generalisability",       label: "Generalisability", short: "General.", color: "#f43f5e", core: false, reason: true,  desc: "How broadly findings apply beyond tested conditions." },
 ];
@@ -465,7 +465,7 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
               <button
                 key={m.key}
                 onClick={() => toggleHidden(m.key)}
-                className={`text-[10px] px-1.5 py-0.5 rounded border ${hidden ? "border-border bg-background text-muted-foreground line-through" : "border-accent/40 bg-accent/10 text-accent-foreground"}`}
+                className={`text-[10px] px-1.5 py-0.5 rounded border ${hidden ? "border-border bg-background text-muted-foreground" : "border-accent/40 bg-accent/10 text-accent-foreground"}`}
                 style={!hidden ? { borderColor: m.color, backgroundColor: `${m.color}15`, color: m.color } : {}}
                 data-testid={`lv-col-${m.key}`}
                 title={hidden ? `Show ${m.label}` : `Hide ${m.label}`}
