@@ -382,6 +382,20 @@ export const applySort = withTiming("perf:sort", _applySort);
 
 // Top filter bar shared across views
 export function FilterBar({ state, setState, papers, sortableKeys = null, showColumnToggle = false }) {
+  // Local search draft, debounced before committing to global state so each keystroke
+  // doesn't trigger applyFilters on every character at 50k+ papers.
+  const [searchDraft, setSearchDraft] = useState(state.search);
+  useEffect(() => {
+    // External reset / programmatic search change → sync the draft
+    setSearchDraft(state.search);
+  }, [state.search]);
+  useEffect(() => {
+    if (searchDraft === state.search) return;
+    const id = setTimeout(() => setState({ search: searchDraft }), 120);
+    return () => clearTimeout(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchDraft]);
+
   const categories = useMemo(() => {
     const set = new Set();
     papers.forEach(p => {
@@ -425,13 +439,13 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
           <input
             type="text"
             placeholder="Search title or author..."
-            value={state.search}
-            onChange={(e) => setState({ search: e.target.value })}
+            value={searchDraft}
+            onChange={(e) => setSearchDraft(e.target.value)}
             className="w-full pl-7 pr-7 py-1.5 text-xs rounded border border-border bg-background outline-none focus:border-accent"
             data-testid="lv-search"
           />
-          {state.search && (
-            <button onClick={() => setState({ search: "" })} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+          {searchDraft && (
+            <button onClick={() => { setSearchDraft(""); setState({ search: "" }); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
               <X className="h-3 w-3" />
             </button>
           )}

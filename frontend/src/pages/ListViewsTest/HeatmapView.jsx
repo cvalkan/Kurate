@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef, Profiler } from "react";
+import { useMemo, useState, useEffect, useRef, Profiler, memo } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ArrowUp, ArrowDown, AlignLeft, BarChart3 } from "lucide-react";
 import {
@@ -43,16 +43,35 @@ export function HeatmapPage({ data, listStateKey = "heatmap", headerExtras = nul
   const { papers, loading, n } = data;
   const [state, setState] = useListState(listStateKey, { sortKey: "score", sortDir: "desc" });
 
-  const visible = useMemo(() => applySort(applyFilters(papers, state), state), [papers, state]);
-  const visibleMetrics = METRICS.filter(m => !state.hidden.has(m.key));
+  // Filter and sort are now two distinct memos:
+  //   - `filtered` only depends on filter inputs → sort changes don't re-run applyFilters
+  //   - `visible`  only depends on `filtered` + sort key/dir → filter changes still flow through
+  //   - histograms key off `filtered`, not `visible`, so sort flips don't re-bin distributions
+  const filtered = useMemo(() => applyFilters(papers, state), [
+    papers,
+    state.search,
+    state.dateRange,
+    state.categories,
+    state.categoryMode,
+    state.categoryLogic,
+    state.metricMin,
+    state.metricOp,
+    state.includeNulls,
+  ]);
+  const visible = useMemo(() => applySort(filtered, state), [
+    filtered,
+    state.sortKey,
+    state.sortDir,
+  ]);
+  const visibleMetrics = useMemo(() => METRICS.filter(m => !state.hidden.has(m.key)), [state.hidden]);
   const headerMode = state.headerMode || "labels";
 
-  // Per-column distribution histograms (over the currently visible / filtered papers)
+  // Per-column distribution histograms (depend on the filtered set, not the sorted one)
   const histograms = useMemo(() => measureBlock("perf:histogram", () => {
     const out = {};
-    visibleMetrics.forEach(m => { out[m.key] = computeMiniHistogram(visible, m.key, 10); });
+    visibleMetrics.forEach(m => { out[m.key] = computeMiniHistogram(filtered, m.key, 10); });
     return out;
-  }), [visible, visibleMetrics]);
+  }), [filtered, visibleMetrics]);
 
   const [shown, setShown] = useState(PAGE_SIZE);
   const sentinelRef = useRef(null);
@@ -211,30 +230,12 @@ export function HeatmapPage({ data, listStateKey = "heatmap", headerExtras = nul
             </thead>
             <tbody>
               {rendered.map((p, i) => (
-                <tr key={p.paper_id} data-testid={`lv-row-${i}`} className={i % 2 === 0 ? "bg-background" : "bg-secondary/10"} style={{ height: 72 }}>
-                  <td className="py-2 px-3 border-b border-border/30 align-top">
-                    <span className="text-[11px] text-muted-foreground whitespace-nowrap leading-tight">{formatPublished(p.published) || "—"}</span>
-                  </td>
-                  <td className="py-2 px-3 border-b border-border/30 align-top">
-                    <PaperCell paper={p} />
-                  </td>
-                  {visibleMetrics.map(m => {
-                    const v = p[m.key];
-                    const reason = m.reason ? p[`${m.key}_reason`] : null;
-                    return (
-                      <td key={m.key} className="p-0 border-b border-border/30" data-testid={`cell-${i}-${m.key}`}>
-                        <MetricValue metric={m} value={v} reason={reason}>
-                          <div
-                            className="w-full h-7 flex items-center justify-center font-mono text-[11px] tabular-nums cursor-default"
-                            style={{ backgroundColor: scoreColor(v), color: scoreTextColor(v) }}
-                          >
-                            {v != null ? v.toFixed(1) : <span className="text-muted-foreground opacity-50">—</span>}
-                          </div>
-                        </MetricValue>
-                      </td>
-                    );
-                  })}
-                </tr>
+                <HeatmapRow
+                  key={p.paper_id}
+                  paper={p}
+                  index={i}
+                  visibleMetrics={visibleMetrics}
+                />
               ))}
               {!loading && visible.length === 0 && (
                 <tr><td colSpan={2 + visibleMetrics.length} className="py-12 text-center text-muted-foreground">No papers match current filters.</td></tr>
@@ -299,7 +300,7 @@ function MiniColumnChart({ metric, hist, active }) {
 }
 
 
-function PaperCell({ paper }) {
+function _PaperCell({ paper }) {
   const authors = formatAuthors(paper.authors);
   const cats = paper.categories && paper.categories.length > 0 ? paper.categories : (paper.category ? [paper.category] : []);
   const primary = paper.category || cats[0];
@@ -338,6 +339,43 @@ function PaperCell({ paper }) {
     </div>
   );
 }
+const PaperCell = memo(_PaperCell);
+
+function _HeatmapRow({ paper, index, visibleMetrics }) {
+  return (
+    <tr
+      data-testid={`lv-row-${index}`}
+      className={index % 2 === 0 ? "bg-background" : "bg-secondary/10"}
+      style={{ height: 72 }}
+    >
+      <td className="py-2 px-3 border-b border-border/30 align-top">
+        <span className="text-[11px] text-muted-foreground whitespace-nowrap leading-tight">
+          {formatPublished(paper.published) || "—"}
+        </span>
+      </td>
+      <td className="py-2 px-3 border-b border-border/30 align-top">
+        <PaperCell paper={paper} />
+      </td>
+      {visibleMetrics.map(m => {
+        const v = paper[m.key];
+        const reason = m.reason ? paper[`${m.key}_reason`] : null;
+        return (
+          <td key={m.key} className="p-0 border-b border-border/30" data-testid={`cell-${index}-${m.key}`}>
+            <MetricValue metric={m} value={v} reason={reason}>
+              <div
+                className="w-full h-7 flex items-center justify-center font-mono text-[11px] tabular-nums cursor-default"
+                style={{ backgroundColor: scoreColor(v), color: scoreTextColor(v) }}
+              >
+                {v != null ? v.toFixed(1) : <span className="text-muted-foreground opacity-50">—</span>}
+              </div>
+            </MetricValue>
+          </td>
+        );
+      })}
+    </tr>
+  );
+}
+const HeatmapRow = memo(_HeatmapRow);
 
 function ColorRamp() {
   const stops = [1, 2, 3, 4, 5, 5.5, 6, 7, 8, 9, 10];
