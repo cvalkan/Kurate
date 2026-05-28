@@ -80,7 +80,7 @@ export default function HeatmapView() {
                 <th className="text-left py-2 px-3 border-b border-border">
                   <button
                     onClick={() => setSort("published")}
-                    className={`text-[10px] font-medium uppercase tracking-wider hover:text-foreground transition-colors inline-flex items-center gap-1 ${state.sortKey === "published" ? "text-foreground" : "text-muted-foreground"}`}
+                    className={`text-[10px] font-medium hover:text-foreground transition-colors inline-flex items-center gap-1 ${state.sortKey === "published" ? "text-foreground" : "text-muted-foreground"}`}
                     data-testid="lv-th-published"
                     title="Sort by publication date"
                   >
@@ -91,7 +91,7 @@ export default function HeatmapView() {
                 <th className="text-left py-2 px-3 border-b border-border">
                   <button
                     onClick={() => setSort("title")}
-                    className={`text-[10px] font-medium uppercase tracking-wider hover:text-foreground transition-colors inline-flex items-center gap-1 ${state.sortKey === "title" ? "text-foreground" : "text-muted-foreground"}`}
+                    className={`text-[10px] font-medium hover:text-foreground transition-colors inline-flex items-center gap-1 ${state.sortKey === "title" ? "text-foreground" : "text-muted-foreground"}`}
                     data-testid="lv-th-title"
                   >
                     Paper
@@ -106,12 +106,7 @@ export default function HeatmapView() {
                         <TooltipTrigger asChild>
                           <button
                             onClick={() => setSort(m.key)}
-                            className="inline-flex items-center justify-center gap-0.5 text-[10px] w-full transition-opacity hover:opacity-80 tabular-nums"
-                            style={{
-                              color: m.color,
-                              fontWeight: active ? 700 : 500,
-                              opacity: active ? 1 : 0.85,
-                            }}
+                            className={`inline-flex items-center justify-center gap-0.5 text-[10px] font-medium w-full transition-colors hover:text-foreground tabular-nums ${active ? "text-foreground" : "text-muted-foreground"}`}
                             data-testid={`lv-th-${m.key}`}
                           >
                             <span className="truncate">{m.short}</span>
