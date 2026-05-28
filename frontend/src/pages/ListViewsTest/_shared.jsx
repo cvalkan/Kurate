@@ -16,7 +16,7 @@ export const METRICS = [
   { key: "difficulty",             label: "Difficulty",   short: "Diffic.",  color: "#8b5cf6", core: false, reason: true,  desc: "Technical difficulty: 1 = accessible to undergrads, 10 = deep specialist expertise." },
   { key: "surprisingness",         label: "Surprisingness", short: "Surpris.", color: "#ec4899", core: false, reason: true,  desc: "How unexpected the results are vs. current understanding." },
   { key: "reproducibility",        label: "Reproducibility", short: "Reprod.", color: "#06b6d4", core: false, reason: true,  desc: "Could an independent researcher replicate the main results from this paper alone?" },
-  { key: "translational_potential",label: "Translational",  short: "Transl.", color: "#f97316", core: false, reason: true,  desc: "Proximity to real-world application or deployment." },
+  { key: "translational_potential",label: "Translational",  short: "Transl.", color: "#f97316", core: false, reason: true,  desc: "Proximity to real-world application or deployment. High: a diagnostic ML model ready for a clinical trial, or a chip design ready to tape out. Low: a purely theoretical proof with no foreseeable application." },
   { key: "evidence_strength",      label: "Evidence",        short: "Evid.",   color: "#14b8a6", core: false, reason: true,  desc: "How well experiments, proofs and ablations support the claims." },
   { key: "generalisability",       label: "Generalisability", short: "General.", color: "#f43f5e", core: false, reason: true,  desc: "How broadly findings apply beyond tested conditions." },
 ];
