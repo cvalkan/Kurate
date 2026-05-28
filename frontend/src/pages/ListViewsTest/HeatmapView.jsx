@@ -42,7 +42,18 @@ export default function HeatmapView() {
   const [shown, setShown] = useState(PAGE_SIZE);
   const sentinelRef = useRef(null);
 
-  useEffect(() => { setShown(PAGE_SIZE); }, [state.search, state.sortKey, state.sortDir, state.categories, state.metricMin, state.hidden, state.includeNulls, papers.length]);
+  // Reset infinite-scroll position only when the *filtered set* changes — not on sort/hide/header-mode changes.
+  useEffect(() => { setShown(PAGE_SIZE); }, [
+    state.search,
+    state.dateRange,
+    state.categories,
+    state.categoryMode,
+    state.categoryLogic,
+    state.metricMin,
+    state.metricOp,
+    state.includeNulls,
+    papers.length,
+  ]);
 
   useEffect(() => {
     const el = sentinelRef.current;
