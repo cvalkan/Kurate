@@ -40,6 +40,13 @@ Build and maintain a sophisticated AI paper-judging system using multiple LLM ju
 - User export CSV, privacy policy update (Google Search Console)
 - PMI surprise/multidisciplinarity scores for Similarity Landscape
 
+### Extended-Metrics List View Prototypes (Feb 2026)
+- 3 candidate list-view designs at `/test/list-views`: A=Table, C=Sparkline, D=Heatmap
+- Surface only directly-extracted summary metrics (no tournament data)
+- Hover tooltip exposes per-metric one-sentence reasoning for extended dims
+- Shared toolbar: title search, category multi-filter, per-metric min sliders, column show/hide, include/exclude N/A, persistent state in localStorage
+- All three views share `/app/frontend/src/pages/ListViewsTest/_shared.jsx` (METRICS, useExtendedPapers, useListState, FilterBar, MetricValue)
+
 ## Production Stats (May 27, 2026)
 - 20K+ papers, 500K+ matches across 32 categories
 - Inter-model PW agreement: 71-73% (pair-level)

@@ -26,6 +26,10 @@ import ReadingListPage from "@/pages/ReadingListPage";
 import ScoreCardTest from "@/pages/ScoreCardTest";
 import NewBadgeTest from "@/pages/NewBadgeTest";
 import SimulatedMemChart from "@/pages/SimulatedMemChart";
+import ListViewsIndex from "@/pages/ListViewsTest/index";
+import ListViewsTable from "@/pages/ListViewsTest/TableView";
+import ListViewsSparkline from "@/pages/ListViewsTest/SparklineView";
+import ListViewsHeatmap from "@/pages/ListViewsTest/HeatmapView";
 import PrivacyPage from "@/pages/PrivacyPage";
 import ImpressumPage from "@/pages/ImpressumPage";
 import ContactPage from "@/pages/ContactPage";
@@ -57,6 +61,10 @@ function AppRouter() {
           <Route path="/test/score-card" element={<ScoreCardTest />} />
           <Route path="/test/new-badge" element={<NewBadgeTest />} />
           <Route path="/test/sim-mem" element={<SimulatedMemChart />} />
+          <Route path="/test/list-views" element={<ListViewsIndex />} />
+          <Route path="/test/list-views/table" element={<ListViewsTable />} />
+          <Route path="/test/list-views/sparkline" element={<ListViewsSparkline />} />
+          <Route path="/test/list-views/heatmap" element={<ListViewsHeatmap />} />
           <Route path="/admin/dashboard" element={<AdminPage />} />
           <Route path="/admin/outreach" element={<OutreachPage />} />
           <Route path="/admin/outreach/activity" element={<OutreachActivityPage />} />

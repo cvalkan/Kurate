@@ -1,0 +1,349 @@
+import { useState, useEffect, useMemo } from "react";
+import axios from "axios";
+import { Link } from "react-router-dom";
+import { ChevronLeft, Search, X } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+
+const API = process.env.REACT_APP_BACKEND_URL;
+
+// Master metric configuration. `reason: true` ⇒ has `<name>_reason` field.
+export const METRICS = [
+  { key: "score",                  label: "Overall",      short: "Overall",  color: "#6366f1", core: true,  reason: false, desc: "Composite overall predicted scientific impact (1-10)." },
+  { key: "significance",           label: "Significance", short: "Signif.",  color: "#0ea5e9", core: true,  reason: false, desc: "Likely influence on future research, practice or applications." },
+  { key: "rigor",                  label: "Rigor",        short: "Rigor",    color: "#22c55e", core: true,  reason: false, desc: "Methodological soundness — proofs, baselines, experimental design." },
+  { key: "novelty",                label: "Novelty",      short: "Novelty",  color: "#a855f7", core: true,  reason: false, desc: "Originality of the idea, method or framing." },
+  { key: "clarity",                label: "Clarity",      short: "Clarity",  color: "#eab308", core: true,  reason: false, desc: "Writing quality and logical organization." },
+  { key: "difficulty",             label: "Difficulty",   short: "Diffic.",  color: "#8b5cf6", core: false, reason: true,  desc: "Technical difficulty: 1 = accessible to undergrads, 10 = deep specialist expertise." },
+  { key: "surprisingness",         label: "Surprisingness", short: "Surpris.", color: "#ec4899", core: false, reason: true,  desc: "How unexpected the results are vs. current understanding." },
+  { key: "reproducibility",        label: "Reproducibility", short: "Reprod.", color: "#06b6d4", core: false, reason: true,  desc: "Could an independent researcher replicate the main results from this paper alone?" },
+  { key: "translational_potential",label: "Translational",  short: "Transl.", color: "#f97316", core: false, reason: true,  desc: "Proximity to real-world application or deployment." },
+  { key: "evidence_strength",      label: "Evidence",        short: "Evid.",   color: "#14b8a6", core: false, reason: true,  desc: "How well experiments, proofs and ablations support the claims." },
+  { key: "generalisability",       label: "Generalisability", short: "General.", color: "#f43f5e", core: false, reason: true,  desc: "How broadly findings apply beyond tested conditions." },
+];
+
+export const METRIC_BY_KEY = Object.fromEntries(METRICS.map(m => [m.key, m]));
+
+// Diverging color scale for a 1-10 score. Neutral grey near 5, green up, red down.
+export function scoreColor(value) {
+  if (value == null) return "transparent";
+  const t = Math.max(0, Math.min(1, (value - 1) / 9));
+  // 5 = neutral; >5 green; <5 red. Strength proportional to distance from 5.
+  const dist = Math.abs(value - 5.5) / 4.5; // 0..1
+  const strength = Math.min(1, dist);
+  if (value >= 5.5) {
+    // green tones
+    const a = 0.10 + 0.65 * strength;
+    return `rgba(34,197,94,${a.toFixed(3)})`;
+  }
+  const a = 0.10 + 0.65 * strength;
+  return `rgba(239,68,68,${a.toFixed(3)})`;
+  // eslint-disable-next-line no-unused-vars
+  // t kept above intentionally for future heat ramps
+}
+
+export function scoreTextColor(value) {
+  if (value == null) return "var(--muted-foreground)";
+  const dist = Math.abs(value - 5.5) / 4.5;
+  return dist > 0.55 ? "#fff" : "inherit";
+}
+
+export function useExtendedPapers() {
+  const [state, setState] = useState({ loading: true, papers: [], n: 0, error: null });
+  useEffect(() => {
+    let cancelled = false;
+    axios.get(`${API}/api/prompt-stability-results`).then(r => {
+      if (cancelled) return;
+      const papers = r.data?.exp3?.papers || [];
+      // Pre-flatten ratings into top-level fields for easy sort/filter
+      const flat = papers.map(p => {
+        const out = { paper_id: p.paper_id, title: p.title, category: p.category };
+        const ratings = p.ratings || {};
+        METRICS.forEach(m => {
+          out[m.key] = ratings[m.key] ?? null;
+          if (m.reason) out[`${m.key}_reason`] = ratings[`${m.key}_reason`] || "";
+        });
+        return out;
+      });
+      setState({ loading: false, papers: flat, n: r.data?.exp3?.n || flat.length, error: null });
+    }).catch(err => {
+      if (!cancelled) setState({ loading: false, papers: [], n: 0, error: String(err) });
+    });
+    return () => { cancelled = true; };
+  }, []);
+  return state;
+}
+
+// Custom hook bundling search / category / sort / metric-range state, persisted to localStorage.
+export function useListState(viewKey, defaults = {}) {
+  const storageKey = `list-views:${viewKey}`;
+  const [state, setStateRaw] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(storageKey) || "null");
+      if (stored) return { ...buildDefaults(defaults), ...stored, categories: new Set(stored.categories || []), hidden: new Set(stored.hidden || []) };
+    } catch (_) { /* ignore */ }
+    return buildDefaults(defaults);
+  });
+  const setState = (patch) => setStateRaw(prev => {
+    const next = typeof patch === "function" ? patch(prev) : { ...prev, ...patch };
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({
+        ...next,
+        categories: Array.from(next.categories || []),
+        hidden: Array.from(next.hidden || []),
+      }));
+    } catch (_) { /* ignore */ }
+    return next;
+  });
+  return [state, setState];
+}
+
+function buildDefaults(d) {
+  return {
+    search: "",
+    categories: new Set(),
+    sortKey: d.sortKey || "score",
+    sortDir: d.sortDir || "desc",
+    metricMin: d.metricMin || {}, // { metric: number }
+    hidden: new Set(d.hidden || []), // hidden metric keys
+    includeNulls: d.includeNulls ?? true,
+  };
+}
+
+export function applyFilters(papers, state) {
+  const q = (state.search || "").trim().toLowerCase();
+  const cats = state.categories;
+  const minMap = state.metricMin || {};
+  return papers.filter(p => {
+    if (q && !p.title.toLowerCase().includes(q)) return false;
+    if (cats.size > 0 && !cats.has(p.category)) return false;
+    for (const [k, v] of Object.entries(minMap)) {
+      if (v == null) continue;
+      const val = p[k];
+      if (val == null) {
+        if (!state.includeNulls) return false;
+        continue;
+      }
+      if (val < v) return false;
+    }
+    return true;
+  });
+}
+
+export function applySort(papers, state) {
+  const { sortKey, sortDir } = state;
+  const dir = sortDir === "asc" ? 1 : -1;
+  const arr = [...papers];
+  arr.sort((a, b) => {
+    if (sortKey === "title") return a.title.localeCompare(b.title) * dir;
+    if (sortKey === "category") return (a.category || "").localeCompare(b.category || "") * dir;
+    const av = a[sortKey], bv = b[sortKey];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;   // nulls always sink
+    if (bv == null) return -1;
+    return (av - bv) * dir;
+  });
+  return arr;
+}
+
+// Top filter bar shared across views
+export function FilterBar({ state, setState, papers, sortableKeys = null, showColumnToggle = false }) {
+  const categories = useMemo(() => {
+    const set = new Set();
+    papers.forEach(p => p.category && set.add(p.category));
+    return Array.from(set).sort();
+  }, [papers]);
+
+  const visibleMetrics = sortableKeys
+    ? METRICS.filter(m => sortableKeys.includes(m.key))
+    : METRICS;
+
+  const toggleCategory = (cat) => setState(prev => {
+    const next = new Set(prev.categories);
+    next.has(cat) ? next.delete(cat) : next.add(cat);
+    return { ...prev, categories: next };
+  });
+
+  const toggleHidden = (key) => setState(prev => {
+    const next = new Set(prev.hidden);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return { ...prev, hidden: next };
+  });
+
+  const resetAll = () => setState({
+    search: "", categories: new Set(),
+    sortKey: "score", sortDir: "desc",
+    metricMin: {}, hidden: new Set(),
+    includeNulls: true,
+  });
+
+  return (
+    <div className="border border-border rounded-lg p-3 bg-card space-y-3" data-testid="filter-bar">
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Title search */}
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search title..."
+            value={state.search}
+            onChange={(e) => setState({ search: e.target.value })}
+            className="w-full pl-7 pr-7 py-1.5 text-xs rounded border border-border bg-background outline-none focus:border-accent"
+            data-testid="lv-search"
+          />
+          {state.search && (
+            <button onClick={() => setState({ search: "" })} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+
+        {/* Sort */}
+        <div className="flex items-center gap-1">
+          <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Sort</label>
+          <select
+            value={state.sortKey}
+            onChange={(e) => setState({ sortKey: e.target.value })}
+            className="text-xs py-1 px-1.5 rounded border border-border bg-background outline-none"
+            data-testid="lv-sort-key"
+          >
+            <option value="title">Title</option>
+            <option value="category">Category</option>
+            {visibleMetrics.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+          </select>
+          <button
+            onClick={() => setState({ sortDir: state.sortDir === "asc" ? "desc" : "asc" })}
+            className="text-xs py-1 px-2 rounded border border-border bg-background hover:bg-secondary"
+            data-testid="lv-sort-dir"
+            title={state.sortDir === "asc" ? "Ascending" : "Descending"}
+          >
+            {state.sortDir === "asc" ? "↑" : "↓"}
+          </button>
+        </div>
+
+        <div className="flex-1" />
+
+        <button onClick={resetAll} className="text-xs py-1 px-2 rounded border border-border bg-background hover:bg-secondary" data-testid="lv-reset">
+          Reset
+        </button>
+      </div>
+
+      {/* Category multiselect */}
+      {categories.length > 0 && (
+        <div className="flex flex-wrap gap-1 items-center">
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-1">Category</span>
+          {categories.map(cat => {
+            const active = state.categories.has(cat);
+            return (
+              <button
+                key={cat}
+                onClick={() => toggleCategory(cat)}
+                className={`text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors ${active ? "bg-accent text-accent-foreground border-accent" : "border-border bg-background hover:bg-secondary text-muted-foreground"}`}
+                data-testid={`lv-cat-${cat}`}
+              >
+                {cat}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Per-metric minimum filters */}
+      <details className="border-t border-border/40 pt-2" open>
+        <summary className="text-[10px] text-muted-foreground uppercase tracking-wider cursor-pointer select-none mb-2 hover:text-foreground">
+          Per-metric minimum (drag to filter)
+        </summary>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-2">
+          {visibleMetrics.map(m => {
+            const v = state.metricMin?.[m.key] ?? 0;
+            return (
+              <div key={m.key} className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: m.color }} />
+                <span className="text-[10px] text-muted-foreground w-16 shrink-0 truncate" title={m.label}>{m.short}</span>
+                <input
+                  type="range" min={0} max={10} step={0.5}
+                  value={v}
+                  onChange={(e) => setState(prev => ({ ...prev, metricMin: { ...prev.metricMin, [m.key]: parseFloat(e.target.value) } }))}
+                  className="flex-1 accent-accent min-w-0"
+                  data-testid={`lv-min-${m.key}`}
+                />
+                <span className="text-[10px] font-mono w-9 text-right tabular-nums shrink-0">{v.toFixed(1)}+</span>
+              </div>
+            );
+          })}
+        </div>
+      </details>
+
+      {/* Column visibility toggle */}
+      {showColumnToggle && (
+        <div className="flex flex-wrap gap-1 items-center pt-1 border-t border-border/50">
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-1">Show</span>
+          {METRICS.map(m => {
+            const hidden = state.hidden.has(m.key);
+            return (
+              <button
+                key={m.key}
+                onClick={() => toggleHidden(m.key)}
+                className={`text-[10px] px-1.5 py-0.5 rounded border ${hidden ? "border-border bg-background text-muted-foreground line-through" : "border-accent/40 bg-accent/10 text-accent-foreground"}`}
+                style={!hidden ? { borderColor: m.color, backgroundColor: `${m.color}15`, color: m.color } : {}}
+                data-testid={`lv-col-${m.key}`}
+                title={hidden ? `Show ${m.label}` : `Hide ${m.label}`}
+              >
+                {m.short}
+              </button>
+            );
+          })}
+          <label className="ml-3 flex items-center gap-1 text-[10px] text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={state.includeNulls}
+              onChange={(e) => setState({ includeNulls: e.target.checked })}
+              className="accent-accent"
+              data-testid="lv-include-nulls"
+            />
+            Include N/A
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Wrapping shell for every test page
+export function ListViewShell({ title, subtitle, children }) {
+  return (
+    <div className="container mx-auto max-w-7xl px-4 py-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <Link to="/test/list-views" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" data-testid="lv-back">
+          <ChevronLeft className="h-3 w-3" /> Back to all list views
+        </Link>
+      </div>
+      <div>
+        <h1 className="text-xl font-semibold">{title}</h1>
+        {subtitle && <p className="text-xs text-muted-foreground mt-1 max-w-2xl">{subtitle}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// Reusable wrapper to attach a reasoning tooltip to a metric value
+export function MetricValue({ metric, value, reason, className, children }) {
+  const content = children ?? (
+    <span className={className}>{value != null ? value.toFixed(1) : "—"}</span>
+  );
+  if (!reason) return content;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{content}</TooltipTrigger>
+      <TooltipContent side="top" className="max-w-sm bg-popover text-popover-foreground border border-border shadow-md">
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: metric.color }} />
+            <span className="text-[11px] font-medium">{metric.label}: {value?.toFixed(1)}</span>
+          </div>
+          <p className="text-[11px] leading-snug">{reason}</p>
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
