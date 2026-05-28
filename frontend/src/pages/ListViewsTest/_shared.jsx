@@ -234,9 +234,12 @@ export function applyFilters(papers, state) {
     for (const [k, threshold] of Object.entries(minMap)) {
       if (threshold == null) continue;
       const op = opMap[k] || "gte";
-      // No-op thresholds: gte at 0 lets everything through; lte at 10 lets everything through
+      // No-op thresholds — never restrict the result set.
+      // - gte at 0 lets everything through
+      // - lte at 10 lets everything through
+      // - lte at 0 can never match (scores are 1-10) — treat as no-op rather than filter everything
       if (op === "gte" && threshold === 0) continue;
-      if (op === "lte" && threshold === 10) continue;
+      if (op === "lte" && (threshold === 10 || threshold === 0)) continue;
       const val = p[k];
       if (val == null) {
         if (!state.includeNulls) return false;
@@ -461,22 +464,11 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
             const v = state.metricMin?.[m.key] ?? 0;
             const op = state.metricOp?.[m.key] || "gte";
             const symbol = op === "gte" ? "≥" : "≤";
-            const isNoop = (op === "gte" && v === 0) || (op === "lte" && v === 10);
-            const flipOp = () => setState(prev => {
-              const curV = prev.metricMin?.[m.key] ?? 0;
-              const curOp = prev.metricOp?.[m.key] || "gte";
-              const newOp = curOp === "gte" ? "lte" : "gte";
-              // If currently sitting at a no-op endpoint, flip to the other no-op endpoint
-              // so the filter stays inactive instead of jumping to "match nothing".
-              let newV = curV;
-              if (curOp === "gte" && curV === 0) newV = 10;
-              else if (curOp === "lte" && curV === 10) newV = 0;
-              return {
-                ...prev,
-                metricMin: { ...(prev.metricMin || {}), [m.key]: newV },
-                metricOp: { ...(prev.metricOp || {}), [m.key]: newOp },
-              };
-            });
+            const isNoop = (op === "gte" && v === 0) || (op === "lte" && (v === 10 || v === 0));
+            const flipOp = () => setState(prev => ({
+              ...prev,
+              metricOp: { ...(prev.metricOp || {}), [m.key]: op === "gte" ? "lte" : "gte" },
+            }));
             return (
               <div key={m.key} className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: m.color }} />
