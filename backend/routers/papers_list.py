@@ -252,7 +252,7 @@ def _all_categories_from_df(df: pl.DataFrame) -> list:
 async def papers_list(
     request: Request,
     dataset: str = Query("precomputed"),
-    n: int = Query(1000, ge=1, le=500_000),
+    n: int = Query(1000, ge=1, le=2_000_000),
     seed: int = Query(42),
     reasoning: bool = Query(True),
     search: str = "",
