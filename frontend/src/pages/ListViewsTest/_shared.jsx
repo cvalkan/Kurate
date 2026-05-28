@@ -461,10 +461,22 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
             const v = state.metricMin?.[m.key] ?? 0;
             const op = state.metricOp?.[m.key] || "gte";
             const symbol = op === "gte" ? "≥" : "≤";
-            const flipOp = () => setState(prev => ({
-              ...prev,
-              metricOp: { ...(prev.metricOp || {}), [m.key]: op === "gte" ? "lte" : "gte" },
-            }));
+            const isNoop = (op === "gte" && v === 0) || (op === "lte" && v === 10);
+            const flipOp = () => setState(prev => {
+              const curV = prev.metricMin?.[m.key] ?? 0;
+              const curOp = prev.metricOp?.[m.key] || "gte";
+              const newOp = curOp === "gte" ? "lte" : "gte";
+              // If currently sitting at a no-op endpoint, flip to the other no-op endpoint
+              // so the filter stays inactive instead of jumping to "match nothing".
+              let newV = curV;
+              if (curOp === "gte" && curV === 0) newV = 10;
+              else if (curOp === "lte" && curV === 10) newV = 0;
+              return {
+                ...prev,
+                metricMin: { ...(prev.metricMin || {}), [m.key]: newV },
+                metricOp: { ...(prev.metricOp || {}), [m.key]: newOp },
+              };
+            });
             return (
               <div key={m.key} className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: m.color }} />
@@ -478,8 +490,8 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
                 />
                 <button
                   onClick={flipOp}
-                  className="text-[10px] font-mono w-12 text-right tabular-nums shrink-0 rounded px-1 py-0.5 hover:bg-secondary transition-colors cursor-pointer"
-                  title={`Currently: ${op === "gte" ? "≥ (at least)" : "≤ (at most)"}. Click to flip.`}
+                  className={`text-[10px] font-mono w-12 text-right tabular-nums shrink-0 rounded px-1 py-0.5 hover:bg-secondary transition-colors cursor-pointer ${isNoop ? "text-muted-foreground/60" : "text-foreground"}`}
+                  title={`Currently: ${op === "gte" ? "≥ (at least)" : "≤ (at most)"}${isNoop ? " — filter inactive" : ""}. Click to flip.`}
                   data-testid={`lv-op-${m.key}`}
                 >
                   {symbol} {v.toFixed(1)}
