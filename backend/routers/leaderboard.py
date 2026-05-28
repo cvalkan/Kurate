@@ -2155,13 +2155,14 @@ async def get_prompt_stability_results():
         meta = {}
         cursor = db.papers.find(
             {"id": {"$in": ids}},
-            {"id": 1, "authors": 1, "published": 1, "arxiv_id": 1, "_id": 0},
+            {"id": 1, "authors": 1, "published": 1, "arxiv_id": 1, "categories": 1, "_id": 0},
         )
         async for doc in cursor:
             meta[doc["id"]] = {
                 "authors": doc.get("authors") or [],
                 "published": doc.get("published"),
                 "arxiv_id": doc.get("arxiv_id"),
+                "categories": doc.get("categories") or [],
             }
         for p in papers:
             m = meta.get(p.get("paper_id"))
@@ -2169,6 +2170,7 @@ async def get_prompt_stability_results():
                 p["authors"] = m["authors"]
                 p["published"] = m["published"]
                 p["arxiv_id"] = m["arxiv_id"]
+                p["categories"] = m["categories"]
     return data
 
 @router.get("/si-pw-simulation")

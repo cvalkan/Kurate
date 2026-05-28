@@ -143,6 +143,7 @@ export function useExtendedPapers() {
           paper_id: p.paper_id,
           title: p.title,
           category: p.category,
+          categories: p.categories || (p.category ? [p.category] : []),
           authors: p.authors || [],
           published: p.published || null,
           arxiv_id: p.arxiv_id || null,
