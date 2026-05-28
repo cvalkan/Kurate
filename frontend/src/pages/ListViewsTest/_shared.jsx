@@ -192,6 +192,7 @@ function buildDefaults(d) {
   return {
     search: "",
     categories: new Set(),
+    categoryMode: d.categoryMode || "any", // "any" | "primary" | "cross-listed"
     sortKey: d.sortKey || "score",
     sortDir: d.sortDir || "desc",
     metricMin: d.metricMin || {}, // { metric: number }
@@ -203,10 +204,19 @@ function buildDefaults(d) {
 export function applyFilters(papers, state) {
   const q = (state.search || "").trim().toLowerCase();
   const cats = state.categories;
+  const mode = state.categoryMode || "any";
   const minMap = state.metricMin || {};
   return papers.filter(p => {
     if (q && !p.title.toLowerCase().includes(q)) return false;
-    if (cats.size > 0 && !cats.has(p.category)) return false;
+    if (cats.size > 0) {
+      const primary = p.category;
+      const all = p.categories || (primary ? [primary] : []);
+      let match;
+      if (mode === "primary") match = cats.has(primary);
+      else if (mode === "cross-listed") match = all.some(c => cats.has(c) && c !== primary);
+      else match = all.some(c => cats.has(c));   // "any"
+      if (!match) return false;
+    }
     for (const [k, v] of Object.entries(minMap)) {
       if (v == null) continue;
       const val = p[k];
@@ -240,7 +250,10 @@ export function applySort(papers, state) {
 export function FilterBar({ state, setState, papers, sortableKeys = null, showColumnToggle = false }) {
   const categories = useMemo(() => {
     const set = new Set();
-    papers.forEach(p => p.category && set.add(p.category));
+    papers.forEach(p => {
+      if (p.category) set.add(p.category);
+      (p.categories || []).forEach(c => set.add(c));
+    });
     return Array.from(set).sort();
   }, [papers]);
 
@@ -262,6 +275,7 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
 
   const resetAll = () => setState({
     search: "", categories: new Set(),
+    categoryMode: "any",
     sortKey: "score", sortDir: "desc",
     metricMin: {}, hidden: new Set(),
     includeNulls: true,
@@ -288,29 +302,6 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
           )}
         </div>
 
-        {/* Sort */}
-        <div className="flex items-center gap-1">
-          <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Sort</label>
-          <select
-            value={state.sortKey}
-            onChange={(e) => setState({ sortKey: e.target.value })}
-            className="text-xs py-1 px-1.5 rounded border border-border bg-background outline-none"
-            data-testid="lv-sort-key"
-          >
-            <option value="title">Title</option>
-            <option value="category">Category</option>
-            {visibleMetrics.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
-          </select>
-          <button
-            onClick={() => setState({ sortDir: state.sortDir === "asc" ? "desc" : "asc" })}
-            className="text-xs py-1 px-2 rounded border border-border bg-background hover:bg-secondary"
-            data-testid="lv-sort-dir"
-            title={state.sortDir === "asc" ? "Ascending" : "Descending"}
-          >
-            {state.sortDir === "asc" ? "↑" : "↓"}
-          </button>
-        </div>
-
         <div className="flex-1" />
 
         <button onClick={resetAll} className="text-xs py-1 px-2 rounded border border-border bg-background hover:bg-secondary" data-testid="lv-reset">
@@ -320,8 +311,35 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
 
       {/* Category multiselect */}
       {categories.length > 0 && (
-        <div className="flex flex-wrap gap-1 items-center">
+        <div className="flex flex-wrap gap-1.5 items-center">
           <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-1">Category</span>
+
+          {/* Mode segmented control */}
+          <div className="inline-flex rounded border border-border overflow-hidden mr-1" data-testid="lv-cat-mode">
+            {[
+              { v: "any", label: "Any" },
+              { v: "primary", label: "Primary" },
+              { v: "cross-listed", label: "Cross-listed" },
+            ].map(opt => {
+              const active = (state.categoryMode || "any") === opt.v;
+              return (
+                <button
+                  key={opt.v}
+                  onClick={() => setState({ categoryMode: opt.v })}
+                  className={`text-[10px] px-2 py-0.5 transition-colors ${active ? "bg-accent text-accent-foreground" : "bg-background hover:bg-secondary text-muted-foreground"}`}
+                  data-testid={`lv-cat-mode-${opt.v}`}
+                  title={
+                    opt.v === "primary" ? "Match only papers whose primary category is selected"
+                    : opt.v === "cross-listed" ? "Match only papers cross-listed (but not primary) in the selected category"
+                    : "Match papers with selected category as primary or cross-listed"
+                  }
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+
           {categories.map(cat => {
             const active = state.categories.has(cat);
             return (

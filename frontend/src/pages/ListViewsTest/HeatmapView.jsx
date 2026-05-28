@@ -71,23 +71,13 @@ export default function HeatmapView() {
         <div className="border border-border rounded-lg bg-card" data-testid="lv-heatmap">
           <table className="w-full text-xs border-collapse table-fixed">
             <colgroup>
-              <col />
               <col style={{ width: DATE_COL_WIDTH }} />
+              <col />
               {visibleMetrics.map(m => <col key={m.key} style={{ width: METRIC_COL_WIDTH }} />)}
             </colgroup>
             <thead className="sticky top-14 z-20 bg-card">
               <tr>
                 <th className="text-left py-2 px-3 border-b border-border">
-                  <button
-                    onClick={() => setSort("title")}
-                    className={`text-[10px] font-medium uppercase tracking-wider hover:text-foreground transition-colors inline-flex items-center gap-1 ${state.sortKey === "title" ? "text-foreground" : "text-muted-foreground"}`}
-                    data-testid="lv-th-title"
-                  >
-                    Paper
-                    {state.sortKey === "title" && (state.sortDir === "asc" ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />)}
-                  </button>
-                </th>
-                <th className="text-right py-2 px-2 border-b border-border">
                   <button
                     onClick={() => setSort("published")}
                     className={`text-[10px] font-medium uppercase tracking-wider hover:text-foreground transition-colors inline-flex items-center gap-1 ${state.sortKey === "published" ? "text-foreground" : "text-muted-foreground"}`}
@@ -96,6 +86,16 @@ export default function HeatmapView() {
                   >
                     Published
                     {state.sortKey === "published" && (state.sortDir === "asc" ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />)}
+                  </button>
+                </th>
+                <th className="text-left py-2 px-3 border-b border-border">
+                  <button
+                    onClick={() => setSort("title")}
+                    className={`text-[10px] font-medium uppercase tracking-wider hover:text-foreground transition-colors inline-flex items-center gap-1 ${state.sortKey === "title" ? "text-foreground" : "text-muted-foreground"}`}
+                    data-testid="lv-th-title"
+                  >
+                    Paper
+                    {state.sortKey === "title" && (state.sortDir === "asc" ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />)}
                   </button>
                 </th>
                 {visibleMetrics.map(m => {
@@ -135,12 +135,12 @@ export default function HeatmapView() {
             </thead>
             <tbody>
               {rendered.map((p, i) => (
-                <tr key={p.paper_id} data-testid={`lv-row-${i}`} className={i % 2 === 0 ? "bg-background" : "bg-secondary/10"} style={{ height: 64 }}>
+                <tr key={p.paper_id} data-testid={`lv-row-${i}`} className={i % 2 === 0 ? "bg-background" : "bg-secondary/10"} style={{ height: 72 }}>
+                  <td className="py-2 px-3 border-b border-border/30 align-middle">
+                    <span className="text-[11px] text-muted-foreground whitespace-nowrap">{formatPublished(p.published) || "—"}</span>
+                  </td>
                   <td className="py-2 px-3 border-b border-border/30 align-middle">
                     <PaperCell paper={p} />
-                  </td>
-                  <td className="py-2 px-2 border-b border-border/30 text-right align-middle">
-                    <span className="text-[11px] text-muted-foreground whitespace-nowrap">{formatPublished(p.published) || "—"}</span>
                   </td>
                   {visibleMetrics.map(m => {
                     const v = p[m.key];
@@ -190,7 +190,10 @@ function PaperCell({ paper }) {
   const primary = paper.category || cats[0];
   return (
     <div className="min-w-0">
-      <div className="text-xs font-medium leading-snug line-clamp-1" title={paper.title}>
+      <div
+        className="text-xs font-medium leading-tight line-clamp-2 min-h-[2em]"
+        title={paper.title}
+      >
         {paper.title}
       </div>
       <div className="flex items-center flex-nowrap gap-1.5 mt-1 overflow-hidden">
