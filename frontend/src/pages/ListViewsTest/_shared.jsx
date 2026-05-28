@@ -193,6 +193,7 @@ function buildDefaults(d) {
     search: "",
     categories: new Set(),
     categoryMode: d.categoryMode || "any", // "any" | "primary" | "cross-listed"
+    categoryLogic: d.categoryLogic || "or", // "or" | "and" — combine multiple selected cats
     sortKey: d.sortKey || "score",
     sortDir: d.sortDir || "desc",
     metricMin: d.metricMin || {}, // { metric: number }
@@ -205,6 +206,7 @@ export function applyFilters(papers, state) {
   const q = (state.search || "").trim().toLowerCase();
   const cats = state.categories;
   const mode = state.categoryMode || "any";
+  const logic = state.categoryLogic || "or";
   const minMap = state.metricMin || {};
   return papers.filter(p => {
     if (q) {
@@ -215,10 +217,16 @@ export function applyFilters(papers, state) {
     if (cats.size > 0) {
       const primary = p.category;
       const all = p.categories || (primary ? [primary] : []);
-      let match;
-      if (mode === "primary") match = cats.has(primary);
-      else if (mode === "cross-listed") match = all.some(c => cats.has(c) && c !== primary);
-      else match = all.some(c => cats.has(c));   // "any"
+      // Pick which side(s) of the paper's categories the selector should look at
+      const lookup = (cat) => {
+        if (mode === "primary") return cat === primary;
+        if (mode === "cross-listed") return all.includes(cat) && cat !== primary;
+        return all.includes(cat); // "any"
+      };
+      const selected = Array.from(cats);
+      const match = logic === "and"
+        ? selected.every(lookup)
+        : selected.some(lookup);
       if (!match) return false;
     }
     for (const [k, v] of Object.entries(minMap)) {
@@ -279,7 +287,7 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
 
   const resetAll = () => setState({
     search: "", categories: new Set(),
-    categoryMode: "any",
+    categoryMode: "any", categoryLogic: "or",
     sortKey: "score", sortDir: "desc",
     metricMin: {}, hidden: new Set(),
     includeNulls: true,
@@ -316,11 +324,13 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
       {/* Category multiselect */}
       {categories.length > 0 && (() => {
         const mode = state.categoryMode || "any";
+        const logic = state.categoryLogic || "or";
         const selected = Array.from(state.categories);
         const modeLabel = mode === "primary" ? "Primary only" : mode === "cross-listed" ? "Secondary only" : "Any";
+        const joinSep = selected.length > 1 ? ` ${logic.toUpperCase()} ` : ", ";
         const summaryText = selected.length === 0
           ? `${modeLabel} · all ${categories.length} categories`
-          : `${modeLabel} · ${selected.slice(0, 3).join(", ")}${selected.length > 3 ? ` +${selected.length - 3}` : ""}`;
+          : `${modeLabel} · ${selected.slice(0, 3).join(joinSep)}${selected.length > 3 ? ` +${selected.length - 3}` : ""}`;
         return (
           <details className="border-t border-border/40 pt-2 group">
             <summary className="text-[10px] uppercase tracking-wider cursor-pointer select-none flex items-center gap-2 hover:text-foreground text-muted-foreground list-none [&::-webkit-details-marker]:hidden">
@@ -365,6 +375,36 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Logic row — only matters when 2+ categories selected */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider w-[64px] shrink-0">Logic</span>
+                <div className="inline-flex rounded-md bg-secondary/60 p-0.5 gap-0.5 -ml-0.5" data-testid="lv-cat-logic">
+                  {[
+                    { v: "or", label: "OR" },
+                    { v: "and", label: "AND" },
+                  ].map(opt => {
+                    const active = (state.categoryLogic || "or") === opt.v;
+                    return (
+                      <button
+                        key={opt.v}
+                        onClick={() => setState({ categoryLogic: opt.v })}
+                        className={`text-[10px] px-2.5 py-1 rounded transition-colors ${active ? "bg-background text-foreground shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"}`}
+                        data-testid={`lv-cat-logic-${opt.v}`}
+                        title={
+                          opt.v === "and" ? "Paper must match ALL selected categories"
+                          : "Paper must match ANY selected category"
+                        }
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {state.categories.size < 2 && (
+                  <span className="text-[10px] text-muted-foreground italic">no effect until 2+ categories selected</span>
+                )}
               </div>
 
               {/* Category tags row */}

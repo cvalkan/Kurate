@@ -134,10 +134,10 @@ export default function HeatmapView() {
             <tbody>
               {rendered.map((p, i) => (
                 <tr key={p.paper_id} data-testid={`lv-row-${i}`} className={i % 2 === 0 ? "bg-background" : "bg-secondary/10"} style={{ height: 72 }}>
-                  <td className="py-2 px-3 border-b border-border/30 align-middle">
-                    <span className="text-[11px] text-muted-foreground whitespace-nowrap">{formatPublished(p.published) || "—"}</span>
+                  <td className="py-2 px-3 border-b border-border/30 align-top">
+                    <span className="text-[11px] text-muted-foreground whitespace-nowrap leading-tight">{formatPublished(p.published) || "—"}</span>
                   </td>
-                  <td className="py-2 px-3 border-b border-border/30 align-middle">
+                  <td className="py-2 px-3 border-b border-border/30 align-top">
                     <PaperCell paper={p} />
                   </td>
                   {visibleMetrics.map(m => {
