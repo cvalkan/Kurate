@@ -5,7 +5,7 @@ import { TableVirtuoso } from "react-virtuoso";
 import {
   METRICS, useExtendedPapers, useListState, applyFilters, applySort,
   FilterBar, ListViewShell, MetricValue, scoreColor, scoreTextColor,
-  computeMiniHistogram, HoverTooltip, measureBlock,
+  computeMiniHistogram, HoverTooltip, measureBlock, useServerPaperList,
 } from "./_shared";
 
 const METRIC_COL_WIDTH = 56;
@@ -39,39 +39,52 @@ export default function HeatmapView() {
  * @param titleOverride  optional alternative page title
  * @param subtitleOverride optional alternative subtitle
  */
-export function HeatmapPage({ data, listStateKey = "heatmap", headerExtras = null, titleOverride, subtitleOverride }) {
-  const { papers, loading, n } = data;
+export function HeatmapPage({ data, serverSource, listStateKey = "heatmap", headerExtras = null, titleOverride, subtitleOverride }) {
+  const isServer = !!serverSource;
+  // Default-fill data for client mode so destructuring is safe
+  const { papers = [], loading: clientLoading = false, n: clientTotal = 0 } = data || {};
+
   const [state, setState] = useListState(listStateKey, { sortKey: "score", sortDir: "desc" });
 
-  // Filter and sort are now two distinct memos:
-  //   - `filtered` only depends on filter inputs → sort changes don't re-run applyFilters
-  //   - `visible`  only depends on `filtered` + sort key/dir → filter changes still flow through
-  //   - histograms key off `filtered`, not `visible`, so sort flips don't re-bin distributions
-  const filtered = useMemo(() => applyFilters(papers, state), [
-    papers,
-    state.search,
-    state.dateRange,
-    state.categories,
-    state.categoryMode,
-    state.categoryLogic,
-    state.metricMin,
-    state.metricOp,
-    state.includeNulls,
+  // --- Client-side computations (always run for client mode; cheap no-ops if serverSource set)
+  const filtered = useMemo(() => isServer ? [] : applyFilters(papers, state), [
+    isServer, papers,
+    state.search, state.dateRange,
+    state.categories, state.categoryMode, state.categoryLogic,
+    state.metricMin, state.metricOp, state.includeNulls,
   ]);
-  const visible = useMemo(() => applySort(filtered, state), [
-    filtered,
-    state.sortKey,
-    state.sortDir,
+  const clientVisible = useMemo(() => isServer ? [] : applySort(filtered, state), [
+    isServer, filtered, state.sortKey, state.sortDir,
   ]);
   const visibleMetrics = useMemo(() => METRICS.filter(m => !state.hidden.has(m.key)), [state.hidden]);
-  const headerMode = state.headerMode || "labels";
-
-  // Per-column distribution histograms (depend on the filtered set, not the sorted one)
-  const histograms = useMemo(() => measureBlock("perf:histogram", () => {
+  const clientHistograms = useMemo(() => isServer ? {} : measureBlock("perf:histogram", () => {
     const out = {};
     visibleMetrics.forEach(m => { out[m.key] = computeMiniHistogram(filtered, m.key, 10); });
     return out;
-  }), [filtered, visibleMetrics]);
+  }), [isServer, filtered, visibleMetrics]);
+
+  // --- Server-side data path
+  const server = useServerPaperList(state, isServer ? serverSource : null);
+
+  // --- Pick the active provider
+  const rows = isServer ? server.rows : clientVisible;
+  const total = isServer ? server.total : clientVisible.length;
+  const histograms = isServer ? (server.histograms || {}) : clientHistograms;
+  const datasetSize = isServer ? server.datasetSize : (clientTotal || papers.length);
+  const loading = isServer ? server.loading : clientLoading;
+  const serverLoadMore = isServer ? server.loadMore : null;
+  const serverTiming = isServer ? server.serverTiming : null;
+  const headerMode = state.headerMode || "labels";
+
+  // Items passed to TableVirtuoso. In server mode `rows` is the accumulated server pages.
+  const visible = rows;
+
+  // For FilterBar's category list — in server mode the dataset can be huge, so we synthesize
+  // pseudo-papers from the server-returned category list (FilterBar only iterates them for tags).
+  const serverFilterBarPapers = useMemo(() =>
+    server.allCategories.map(c => ({ category: c, categories: [c] })),
+  [server.allCategories]);
+  const filterBarPapers = isServer ? serverFilterBarPapers : papers;
 
   const setSort = useCallback((key) => setState(prev => ({
     ...prev,
@@ -198,13 +211,15 @@ export function HeatmapPage({ data, listStateKey = "heatmap", headerExtras = nul
         subtitle={subtitleOverride ?? "Each row is a paper, each column a metric. Cell color = score (red → green). Hover a cell for value + reasoning, hover a column header for the metric description. Click a header to sort."}
       >
         {headerExtras}
-        <FilterBar state={state} setState={setState} papers={papers} showColumnToggle={true} />
+        <FilterBar state={state} setState={setState} papers={filterBarPapers} showColumnToggle={true} />
 
         <div className="flex flex-wrap items-center justify-between gap-3" data-testid="lv-count-row">
           <div className="text-xs text-muted-foreground" data-testid="lv-count">
             {loading
               ? "Loading…"
-              : `${visible.length.toLocaleString()} filtered (${n.toLocaleString()} total) · virtualized`}
+              : isServer
+                ? `${total.toLocaleString()} filtered (${datasetSize.toLocaleString()} total) · server-paged · ${rows.length} loaded${serverTiming ? ` · last query ${serverTiming.total}ms` : ""}`
+                : `${total.toLocaleString()} filtered (${datasetSize.toLocaleString()} total) · virtualized`}
           </div>
           <div className="flex items-center gap-3">
             <div className="inline-flex rounded-md border border-border overflow-hidden" data-testid="lv-header-mode">
@@ -245,6 +260,7 @@ export function HeatmapPage({ data, listStateKey = "heatmap", headerExtras = nul
               useWindowScroll
               data={visible}
               increaseViewportBy={{ top: 400, bottom: 800 }}
+              endReached={serverLoadMore || undefined}
               components={virtuosoComponents}
               fixedHeaderContent={fixedHeaderContent}
               itemContent={itemContent}

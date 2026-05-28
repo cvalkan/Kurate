@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
-import { Loader2, Play, Clock, HardDrive, AlertTriangle } from "lucide-react";
-import { METRICS } from "./_shared";
+import { Loader2, Play, Clock, HardDrive, AlertTriangle, Server, Cpu } from "lucide-react";
+import { METRICS, flattenPaper } from "./_shared";
 import { HeatmapPage } from "./HeatmapView";
 import { PerfOverlay } from "./PerfOverlay";
 
@@ -79,23 +79,7 @@ function useScalingTestPapers(loadKey, n, seed, includeReasoning) {
       .then((obj) => {
         const tFlattenStart = performance.now();
         const raw = obj?.exp3?.papers || [];
-        const flat = raw.map(p => {
-          const out = {
-            paper_id: p.paper_id,
-            title: p.title,
-            category: p.category,
-            categories: p.categories || (p.category ? [p.category] : []),
-            authors: p.authors || [],
-            published: p.published || null,
-            arxiv_id: p.arxiv_id || null,
-          };
-          const ratings = p.ratings || {};
-          METRICS.forEach(m => {
-            out[m.key] = ratings[m.key] ?? null;
-            if (m.reason) out[`${m.key}_reason`] = ratings[`${m.key}_reason`] || "";
-          });
-          return out;
-        });
+        const flat = raw.map(flattenPaper);
         tFlattenEnd = performance.now();
         try {
           const m = `data:flatten-${tFlattenStart}`;
@@ -129,21 +113,40 @@ export default function ScaleTestPage() {
   const [nDraft, setNDraft] = useState(1000);
   const [seedDraft, setSeedDraft] = useState(42);
   const [reasoningDraft, setReasoningDraft] = useState(true);
+  const [sourceMode, setSourceMode] = useState("client"); // "client" | "server"
   const [loadKey, setLoadKey] = useState(null);
-  const [committed, setCommitted] = useState({ n: 1000, seed: 42, reasoning: true });
+  const [committed, setCommitted] = useState({ n: 1000, seed: 42, reasoning: true, mode: "client" });
 
+  // Client-mode hook fetches everything; only fires when committed.mode === "client" and loadKey set.
+  const clientLoadKey = committed.mode === "client" ? loadKey : null;
   const { papers, loading, n, error, perf } = useScalingTestPapers(
-    loadKey, committed.n, committed.seed, committed.reasoning
+    clientLoadKey, committed.n, committed.seed, committed.reasoning
   );
 
   const trigger = useCallback(() => {
-    setCommitted({ n: nDraft, seed: seedDraft, reasoning: reasoningDraft });
+    setCommitted({ n: nDraft, seed: seedDraft, reasoning: reasoningDraft, mode: sourceMode });
     setLoadKey((k) => (k || 0) + 1);
-  }, [nDraft, seedDraft, reasoningDraft]);
+  }, [nDraft, seedDraft, reasoningDraft, sourceMode]);
 
   const big = nDraft >= 50000;
 
-  const data = useMemo(() => ({ papers, loading, n, error }), [papers, loading, n, error]);
+  // Client-mode `data` for HeatmapPage; ignored in server mode.
+  const data = useMemo(
+    () => ({ papers, loading, n, error }),
+    [papers, loading, n, error]
+  );
+
+  // Server-mode source spec. When committed.mode === "server" and a load has been triggered,
+  // pass it to HeatmapPage so it switches to the server-paged data provider.
+  const serverSource = useMemo(() => {
+    if (committed.mode !== "server" || loadKey == null) return null;
+    return {
+      dataset: "synthetic",
+      n: committed.n,
+      seed: committed.seed,
+      reasoning: committed.reasoning,
+    };
+  }, [committed.mode, committed.n, committed.seed, committed.reasoning, loadKey]);
 
   const headerExtras = (
     <div className="border border-border rounded-lg p-3 bg-card space-y-3" data-testid="scale-controls">
@@ -191,6 +194,28 @@ export default function ScaleTestPage() {
           />
           Include reasoning text
         </label>
+        <div className="w-px h-5 bg-border mx-1" />
+        {/* Source toggle: client-side (current) vs server-side (Phase 2) */}
+        <div className="inline-flex rounded-md border border-border overflow-hidden text-[11px]" data-testid="scale-source">
+          <button
+            onClick={() => setSourceMode("client")}
+            className={`inline-flex items-center gap-1 px-2.5 py-1 transition-colors ${sourceMode === "client" ? "bg-accent text-accent-foreground" : "bg-background text-muted-foreground hover:text-foreground"}`}
+            data-testid="scale-source-client"
+            title="Load the entire dataset, filter/sort/page on the client. Tests pure client-side cost."
+          >
+            <Cpu className="h-3 w-3" />
+            Client
+          </button>
+          <button
+            onClick={() => setSourceMode("server")}
+            className={`inline-flex items-center gap-1 px-2.5 py-1 transition-colors ${sourceMode === "server" ? "bg-accent text-accent-foreground" : "bg-background text-muted-foreground hover:text-foreground"}`}
+            data-testid="scale-source-server"
+            title="Filter / sort / page on the server. Tests Phase 2 architecture."
+          >
+            <Server className="h-3 w-3" />
+            Server
+          </button>
+        </div>
         <div className="flex-1" />
         <button
           onClick={trigger}
@@ -203,14 +228,19 @@ export default function ScaleTestPage() {
         </button>
       </div>
 
-      {big && (
+      {big && sourceMode === "client" && (
         <div className="flex items-center gap-2 text-[11px] text-amber-600 dark:text-amber-400">
           <AlertTriangle className="h-3 w-3" />
-          {nDraft.toLocaleString()} papers will produce a ~{(nDraft * 1.17 / 1024).toFixed(0)} MB JSON payload. Expect 3–15&nbsp;s download and noticeable filter lag.
+          {nDraft.toLocaleString()} papers in client mode → ~{(nDraft * 1.17 / 1024).toFixed(0)} MB JSON payload. Switch to <b>Server</b> mode to scale comfortably.
+        </div>
+      )}
+      {big && sourceMode === "server" && (
+        <div className="text-[11px] text-muted-foreground">
+          Server mode: only the visible page (40 rows) is transferred per request. Filter / sort / histogram run on the server.
         </div>
       )}
 
-      {(perf.totalMs != null || error) && (
+      {committed.mode === "client" && (perf.totalMs != null || error) && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-[10px] border-t border-border/40 pt-2" data-testid="scale-perf">
           <Stat icon={Clock} label="Backend gen" value={perf.backendGenMs != null ? fmtMs(perf.backendGenMs) : "—"} />
           <Stat icon={Clock} label="Network + body" value={fmtMs(perf.fetchMs)} />
@@ -226,10 +256,14 @@ export default function ScaleTestPage() {
         </div>
       )}
 
-      {!loading && papers.length > 0 && (
+      {!loading && committed.mode === "client" && papers.length > 0 && (
         <div className="text-[10px] text-muted-foreground" data-testid="scale-summary">
-          Loaded <b>{n.toLocaleString()}</b> synthetic papers. Use the filter bar below to stress-test client-side
-          search, sort, threshold, and category logic. Filter timing is reported above on every reload.
+          Loaded <b>{n.toLocaleString()}</b> synthetic papers (client mode). Filter timing is reported in the perf overlay below.
+        </div>
+      )}
+      {committed.mode === "server" && loadKey != null && (
+        <div className="text-[10px] text-muted-foreground" data-testid="scale-summary">
+          Server mode active — each filter change makes one HTTP request to <code>/api/papers-list</code>. Each scroll past the loaded rows fetches the next 40-row page.
         </div>
       )}
     </div>
@@ -238,9 +272,14 @@ export default function ScaleTestPage() {
   return (
     <HeatmapPage
       data={data}
-      listStateKey="scale-test"
-      titleOverride="Scaling test — Heatmap with synthetic papers"
-      subtitleOverride="Stress-test environment. Choose a paper count and click Generate. The list page below is identical to the production heatmap so any client-side perf cliff (filter, sort, render) shows up here at the chosen scale. Server-side filtering is NOT applied here — this is intentional, so we can measure the pure client-side cost."
+      serverSource={serverSource}
+      listStateKey={`scale-test:${committed.mode}`}
+      titleOverride={`Scaling test — Heatmap (${committed.mode} mode)`}
+      subtitleOverride={
+        committed.mode === "server"
+          ? "Server-paged stress test. Filter / sort / paging run on the backend; only the visible page is transferred. Compare with Client mode to measure the Phase 2 win at scale."
+          : "Client-side stress test. The full corpus is loaded, then everything (filter, sort, paging, histograms) happens in the browser. Use this to measure the pure client-side cost at scale."
+      }
       headerExtras={<>
         {headerExtras}
         <PerfOverlay title="Phase 0 live performance" />

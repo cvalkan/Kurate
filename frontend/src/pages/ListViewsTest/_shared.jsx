@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import axios from "axios";
 import { Search, X, Clock, CalendarDays, Calendar, Infinity as InfinityIcon } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -174,6 +174,26 @@ export function computeMiniHistogram(papers, metricKey, bins = 8) {
   return { counts, max, mean, n: values.length };
 }
 
+// Flatten a paper's ratings into top-level fields. Shared by the precomputed,
+// scaling-test, and server-paged data hooks.
+export function flattenPaper(p) {
+  const out = {
+    paper_id: p.paper_id,
+    title: p.title,
+    category: p.category,
+    categories: p.categories || (p.category ? [p.category] : []),
+    authors: p.authors || [],
+    published: p.published || null,
+    arxiv_id: p.arxiv_id || null,
+  };
+  const ratings = p.ratings || {};
+  METRICS.forEach(m => {
+    out[m.key] = ratings[m.key] ?? null;
+    if (m.reason) out[`${m.key}_reason`] = ratings[`${m.key}_reason`] || "";
+  });
+  return out;
+}
+
 export function useExtendedPapers() {
   const [state, setState] = useState({ loading: true, papers: [], n: 0, error: null });
   useEffect(() => {
@@ -192,23 +212,7 @@ export function useExtendedPapers() {
       } catch (_) { /* ignore */ }
       const flat = measureBlock("data:flatten", () => {
         const papers = r.data?.exp3?.papers || [];
-        return papers.map(p => {
-          const out = {
-            paper_id: p.paper_id,
-            title: p.title,
-            category: p.category,
-            categories: p.categories || (p.category ? [p.category] : []),
-            authors: p.authors || [],
-            published: p.published || null,
-            arxiv_id: p.arxiv_id || null,
-          };
-          const ratings = p.ratings || {};
-          METRICS.forEach(m => {
-            out[m.key] = ratings[m.key] ?? null;
-            if (m.reason) out[`${m.key}_reason`] = ratings[`${m.key}_reason`] || "";
-          });
-          return out;
-        });
+        return papers.map(flattenPaper);
       });
       setState({ loading: false, papers: flat, n: r.data?.exp3?.n || flat.length, error: null });
       void tFetchEnd;
@@ -218,6 +222,147 @@ export function useExtendedPapers() {
     return () => { cancelled = true; };
   }, []);
   return state;
+}
+
+// --- Server-side paged paper list (Phase 2) --------------------------------
+const PAGE_SIZE_SERVER = 40;
+
+function _buildServerQuery(state, source) {
+  const params = new URLSearchParams();
+  if (source?.dataset) params.set("dataset", source.dataset);
+  if (source?.dataset === "synthetic") {
+    if (source.n != null) params.set("n", String(source.n));
+    if (source.seed != null) params.set("seed", String(source.seed));
+    if (source.reasoning != null) params.set("reasoning", String(source.reasoning));
+  }
+  if (state.search) params.set("search", state.search);
+  if (state.dateRange && state.dateRange !== "all") params.set("date_range", state.dateRange);
+  if (state.categories && state.categories.size > 0) {
+    params.set("cats", Array.from(state.categories).join(","));
+    if (state.categoryMode && state.categoryMode !== "any") params.set("cat_mode", state.categoryMode);
+    if (state.categoryLogic && state.categoryLogic !== "or") params.set("cat_logic", state.categoryLogic);
+  }
+  if (state.includeNulls === false) params.set("include_nulls", "false");
+  const minMap = state.metricMin || {};
+  const opMap = state.metricOp || {};
+  for (const [m, thr] of Object.entries(minMap)) {
+    if (thr == null) continue;
+    const op = opMap[m] || "gte";
+    if (op === "gte" && thr === 0) continue;
+    if (op === "lte" && (thr === 10 || thr === 0)) continue;
+    params.set(`min_${m}`, String(thr));
+    params.set(`op_${m}`, op);
+  }
+  if (state.sortKey) params.set("sort_key", state.sortKey);
+  if (state.sortDir) params.set("sort_dir", state.sortDir);
+  return params.toString();
+}
+
+export function useServerPaperList(state, source) {
+  const [pages, setPages] = useState({});
+  const [meta, setMeta] = useState({ total: 0, histograms: {}, datasetSize: 0, serverTiming: null, allCategories: [] });
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState(null);
+  const abortRef = useRef(null);
+
+  const sig = useMemo(() => _buildServerQuery(state, source), [
+    source?.dataset, source?.n, source?.seed, source?.reasoning,
+    state.search, state.dateRange,
+    state.categories, state.categoryMode, state.categoryLogic,
+    state.metricMin, state.metricOp, state.includeNulls,
+    state.sortKey, state.sortDir,
+  ]);
+
+  useEffect(() => {
+    if (!source) {
+      setLoading(false);
+      setPages({});
+      return;
+    }
+    if (abortRef.current) abortRef.current.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setLoading(true);
+    setError(null);
+    setPages({});
+
+    const t0 = performance.now ? performance.now() : 0;
+    fetch(`${API}/api/papers-list?${sig}&offset=0&limit=${PAGE_SIZE_SERVER}&include_categories=true`, { signal: ctrl.signal })
+      .then(async (resp) => {
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const text = await resp.text();
+        const t1 = performance.now ? performance.now() : 0;
+        try {
+          const mark = `data:fetch-${t0}`;
+          performance.mark(mark, { startTime: t0 });
+          performance.measure("data:fetch", mark);
+          performance.clearMarks(mark);
+        } catch (_) { /* ignore */ }
+        const obj = JSON.parse(text);
+        try {
+          const mark = `data:parse-${t1}`;
+          performance.mark(mark, { startTime: t1 });
+          performance.measure("data:parse", mark);
+          performance.clearMarks(mark);
+        } catch (_) { /* ignore */ }
+        return obj;
+      })
+      .then((d) => {
+        if (ctrl.signal.aborted) return;
+        const flat = measureBlock("data:flatten", () => (d.rows || []).map(flattenPaper));
+        setPages({ 0: flat });
+        setMeta({
+          total: d.total ?? 0,
+          histograms: d.histograms || {},
+          datasetSize: d.dataset_size ?? 0,
+          serverTiming: d.timing_ms || null,
+          allCategories: d.all_categories || [],
+        });
+        setLoading(false);
+      })
+      .catch((e) => {
+        if (e.name === "AbortError") return;
+        setError(String(e));
+        setLoading(false);
+      });
+
+    return () => ctrl.abort();
+  }, [sig]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore) return;
+    const offsets = Object.keys(pages).map(Number).sort((a, b) => a - b);
+    const nextOffset = offsets.length > 0 ? offsets[offsets.length - 1] + PAGE_SIZE_SERVER : 0;
+    if (nextOffset >= meta.total) return;
+    if (pages[nextOffset] !== undefined) return;
+    setLoadingMore(true);
+    try {
+      const resp = await fetch(`${API}/api/papers-list?${sig}&offset=${nextOffset}&limit=${PAGE_SIZE_SERVER}&include_histograms=false`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const d = await resp.json();
+      const flat = (d.rows || []).map(flattenPaper);
+      setPages(prev => ({ ...prev, [nextOffset]: flat }));
+    } catch (e) {
+      if (e.name !== "AbortError") setError(String(e));
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [sig, pages, meta.total, loadingMore]);
+
+  const rows = useMemo(() => {
+    const offsets = Object.keys(pages).map(Number).sort((a, b) => a - b);
+    const out = [];
+    for (const k of offsets) out.push(...pages[k]);
+    return out;
+  }, [pages]);
+
+  return {
+    rows, total: meta.total, histograms: meta.histograms,
+    datasetSize: meta.datasetSize, serverTiming: meta.serverTiming,
+    allCategories: meta.allCategories,
+    loading, loadingMore, error, loadMore,
+  };
 }
 
 // Custom hook bundling search / category / sort / metric-range state, persisted to localStorage.
