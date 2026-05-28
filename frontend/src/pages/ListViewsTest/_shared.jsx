@@ -443,7 +443,7 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
       })()}
 
       {/* Per-metric minimum filters */}
-      <details className="border-t border-border/40 pt-2 group" open>
+      <details className="border-t border-border/40 pt-2 group">
         <summary className="text-[10px] text-muted-foreground uppercase tracking-wider cursor-pointer select-none mb-2 hover:text-foreground flex items-center gap-2 list-none [&::-webkit-details-marker]:hidden">
           <span className="text-sm leading-none inline-block transition-transform group-open:rotate-90">▸</span>
           <span>Per-metric minimum (drag to filter)</span>
