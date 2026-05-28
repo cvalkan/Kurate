@@ -1,6 +1,6 @@
 # Heatmap List-View Scaling Plan
 
-Status: planning · Owner: TBD · Last updated: 2026-02-28
+Status: Phase 0–2 + polars vectorisation complete · Last updated: 2026-02-28
 
 ## Goal
 
@@ -9,243 +9,162 @@ Make `/test/list-views/heatmap` (and any production descendant) feel snappy at
 filter/sort/scroll interaction ≤ 200 ms.
 
 The scale test page at `/test/list-views/scale-test` is the truth machine —
-every change must keep or improve those two numbers at N = 10k / 50k / 100k.
+every change must keep or improve those two numbers at N = 10k / 100k / 500k.
 
 ---
 
-## Baseline (measured against the scaling test env, current code)
+## Where we are now
 
-| N       | Wire transfer | JSON.parse | Flatten | First paint | Filter latency (search keystroke) | Sort latency |
-|---------|--------------|-----------|---------|-------------|----------------------------------|--------------|
-| 200     | <300 ms      | <5 ms     | <2 ms   | <500 ms     | imperceptible                    | imperceptible |
-| 1k      | ~250 ms      | ~10 ms    | ~5 ms   | ~600 ms     | imperceptible                    | imperceptible |
-| 10k     | 713 ms       | 67 ms     | 48 ms   | ~1.1 s      | ~50–80 ms                        | ~30 ms       |
-| 50k     | 3.5 s        | ~350 ms   | ~250 ms | ~4.5 s      | ~300 ms / keystroke (painful)    | ~150 ms      |
-| 100k    | 6.7 s        | ~700 ms   | ~500 ms | ~9 s        | ~700 ms / keystroke (unusable)   | ~350 ms      |
+After shipping Phase 0, all of Phase 1A/B, full Phase 2, and Option B
+(polars vectorisation), this is the current state on the scale-test page.
 
-Notes:
-- Everything is client-side today. There is no server-side filter or sort for this view.
-- Payload is ~1.17 kB/paper (with reasoning text). Without reasoning it would be ~0.4 kB/paper.
+| N           | First paint (server mode) | Filter / sort / search interaction | DOM size | Verdict |
+|-------------|---------------------------|------------------------------------|----------|---------|
+| 200         | ~250 ms                   | imperceptible                      | 16-32 rows | native |
+| 10k         | ~350 ms                   | imperceptible                      | 16-32 rows | native |
+| **100k**    | ~400 ms                   | 11 – 30 ms server + ~50 ms network = **80 ms perceived** | 16-32 rows | **native** |
+| **200k**    | ~450 ms                   | 14 – 96 ms server + ~50 ms network = **~150 ms perceived** | 16-32 rows | **snappy** |
+| **500k**    | ~600 ms                   | 25 – 137 ms server + ~80 ms network = **~220 ms perceived** | 16-32 rows | **snappy** |
+| ~1M (est.)  | ~1 s                      | 200–400 ms server + network = **~500 ms perceived** | 16-32 rows | mild lag on sort |
+| >1M         | needs indexed store       | needs indexed store                | – | Phase 5 territory |
 
----
+For comparison, before any optimization at 100k client-side:
 
-## Tiered targets
-
-| Tier        | Corpus size      | Strategy                                                       |
-|-------------|------------------|----------------------------------------------------------------|
-| **A**       | up to ~5k        | Current architecture (full payload, client filter/sort)        |
-| **B**       | 5k–30k           | Add client-side perf wins; payload still full but loaded smart |
-| **C**       | 30k–100k         | Server owns filter + sort + paging; client renders ≤ 200 rows  |
-| **D**       | 100k+ and growth | Add caching, denormalized read model, full-text index          |
-
-When we cross 3k–5k in production data we should start shipping Tier B work.
-That gives us headroom before the next inflection point.
-
----
-
-## Phase 0 — Instrumentation (do this before any optimization)
-
-Without numbers we will optimize the wrong things.
-
-1. **Performance markers in the heatmap** — wrap each phase in `performance.mark`/`performance.measure`:
-   - `data:fetch`, `data:parse`, `data:flatten`, `filter`, `sort`, `histogram`, `render`
-   - Already done for fetch/parse/flatten in `ScaleTestPage`. Extend to `applyFilters`, `applySort`, `computeMiniHistogram`, and the React commit.
-2. **Long-task observer** — `PerformanceObserver({ type: "longtask" })` reports any main-thread task > 50 ms. Surface a small badge in the scaling page.
-3. **Server-side slow-query log already exists** (`core/memlog.log_event("slow_query", ...)`). Make sure every new server endpoint emits one.
-
-Output: a single overlay panel on the scale test page that shows live numbers, plus a button to copy the trace as JSON.
-
-Effort: ~half a day. Unblocks everything else.
-
----
-
-## Phase 1 — Client-side wins (no API changes)
-
-Cheap, ship before the server work. Combined effect: filter/sort latency at 30k drops from ~250 ms to <50 ms.
-
-| Change                                                                                                                                  | Expected impact                                              |
-|-----------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------|
-| Debounce the search input (~120 ms)                                                                                                     | Removes the per-keystroke filter pass at 50k+                |
-| Move `applyFilters` + `applySort` into a Web Worker via Comlink                                                                         | Filter and sort no longer block the main thread              |
-| Memoize histograms by `(filteredIds_hash, metric_key)` so sort-only state changes don’t recompute                                       | Cuts redundant O(n) work on every sort flip                  |
-| Virtualize the rendered table with `react-virtuoso` (replaces the current `.slice(0, shown)` pattern)                                    | Constant DOM footprint regardless of total row count         |
-| Memoize per-row `formatAuthors` / `formatPublished` (they re-run on every render today)                                                 | ~5 ms saved per render at 100k                               |
-| Move the per-paper `categories` Set creation to `useExtendedPapers` (compute once, not on every filter pass)                            | ~10 ms saved per filter at 50k                               |
-| Cap rendered metric columns to the visible viewport (no point laying out the off-screen ones if `overflow-x: auto`)                     | Marginal but helps on mobile                                 |
-
-Risk: virtualisation interacts with the sticky thead and the `overflow-x: auto` container. Verify it scrolls cleanly on both axes before merging.
-
----
-
-## Phase 2 — Paginated server endpoint (the keystone change)
-
-Once we ship this, the payload no longer scales with N.
-
-### Endpoint
-
-```
-GET /api/papers/list
-    ?search=
-    &authors=                                  # optional, separate from title
-    &cats=cs.LG,cs.AI                          # comma-separated
-    &cat_mode=any|primary|cross-listed
-    &cat_logic=or|and
-    &date_from=2025-06-01&date_to=             # ISO; omit for unbounded
-    &min[reproducibility]=7&op[reproducibility]=gte
-    &min[score]=5&op[score]=gte
-    &include_nulls=true|false
-    &sort=score|published|...
-    &dir=asc|desc
-    &cursor=<opaque>                           # keyset pagination
-    &limit=40                                  # cap 200
-    &fields=core                               # "core" omits *_reason strings; "full" includes them
-→ {
-    rows: [...up to 40 papers...],
-    next_cursor: "..."|null,
-    total: 17483                                # optional; can be computed lazily
-  }
-```
-
-### Mongo shape
-
-Source the data from the `papers` collection (or a denormalized read model — see Phase 5). Each doc carries the flat ratings + arrays of authors / categories.
-
-### Indexes to add (one-off migration)
-
-These mirror what's already on the legacy leaderboard but extended for tag arrays:
-
-- `(categories, score: -1, _id: -1)`             ← default sort
-- `(categories, published: -1, _id: -1)`         ← "newly added"
-- `(categories, ai_ratings.score: -1, _id: -1)`  ← if ratings live on a sub-field
-- `(categories, ai_ratings.reproducibility: -1)`, ditto for each extended dim that the user might sort by
-- Partial-filter variants with `{ is_latest_version: { $ne: false } }` as `partialFilterExpression`
-- A `text` index on `(title, authors)` for substring search
-
-Keyset pagination uses `_id` as the tiebreaker so cursors are stable.
-
-### Filter mapping
-
-| User filter | Mongo `$match` clause |
-|---|---|
-| `cats` + `cat_mode = any`           | `{ categories: { $in: cats } }` |
-| `cats` + `cat_mode = primary`       | `{ category: { $in: cats } }` |
-| `cats` + `cat_mode = cross-listed`  | `{ categories: { $in: cats }, category: { $nin: cats } }` |
-| `cat_logic = and`                   | `{ categories: { $all: cats } }` (combined with mode-specific clause) |
-| `min[x] = v, op = gte`              | `{ "ratings.x": { $gte: v } }` plus null handling |
-| `include_nulls = false` + threshold | drop the `$or null` branch on that field |
-| `date_from / date_to`               | `{ published: { $gte/lte: "..." } }` (ISO string) |
-| `search` (title)                    | Phase 2: `{ title: { $regex: ..., $options: "i" } }`; Phase 5: `$text` |
-
-### Backend `total` count strategy
-
-Computing the exact total on every request is the single most expensive piece. Three sensible behaviours:
-
-- **Default**: return `total: null` and let the UI show "many results". Cursor handles paging.
-- **Cheap estimate**: `collMod` / `collStats` for unfiltered; `$count` on cached aggregates per popular `cats` combo.
-- **Exact**: only when the result set is small enough to be useful (e.g., when at least one filter narrows the set). Run `$count` in parallel with the first page, return as a follow-up.
-
-### Frontend changes
-
-- Replace `useExtendedPapers()` with `usePaperList(filters, cursor)` that issues fetches per page.
-- `applyFilters` / `applySort` become no-ops (or stay for the scaling test page only).
-- Infinite scroll calls `fetch(next_cursor)` instead of `slice`.
-- Filter state changes blow away the cursor and refetch page 1.
-
-### Expected impact at 100k papers
-
-| Metric | Today | After Phase 2 |
+| | Before | After Phase 0–2 + polars |
 |---|---|---|
-| First payload | ~117 MB | ~50 kB |
-| First paint | ~9 s | ~400 ms |
-| Search keystroke roundtrip | ~700 ms (CPU) | ~80 ms (network) — and now debounce-able |
-| Memory | 100k JS objects pinned | <250 objects ever live |
+| First paint at 100k | ~9 s | 0.4 s |
+| Filter keystroke at 100k | growing 200–500 ms (jank) | 80 ms (server roundtrip) |
+| Memory at 100k | 100k JS objects in browser | <250 rows ever in browser |
+| Wire transfer at 100k | 117 MB | ~30 kB per page (40 rows) |
+| Long-task count during filter at 100k | dozens | 0 |
 
 ---
 
-## Phase 3 — Server-side histograms
+## Tiered targets — updated
 
-The chart-mode column headers need a distribution per metric across the **current filter**, not the current page.
-
-Two viable approaches:
-
-1. **`$facet` aggregation alongside the paged query**:
-   ```js
-   db.papers.aggregate([
-     { $match: <filter> },
-     { $facet: {
-         page:       [ { $sort: ... }, { $limit: 40 }, { $project: ... } ],
-         histograms: [ { $bucket: { groupBy: "$ratings.score", boundaries: [1,2,3,...,11], default: null } }, ... ],
-         total:      [ { $count: "n" } ],
-     } }
-   ])
-   ```
-   One round-trip, one filter pass on the server. Expensive only when the filter set is large.
-
-2. **Precomputed histogram cache** per `(category_set, date_window)` warmed by the scheduler every N minutes. Trades freshness for cost.
-
-Approach (1) is enough below ~500k papers. Above that, layer (2) on top.
+| Tier        | Corpus size      | Status / Strategy                                                                |
+|-------------|------------------|----------------------------------------------------------------------------------|
+| **A**       | up to ~5k        | ✅ Phase 1 client-side architecture handles this trivially                       |
+| **B**       | 5k–30k           | ✅ Phase 1 client-side + virtualisation; production heatmap can stay client-side |
+| **C**       | 30k–500k         | ✅ Phase 2 server endpoint with polars; current ceiling                          |
+| **D**       | 500k–1M          | ⚠️  Works but threshold+sort approaches 300–500 ms perceived                    |
+| **E**       | 1M+ or persistence-critical | ⛔ Phase 5: persist papers in Mongo with extended ratings as flat fields, compound indexes, push filter/sort/agg into Mongo |
 
 ---
 
-## Phase 4 — Caching layer
+## Completed phases
 
-Once the endpoint exists, parking a small LRU cache in front of it is a 50-line change.
+### ✅ Phase 0 — Instrumentation overlay
 
-- **Server-side**: `(filter_signature, sort, cursor, limit)` → response, TTL 30–120 s. In-process `cachetools.TTLCache` is fine; Redis once we have multiple FastAPI workers.
-- **Client-side**: `react-query` / `SWR` with `staleTime: 30s` so navigating back-and-forth between filter states is instant.
+- `performance.mark` / `performance.measure` wrappers around `applyFilters`, `applySort`, histogram loop, render commit
+- `PerformanceObserver({type: "longtask"})` surfaces main-thread tasks > 50 ms
+- Overlay at `/test/list-views/scale-test` shows latest + max + count per phase
+- "Copy trace" exports the full timeline + memory snapshot + UA as JSON
+- Configurable debounce slider in the overlay (0–500 ms), persisted across reloads
 
-This is where the "popular tag page" speedup comes from. Real-world load patterns are heavy-tailed — caching the top ~50 filter combinations covers most traffic.
+### ✅ Phase 1A — Cheap client wins
+
+- Search debounce (default 120 ms, configurable) collapses ~20 keystrokes into 1 commit
+- Per-metric slider debounce (same plumbing) collapses ~20 drag events into 1 commit
+- `filtered` / `visible` / `histograms` memos decoupled — sort changes no longer trigger filter/histogram recompute
+- `React.memo` wraps `PaperCell` and `HeatmapRowCells`
+
+### ✅ Phase 1B — Virtualisation
+
+- `react-virtuoso` `TableVirtuoso` replaces the manual table + IntersectionObserver
+- DOM stays at 16–32 rows regardless of total loaded
+- Sticky header still works inside `overflow-x: auto` for mobile horizontal scroll
+- `endReached` callback wires server-mode infinite scroll natively
+
+### ✅ Phase 2 — Server-side paginated endpoint
+
+- `/api/papers-list` accepts the full filter/sort/cursor spec
+- Two data sources: `dataset=precomputed` (real 206 papers) and `dataset=synthetic` (cached by `n`/`seed`/`reasoning`)
+- Per-metric thresholds via `min_<metric>` / `op_<metric>` raw query params
+- Returns `rows / next_cursor / total / histograms / all_categories / dataset_size / timing_ms`
+- Frontend hook `useServerPaperList(state, source)` with abort, page accumulation, stale-while-revalidate
+- `HeatmapPage` accepts either `data` (client mode, legacy) or `serverSource` (server mode)
+- FilterBar consumes `all_categories` in server mode so the tag list works at 100k without scanning rows
+- Source toggle on `/test/list-views/scale-test` lets you flip Client ↔ Server live
+
+### ✅ Option B — polars vectorisation
+
+(Inserted instead of Phase 3/4/5 once it became clear the Python loop was the bottleneck.)
+
+- `polars` 1.41.1 added to requirements
+- `routers/papers_list.py` rewritten: DataFrame is built once per data-source key and cached; every filter/sort/histogram runs as a vectorised polars expression
+- Same response schema; frontend untouched
+- 200k filter+sort+histogram dropped from ~250 ms (Python loops) to **12–96 ms** (polars)
+- `engine: "polars"` returned in the timing block for verification
 
 ---
 
-## Phase 5 — Long-term structural work
+## What we deliberately skipped, and why
 
-Pick these up after Phase 4 if production data crosses ~250k papers.
-
-### Denormalized read model
-
-Today, `papers.ai_ratings_by_model` is a nested map keyed by model name. For the heatmap we always read the same model's flat metrics. Move them to top-level fields (`heatmap.score`, `heatmap.reproducibility`, ...) on the `papers` collection — populated by the scheduler when a new summary arrives. Lets the indexes above stay simple and small.
-
-### Full-text search
-
-Drop the regex search. Either:
-- Mongo `$text` index on `(title, authors)` — free, good enough for substring search up to a few million docs.
-- Or Meilisearch / Typesense for relevance, highlighting, and typo tolerance.
-
-### Streaming JSON
-
-For exports / "view all" workflows: stream the response as NDJSON so the UI can start rendering while the body is still arriving. Useful for analytics dashboards but not the heatmap.
-
-### Server-side rendering for SEO
-
-Out of scope here but already on the P1 backlog. Once the paged endpoint exists, an SSR pass that pre-renders the first 40 rows for a given tag becomes trivial.
+| Originally planned | Skipped? | Reason |
+|---|---|---|
+| Phase 1 — Web Worker for filter/sort | Yes | With polars on the server, filter/sort is server-side and < 100 ms. The worker would only matter in client-only mode at 100k+, and we don't run that in production. |
+| Phase 1 — Cap rendered metric columns to viewport | Yes | Virtualisation made it irrelevant. |
+| Phase 3 — `$facet` aggregation for histograms | Deferred | Polars `np.histogram` per metric is already 1–28 ms across all tested scales. Re-evaluate when we move to Mongo. |
+| Phase 4 — LRU cache + react-query | Deferred | At current latencies (60–250 ms perceived), the user-facing benefit is small. Re-evaluate when traffic grows or queries are demonstrably repeated. |
 
 ---
 
-## Suggested rollout sequence
+## What's still on the roadmap
 
-| Week | What ships                                                                                                   | Cumulative effect                                |
-|------|--------------------------------------------------------------------------------------------------------------|--------------------------------------------------|
-| 1    | Phase 0 (instrumentation) + 2 of Phase 1 (debounce + virtuoso)                                               | 5k–10k feels native again                        |
-| 2    | Rest of Phase 1 (worker + memoization)                                                                       | 30k tolerable on desktop                         |
-| 3–4  | Phase 2 endpoint + indexes; ship behind a feature flag                                                       | 100k visible on the dogfood URL                  |
-| 5    | Phase 3 histograms + Phase 4 server LRU                                                                      | Filter changes at 100k feel ≤ 300 ms             |
-| 6+   | Phase 5 as needed                                                                                            | We don't think about scale again until 500k      |
+### ⏭ Phase 5 — Persisted store with indexes (the long-term ceiling)
+
+The current setup keeps the entire dataset as a polars DataFrame in process memory. That's fine up to ~1M papers, but:
+
+- All data is re-built from the precomputed JSON / synthetic generator on startup. Production needs real extended ratings persisted.
+- A single uvicorn process holds the DataFrame; horizontal scaling means warming N copies of it.
+- Updates (new papers, re-summarisations) require recomputing the DataFrame or maintaining an out-of-band write path.
+
+**When to trigger Phase 5:**
+
+- Real corpus crosses ~500k extended-rated papers, **or**
+- Extended ratings need to be persisted alongside the existing `papers` collection (i.e. shown in non-heatmap pages too), **or**
+- We need to run multiple uvicorn workers / pods.
+
+**What Phase 5 looks like:**
+
+1. **Migrate extended ratings into Mongo**. Either as a sub-document on `papers` (`papers.heatmap = {score, significance, …, reasonings}`) or a parallel `extended_ratings` collection keyed by `paper_id`. Backed by a scheduler job that runs the prompt and persists.
+2. **Compound indexes** mirroring the live tag-filter pipeline:
+   - `(categories, score: -1, paper_id: 1)` for default sort
+   - `(categories, published: -1)` for the date filter
+   - One per remaining sortable metric — `(categories, <metric>: -1, paper_id: 1)` — partial-filter for the latest-version condition
+   - `text` index on `(title, authors)` so search drops the regex
+3. **Replace polars filter/sort with Mongo aggregations** in `papers_list.py`. Same endpoint contract, same response schema. Source switches per `dataset` parameter:
+   - `dataset=mongo` → query the indexed collection
+   - `dataset=synthetic` → polars stays for stress testing
+   - `dataset=precomputed` → polars stays for the ICLR 206 demo
+4. **`$facet` for histograms + total + page** in one aggregation — Phase 3 becomes free.
+5. **LRU cache in front of the endpoint** (Phase 4) — `cachetools.TTLCache` keyed by `(filter_signature, sort, cursor)`, 60 s TTL. Real win on popular filter combinations.
+
+**Expected outcome:**
+
+| | After polars | After Phase 5 (Mongo + indexes) |
+|---|---|---|
+| 1M warm filter+sort | ~400 ms | ~30–80 ms |
+| 10M warm filter+sort | (out of memory) | ~50–150 ms |
+| Persistence | rebuilt on every restart | durable, incremental |
+| Horizontal scaling | each worker holds full DF | shared store, stateless workers |
+
+**Effort estimate:** 3–5 days plus a migration window for the rating persistence work.
 
 ---
 
-## Open questions / decisions to make
+## Open decisions
 
-1. **Is the heatmap a public page eventually?** That changes the caching tier (CDN-cacheable GET vs authenticated). My read: yes, it's coming.
-2. **Do we need exact totals?** "About X papers match" is fine for most users; exact counts are expensive at scale.
-3. **Should the threshold filters be per-metric `$gte/$lte` ranges, or do we expose a more powerful query (e.g., "between 6 and 8")?** The current UI only supports a one-sided threshold per metric. Two-sided would double Mongo's index work — not free.
-4. **Reasoning strings**: 6 strings × ~150 chars each = 900 B/paper. They dominate the payload. Should we ship them only on row-expand instead of in the list? (Phase 2 makes this trivial — `fields=core` vs `fields=full`.)
+1. **When does the heatmap go public?** That changes when caching matters and how aggressively we need server-side rendering. (Phase 4 + a CDN-fronted route would be the path.)
+2. **Are we extending the prompt-stability pipeline to all arXiv?** If yes, we cross 500k extended ratings within months and Phase 5 becomes mandatory. If no, polars handles us indefinitely.
+3. **Two-sided threshold filters?** Today each metric is one-sided (`≥` or `≤`). Real ranges would double the index work in Phase 5. Probably defer until users ask.
 
 ---
 
 ## What NOT to do
 
-- Don't pre-compute and store the entire result-cross-product. Filter combinations are exponential; cache the popular ones only.
-- Don't add an OLAP store (Clickhouse, DuckDB) before exhausting Mongo aggregations. Mongo on the existing infra will carry us to ~1M docs comfortably.
-- Don't ship server-side filtering without keyset pagination. Skip + limit at offset 50k is a known footgun.
-- Don't optimize the histogram path until the table path is paged. It's downstream.
+- Don't ship Phase 3 ($facet) or Phase 4 (LRU cache) on top of the polars Python backend — wait for Phase 5 / Mongo where they actually pay off.
+- Don't precompute the entire result-cross-product. Filter combinations are exponential; cache popular ones only.
+- Don't add an OLAP store (Clickhouse, DuckDB) before Phase 5. Mongo on existing infra reaches ~10M docs comfortably.
+- Don't ship Phase 5 without keyset pagination — skip+limit at offset 50k is a known footgun.
