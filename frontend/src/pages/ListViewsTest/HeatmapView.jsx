@@ -106,12 +106,11 @@ export default function HeatmapView() {
                         <TooltipTrigger asChild>
                           <button
                             onClick={() => setSort(m.key)}
-                            className="inline-flex items-center justify-center gap-0.5 text-[10px] px-1 py-0.5 rounded border w-full transition-all hover:brightness-110 tabular-nums"
+                            className="inline-flex items-center justify-center gap-0.5 text-[10px] w-full transition-opacity hover:opacity-80 tabular-nums"
                             style={{
-                              borderColor: m.color,
-                              backgroundColor: active ? m.color : `${m.color}1f`,
-                              color: active ? "#fff" : m.color,
-                              fontWeight: active ? 600 : 500,
+                              color: m.color,
+                              fontWeight: active ? 700 : 500,
+                              opacity: active ? 1 : 0.85,
                             }}
                             data-testid={`lv-th-${m.key}`}
                           >
@@ -136,12 +135,12 @@ export default function HeatmapView() {
             </thead>
             <tbody>
               {rendered.map((p, i) => (
-                <tr key={p.paper_id} data-testid={`lv-row-${i}`} className={i % 2 === 0 ? "bg-background" : "bg-secondary/10"}>
+                <tr key={p.paper_id} data-testid={`lv-row-${i}`} className={i % 2 === 0 ? "bg-background" : "bg-secondary/10"} style={{ height: 64 }}>
                   <td className="py-2 px-3 border-b border-border/30 align-middle">
                     <PaperCell paper={p} />
                   </td>
                   <td className="py-2 px-2 border-b border-border/30 text-right align-middle">
-                    <span className="text-[10px] font-mono text-muted-foreground whitespace-nowrap">{formatPublished(p.published) || "—"}</span>
+                    <span className="text-[11px] text-muted-foreground whitespace-nowrap">{formatPublished(p.published) || "—"}</span>
                   </td>
                   {visibleMetrics.map(m => {
                     const v = p[m.key];
@@ -191,32 +190,32 @@ function PaperCell({ paper }) {
   const primary = paper.category || cats[0];
   return (
     <div className="min-w-0">
-      <div className="text-xs font-medium leading-snug line-clamp-2" title={paper.title}>
+      <div className="text-xs font-medium leading-snug line-clamp-1" title={paper.title}>
         {paper.title}
       </div>
-      <div className="flex items-center flex-wrap gap-1 mt-1">
-        {cats.map(cat => {
-          const isPrimary = cat === primary;
-          return (
-            <span
-              key={cat}
-              className={`font-mono text-[9px] leading-none px-1 py-0.5 rounded border ${
-                isPrimary
-                  ? "border-accent/60 bg-accent/15 text-accent-foreground"
-                  : "border-border/60 bg-secondary/40 text-muted-foreground"
-              }`}
-              style={isPrimary ? { borderColor: "hsl(var(--accent))", color: "hsl(var(--accent))" } : undefined}
-              title={isPrimary ? `Primary category: ${cat}` : `Cross-listed: ${cat}`}
-            >
-              {cat}
-            </span>
-          );
-        })}
+      <div className="flex items-center flex-nowrap gap-1.5 mt-1 overflow-hidden">
         {authors && (
-          <span className="text-[10px] text-muted-foreground truncate ml-1" title={(paper.authors || []).join(", ")}>
+          <span className="text-[11px] text-muted-foreground truncate shrink min-w-0" title={(paper.authors || []).join(", ")}>
             {authors}
           </span>
         )}
+        <div className="flex items-center gap-1 shrink-0">
+          {cats.map(cat => {
+            const isPrimary = cat === primary;
+            return (
+              <span
+                key={cat}
+                className="font-mono text-[9px] leading-none px-1 py-0.5 rounded border whitespace-nowrap"
+                style={isPrimary
+                  ? { borderColor: "hsl(var(--accent))", color: "hsl(var(--accent))", backgroundColor: "hsl(var(--accent) / 0.10)" }
+                  : { borderColor: "hsl(var(--border))", color: "hsl(var(--muted-foreground))", backgroundColor: "hsl(var(--secondary) / 0.4)" }}
+                title={isPrimary ? `Primary category: ${cat}` : `Cross-listed: ${cat}`}
+              >
+                {cat}
+              </span>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
