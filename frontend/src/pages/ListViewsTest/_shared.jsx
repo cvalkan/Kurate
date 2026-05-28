@@ -200,6 +200,7 @@ function buildDefaults(d) {
     metricOp: d.metricOp || {},   // { metric: "gte" | "lte" } — operator per metric, default "gte"
     hidden: new Set(d.hidden || []), // hidden metric keys
     includeNulls: d.includeNulls ?? true,
+    headerMode: d.headerMode || "labels", // "labels" | "charts"
   };
 }
 
@@ -440,6 +441,20 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
         <summary className="text-[10px] text-muted-foreground uppercase tracking-wider cursor-pointer select-none mb-2 hover:text-foreground flex items-center gap-2 list-none [&::-webkit-details-marker]:hidden">
           <span className="text-sm leading-none inline-block transition-transform group-open:rotate-90">▸</span>
           <span>Per-metric minimum (drag to filter)</span>
+          <label
+            className="ml-auto flex items-center gap-1 text-[10px] normal-case tracking-normal cursor-pointer text-muted-foreground hover:text-foreground"
+            onClick={(e) => e.stopPropagation()}
+            title="When ON, papers where this metric is N/A still pass the filter. When OFF, they are excluded."
+          >
+            <input
+              type="checkbox"
+              checked={state.includeNulls}
+              onChange={(e) => setState({ includeNulls: e.target.checked })}
+              className="accent-accent"
+              data-testid="lv-include-nulls"
+            />
+            Include N/A
+          </label>
         </summary>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
           {visibleMetrics.map(m => {
@@ -494,16 +509,6 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
               </button>
             );
           })}
-          <label className="ml-3 flex items-center gap-1 text-[10px] text-muted-foreground cursor-pointer">
-            <input
-              type="checkbox"
-              checked={state.includeNulls}
-              onChange={(e) => setState({ includeNulls: e.target.checked })}
-              className="accent-accent"
-              data-testid="lv-include-nulls"
-            />
-            Include N/A
-          </label>
         </div>
       )}
     </div>

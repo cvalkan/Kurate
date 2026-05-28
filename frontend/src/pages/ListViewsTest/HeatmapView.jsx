@@ -1,9 +1,10 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowUp, ArrowDown, AlignLeft, BarChart3 } from "lucide-react";
 import {
   METRICS, useExtendedPapers, useListState, applyFilters, applySort,
   FilterBar, ListViewShell, MetricValue, scoreColor, scoreTextColor,
+  computeMiniHistogram,
 } from "./_shared";
 
 const PAGE_SIZE = 40;
@@ -29,6 +30,14 @@ export default function HeatmapView() {
 
   const visible = useMemo(() => applySort(applyFilters(papers, state), state), [papers, state]);
   const visibleMetrics = METRICS.filter(m => !state.hidden.has(m.key));
+  const headerMode = state.headerMode || "labels";
+
+  // Per-column distribution histograms (over the currently visible / filtered papers)
+  const histograms = useMemo(() => {
+    const out = {};
+    visibleMetrics.forEach(m => { out[m.key] = computeMiniHistogram(visible, m.key, 10); });
+    return out;
+  }, [visible, visibleMetrics]);
 
   const [shown, setShown] = useState(PAGE_SIZE);
   const sentinelRef = useRef(null);
@@ -68,7 +77,28 @@ export default function HeatmapView() {
               ? "Loading…"
               : `Showing ${rendered.length} of ${visible.length} filtered (${n} total)`}
           </div>
-          <ColorRamp />
+          <div className="flex items-center gap-3">
+            {/* Header-mode toggle: text labels ↔ distribution charts */}
+            <div className="inline-flex rounded-md border border-border overflow-hidden" data-testid="lv-header-mode">
+              <button
+                onClick={() => setState({ headerMode: "labels" })}
+                className={`p-1 transition-colors ${headerMode === "labels" ? "bg-accent text-accent-foreground" : "bg-background hover:bg-secondary text-muted-foreground"}`}
+                title="Show metric names in column headers"
+                data-testid="lv-header-mode-labels"
+              >
+                <AlignLeft className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => setState({ headerMode: "charts" })}
+                className={`p-1 transition-colors ${headerMode === "charts" ? "bg-accent text-accent-foreground" : "bg-background hover:bg-secondary text-muted-foreground"}`}
+                title="Show distribution histograms in column headers"
+                data-testid="lv-header-mode-charts"
+              >
+                <BarChart3 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <ColorRamp />
+          </div>
         </div>
 
         <div className="border border-border rounded-lg bg-card" style={{ overflow: "clip" }} data-testid="lv-heatmap">
@@ -112,8 +142,14 @@ export default function HeatmapView() {
                             className={`inline-flex items-center justify-center text-[10px] font-medium w-full transition-colors hover:text-foreground tabular-nums ${active ? "text-foreground" : "text-muted-foreground"}`}
                             data-testid={`lv-th-${m.key}`}
                           >
-                            <span className="truncate">{m.short}</span>
-                            {active && (state.sortDir === "asc" ? <ArrowUp className="h-2 w-2 shrink-0 ml-px" /> : <ArrowDown className="h-2 w-2 shrink-0 ml-px" />)}
+                            {headerMode === "charts" ? (
+                              <MiniColumnChart metric={m} hist={histograms[m.key]} active={active} />
+                            ) : (
+                              <>
+                                <span className="truncate">{m.short}</span>
+                                {active && (state.sortDir === "asc" ? <ArrowUp className="h-2 w-2 shrink-0 ml-px" /> : <ArrowDown className="h-2 w-2 shrink-0 ml-px" />)}
+                              </>
+                            )}
                           </button>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="max-w-xs bg-popover text-popover-foreground border border-border shadow-md">
@@ -123,6 +159,11 @@ export default function HeatmapView() {
                               <span className="text-[11px] font-medium">{m.label}</span>
                             </div>
                             <p className="text-[11px] leading-snug">{m.desc}</p>
+                            {headerMode === "charts" && histograms[m.key] && histograms[m.key].n > 0 && (
+                              <p className="text-[10px] text-muted-foreground">
+                                Distribution across {histograms[m.key].n} visible papers · mean {histograms[m.key].mean?.toFixed(1)}
+                              </p>
+                            )}
                           </div>
                         </TooltipContent>
                       </Tooltip>
@@ -179,6 +220,46 @@ export default function HeatmapView() {
     </TooltipProvider>
   );
 }
+
+function MiniColumnChart({ metric, hist, active }) {
+  if (!hist || hist.n === 0) {
+    return <span className="text-[10px] text-muted-foreground">—</span>;
+  }
+  const { counts, max, mean } = hist;
+  const w = 48;
+  const h = 22;
+  const barW = w / counts.length;
+  return (
+    <svg width={w} height={h} className="block" aria-hidden>
+      {counts.map((c, i) => {
+        const bh = (c / max) * (h - 3);
+        return (
+          <rect
+            key={i}
+            x={i * barW}
+            y={h - bh}
+            width={Math.max(1, barW - 0.5)}
+            height={bh}
+            fill={metric.color}
+            opacity={active ? 0.9 : 0.6}
+          />
+        );
+      })}
+      {mean != null && (
+        <line
+          x1={((mean - 1) / 9) * w}
+          x2={((mean - 1) / 9) * w}
+          y1={0} y2={h}
+          stroke="currentColor"
+          strokeWidth={1}
+          strokeDasharray="2 1.5"
+          opacity={0.6}
+        />
+      )}
+    </svg>
+  );
+}
+
 
 function PaperCell({ paper }) {
   const authors = formatAuthors(paper.authors);
