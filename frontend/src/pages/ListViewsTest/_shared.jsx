@@ -364,9 +364,9 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider w-[64px] shrink-0">Match</span>
                 <div className="inline-flex rounded-md bg-secondary/60 p-0.5 gap-0.5 -ml-0.5" data-testid="lv-cat-mode">
                   {[
-                    { v: "any", label: "Any", tip: "Match papers where the selected category is listed as either the primary category or any secondary (cross-listed) category." },
-                    { v: "primary", label: "Primary only", tip: "Match only papers whose primary category is among the selected categories." },
-                    { v: "cross-listed", label: "Secondary only", tip: "Match only papers cross-listed in the selected categories, but where the primary category is something else." },
+                    { v: "any", label: "Any", tip: "Match papers where the selected arXiv category is listed as either the primary category or any secondary (cross-listed) category." },
+                    { v: "primary", label: "Primary only", tip: "Match only papers whose primary arXiv category is among the selected categories." },
+                    { v: "cross-listed", label: "Secondary only", tip: "Match only papers cross-listed on arXiv in the selected categories, but where the primary category is something else." },
                   ].map(opt => {
                     const active = (state.categoryMode || "any") === opt.v;
                     return (
