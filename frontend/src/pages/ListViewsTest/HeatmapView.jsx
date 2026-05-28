@@ -101,11 +101,11 @@ export default function HeatmapView() {
           </div>
         </div>
 
-        <div className="border border-border rounded-lg bg-card" style={{ overflow: "clip" }} data-testid="lv-heatmap">
+        <div className="border border-border rounded-lg bg-card" style={{ overflowX: "auto" }} data-testid="lv-heatmap">
           <table className="w-full text-xs border-collapse table-fixed">
             <colgroup>
               <col style={{ width: DATE_COL_WIDTH }} />
-              <col />
+              <col style={{ minWidth: 280, width: 320 }} />
               {visibleMetrics.map(m => <col key={m.key} style={{ width: METRIC_COL_WIDTH }} />)}
             </colgroup>
             <thead className="sticky top-14 z-20 bg-card">
