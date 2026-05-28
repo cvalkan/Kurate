@@ -1,167 +1,167 @@
-<analysis>**original_problem_statement**: Build and maintain a sophisticated Validation Hub for an AI paper-judging system at kurate.org. PRODUCT REQUIREMENTS: implement Multiple AI Reviewer Personas based on the ReviewerToo academic paper to enhance pairwise ranking accuracy. Build an optimized parallel batch pipeline to download, anonymize, and summarize OpenReview papers. Handle arXiv paper revisions cleanly in the database and UI. Serve Convergence Charts statically & tidy up UI. Enhance the X (Twitter) Outreach admin page with robust engagement tracking, handle discovery, Reddit Pixel integration, Plausible analytics, and build an automated Gmail-based personalized Email Outreach pipeline.
+<analysis>Here is the handoff summary for the next agent:
+
+**original_problem_statement**: Continue building the AI paper-judging platform. PRODUCT REQUIREMENTS: Complete the MTEB embeddings test (Qwen3), analyze LLM costs, audit the platform for scaling to all arXiv categories, improve admin category management, add a public contact page, extend the AI summary prompt with new numerical metrics (Prompt Stability Experiment), process new datasets (2025/2026), and fix Single-Item (SI) vs Pairwise (PW) agreement analysis.
 
 **User's preferred language**: English (INSTRUCT next agent to respond in English only)
 
-**what currently exists?** 
-A full-stack AI paper-judging platform (FastAPI + React + MongoDB) utilizing TrueSkill models to rank academic papers. It features automated paper fetching, summarizing (Claude Opus, GPT-5.2, Gemini 3 Pro), an Admin dashboard, convergence charts, an X (Twitter) Outreach pipeline, a Gmail-based Email Outreach pipeline, and a  leaderboard.
+**what currently exists?**: A full-stack AI paper-judging platform (FastAPI + React + MongoDB) utilizing TrueSkill models. Features a Validation Hub, Similarity Landscape (with Qwen3 embeddings), an advanced Admin panel (featured vs. active category management, user exports, contact messages, cost analysis), and comprehensive Model Correlation and Prompt Stability analysis pages.
 
 **Last working item**:
-    - Last item agent was working: Awaiting user decision on the  tournament. The previous agent identified and fixed the root cause of the P0 bug (convergence goals showing as met). The bug was caused by 3 stale mock/test entries (, , ) in the  collection, causing  to cache as . The agent deleted the mock data, reset the stats, and manually triggered a new fetch since the tournament was paused. The agent asked the user if they want to un-pause the tournament, leave it paused, or delete it entirely.
-    - Status: USER VERIFICATION PENDING
-    - Agent Testing Done: Y
-    - Which testing method agent to use? manual testing by python -c / curl (to check DB consistency)
+    - Last item agent was working: Discussing how to pull a new landing page from a different GitHub branch into the current environment. The agent confirmed it can perform a  and merge if the repository is made public and the exact branch is provided.
+    - Status: BLOCKED / USER VERIFICATION PENDING (Waiting for user to provide the public GitHub repo link/branch or upload the files)
+    - Agent Testing Done: N
+    - Which testing method agent to use?: manual testing by bash / git commands
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  Issue 1: Awaiting user action on  Tournament status (P0)
-     - Attempted fixes: The agent asked the user to choose between 3 actions for the  tournament: un-pause it, leave it paused (current fetch finishes, but no automatic scheduling), or delete it.
-     - Next debug checklist: Read the user's upcoming response and apply the requested action via DB update or API call.
-     - Why fix this issue and what will be achieved with the fix? Completes the P0 debugging task and dictates the future of the  category in the system.
+  Issue 1: Mobile Unfurling on Twitter/X Fails (P1)
+     - Attempted fixes: Implemented static HTML endpoints for bots, but WAF still blocks.
+     - Next debug checklist: Needs Cloudflare WAF Skip Rule ().
+     - Why fix this issue and what will be achieved with the fix?: Fixes degraded link cards on social media.
+     - Status: BLOCKED (Awaiting User Cloudflare config)
+     - Is recurring issue?: Y
+     - Should Test frontend/backend/both after fix?: NA
+     - Blocked on other issue: User Configuration
+
+  Issue 2: K8s Probe Misconfiguration (P1)
+     - Attempted fixes: Investigated K8s liveness timeouts.
+     - Next debug checklist: Increase liveness probe tolerance or configure a startup probe in K8s.
+     - Why fix this issue and what will be achieved with the fix?: Prevents K8s from force-killing pods.
+     - Status: BLOCKED (Infrastructure side)
+     - Is recurring issue?: Y
+     - Should Test frontend/backend/both after fix?: NA
+     - Blocked on other issue: Emergent Support
+
+  Issue 3: TweetAPI 504 / 401 Errors (P1)
+     - Attempted fixes: Investigated double-path string bug (found to be a display artifact on TweetAPI's dashboard). Tested direct cURL.
+     - Next debug checklist: The API key is either invalid, lacks a rate limit plan on TweetAPI's side, or the associated Twitter Auth token in the admin panel is expired. User must verify this at tweetapi.com.
+     - Why fix this issue and what will be achieved with the fix?: Restores automated X/Twitter outreach.
      - Status: USER VERIFICATION PENDING
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Backend
-     - Blocked on other issue: None
-
-  Issue 2: 5 DeFi papers failed AI impact assessment (P1)
-     - Attempted fixes: Claude Opus 4.6 previously hit a budget ceiling. 120/125 succeeded. 
-     - Next debug checklist: Re-run the script or endpoint to assess the remaining 5 failed DeFi papers now that the API budget auto-refreshed.
-     - Why fix this issue and what will be achieved with the fix? Completes the AI scorecard data for the  leaderboard.
-     - Status: NOT STARTED
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Backend
-     - Blocked on other issue: None
-
-  Issue 3: Missing GPT/Gemini SI Ratings (P1)
-     - Attempted fixes: Not addressed yet.
-     - Next debug checklist: Update prompt pipeline in  to enforce Claude's SI rating JSON schema block for GPT and Gemini outputs.
-     - Why fix this issue and what will be achieved with the fix? Allows coherence metric calculations evenly across all 3 models.
-     - Status: NOT STARTED
-     - Is recurring issue? Y
-     - Should Test frontend/backend/both after fix? Backend
-     - Blocked on other issue: None
-
-  Issue 4: Duplicate Medals in Archives (P2)
-     - Attempted fixes: Not addressed yet.
-     - Next debug checklist: Implement a cross-period medalist exclusion rule when regenerating archives.
-     - Why fix this issue and what will be achieved with the fix? Ensures medals are uniquely awarded without duplications in historical data.
-     - Status: NOT STARTED
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Backend
-     - Blocked on other issue: None
+     - Is recurring issue?: Y
+     - Should Test frontend/backend/both after fix?: Backend
 
 **In progress Task List**:
-  Task 1: Complete AI impact assessment for DeFi papers
-     - Where to resume: 120/125 papers assessed. Run the remaining 5.
-     - What will be achieved with this? Fully populated DeFi leaderboard with AI ratings.
-     - Status: IN PROGRESS
-     - Should Test frontend/backend/both after fix? Backend
-     - Blocked on something: None
+  Task 1: Merge new landing page from GitHub (P0)
+     - Where to resume: Wait for user to provide the public GitHub repo link and branch name, OR wait for them to upload the files via chat. Once received, integrate the new landing page into the React frontend.
+     - What will be achieved with this?: Replaces the current homepage with the user's externally developed design.
+     - Status: BLOCKED
+     - Should Test frontend/backend/both after fix?: Frontend
+     - Blocked on something: User providing the code/link.
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
+    - (P0) Semantic Search & Papers Like This: Add a free-text semantic search box to the Similarity Landscape and a papers like this panel inside the paper detail page.
     - (P0) Implement Multiple Reviewer Personas: Implement prompt architecture for diverse AI judges.
+    - (P1) Live ChemRxiv Fetcher Upgrade: Rewrite  to query the live ChemRxiv API with date filtering.
+    - (P1) All-arXiv category expansion: Platform is audited and ready, user needs to decide when to activate.
+    - (P1) Server-Side Rendering (SSR) for Bots / SEO.
     - (P1) Implement Sub-topic Matchmaking (Option B - LLM Classifier).
-    - (P1) Implement Author Verification flow: User connects ORCID via OAuth, adds paper to profile.
-    - (P1) Architecture Split: Implement  env var to isolate web vs worker.
-    - (P2) Add a  vs  stratified accuracy analysis to the ICLR positional bias analysis.
     
     Future Tasks:
-    - (P1) Code Quality: Resolve circular import ring ( ->  -> ).
-    - (P2) Migrate from  to  cookies for auth tokens.
-    - (P2) Refactor monolithic .
+    - (P1) Matryoshka-256 mode: Truncate the 3072D OpenAI embeddings to 256D to save space.
+    - (P1) Parametric UMAP: Make the landscape projection stable across daily updates.
+    - (P1) Add .
+    - (P1) Implement Author Verification flow: User connects ORCID via OAuth.
+    - (P2) Code Quality: Resolve circular import ring ( ->  -> ).
+    - (P2) Frontend render scaling: Migrate Recharts to PixiJS / deck.gl when n > 2k papers.
 
 **Completed work in this session**
-- Debugged  convergence goals discrepancy: Found root cause was 3 fake  entries in the  DB collection polluting tournament stats.
-- Cleaned up the database by deleting the 3 mock entries from  and resetting .
-- Triggered a manual background fetch for the  category to ingest real papers (fetch process downloaded 50 PDFs and began summary generation).
+- Evaluated  and appended it to the Similarity Landscape (Gemini embeddings via proxy failed, skipped). (DONE)
+- Audited and fixed LLM cost tracking (corrected hardcoded pricing, shifted to production timeseries). (DONE)
+- Optimized  endpoint: removed obsolete  matches, dropped  filter, added compound index. (DONE)
+- Admin UI Revamp: Separated Featured Categories (draggable, for homepage) from Active Categories (dropdown). (DONE)
+- Added public Contact Form (), honeypot, DB storage, and Admin Messages tab. (DONE)
+- Updated Privacy Policy (added Google Search Console). (DONE)
+- Added User Export to CSV functionality in Admin Panel. (DONE)
+- Extended AI Summary Prompt with 6 new numerical metrics (difficulty, surprisingness, reproducibility, translational potential, evidence strength, generalisability). (DONE)
+- Built Prompt Stability & Extended Dimensions UI pages under Validation Hub. (DONE)
+- Processed ~16,400 matches and summaries for 4 new ICLR 2025/2026 datasets, outputting to JSONL. (DONE)
+- Massively overhauled Model Correlation logic (): Corrected PW Match Agreement to show actual pair-level agreement. Aligned Controlled SI agreement to strictly use exact PW shared pairs. (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-   - Issue 1: Mobile Unfurling on Twitter/X Fails
-     - Debug checklist: Needs Cloudflare WAF Skip Rule ().
-     - Why to solve this issue and what will be achieved with this? Fixes the degraded link cards on social media. (Requires user to update Cloudflare settings).
-     - Should Test frontend/backend/both after fix: NA (User action needed)
-     - Is recurring issue? Y
+   - None
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: Mobile Unfurling on Twitter/X Fails
-  - Recurrence count: 10+
-  - Status: BLOCKED (Awaiting User Cloudflare config)
+  - Issue recurrence in previous fork: Mobile Unfurling on Twitter/X Fails (WAF block).
+  - Recurrence count: 11+
+  - Status: BLOCKED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Positional Bias & Consistency (PC)**: System tracks if an LLM flips its choice when paper order is swapped.
-- **Strict Round Robin**: Model selection assigns exact ratios to Claude, Gemini, and GPT.
-- **Gmail OAuth Pipeline**: Backend uses  for Gmail OAuth. PKCE state is strictly enforced.
-- **Archive Snapshots**: Weekly archives use strict ISO boundaries. Rank is determined purely by array position, avoiding future scoring method conflicts ().
+- **Single-Item (SI) vs Pairwise (PW) Agreement**: The core logic in  computes how often models agree when comparing absolute 1-10 scores (SI) vs head-to-head match outcomes (PW). 
+- **Pointwise Mutual Information (PMI)**: Used to calculate the Surprisingness of a paper based on tag co-occurrence rarity.
+- **TrueSkill vs Spearman/Kendall**: TrueSkill ranking correlations degrade with fewer matches per paper (convergence noise), while Kendall Tau revealed that SI agreement is fundamentally higher than PW agreement.
 
 **key DB schema**
-  - : , , , 
-  - : , , , 
-  - : Holds tournament ranking records.
-  - : Tracks meta-status (, , ).
-  - : 
-  - : Centralized tracker for all LLM costs.
+  - : , , , , . (NOTE: The  field was completely deleted for all standard matches to allow MongoDB to use indexes correctly. Do not add it back).
+  - : , , .
+  - : .
+  -  (NEW): Stores public submissions from the  form.
 
 **changes in tech stack**
-  - No changes in this session.
-
-**All files of reference** 
-  -  (Checked for goals_met cache behavior)
-  -  (Tournament endpoints and fetch kickoffs)
-
-**Areas that need refactoring**:
-  -  (Monolithic)
-  - Circular dependency ring:  ->  -> .
-
-**key api endpoints**
-  - 
-  -  /  / 
-  - 
-
-**Critical Info for New Agent**
-1. **Dirty Staging Data**: The UI anomaly was caused entirely by fake test data (, , ) from February existing in the DB alongside real production logic. Always verify database contents when mathematical logic seems to fail inexplicably.
-2. **GPT-5.2 Occasional Failure**: During the background fetch of , a minor error was logged: . The retry mechanism should catch this, but monitor it if addressing GPT-related issues next.
-
-**documents and test reports created in this job** 
   - None
 
+**All files of reference** 
+  -  (Heavily updated. Understand the  and  logic before touching).
+  -  (Rewritten to support SI/PW side-by-side tables with Full/Controlled/Tiebreak toggles).
+  -  (Rewritten to separate Featured vs Active categories).
+  -  (Contains the new 11-metric prompt).
+
+**Areas that need refactoring**:
+  -  is sparse. Future work may require syncing  ->  via a background job to ensure full data coverage for Model Correlation pages.
+  -  is mocked.
+
+**key api endpoints**
+  -  (Aggregations optimized)
+  -  (New CSV export)
+  -  (Serves precomputed simulation JSON)
+
+**Critical Info for New Agent**
+1. **GitHub Pulls**: The Emergent container does not have git credentials to pull private repositories. If the user wants you to merge a branch, they MUST provide a public repository URL, or manually upload the files to the chat.
+2. **Database Mode Migration**: The  filter was causing massive performance issues. All obsolete prediction matches were deleted, and  was  from all standard matches. Do not introduce a  or  pattern for regular matches moving forward.
+3. **Model Analysis Complexity**:  is highly complex. The Controlled SI agreement strictly intersects pairs judged by *both* models in the PW tournament that *also* have SI scores from both models. Do not break this intersection logic.
+4. **PRODUCTION VS PREVIEW**: Remind the user that differences in correlation numbers between Preview and Production are due to **data convergence** (Preview papers have more matches per paper on average), not a bug in the code.
+
+**documents and test reports created in this job** 
+  - 
+  - 
+  - 
+
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Can you retry those [5 failed DeFi assessments]?
- 2. User: Why are the convergence goals shown as met despite the new summaries?
- 3. User: Please use ask_human tool and confirm your plan now.
- 4. User: Do P0
- 5. User: Have you found the reason for the convergence goals issue?
- - **PENDING HUMAN MESSAGE**: The user needs to respond to the previous agent's question regarding the  tournament: 1. Activate it (un-pause), 2. Leave it paused, or 3. Delete the tournament entirely. Wait for this response or process it if provided in the immediate next prompt.
+ 1. User: Asked why SI simulated matches don't converge. Agent explained TrueSkill info loss.
+ 2. User: Asked about Spearman vs Kendall. Agent calculated Kendall, proving SI outperforms PW.
+ 3. User: Asked for a Tiebreak switch option. Agent implemented it.
+ 4. User: Asked if SI is better than PW based on ground truth. Agent analyzed ICLR data and confirmed yes.
+ 5. User: Asked to review changes before production deploy. Agent reviewed and cleaned up old fallback code.
+ 6. User: Deployed to production.
+ 7. User: Noticed Github Branch for landing page. Asked if it can be imported.
+ 8. Agent: Explained Emergent's GitHub pull feature.
+ 9. User: Asked where the Github button is and why agent can't access it.
+ 10. User: Asked if agent could do the merge if the GitHub repo was public and the exact branch was provided.
+ *Pending HUMAN message*: Awaiting the user to provide the public GitHub link and branch name to execute the landing page merge.
 
 **Project Health Check:**
-  - Broken: 5 DeFi papers still lack AI Impact assessment (budget hit). One minor summary gen timeout on GPT-5.2 occurred during  background fetch.
-  - Mocked: None (Removed 3 mock rankings in ).
+  - Broken: Twitter/X unfurling (WAF block). TweetAPI integration (User Auth/Rate Limits). Gemini embeddings via Emergent Proxy.
+  - Mocked: ChemRxiv papers.
 
 **3rd Party Integrations** 
-  - OpenAI GPT-5.4, GPT-5.2 — uses Emergent LLM Key
-  - Anthropic Claude Opus 4.6 — uses Emergent LLM Key 
-  - Gemini 3 Pro — uses Emergent LLM Key
-  - TweetAPI.com — requires User API Key ()
-  - Gmail API (OAuth) — GCP Client ID/Secret
-  - OpenAlex — Free public API
+  - OpenAI GPT-5.2, GPT-5.4, GPT-5.5 (Via direct API key).
+  - Anthropic Claude Opus 4.6 (Via direct API key, primary for extended summaries).
+  - Gemini 3 Pro (Via Emergent LLM Key proxy).
+  - TweetAPI.com — requires User API Key.
+  - Google OAuth (Gmail) — requires User Client ID / Secret.
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Only backend script validation performed)
-  - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: None
-  - Known regressions: None
+  - Testing agent used after significant changes: YES (iteration 64)
+  - Troubleshoot agent used after agent stuck in loop: YES
+  - Test files created: , 
+  - Known regressions: None detected.
 
 **Credentials to test flow:**
   - Admin panel:  (or )
+  - Test Email:  / Password: 
 
 **What agent forgot to execute**
-  - Agent successfully debugged the P0 issue but didn't run the script to process the 5 failed DeFi papers (P1 issue). This is next up.
-
-**Debugging checklist for current issue**
-    Issue: Waiting on user choice for  tournament (activate, leave paused, or delete).
-    
-    Backend files to check:
-    -  (Locate tournament update/deletion endpoints)
-    -  shell or  (To execute DB changes manually if needed based on the user's decision)</analysis>
+  - None. Everything requested was addressed. Just waiting on the GitHub link.</analysis>
