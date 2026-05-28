@@ -1,9 +1,54 @@
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
-import { Search, X } from "lucide-react";
+import { Search, X, Clock, CalendarDays, Calendar, Infinity as InfinityIcon } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 const API = process.env.REACT_APP_BACKEND_URL;
+
+// True if the device supports real hover (mouse). False on touch-only.
+export function useIsHoverDevice() {
+  const [hover, setHover] = useState(true);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const update = () => setHover(mq.matches);
+    update();
+    mq.addEventListener ? mq.addEventListener("change", update) : mq.addListener(update);
+    return () => {
+      mq.removeEventListener ? mq.removeEventListener("change", update) : mq.removeListener(update);
+    };
+  }, []);
+  return hover;
+}
+
+/**
+ * Tooltip wrapper that suppresses itself on touch-only devices.
+ * - On desktop: behaves like a normal Radix Tooltip
+ * - On touch: renders the children alone, no popup, no interference with tap actions
+ */
+export function HoverTooltip({ content, side = "top", children, contentClassName = "" }) {
+  const isHover = useIsHoverDevice();
+  if (!isHover || !content) return children;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent
+        side={side}
+        className={`max-w-xs bg-popover text-popover-foreground border border-border shadow-md ${contentClassName}`}
+      >
+        {content}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+// Date-range presets. "all" = no filter.
+export const DATE_RANGES = [
+  { v: "newly", label: "Newly Added", icon: Clock, days: 1 },
+  { v: "7d",    label: "Last 7 Days", icon: CalendarDays, days: 7 },
+  { v: "30d",   label: "Last 30 Days", icon: Calendar, days: 30 },
+  { v: "all",   label: "All Time", icon: InfinityIcon, days: null },
+];
 
 // Master metric configuration. `reason: true` ⇒ has `<name>_reason` field.
 export const METRICS = [
@@ -190,16 +235,17 @@ export function useListState(viewKey, defaults = {}) {
 function buildDefaults(d) {
   return {
     search: "",
+    dateRange: d.dateRange || "all", // "all" | "newly" | "7d" | "30d"
     categories: new Set(),
-    categoryMode: d.categoryMode || "any", // "any" | "primary" | "cross-listed"
-    categoryLogic: d.categoryLogic || "or", // "or" | "and" — combine multiple selected cats
+    categoryMode: d.categoryMode || "any",
+    categoryLogic: d.categoryLogic || "or",
     sortKey: d.sortKey || "score",
     sortDir: d.sortDir || "desc",
-    metricMin: d.metricMin || {}, // { metric: number } — threshold value
-    metricOp: d.metricOp || {},   // { metric: "gte" | "lte" } — operator per metric, default "gte"
-    hidden: new Set(d.hidden || []), // hidden metric keys
+    metricMin: d.metricMin || {},
+    metricOp: d.metricOp || {},
+    hidden: new Set(d.hidden || []),
     includeNulls: d.includeNulls ?? true,
-    headerMode: d.headerMode || "labels", // "labels" | "charts"
+    headerMode: d.headerMode || "labels",
   };
 }
 
@@ -210,7 +256,15 @@ export function applyFilters(papers, state) {
   const logic = state.categoryLogic || "or";
   const minMap = state.metricMin || {};
   const opMap = state.metricOp || {};
+  // Date range cutoff (in ms since epoch). null = no filter.
+  const dr = DATE_RANGES.find(r => r.v === (state.dateRange || "all"));
+  const cutoff = dr && dr.days != null ? Date.now() - dr.days * 86400000 : null;
   return papers.filter(p => {
+    if (cutoff != null) {
+      if (!p.published) return false;
+      const t = Date.parse(p.published);
+      if (isNaN(t) || t < cutoff) return false;
+    }
     if (q) {
       const titleMatch = p.title && p.title.toLowerCase().includes(q);
       const authorMatch = (p.authors || []).some(a => a && a.toLowerCase().includes(q));
@@ -295,7 +349,7 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
   });
 
   const resetAll = () => setState({
-    search: "", categories: new Set(),
+    search: "", dateRange: "all", categories: new Set(),
     categoryMode: "any", categoryLogic: "or",
     sortKey: "score", sortDir: "desc",
     metricMin: {}, metricOp: {},
@@ -329,6 +383,30 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
         <button onClick={resetAll} className="text-xs py-1 px-2 rounded border border-border bg-background hover:bg-secondary" data-testid="lv-reset">
           Reset
         </button>
+      </div>
+
+      {/* Date range pill selector */}
+      <div className="flex flex-wrap items-center gap-1.5" data-testid="lv-date-range">
+        {DATE_RANGES.map(r => {
+          const Icon = r.icon;
+          const active = (state.dateRange || "all") === r.v;
+          return (
+            <button
+              key={r.v}
+              onClick={() => setState({ dateRange: r.v })}
+              className={`inline-flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-full border transition-colors ${
+                active
+                  ? "bg-foreground text-background border-foreground"
+                  : "bg-background text-muted-foreground hover:text-foreground border-border"
+              }`}
+              data-testid={`lv-date-range-${r.v}`}
+              title={r.days != null ? `Papers published in the last ${r.days} day${r.days === 1 ? "" : "s"}` : "No date restriction"}
+            >
+              <Icon className="h-3 w-3" />
+              {r.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Category multiselect */}
@@ -369,23 +447,23 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
                   ].map(opt => {
                     const active = (state.categoryMode || "any") === opt.v;
                     return (
-                      <Tooltip key={opt.v}>
-                        <TooltipTrigger asChild>
-                          <button
-                            onClick={() => setState({ categoryMode: opt.v })}
-                            className={`text-[10px] px-2.5 py-1 rounded transition-colors ${active ? "bg-background text-foreground shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"}`}
-                            data-testid={`lv-cat-mode-${opt.v}`}
-                          >
-                            {opt.label}
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-xs bg-popover text-popover-foreground border border-border shadow-md">
+                      <HoverTooltip
+                        key={opt.v}
+                        content={
                           <div className="space-y-0.5">
                             <div className="text-[11px] font-medium">{opt.label}</div>
                             <p className="text-[11px] leading-snug text-muted-foreground">{opt.tip}</p>
                           </div>
-                        </TooltipContent>
-                      </Tooltip>
+                        }
+                      >
+                        <button
+                          onClick={() => setState({ categoryMode: opt.v })}
+                          className={`text-[10px] px-2.5 py-1 rounded transition-colors ${active ? "bg-background text-foreground shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"}`}
+                          data-testid={`lv-cat-mode-${opt.v}`}
+                        >
+                          {opt.label}
+                        </button>
+                      </HoverTooltip>
                     );
                   })}
                 </div>
@@ -447,23 +525,8 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
         <summary className="text-[10px] text-muted-foreground uppercase tracking-wider cursor-pointer select-none mb-2 hover:text-foreground flex items-center gap-2 list-none [&::-webkit-details-marker]:hidden">
           <span className="text-sm leading-none inline-block transition-transform group-open:rotate-90">▸</span>
           <span>Per-metric minimum (drag to filter)</span>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <label
-                className="ml-auto flex items-center gap-1 text-[10px] normal-case tracking-normal cursor-pointer text-muted-foreground hover:text-foreground"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <input
-                  type="checkbox"
-                  checked={state.includeNulls}
-                  onChange={(e) => setState({ includeNulls: e.target.checked })}
-                  className="accent-accent"
-                  data-testid="lv-include-nulls"
-                />
-                Include N/A
-              </label>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-xs bg-popover text-popover-foreground border border-border shadow-md">
+          <HoverTooltip
+            content={
               <div className="space-y-0.5">
                 <div className="text-[11px] font-medium">Include N/A</div>
                 <p className="text-[11px] leading-snug text-muted-foreground">
@@ -472,8 +535,22 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
                   they are excluded as soon as any threshold is set on a metric they lack.
                 </p>
               </div>
-            </TooltipContent>
-          </Tooltip>
+            }
+          >
+            <label
+              className="ml-auto flex items-center gap-1 text-[10px] normal-case tracking-normal cursor-pointer text-muted-foreground hover:text-foreground"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input
+                type="checkbox"
+                checked={state.includeNulls}
+                onChange={(e) => setState({ includeNulls: e.target.checked })}
+                className="accent-accent"
+                data-testid="lv-include-nulls"
+              />
+              Include N/A
+            </label>
+          </HoverTooltip>
         </summary>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
           {visibleMetrics.map(m => {
@@ -548,12 +625,13 @@ export function ListViewShell({ title, subtitle, children }) {
   );
 }
 
-// Reusable wrapper to attach a reasoning tooltip to a metric value
+// Reusable wrapper to attach a reasoning tooltip to a metric value (desktop only)
 export function MetricValue({ metric, value, reason, className, children }) {
   const content = children ?? (
     <span className={className}>{value != null ? value.toFixed(1) : "—"}</span>
   );
-  if (!reason) return content;
+  const isHover = useIsHoverDevice();
+  if (!reason || !isHover) return content;
   return (
     <Tooltip>
       <TooltipTrigger asChild>{content}</TooltipTrigger>

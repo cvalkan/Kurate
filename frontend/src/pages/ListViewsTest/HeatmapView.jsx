@@ -1,10 +1,10 @@
 import { useMemo, useState, useEffect, useRef } from "react";
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { ArrowUp, ArrowDown, AlignLeft, BarChart3 } from "lucide-react";
 import {
   METRICS, useExtendedPapers, useListState, applyFilters, applySort,
   FilterBar, ListViewShell, MetricValue, scoreColor, scoreTextColor,
-  computeMiniHistogram,
+  computeMiniHistogram, HoverTooltip,
 } from "./_shared";
 
 const PAGE_SIZE = 40;
@@ -135,24 +135,8 @@ export default function HeatmapView() {
                   const active = state.sortKey === m.key;
                   return (
                     <th key={m.key} className="py-2 text-center border-b border-border">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            onClick={() => setSort(m.key)}
-                            className={`inline-flex items-center justify-center text-[10px] font-medium w-full transition-colors hover:text-foreground tabular-nums ${active ? "text-foreground" : "text-muted-foreground"}`}
-                            data-testid={`lv-th-${m.key}`}
-                          >
-                            {headerMode === "charts" ? (
-                              <MiniColumnChart metric={m} hist={histograms[m.key]} active={active} />
-                            ) : (
-                              <>
-                                <span className="truncate">{m.short}</span>
-                                {active && (state.sortDir === "asc" ? <ArrowUp className="h-2 w-2 shrink-0 ml-px" /> : <ArrowDown className="h-2 w-2 shrink-0 ml-px" />)}
-                              </>
-                            )}
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-xs bg-popover text-popover-foreground border border-border shadow-md">
+                      <HoverTooltip
+                        content={
                           <div className="space-y-1">
                             <div className="flex items-center gap-1.5">
                               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: m.color }} />
@@ -165,8 +149,23 @@ export default function HeatmapView() {
                               </p>
                             )}
                           </div>
-                        </TooltipContent>
-                      </Tooltip>
+                        }
+                      >
+                        <button
+                          onClick={() => setSort(m.key)}
+                          className={`inline-flex items-center justify-center text-[10px] font-medium w-full transition-colors hover:text-foreground tabular-nums ${active ? "text-foreground" : "text-muted-foreground"}`}
+                          data-testid={`lv-th-${m.key}`}
+                        >
+                          {headerMode === "charts" ? (
+                            <MiniColumnChart metric={m} hist={histograms[m.key]} active={active} />
+                          ) : (
+                            <>
+                              <span className="truncate">{m.short}</span>
+                              {active && (state.sortDir === "asc" ? <ArrowUp className="h-2 w-2 shrink-0 ml-px" /> : <ArrowDown className="h-2 w-2 shrink-0 ml-px" />)}
+                            </>
+                          )}
+                        </button>
+                      </HoverTooltip>
                     </th>
                   );
                 })}
