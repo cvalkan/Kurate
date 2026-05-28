@@ -55,7 +55,7 @@ export default function HeatmapView() {
   }));
 
   return (
-    <TooltipProvider delayDuration={120}>
+    <TooltipProvider delayDuration={120} skipDelayDuration={0} disableHoverableContent>
       <ListViewShell
         title="D — Heatmap Matrix"
         subtitle="Each row is a paper, each column a metric. Cell color = score (red → green). Hover a cell for value + reasoning, hover a column header for the metric description. Click a header to sort."

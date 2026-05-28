@@ -402,9 +402,6 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
                     );
                   })}
                 </div>
-                {state.categories.size < 2 && (
-                  <span className="text-[10px] text-muted-foreground italic">no effect until 2+ categories selected</span>
-                )}
               </div>
 
               {/* Category tags row */}
