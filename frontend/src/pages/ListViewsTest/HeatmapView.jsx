@@ -1,15 +1,15 @@
-import { useMemo, useState, useEffect, useRef, Profiler, memo } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback, Profiler, memo, forwardRef } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ArrowUp, ArrowDown, AlignLeft, BarChart3 } from "lucide-react";
+import { TableVirtuoso } from "react-virtuoso";
 import {
   METRICS, useExtendedPapers, useListState, applyFilters, applySort,
   FilterBar, ListViewShell, MetricValue, scoreColor, scoreTextColor,
   computeMiniHistogram, HoverTooltip, measureBlock,
 } from "./_shared";
 
-const PAGE_SIZE = 40;
-const METRIC_COL_WIDTH = 56;   // uniform width for every metric column
-const DATE_COL_WIDTH = 78;     // dedicated Published column
+const METRIC_COL_WIDTH = 56;
+const DATE_COL_WIDTH = 78;
 
 function formatPublished(iso) {
   if (!iso) return null;
@@ -73,40 +73,123 @@ export function HeatmapPage({ data, listStateKey = "heatmap", headerExtras = nul
     return out;
   }), [filtered, visibleMetrics]);
 
-  const [shown, setShown] = useState(PAGE_SIZE);
-  const sentinelRef = useRef(null);
-
-  // Reset infinite-scroll position only when the *filtered set* changes — not on sort/hide/header-mode changes.
-  useEffect(() => { setShown(PAGE_SIZE); }, [
-    state.search,
-    state.dateRange,
-    state.categories,
-    state.categoryMode,
-    state.categoryLogic,
-    state.metricMin,
-    state.metricOp,
-    state.includeNulls,
-    papers.length,
-  ]);
-
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) setShown(prev => Math.min(prev + PAGE_SIZE, visible.length));
-    }, { rootMargin: "600px" });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [visible.length]);
-
-  const rendered = visible.slice(0, shown);
-  const hasMore = shown < visible.length;
-
-  const setSort = (key) => setState(prev => ({
+  const setSort = useCallback((key) => setState(prev => ({
     ...prev,
     sortKey: key,
     sortDir: prev.sortKey === key ? (prev.sortDir === "asc" ? "desc" : "asc") : "desc",
-  }));
+  })), [setState]);
+
+  // Stable per-row renderer for TableVirtuoso. Memoised externally; identity stays the same
+  // until visibleMetrics changes (which it does on column show/hide).
+  const itemContent = useCallback((index, paper) => (
+    <HeatmapRowCells paper={paper} index={index} visibleMetrics={visibleMetrics} />
+  ), [visibleMetrics]);
+
+  // Custom Table component so we can inject <colgroup> and the rounded card styling.
+  const TableComponent = useMemo(() => {
+    const Comp = ({ style, children, ...rest }) => (
+      <table {...rest} className="w-full text-xs border-collapse table-fixed" style={style}>
+        <colgroup>
+          <col style={{ width: DATE_COL_WIDTH }} />
+          <col className="w-[260px] min-w-[230px] sm:w-auto sm:min-w-[340px]" />
+          {visibleMetrics.map(m => <col key={m.key} style={{ width: METRIC_COL_WIDTH }} />)}
+        </colgroup>
+        {children}
+      </table>
+    );
+    return Comp;
+  }, [visibleMetrics]);
+
+  const virtuosoComponents = useMemo(() => ({
+    Table: TableComponent,
+    TableHead: forwardRef(function TableHeadComp({ children, ...props }, ref) {
+      return (
+        <thead ref={ref} {...props} className="sticky top-0 z-20 bg-card">
+          {children}
+        </thead>
+      );
+    }),
+    TableRow: forwardRef(function TableRowComp({ children, ...props }, ref) {
+      const idx = parseInt(props["data-index"], 10);
+      const stripe = Number.isFinite(idx) && idx % 2 === 1 ? "bg-secondary/10" : "bg-background";
+      return (
+        <tr ref={ref} {...props} className={stripe} style={{ height: 72 }} data-testid={`lv-row-${Number.isFinite(idx) ? idx : ""}`}>
+          {children}
+        </tr>
+      );
+    }),
+    EmptyPlaceholder: () => (
+      <tbody>
+        <tr><td colSpan={2 + visibleMetrics.length} className="py-12 text-center text-muted-foreground">
+          {loading ? "Loading…" : "No papers match current filters."}
+        </td></tr>
+      </tbody>
+    ),
+  }), [TableComponent, visibleMetrics, loading]);
+
+  const fixedHeaderContent = useCallback(() => (
+    <tr>
+      <th className="text-left py-2 px-3 border-b border-border bg-card">
+        <button
+          onClick={() => setSort("published")}
+          className={`text-[10px] font-medium hover:text-foreground transition-colors inline-flex items-center gap-1 ${state.sortKey === "published" ? "text-foreground" : "text-muted-foreground"}`}
+          data-testid="lv-th-published"
+          title="Sort by publication date"
+        >
+          Published
+          {state.sortKey === "published" && (state.sortDir === "asc" ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />)}
+        </button>
+      </th>
+      <th className="text-left py-2 px-3 border-b border-border bg-card">
+        <button
+          onClick={() => setSort("title")}
+          className={`text-[10px] font-medium hover:text-foreground transition-colors inline-flex items-center gap-1 ${state.sortKey === "title" ? "text-foreground" : "text-muted-foreground"}`}
+          data-testid="lv-th-title"
+        >
+          Paper
+          {state.sortKey === "title" && (state.sortDir === "asc" ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />)}
+        </button>
+      </th>
+      {visibleMetrics.map(m => {
+        const active = state.sortKey === m.key;
+        return (
+          <th key={m.key} className="py-2 text-center border-b border-border bg-card">
+            <HoverTooltip
+              content={
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: m.color }} />
+                    <span className="text-[11px] font-medium">{m.label}</span>
+                  </div>
+                  <p className="text-[11px] leading-snug">{m.desc}</p>
+                  {headerMode === "charts" && histograms[m.key] && histograms[m.key].n > 0 && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Distribution across {histograms[m.key].n} visible papers · mean {histograms[m.key].mean?.toFixed(1)}
+                    </p>
+                  )}
+                </div>
+              }
+            >
+              <button
+                onClick={() => setSort(m.key)}
+                className={`inline-flex items-center justify-center text-[10px] font-medium w-full transition-colors hover:text-foreground tabular-nums ${active ? "text-foreground" : "text-muted-foreground"}`}
+                data-testid={`lv-th-${m.key}`}
+              >
+                {headerMode === "charts" ? (
+                  <MiniColumnChart metric={m} hist={histograms[m.key]} active={active} />
+                ) : (
+                  <>
+                    <span className="truncate">{m.short}</span>
+                    {active && (state.sortDir === "asc" ? <ArrowUp className="h-2 w-2 shrink-0 ml-px" /> : <ArrowDown className="h-2 w-2 shrink-0 ml-px" />)}
+                  </>
+                )}
+              </button>
+            </HoverTooltip>
+          </th>
+        );
+      })}
+    </tr>
+  ), [state.sortKey, state.sortDir, visibleMetrics, headerMode, histograms, setSort]);
 
   return (
     <TooltipProvider delayDuration={120} skipDelayDuration={0} disableHoverableContent>
@@ -121,10 +204,9 @@ export function HeatmapPage({ data, listStateKey = "heatmap", headerExtras = nul
           <div className="text-xs text-muted-foreground" data-testid="lv-count">
             {loading
               ? "Loading…"
-              : `Showing ${rendered.length} of ${visible.length} filtered (${n} total)`}
+              : `${visible.length.toLocaleString()} filtered (${n.toLocaleString()} total) · virtualized`}
           </div>
           <div className="flex items-center gap-3">
-            {/* Header-mode toggle: text labels ↔ distribution charts */}
             <div className="inline-flex rounded-md border border-border overflow-hidden" data-testid="lv-header-mode">
               <button
                 onClick={() => setState({ headerMode: "labels" })}
@@ -158,102 +240,17 @@ export function HeatmapPage({ data, listStateKey = "heatmap", headerExtras = nul
             } catch (_) { /* ignore */ }
           }
         }}>
-        <div className="border border-border rounded-lg bg-card" style={{ overflowX: "auto" }} data-testid="lv-heatmap">
-          <table className="w-full text-xs border-collapse table-fixed">
-            <colgroup>
-              <col style={{ width: DATE_COL_WIDTH }} />
-              <col className="w-[260px] min-w-[230px] sm:w-auto sm:min-w-[340px]" />
-              {visibleMetrics.map(m => <col key={m.key} style={{ width: METRIC_COL_WIDTH }} />)}
-            </colgroup>
-            <thead className="sticky top-0 z-20 bg-card">
-              <tr>
-                <th className="text-left py-2 px-3 border-b border-border">
-                  <button
-                    onClick={() => setSort("published")}
-                    className={`text-[10px] font-medium hover:text-foreground transition-colors inline-flex items-center gap-1 ${state.sortKey === "published" ? "text-foreground" : "text-muted-foreground"}`}
-                    data-testid="lv-th-published"
-                    title="Sort by publication date"
-                  >
-                    Published
-                    {state.sortKey === "published" && (state.sortDir === "asc" ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />)}
-                  </button>
-                </th>
-                <th className="text-left py-2 px-3 border-b border-border">
-                  <button
-                    onClick={() => setSort("title")}
-                    className={`text-[10px] font-medium hover:text-foreground transition-colors inline-flex items-center gap-1 ${state.sortKey === "title" ? "text-foreground" : "text-muted-foreground"}`}
-                    data-testid="lv-th-title"
-                  >
-                    Paper
-                    {state.sortKey === "title" && (state.sortDir === "asc" ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />)}
-                  </button>
-                </th>
-                {visibleMetrics.map(m => {
-                  const active = state.sortKey === m.key;
-                  return (
-                    <th key={m.key} className="py-2 text-center border-b border-border">
-                      <HoverTooltip
-                        content={
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: m.color }} />
-                              <span className="text-[11px] font-medium">{m.label}</span>
-                            </div>
-                            <p className="text-[11px] leading-snug">{m.desc}</p>
-                            {headerMode === "charts" && histograms[m.key] && histograms[m.key].n > 0 && (
-                              <p className="text-[10px] text-muted-foreground">
-                                Distribution across {histograms[m.key].n} visible papers · mean {histograms[m.key].mean?.toFixed(1)}
-                              </p>
-                            )}
-                          </div>
-                        }
-                      >
-                        <button
-                          onClick={() => setSort(m.key)}
-                          className={`inline-flex items-center justify-center text-[10px] font-medium w-full transition-colors hover:text-foreground tabular-nums ${active ? "text-foreground" : "text-muted-foreground"}`}
-                          data-testid={`lv-th-${m.key}`}
-                        >
-                          {headerMode === "charts" ? (
-                            <MiniColumnChart metric={m} hist={histograms[m.key]} active={active} />
-                          ) : (
-                            <>
-                              <span className="truncate">{m.short}</span>
-                              {active && (state.sortDir === "asc" ? <ArrowUp className="h-2 w-2 shrink-0 ml-px" /> : <ArrowDown className="h-2 w-2 shrink-0 ml-px" />)}
-                            </>
-                          )}
-                        </button>
-                      </HoverTooltip>
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {rendered.map((p, i) => (
-                <HeatmapRow
-                  key={p.paper_id}
-                  paper={p}
-                  index={i}
-                  visibleMetrics={visibleMetrics}
-                />
-              ))}
-              {!loading && visible.length === 0 && (
-                <tr><td colSpan={2 + visibleMetrics.length} className="py-12 text-center text-muted-foreground">No papers match current filters.</td></tr>
-              )}
-            </tbody>
-          </table>
-
-          {hasMore && (
-            <div ref={sentinelRef} className="py-3 text-center text-[10px] text-muted-foreground" data-testid="lv-infinite-sentinel">
-              Loading more papers… ({visible.length - shown} remaining)
-            </div>
-          )}
-          {!hasMore && visible.length > PAGE_SIZE && (
-            <div className="py-3 text-center text-[10px] text-muted-foreground">
-              End of results · {visible.length} papers
-            </div>
-          )}
-        </div>
+          <div className="border border-border rounded-lg bg-card" style={{ overflowX: "auto" }} data-testid="lv-heatmap">
+            <TableVirtuoso
+              useWindowScroll
+              data={visible}
+              increaseViewportBy={{ top: 400, bottom: 800 }}
+              components={virtuosoComponents}
+              fixedHeaderContent={fixedHeaderContent}
+              itemContent={itemContent}
+              computeItemKey={(_, p) => p.paper_id}
+            />
+          </div>
         </Profiler>
       </ListViewShell>
     </TooltipProvider>
@@ -341,13 +338,9 @@ function _PaperCell({ paper }) {
 }
 const PaperCell = memo(_PaperCell);
 
-function _HeatmapRow({ paper, index, visibleMetrics }) {
+function _HeatmapRowCells({ paper, index, visibleMetrics }) {
   return (
-    <tr
-      data-testid={`lv-row-${index}`}
-      className={index % 2 === 0 ? "bg-background" : "bg-secondary/10"}
-      style={{ height: 72 }}
-    >
+    <>
       <td className="py-2 px-3 border-b border-border/30 align-top">
         <span className="text-[11px] text-muted-foreground whitespace-nowrap leading-tight">
           {formatPublished(paper.published) || "—"}
@@ -372,10 +365,10 @@ function _HeatmapRow({ paper, index, visibleMetrics }) {
           </td>
         );
       })}
-    </tr>
+    </>
   );
 }
-const HeatmapRow = memo(_HeatmapRow);
+const HeatmapRowCells = memo(_HeatmapRowCells);
 
 function ColorRamp() {
   const stops = [1, 2, 3, 4, 5, 5.5, 6, 7, 8, 9, 10];
