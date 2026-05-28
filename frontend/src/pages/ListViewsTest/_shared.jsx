@@ -207,7 +207,11 @@ export function applyFilters(papers, state) {
   const mode = state.categoryMode || "any";
   const minMap = state.metricMin || {};
   return papers.filter(p => {
-    if (q && !p.title.toLowerCase().includes(q)) return false;
+    if (q) {
+      const titleMatch = p.title && p.title.toLowerCase().includes(q);
+      const authorMatch = (p.authors || []).some(a => a && a.toLowerCase().includes(q));
+      if (!titleMatch && !authorMatch) return false;
+    }
     if (cats.size > 0) {
       const primary = p.category;
       const all = p.categories || (primary ? [primary] : []);
@@ -289,7 +293,7 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search title..."
+            placeholder="Search title or author..."
             value={state.search}
             onChange={(e) => setState({ search: e.target.value })}
             className="w-full pl-7 pr-7 py-1.5 text-xs rounded border border-border bg-background outline-none focus:border-accent"
@@ -319,7 +323,7 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
           : `${modeLabel} · ${selected.slice(0, 3).join(", ")}${selected.length > 3 ? ` +${selected.length - 3}` : ""}`;
         return (
           <details className="border-t border-border/40 pt-2 group">
-            <summary className="text-[10px] uppercase tracking-wider cursor-pointer select-none flex items-center gap-2 hover:text-foreground text-muted-foreground">
+            <summary className="text-[10px] uppercase tracking-wider cursor-pointer select-none flex items-center gap-2 hover:text-foreground text-muted-foreground list-none [&::-webkit-details-marker]:hidden">
               <span className="inline-block transition-transform group-open:rotate-90">▸</span>
               <span>Category</span>
               <span className="normal-case tracking-normal text-[11px] text-foreground/70 font-normal">{summaryText}</span>
@@ -334,10 +338,10 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
               )}
             </summary>
             <div className="space-y-2 mt-2">
-              {/* Mode row — distinct text-only buttons, naturally align with the tags row */}
+              {/* Mode row — segmented control, kept aligned with the tags row */}
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider w-[64px] shrink-0">Match</span>
-                <div className="flex items-center gap-3" data-testid="lv-cat-mode">
+                <div className="inline-flex rounded-md bg-secondary/60 p-0.5 gap-0.5 -ml-0.5" data-testid="lv-cat-mode">
                   {[
                     { v: "any", label: "Any" },
                     { v: "primary", label: "Primary only" },
@@ -348,7 +352,7 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
                       <button
                         key={opt.v}
                         onClick={() => setState({ categoryMode: opt.v })}
-                        className={`text-[11px] transition-colors inline-flex items-center gap-1.5 ${active ? "text-foreground font-medium" : "text-muted-foreground hover:text-foreground"}`}
+                        className={`text-[10px] px-2.5 py-1 rounded transition-colors ${active ? "bg-background text-foreground shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"}`}
                         data-testid={`lv-cat-mode-${opt.v}`}
                         title={
                           opt.v === "primary" ? "Match only papers whose primary category is selected"
@@ -356,12 +360,6 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
                           : "Match papers with selected category as primary or cross-listed"
                         }
                       >
-                        <span
-                          className={`w-3 h-3 rounded-full border flex items-center justify-center transition-colors ${active ? "border-accent" : "border-muted-foreground/40"}`}
-                          aria-hidden
-                        >
-                          {active && <span className="w-1.5 h-1.5 rounded-full bg-accent" />}
-                        </span>
                         {opt.label}
                       </button>
                     );
@@ -394,9 +392,10 @@ export function FilterBar({ state, setState, papers, sortableKeys = null, showCo
       })()}
 
       {/* Per-metric minimum filters */}
-      <details className="border-t border-border/40 pt-2" open>
-        <summary className="text-[10px] text-muted-foreground uppercase tracking-wider cursor-pointer select-none mb-2 hover:text-foreground">
-          Per-metric minimum (drag to filter)
+      <details className="border-t border-border/40 pt-2 group" open>
+        <summary className="text-[10px] text-muted-foreground uppercase tracking-wider cursor-pointer select-none mb-2 hover:text-foreground flex items-center gap-2 list-none [&::-webkit-details-marker]:hidden">
+          <span className="inline-block transition-transform group-open:rotate-90">▸</span>
+          <span>Per-metric minimum (drag to filter)</span>
         </summary>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
           {visibleMetrics.map(m => {
