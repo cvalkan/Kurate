@@ -3,6 +3,7 @@ import axios from "axios";
 import { Loader2, Play, Clock, HardDrive, AlertTriangle } from "lucide-react";
 import { METRICS } from "./_shared";
 import { HeatmapPage } from "./HeatmapView";
+import { PerfOverlay } from "./PerfOverlay";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -55,13 +56,28 @@ function useScalingTestPapers(loadKey, n, seed, includeReasoning) {
       .then(async (resp) => {
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         tFetchEnd = performance.now();
+        // Emit performance.measure entries so <PerfOverlay> picks them up
+        try {
+          const m = `data:fetch-${t0}`;
+          performance.mark(m, { startTime: t0 });
+          performance.measure("data:fetch", m);
+          performance.clearMarks(m);
+        } catch (_) { /* ignore */ }
+        const tParseStart = performance.now();
         const text = await resp.text();
         bytes = new Blob([text]).size;
         const obj = JSON.parse(text);
         tParseEnd = performance.now();
+        try {
+          const m = `data:parse-${tParseStart}`;
+          performance.mark(m, { startTime: tParseStart });
+          performance.measure("data:parse", m);
+          performance.clearMarks(m);
+        } catch (_) { /* ignore */ }
         return obj;
       })
       .then((obj) => {
+        const tFlattenStart = performance.now();
         const raw = obj?.exp3?.papers || [];
         const flat = raw.map(p => {
           const out = {
@@ -81,6 +97,12 @@ function useScalingTestPapers(loadKey, n, seed, includeReasoning) {
           return out;
         });
         tFlattenEnd = performance.now();
+        try {
+          const m = `data:flatten-${tFlattenStart}`;
+          performance.mark(m, { startTime: tFlattenStart });
+          performance.measure("data:flatten", m);
+          performance.clearMarks(m);
+        } catch (_) { /* ignore */ }
         setPerf({
           fetchMs: tFetchEnd - t0,
           parseMs: tParseEnd - tFetchEnd,
@@ -219,7 +241,10 @@ export default function ScaleTestPage() {
       listStateKey="scale-test"
       titleOverride="Scaling test — Heatmap with synthetic papers"
       subtitleOverride="Stress-test environment. Choose a paper count and click Generate. The list page below is identical to the production heatmap so any client-side perf cliff (filter, sort, render) shows up here at the chosen scale. Server-side filtering is NOT applied here — this is intentional, so we can measure the pure client-side cost."
-      headerExtras={headerExtras}
+      headerExtras={<>
+        {headerExtras}
+        <PerfOverlay title="Phase 0 live performance" />
+      </>}
     />
   );
 }

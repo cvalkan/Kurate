@@ -1,10 +1,10 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, Profiler } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ArrowUp, ArrowDown, AlignLeft, BarChart3 } from "lucide-react";
 import {
   METRICS, useExtendedPapers, useListState, applyFilters, applySort,
   FilterBar, ListViewShell, MetricValue, scoreColor, scoreTextColor,
-  computeMiniHistogram, HoverTooltip,
+  computeMiniHistogram, HoverTooltip, measureBlock,
 } from "./_shared";
 
 const PAGE_SIZE = 40;
@@ -48,11 +48,11 @@ export function HeatmapPage({ data, listStateKey = "heatmap", headerExtras = nul
   const headerMode = state.headerMode || "labels";
 
   // Per-column distribution histograms (over the currently visible / filtered papers)
-  const histograms = useMemo(() => {
+  const histograms = useMemo(() => measureBlock("perf:histogram", () => {
     const out = {};
     visibleMetrics.forEach(m => { out[m.key] = computeMiniHistogram(visible, m.key, 10); });
     return out;
-  }, [visible, visibleMetrics]);
+  }), [visible, visibleMetrics]);
 
   const [shown, setShown] = useState(PAGE_SIZE);
   const sentinelRef = useRef(null);
@@ -128,6 +128,17 @@ export function HeatmapPage({ data, listStateKey = "heatmap", headerExtras = nul
           </div>
         </div>
 
+        <Profiler id="heatmap-render" onRender={(_id, _phase, actualDuration) => {
+          if (typeof performance !== "undefined" && performance.mark) {
+            try {
+              const start = performance.now() - actualDuration;
+              const mark = `perf:render-start-${start}`;
+              performance.mark(mark, { startTime: start });
+              performance.measure("perf:render", mark);
+              performance.clearMarks(mark);
+            } catch (_) { /* ignore */ }
+          }
+        }}>
         <div className="border border-border rounded-lg bg-card" style={{ overflowX: "auto" }} data-testid="lv-heatmap">
           <table className="w-full text-xs border-collapse table-fixed">
             <colgroup>
@@ -242,6 +253,7 @@ export function HeatmapPage({ data, listStateKey = "heatmap", headerExtras = nul
             </div>
           )}
         </div>
+        </Profiler>
       </ListViewShell>
     </TooltipProvider>
   );

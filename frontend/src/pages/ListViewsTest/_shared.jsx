@@ -178,28 +178,40 @@ export function useExtendedPapers() {
   const [state, setState] = useState({ loading: true, papers: [], n: 0, error: null });
   useEffect(() => {
     let cancelled = false;
+    const tFetchStart = (typeof performance !== "undefined" && performance.now) ? performance.now() : 0;
     axios.get(`${API}/api/prompt-stability-results`).then(r => {
       if (cancelled) return;
-      const papers = r.data?.exp3?.papers || [];
-      // Pre-flatten ratings into top-level fields for easy sort/filter
-      const flat = papers.map(p => {
-        const out = {
-          paper_id: p.paper_id,
-          title: p.title,
-          category: p.category,
-          categories: p.categories || (p.category ? [p.category] : []),
-          authors: p.authors || [],
-          published: p.published || null,
-          arxiv_id: p.arxiv_id || null,
-        };
-        const ratings = p.ratings || {};
-        METRICS.forEach(m => {
-          out[m.key] = ratings[m.key] ?? null;
-          if (m.reason) out[`${m.key}_reason`] = ratings[`${m.key}_reason`] || "";
+      // Manually mark the fetch (axios resolves with parsed JSON, so the parse cost is hidden inside;
+      // we approximate by marking fetch end here).
+      const tFetchEnd = performance.now ? performance.now() : 0;
+      try {
+        const mark = `data:fetch-${tFetchStart}`;
+        performance.mark(mark, { startTime: tFetchStart });
+        performance.measure("data:fetch", mark);
+        performance.clearMarks(mark);
+      } catch (_) { /* ignore */ }
+      const flat = measureBlock("data:flatten", () => {
+        const papers = r.data?.exp3?.papers || [];
+        return papers.map(p => {
+          const out = {
+            paper_id: p.paper_id,
+            title: p.title,
+            category: p.category,
+            categories: p.categories || (p.category ? [p.category] : []),
+            authors: p.authors || [],
+            published: p.published || null,
+            arxiv_id: p.arxiv_id || null,
+          };
+          const ratings = p.ratings || {};
+          METRICS.forEach(m => {
+            out[m.key] = ratings[m.key] ?? null;
+            if (m.reason) out[`${m.key}_reason`] = ratings[`${m.key}_reason`] || "";
+          });
+          return out;
         });
-        return out;
       });
       setState({ loading: false, papers: flat, n: r.data?.exp3?.n || flat.length, error: null });
+      void tFetchEnd;
     }).catch(err => {
       if (!cancelled) setState({ loading: false, papers: [], n: 0, error: String(err) });
     });
@@ -258,7 +270,42 @@ function buildDefaults(d) {
   };
 }
 
-export function applyFilters(papers, state) {
+// --- Performance instrumentation -------------------------------------------
+// Wraps a function so each call emits a `performance.measure` entry under `name`.
+// Subscribers (e.g. <PerfOverlay>) listen via PerformanceObserver to surface
+// live latency stats. Safe to call when the Performance API is unavailable.
+let _perfSeq = 0;
+function withTiming(name, fn) {
+  return function (...args) {
+    if (typeof performance === "undefined" || !performance.mark) return fn.apply(this, args);
+    const mark = `${name}-${++_perfSeq}`;
+    try {
+      performance.mark(mark);
+      return fn.apply(this, args);
+    } finally {
+      try {
+        performance.measure(name, mark);
+        performance.clearMarks(mark);
+      } catch (_) { /* observer detached */ }
+    }
+  };
+}
+
+// Imperative timing helper for blocks we can't wrap as functions (e.g. histogram loops, useMemo bodies).
+export function measureBlock(name, fn) {
+  if (typeof performance === "undefined" || !performance.mark) return fn();
+  const mark = `${name}-${++_perfSeq}`;
+  performance.mark(mark);
+  try { return fn(); }
+  finally {
+    try {
+      performance.measure(name, mark);
+      performance.clearMarks(mark);
+    } catch (_) { /* ignore */ }
+  }
+}
+
+function _applyFilters(papers, state) {
   const q = (state.search || "").trim().toLowerCase();
   const cats = state.categories;
   const mode = state.categoryMode || "any";
@@ -314,7 +361,9 @@ export function applyFilters(papers, state) {
   });
 }
 
-export function applySort(papers, state) {
+export const applyFilters = withTiming("perf:filter", _applyFilters);
+
+function _applySort(papers, state) {
   const { sortKey, sortDir } = state;
   const dir = sortDir === "asc" ? 1 : -1;
   const arr = [...papers];
@@ -329,6 +378,7 @@ export function applySort(papers, state) {
   });
   return arr;
 }
+export const applySort = withTiming("perf:sort", _applySort);
 
 // Top filter bar shared across views
 export function FilterBar({ state, setState, papers, sortableKeys = null, showColumnToggle = false }) {
