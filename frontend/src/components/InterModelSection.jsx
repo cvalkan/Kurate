@@ -66,19 +66,20 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
   const methodLabels = pwData?.method_labels || {};
   const siCorrFull = siData?.inter_model_si || {};
   const siCorrControlled = siData?.controlled_inter_model_si || {};
-  const siCorr = siMode === "controlled" ? siCorrControlled : siCorrFull;
+  const siCorr = siMode === "controlled" || siMode === "tiebreak" ? siCorrControlled : siCorrFull;
   const hasOs = pwRows.some(r => Object.keys(r.methods || {}).some(k => k.startsWith("openskill")));
   const hasControlled = Object.keys(siCorrControlled).length > 0;
 
   // PW match-level agreement (actual pair-level, not median-split)
-  const pwAgreement = siMode === "controlled"
+  const pwAgreement = siMode === "controlled" || siMode === "tiebreak"
     ? (pwData?.pw_match_agreement_controlled || pwData?.pw_match_agreement || {})
     : (pwData?.pw_match_agreement || (isAvg ? pwData?.avg_agreement : pwData?.agreement) || {});
 
   // SI match-level agreement
   const siAgreementFull = siData?.si_match_agreement || {};
   const siAgreementControlled = siData?.si_match_agreement_controlled || {};
-  const siAgreement = siMode === "controlled" ? siAgreementControlled : siAgreementFull;
+  const siAgreementTiebreak = siData?.si_match_agreement_controlled_tiebreak || siData?.si_match_agreement_tiebreak || {};
+  const siAgreement = siMode === "tiebreak" ? siAgreementTiebreak : siMode === "controlled" ? siAgreementControlled : siAgreementFull;
   const hasSiAgreement = Object.keys(siAgreementFull).length > 0;
 
   if (pwRows.length === 0 && Object.keys(siCorrFull).length === 0) return null;
@@ -102,6 +103,8 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
         onClick={() => onChange("full")}>Full</button>
       <button className={`px-2 py-0.5 text-[10px] rounded transition-colors ${value === "controlled" ? "bg-background text-foreground font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
         onClick={() => onChange("controlled")}>Controlled</button>
+      <button className={`px-2 py-0.5 text-[10px] rounded transition-colors ${value === "tiebreak" ? "bg-background text-foreground font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+        onClick={() => onChange("tiebreak")}>Tiebreak</button>
     </div>
   );
 
@@ -129,7 +132,13 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
           </div>
           {siMode === "controlled" && (
             <p className="text-[10px] text-muted-foreground mb-2">
-              SI restricted to papers that appear in both models' PW match pools — same paper set as the PW agreement.
+              SI restricted to papers that appear in both models' PW match pools — same pair set as PW.
+            </p>
+          )}
+          {siMode === "tiebreak" && (
+            <p className="text-[10px] text-muted-foreground mb-2">
+              Same controlled pairs as above, but SI ties (same score for both papers) are resolved by random coinflip
+              instead of being excluded — fairer comparison since PW always produces a winner.
             </p>
           )}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -143,7 +152,7 @@ export function InterModelSection({ pwData, siData, viewMode = "aggregate", osUp
             {hasSiAgreement && (
               <AgreementTable
                 title={`SI Score Agreement (${siMode})`}
-                subtitle="(for paper pairs, how often do two models' SI scores agree on ordering?)"
+                subtitle={siMode === "tiebreak" ? "(ties resolved by random coinflip)" : "(for paper pairs, how often do two models' SI scores agree on ordering?)"}
                 color="bg-violet-500/5"
                 data={siAgreement}
                 testId="si-agreement-table"

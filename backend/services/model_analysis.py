@@ -446,6 +446,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
 
         # Full SI match agreement (random pairs)
         si_match_full = {}
+        si_match_full_tiebreak = {}
         for i, m1 in enumerate(sorted(si_model_scores)):
             for j, m2 in enumerate(sorted(si_model_scores)):
                 if j <= i: continue
@@ -464,20 +465,31 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                         k = (a, b) if a < b else (b, a)
                         if k not in seen: seen.add(k); sampled.append(k)
                 agree = total = 0
+                agree_tb = total_tb = 0
                 for pa, pb in sampled:
                     s1a, s1b = si_model_scores[m1].get(pa), si_model_scores[m1].get(pb)
                     s2a, s2b = si_model_scores[m2].get(pa), si_model_scores[m2].get(pb)
                     if s1a is None or s1b is None or s2a is None or s2b is None: continue
+                    # Tiebreak: include all pairs, resolve ties by coinflip
+                    pred1_tb = (1 if s1a > s1b else -1 if s1a < s1b else (1 if _rng.random() < 0.5 else -1))
+                    pred2_tb = (1 if s2a > s2b else -1 if s2a < s2b else (1 if _rng.random() < 0.5 else -1))
+                    total_tb += 1
+                    if pred1_tb == pred2_tb: agree_tb += 1
+                    # No-tie: skip ties
                     if s1a == s1b or s2a == s2b: continue
                     total += 1
                     if (s1a > s1b) == (s2a > s2b): agree += 1
                 if total > 0:
                     si_match_full[pair_key] = {"agree": agree, "disagree": total - agree, "total": total, "rate": round(agree / total * 100, 1)}
+                if total_tb > 0:
+                    si_match_full_tiebreak[pair_key] = {"agree": agree_tb, "disagree": total_tb - agree_tb, "total": total_tb, "rate": round(agree_tb / total_tb * 100, 1)}
         si_result["si_match_agreement"] = si_match_full
+        si_result["si_match_agreement_tiebreak"] = si_match_full_tiebreak
 
         # Controlled: on shared PW pairs, do both models' SI scores agree on
         # which paper is better? (Same question as PW but using SI scores)
         si_match_ctrl = {}
+        si_match_ctrl_tiebreak = {}
         for i, m1 in enumerate(sorted(pw_pair_winners)):
             for j, m2 in enumerate(sorted(pw_pair_winners)):
                 if j <= i: continue
@@ -486,18 +498,28 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                 m1_scores = si_model_scores.get(m1, {})
                 m2_scores = si_model_scores.get(m2, {})
                 agree = total = 0
+                agree_tb = total_tb = 0
                 for pa, pb in shared_pw_pairs:
                     s1a = m1_scores.get(pa)
                     s1b = m1_scores.get(pb)
                     s2a = m2_scores.get(pa)
                     s2b = m2_scores.get(pb)
                     if s1a is None or s1b is None or s2a is None or s2b is None: continue
+                    # Tiebreak
+                    pred1_tb = (1 if s1a > s1b else -1 if s1a < s1b else (1 if _rng.random() < 0.5 else -1))
+                    pred2_tb = (1 if s2a > s2b else -1 if s2a < s2b else (1 if _rng.random() < 0.5 else -1))
+                    total_tb += 1
+                    if pred1_tb == pred2_tb: agree_tb += 1
+                    # No-tie
                     if s1a == s1b or s2a == s2b: continue
                     total += 1
                     if (s1a > s1b) == (s2a > s2b): agree += 1
                 if total > 0:
                     si_match_ctrl[pair_key] = {"agree": agree, "disagree": total - agree, "total": total, "rate": round(agree / total * 100, 1)}
+                if total_tb > 0:
+                    si_match_ctrl_tiebreak[pair_key] = {"agree": agree_tb, "disagree": total_tb - agree_tb, "total": total_tb, "rate": round(agree_tb / total_tb * 100, 1)}
         si_result["si_match_agreement_controlled"] = si_match_ctrl
+        si_result["si_match_agreement_controlled_tiebreak"] = si_match_ctrl_tiebreak
 
         # Controlled PW agreement: same pairs as SI controlled (where SI coverage exists)
         pw_match_agreement_controlled = {}
