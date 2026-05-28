@@ -131,7 +131,7 @@ export default function HomePage() {
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-14">
           <h2 className="font-heading text-lg md:text-xl font-medium tracking-tight mb-2">Top ranked preprints</h2>
           <p className="text-muted-foreground text-sm mb-6">Explore the highest-ranked papers across active research categories.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 max-w-3xl">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 max-w-5xl">
             {allCats.map(cat => (
               <a
                 key={cat.id}
@@ -166,7 +166,7 @@ export default function HomePage() {
       </section>
 
       {/* ── HOW KURATE WORKS — #3 larger text ── */}
-      <section className="bg-[hsl(222,47%,11%)] text-white border-b" data-testid="how-it-works">
+      <section className="bg-[hsl(222,47%,14%)] text-white border-b" data-testid="how-it-works">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
           <h2 className="font-heading text-2xl md:text-3xl font-medium tracking-tight mb-3">How Kurate works</h2>
           <p className="text-white/60 text-sm md:text-base mb-10 max-w-2xl">
@@ -194,15 +194,15 @@ export default function HomePage() {
       </section>
 
       {/* ── RANKINGS ARE SIGNALS ── */}
-      <section className="border-b border-border" data-testid="responsible-discovery">
+      <section className="bg-accent/[0.07] border-b border-border" data-testid="responsible-discovery">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
-          <h2 className="font-heading text-2xl md:text-3xl font-medium tracking-tight mb-3">Rankings are signals, not verdicts</h2>
-          <p className="text-muted-foreground text-sm md:text-base mb-8 max-w-3xl">
+          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight mb-3">Rankings are signals, not verdicts</h2>
+          <p className="text-muted-foreground text-base md:text-lg mb-8 max-w-3xl leading-relaxed">
             Kurate rankings are designed to support discovery, filtering, and prioritisation.
             They provide an early signal about which preprints may be worth reading — but they
             do not replace peer review, expert judgement, or careful reading of the paper itself.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               { icon: Brain, text: "Multiple AI models reduce dependence on any single perspective." },
               { icon: LayoutGrid, text: "Papers are compared within their research category, not across unrelated fields." },
@@ -211,21 +211,21 @@ export default function HomePage() {
             ].map((p, i) => {
               const Icon = p.icon;
               return (
-                <div key={i} className="flex items-start gap-3 bg-card border border-border rounded-lg p-4">
-                  <Icon className="h-4 w-4 text-accent shrink-0 mt-0.5" />
-                  <p className="text-sm text-muted-foreground">{p.text}</p>
+                <div key={i} className="flex items-start gap-3 bg-card border border-accent/20 rounded-lg p-5">
+                  <Icon className="h-5 w-5 text-accent shrink-0 mt-0.5" />
+                  <p className="text-sm font-medium text-foreground/80 leading-relaxed">{p.text}</p>
                 </div>
               );
             })}
           </div>
-          <div className="flex flex-wrap gap-4 mt-6">
-            <Link to="/methodology" className="inline-flex items-center gap-2 text-sm text-accent hover:underline">
+          <div className="flex flex-wrap gap-4 mt-8">
+            <Link to="/methodology" className="inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline">
               <BookOpen className="h-4 w-4" /> Read the methodology
             </Link>
-            <Link to="/correlation" className="inline-flex items-center gap-2 text-sm text-accent hover:underline">
+            <Link to="/correlation" className="inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline">
               <BarChart3 className="h-4 w-4" /> Model analysis
             </Link>
-            <Link to="/validation" className="inline-flex items-center gap-2 text-sm text-accent hover:underline">
+            <Link to="/validation" className="inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline">
               <FlaskConical className="h-4 w-4" /> Validation experiments
             </Link>
           </div>
@@ -355,7 +355,7 @@ export default function HomePage() {
       </section>
 
       {/* ── FOOTER — #1 white logo text ── */}
-      <footer className="bg-[hsl(222,47%,11%)] text-white" data-testid="homepage-footer">
+      <footer className="bg-[hsl(222,47%,14%)] text-white" data-testid="homepage-footer">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-12 md:py-16">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
