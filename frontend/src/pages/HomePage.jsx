@@ -166,10 +166,10 @@ export default function HomePage() {
       </section>
 
       {/* ── HOW KURATE WORKS — #3 larger text ── */}
-      <section className="bg-[hsl(220,55%,22%)] text-white border-b" data-testid="how-it-works">
+      <section className="bg-[hsl(218,60%,30%)] text-white border-b" data-testid="how-it-works">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
-          <h2 className="font-heading text-2xl md:text-3xl font-medium tracking-tight mb-3">How Kurate works</h2>
-          <p className="text-white/60 text-sm md:text-base mb-10 max-w-2xl">
+          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight mb-3">How Kurate works</h2>
+          <p className="text-white/70 text-base md:text-lg mb-10 max-w-2xl leading-relaxed">
             Kurate processes arXiv preprints daily, applies AI-assisted analysis, and produces
             category-level rankings to help users discover and compare research.
           </p>
@@ -182,10 +182,10 @@ export default function HomePage() {
             ].map((s, i) => {
               const Icon = s.icon;
               return (
-                <div key={i} className="bg-white/[0.06] border border-white/10 rounded-lg p-6">
-                  <Icon className="h-6 w-6 text-blue-300 mb-4" />
-                  <h3 className="font-heading font-medium text-base mb-2">{s.title}</h3>
-                  <p className="text-white/70 text-sm leading-relaxed">{s.desc}</p>
+                <div key={i} className="bg-white/[0.10] border border-white/15 rounded-lg p-6">
+                  <Icon className="h-6 w-6 text-blue-200 mb-4" />
+                  <h3 className="font-heading font-semibold text-lg mb-3">{s.title}</h3>
+                  <p className="text-white/75 text-base leading-relaxed">{s.desc}</p>
                 </div>
               );
             })}
@@ -355,7 +355,7 @@ export default function HomePage() {
       </section>
 
       {/* ── FOOTER — #1 white logo text ── */}
-      <footer className="bg-[hsl(220,55%,22%)] text-white" data-testid="homepage-footer">
+      <footer className="bg-[hsl(218,60%,30%)] text-white" data-testid="homepage-footer">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-12 md:py-16">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
