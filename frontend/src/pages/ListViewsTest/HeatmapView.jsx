@@ -279,17 +279,20 @@ function MiniColumnChart({ metric, hist, active }) {
   }
   const { counts, max, mean } = hist;
   const w = 48;
-  const h = 22;
+  const h = 28;        // a bit taller to fit the axis labels at the bottom
+  const chartH = 20;   // histogram bars region height
   const barW = w / counts.length;
+  const xForScore = (s) => ((s - 1) / 9) * w;
   return (
     <svg width={w} height={h} className="block" aria-hidden>
+      {/* Histogram bars (top region) */}
       {counts.map((c, i) => {
-        const bh = (c / max) * (h - 3);
+        const bh = (c / max) * (chartH - 2);
         return (
           <rect
             key={i}
             x={i * barW}
-            y={h - bh}
+            y={chartH - bh}
             width={Math.max(1, barW - 0.5)}
             height={bh}
             fill={metric.color}
@@ -297,17 +300,21 @@ function MiniColumnChart({ metric, hist, active }) {
           />
         );
       })}
+      {/* Dashed mean marker */}
       {mean != null && (
         <line
-          x1={((mean - 1) / 9) * w}
-          x2={((mean - 1) / 9) * w}
-          y1={0} y2={h}
+          x1={xForScore(mean)} x2={xForScore(mean)}
+          y1={0} y2={chartH}
           stroke="currentColor"
           strokeWidth={1}
           strokeDasharray="2 1.5"
           opacity={0.6}
         />
       )}
+      {/* Baseline rule + axis labels at the bottom */}
+      <line x1={0} x2={w} y1={chartH + 0.5} y2={chartH + 0.5} stroke="currentColor" strokeWidth={0.5} opacity={0.4} />
+      <text x={0} y={h - 0.5} fontSize={7} fill="currentColor" opacity={0.55} textAnchor="start">1</text>
+      <text x={w} y={h - 0.5} fontSize={7} fill="currentColor" opacity={0.55} textAnchor="end">10</text>
     </svg>
   );
 }
