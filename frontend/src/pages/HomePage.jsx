@@ -123,9 +123,9 @@ export default function HomePage() {
       {/* ── HERO ── */}
       <section className="relative overflow-hidden border-b border-border" data-testid="hero-section">
         <div className="absolute inset-0 bg-gradient-to-b from-accent/[0.04] to-transparent pointer-events-none" />
-        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-12 relative">
-          <div className="max-w-3xl mb-6">
-            <h1 className="font-heading text-3xl sm:text-4xl lg:text-[2.75rem] font-semibold tracking-tight mb-3 text-foreground whitespace-nowrap" data-testid="hero-heading">
+        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-16 relative">
+          <div className="max-w-3xl mb-8">
+            <h1 className="font-heading text-3xl sm:text-4xl lg:text-[2.75rem] font-semibold tracking-tight mb-4 text-foreground whitespace-nowrap" data-testid="hero-heading">
               Scientific papers ranked by AI
             </h1>
             <p className="text-muted-foreground text-base md:text-lg leading-relaxed max-w-2xl">
@@ -157,7 +157,7 @@ export default function HomePage() {
           </div>
 
           {/* Full leaderboard table — All Time top ranked */}
-          <div className="mt-5" data-testid="hero-ranking-preview">
+          <div className="mt-6" data-testid="hero-ranking-preview">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">All-time top ranked papers</span>
               <a href="/?period=recent" className="text-xs text-accent hover:underline">View full leaderboard</a>
