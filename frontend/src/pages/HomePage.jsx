@@ -142,10 +142,30 @@ export default function HomePage() {
       {/* ── RESEARCH CATEGORIES ── */}
       <section className="bg-secondary/30 border-b border-border" data-testid="categories-section">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-14">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-3">
             <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-accent">Research categories</h2>
             <a href="/?tagOpen=1&period=recent" className="text-sm text-accent hover:underline">View all rankings</a>
           </div>
+          <p className="text-muted-foreground text-sm md:text-base leading-relaxed mb-6 max-w-3xl">
+            Kurate covers {stats?.total_categories || "multiple"} research categories spanning computer science,
+            physics, mathematics, economics, biology, and cryptography. Each category maintains its own
+            ranked leaderboard, updated as new arXiv preprints are analysed.
+          </p>
+          {/* Top categories with paper counts */}
+          {stats?.top_categories?.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+              {stats.top_categories.map(tc => (
+                <a key={tc.id} href={`/?cat=${tc.id}&period=recent`} className="group flex items-center justify-between bg-accent/[0.06] border border-accent/20 rounded-lg px-5 py-3.5 hover:border-accent/40 transition-all">
+                  <div>
+                    <p className="text-sm font-semibold">{tc.name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{fmt(tc.count)} ranked preprints</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
+                </a>
+              ))}
+            </div>
+          )}
+          {/* All categories grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
             {allCats.map(cat => (
               <a
@@ -162,11 +182,40 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── TOP RANKED PREPRINTS — #4 two-column category links ── */}
+      {/* ── TOP RANKED PREPRINTS ── */}
       <section className="border-b border-border" data-testid="top-papers-section">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-14">
-          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-accent mb-2">Top ranked preprints</h2>
-          <p className="text-muted-foreground text-sm mb-6">Explore the highest-ranked papers across active research categories.</p>
+          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-accent mb-3">Top ranked preprints</h2>
+          <p className="text-muted-foreground text-sm md:text-base leading-relaxed mb-8 max-w-3xl">
+            These are the highest-ranked arXiv preprints currently on the platform. Rankings are produced
+            by AI-assisted pairwise comparison across multiple models. Each paper's score reflects how
+            consistently it was preferred in head-to-head evaluations within its category.
+          </p>
+          {/* Actual top papers */}
+          {stats?.top_papers?.length > 0 && (
+            <div className="bg-card border border-border rounded-lg overflow-hidden mb-8 max-w-4xl">
+              <div className="divide-y divide-border">
+                {stats.top_papers.slice(0, 5).map((p, i) => (
+                  <Link to={`/paper/${p.id}`} key={p.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-secondary/30 transition-colors" data-testid={`top-paper-${i}`}>
+                    <span className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-mono font-semibold ${
+                      i === 0 ? "bg-amber-100 text-amber-700 border-2 border-amber-400 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-600"
+                      : i === 1 ? "bg-slate-100 text-slate-600 border-2 border-slate-400 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-500"
+                      : i === 2 ? "bg-orange-100 text-orange-700 border-2 border-orange-400 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-600"
+                      : "bg-secondary text-secondary-foreground"
+                    }`}>{i + 1}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{p.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {p.primary_category}{p.ts_score ? ` · Score ${p.ts_score.toFixed(0)}` : ""}{p.authors?.length ? ` · ${p.authors.join(", ")}` : ""}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* Browse by category */}
+          <h3 className="font-heading font-medium text-sm text-muted-foreground uppercase tracking-wider mb-3">Browse top papers by category</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 max-w-5xl">
             {allCats.map(cat => (
               <a
@@ -185,11 +234,16 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── PLATFORM METRICS ── */}
+      {/* ── PLATFORM OVERVIEW ── */}
       <section className="bg-secondary/30 border-b border-border" data-testid="metrics-section">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-14">
-          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-accent mb-6">Platform overview</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-accent mb-3">Platform overview</h2>
+          <p className="text-muted-foreground text-sm md:text-base leading-relaxed mb-8 max-w-3xl">
+            Kurate continuously analyses arXiv preprints using multiple AI models. Papers are compared
+            in pairwise evaluations and ranked within their research category. The metrics below
+            reflect the current scale of the platform.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
             <MetricCard icon={FileText} label="Preprints analysed" value={fmt(stats?.total_papers)} testId="metric-papers" />
             <MetricCard icon={LayoutGrid} label="Research categories" value={stats?.total_categories || "—"} testId="metric-categories" />
             <MetricCard icon={Zap} label="AI comparisons" value={fmt(stats?.total_matches)} testId="metric-matches" />
@@ -197,6 +251,14 @@ export default function HomePage() {
             {stats?.top_categories?.[0] && (
               <MetricCard icon={TrendingUp} label="Most active field" value={stats.top_categories[0].name} sub={`${fmt(stats.top_categories[0].count)} preprints`} testId="metric-active" />
             )}
+          </div>
+          <div className="flex flex-wrap gap-4">
+            <a href="/?tagOpen=1&period=recent" className="inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline">
+              <ArrowRight className="h-4 w-4" /> Explore all rankings
+            </a>
+            <Link to="/methodology" className="inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline">
+              <BookOpen className="h-4 w-4" /> Read the methodology
+            </Link>
           </div>
         </div>
       </section>
