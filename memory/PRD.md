@@ -5,74 +5,61 @@ Build and maintain a sophisticated AI paper-judging system that uses multiple LL
 
 ## Architecture
 - **Backend**: FastAPI + MongoDB (Motor async) + Background scheduler
-- **Frontend**: React + Shadcn UI + Recharts
-- **LLMs**: Claude Opus 4-6 (Emergent key), GPT-5.2 (direct OpenAI key), Gemini 3.1 Pro (Emergent key)
+- **Frontend**: React + Shadcn UI + Tailwind CSS
+- **LLMs**: Claude Opus 4.6 (Emergent key), GPT-5.2 (direct OpenAI key), Gemini 3.1 Pro (Emergent key)
 - **Scoring**: TrueSkill with sigma-based convergence + quality-based matchmaking
 - **Dual-Pod**: Leader election via MongoDB lock; follower runs lightweight startup
-- **Reviewer Personas**: 5 distinct AI reviewer personas (Methodologist, Innovator, Practitioner, Generalist, Skeptic) assigned round-robin per match
+- **Reviewer Personas**: 5 distinct AI reviewer personas assigned round-robin per match
 
 ## What's Been Implemented
 
+### Homepage Redesign — Scientific App Interface (May 2026)
+- Complete rewrite of HomePage.jsx as a centered, app-like scientific ranking platform
+- Design: Chivo headings, IBM Plex Mono data labels, academic blue (#1E3A8A), teal (#0F766E), green (#059669)
+- Hero: "AI-powered scientific paper rankings" with "Explore rankings" (primary) + "Methodology" (secondary) CTAs
+- Top Ranked Papers: Live leaderboard card showing rank, title, category, authors, TrueSkill score from API
+- Research Intelligence sidebar: Model agreement, Validation signals, Methodology links
+- AI Judge Panel: GPT-5.2 / Claude Opus 4.6 / Gemini 3.1 Pro model badges
+- Live Platform Metrics: Dashboard-style grid (10.7k papers, 21 categories, 280.2k comparisons, etc.)
+- Rankings by Category: Top 5 with counts + full 21-category grid
+- How it works: 3-card section (Pairwise tournaments, TrueSkill, Validation)
+- Trust badges: Monospaced uppercase strip
+- Clean footer with Explore/Follow columns
+- Testing: iteration_66 — 100% backend, 100% frontend
+
 ### Multiple Reviewer Personas (May 2026)
-- 5 reviewer personas defined in `core/config.py`: Methodologist, Innovator, Practitioner, Generalist, Skeptic
-- Each persona has a unique system prompt that weights evaluation criteria differently
-- Round-robin assignment via `_pick_persona()` in scheduler
-- Persona ID stored on every new match document (`persona` field)
-- `compare_papers()` in llm.py accepts optional `persona` parameter
-- Public API: `GET /api/homepage/personas` returns persona list
-- Admin API: `GET /api/admin/persona-stats` returns per-persona match statistics
-- Homepage: "Five reviewer personas" panel with 5 cards
-- Methodology page: Step 4 "Diverse Reviewer Personas" with 5 colored badges
-- Combined with 3 models = 15 unique (model x persona) judge configurations
-
-### Homepage Messaging Realignment (May 2026)
-- Hero: "AI-powered paper rankings" + "Multiple AI judges compare preprints head-to-head..."
-- Search: "Search ranked papers by topic..." + "View Rankings" button
-- "How Kurate ranks papers": Pairwise AI tournaments, TrueSkill scoring, Transparent validation
-- "What the AI judges evaluate": 8 dimension cards (Novelty, Rigor, Impact, Applications, etc.)
-- "Rankings by category": Updated copy
-- "Who benefits from AI rankings": Updated copy for researchers/readers/institutions
-- FAQ: 7 questions focused on AI ranking (including "Which AI models judge?" and "How can I trust?")
-- Footer: "AI-powered paper rankings for preprints"
-- Trust line: "Ranking preprints with AI. Not a replacement for peer review."
-
-### Homepage (May 2026)
-- Full homepage at `/` with clean app-like layout
-- Backend `/api/homepage/stats` endpoint aggregates live data
-- Clean `/` -> homepage; `/?period=recent` -> leaderboard
-- SEO metadata (OG tags, Twitter cards, canonical URL)
+- 5 personas: Methodologist, Innovator, Practitioner, Generalist, Skeptic
+- Unique system prompts per persona, round-robin assignment per match
+- Persona stored on match documents (`persona` field)
+- APIs: GET /api/homepage/personas (public), GET /api/admin/persona-stats (admin)
+- Methodology page Step 4: "Diverse Reviewer Personas"
+- Testing: iteration_65 — 100% pass
 
 ### Previous Work
 - TrueSkill Sigma Convergence, Quality-Based Matchmaking
-- Similarity Landscape (cs.AI, physics.comp-ph, cs.GT)
-- Embedding A/B tests (Qwen3, SciNCL, SPECTER)
+- Similarity Landscape, Embedding A/B tests
 - Timeseries endpoint optimization
-- Backend code quality fixes (circular imports, MD5->SHA256, late-binding closures)
+- Backend code quality fixes
 
 ## Known Issues
 - ChemRxiv papers: MOCKED from static JSON seed
 - Twitter/X mobile unfurling: BLOCKED (Cloudflare WAF)
 - K8s liveness probe misconfiguration: BLOCKED (infrastructure)
 - Badge endpoint scraping anomaly: Not yet rate-limited
+- Pipeline stale: Latest update 111d ago (ingestion not running in preview)
 
 ## Pending Tasks
 - P0: Semantic Search & "Papers Like This" (cosine NN on embeddings)
 - P0: Gemini embedding evaluation (needs direct Google API key)
-- P1: Live ChemRxiv Fetcher (replace static JSON)
-- P1: SSR for Bots/SEO
-- P1: Sub-topic matchmaking (LLM classifier)
-- P1: Matryoshka-256 mode (truncate OpenAI 3072D -> 256D)
-- P1: Parametric UMAP (stable projections)
-- P1: Sitemap.xml
-- P1: Author Verification (ORCID OAuth)
-- P1: Badge endpoint rate limiting
+- P1: Live ChemRxiv Fetcher, SSR for Bots/SEO, sitemap.xml
+- P1: Sub-topic matchmaking, Matryoshka-256, Parametric UMAP
+- P1: Author Verification (ORCID OAuth), Badge rate limiting
 - P2: Frontend render scaling (PixiJS/deck.gl for n > 2k)
 
 ## Key Files
-- `/app/backend/core/config.py` — REVIEWER_PERSONAS, PERSONA_IDS, TOURNAMENT_MODELS
+- `/app/frontend/src/pages/HomePage.jsx` — Homepage (app-like design)
+- `/app/backend/routers/homepage.py` — /api/homepage/stats, /api/homepage/personas
+- `/app/backend/core/config.py` — REVIEWER_PERSONAS, TOURNAMENT_MODELS
 - `/app/backend/services/scheduler.py` — _pick_persona(), match pipeline
 - `/app/backend/services/llm.py` — compare_papers(persona=)
-- `/app/backend/routers/homepage.py` — /api/homepage/stats, /api/homepage/personas
-- `/app/backend/routers/admin.py` — /api/admin/persona-stats
-- `/app/frontend/src/pages/HomePage.jsx` — Homepage with personas panel
-- `/app/frontend/src/pages/MethodologyPage.jsx` — Step 4: Diverse Reviewer Personas
+- `/app/frontend/src/pages/MethodologyPage.jsx` — Includes persona step
