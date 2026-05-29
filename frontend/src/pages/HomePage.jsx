@@ -442,12 +442,19 @@ export default function HomePage() {
                 { q: "Are rankings based on citations?", a: "No. Kurate is designed for early-stage discovery, where citation counts may not yet exist. Rankings are based on AI-assisted analysis of paper content." },
                 { q: "Can universities or research offices use Kurate?", a: "Yes. Kurate can support literature scanning, field monitoring, and research strategy discussions across disciplines." },
                 { q: "How should I interpret a ranking?", a: "Treat rankings as an early signal for discovery and prioritisation, not as a definitive quality judgement. Always read the paper and apply your own expertise." },
-              ].map((f, i) => (
-                <AccordionItem key={i} value={`faq-${i}`} className="bg-card border border-border rounded-lg px-5 overflow-hidden" data-testid={`faq-${i}`}>
-                  <AccordionTrigger className="text-sm font-medium py-4 hover:no-underline">{f.q}</AccordionTrigger>
-                  <AccordionContent className="text-sm text-muted-foreground">{f.a}</AccordionContent>
-                </AccordionItem>
-              ))}
+              ].map((f, i, arr) => {
+                const t = i / Math.max(arr.length - 1, 1);
+                const lightness = 97 - t * 12;
+                const saturation = 60 + t * 15;
+                const bg = `hsl(217, ${saturation}%, ${lightness}%)`;
+                const textColor = lightness < 88 ? "hsl(217,20%,98%)" : undefined;
+                return (
+                  <AccordionItem key={i} value={`faq-${i}`} className="border-0 rounded-lg px-5 overflow-hidden" style={{ backgroundColor: bg }} data-testid={`faq-${i}`}>
+                    <AccordionTrigger className="text-sm font-medium py-4 hover:no-underline" style={textColor ? { color: textColor } : undefined}>{f.q}</AccordionTrigger>
+                    <AccordionContent className="text-sm" style={textColor ? { color: `hsl(217,20%,90%)` } : undefined}>{f.a}</AccordionContent>
+                  </AccordionItem>
+                );
+              })}
             </Accordion>
           </div>
         </div>
