@@ -1,68 +1,131 @@
 {
-  "theme": "LIGHT",
-  "archetype": "4 (Swiss & High-Contrast)",
+  "theme": "light",
+  "archetype": "Archetype 4: Swiss & High-Contrast (Academic App Variant)",
+  "global_rules": {
+    "design_philosophy": "Objective, rigorous, functional. Must look like a live scientific research app (e.g., Connected Papers, Google Scholar), NOT a marketing page. Focus on data density, scanability, and clarity.",
+    "spacing": "App-density: Tight padding inside cards (p-4), structured gaps (gap-4). Generous margins only between major macro-sections (py-12).",
+    "surfaces": "Grid Borders / Technical Look: Expose the skeleton. Use pure white backgrounds with 1px solid slate borders (border-slate-200). Avoid soft, blurry drop shadows. Use crisp, 1px inner highlights if necessary.",
+    "testing": "All interactive and key informational elements MUST include a data-testid attribute in kebab-case."
+  },
   "typography": {
-    "headings": {
-      "family": "Inter, system-ui, sans-serif",
-      "h1": "text-2xl font-bold",
-      "h2": "text-lg font-semibold"
-    },
-    "body": {
-      "family": "Inter, system-ui, sans-serif",
-      "base": "text-sm",
-      "small": "text-xs",
-      "micro": "text-[11px] leading-snug",
-      "nano": "text-[10px]"
-    }
+    "pairing_strategy": "The 'Old Money Tech' / Scientific App",
+    "primary_font": "Chivo",
+    "body_font": "IBM Plex Sans",
+    "mono_font": "IBM Plex Mono",
+    "h1": "text-4xl sm:text-5xl font-bold tracking-tight text-slate-900 leading-tight",
+    "h2": "text-2xl sm:text-3xl font-semibold tracking-tight text-slate-800",
+    "h3": "text-lg font-medium tracking-tight text-slate-800",
+    "body": "text-sm sm:text-base text-slate-600 leading-relaxed",
+    "data_labels": "text-xs font-mono uppercase tracking-[0.15em] text-slate-500",
+    "font_installation_instructions": "Import 'Chivo', 'IBM Plex Sans', and 'IBM Plex Mono' from Google Fonts."
   },
   "colors": {
-    "primary": "text-foreground bg-background",
-    "secondary": "text-muted-foreground",
-    "confidence_high": "bg-green-100 text-green-800 border-green-200",
-    "confidence_medium": "bg-amber-100 text-amber-800 border-amber-200",
-    "confidence_low": "bg-gray-100 text-gray-600 border-gray-200",
-    "engagement_active": "text-blue-600",
-    "engagement_inactive": "text-muted-foreground",
-    "like_active": "border-pink-500 bg-pink-50 text-pink-600",
-    "qt_active": "border-blue-500 bg-blue-50 text-blue-700"
+    "background": "#FFFFFF",
+    "surface": "#F8FAFC",
+    "border": "#E2E8F0",
+    "text_primary": "#0F172A",
+    "text_secondary": "#475569",
+    "text_muted": "#94A3B8",
+    "brand_academic_blue": "#1E3A8A",
+    "accent_teal_safe": "#0F766E",
+    "accent_green_safe": "#059669",
+    "forbidden": [
+      "#1B93A4",
+      "#9D4CDD",
+      "earthy colors",
+      "orange",
+      "beige",
+      "brown",
+      "gradients"
+    ]
   },
-  "layouts": {
-    "variant_recommendation": "Variant 2 - Inline Split",
-    "spacing": {
-      "row_padding": "p-2",
-      "gap_elements": "gap-1.5",
-      "icon_gap": "gap-0.5",
-      "action_gap": "gap-1.5"
+  "layout_and_grids": {
+    "container": "w-full max-w-6xl mx-auto px-4 sm:px-6",
+    "hero_layout": "Flex column, centered alignment as requested, max-w-3xl mx-auto text-center py-16 sm:py-24.",
+    "dashboard_grid": "Grid layout, grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4. Mode B: The 'Control Room' Grid."
+  },
+  "components": {
+    "header": {
+      "type": "Sticky Top, z-50",
+      "surface": "Solid white with 1px bottom border (border-slate-200).",
+      "layout": "Flex row, items-center, justify-between. py-4.",
+      "elements": {
+        "logo": "Left aligned, text-xl font-bold tracking-tight text-slate-900 (Kurate.org)",
+        "nav_links": "Rankings, Categories, Methodology, About (text-sm font-medium text-slate-600 hover:text-slate-900)",
+        "social": "Right aligned, X/Twitter and LinkedIn icons."
+      }
     },
-    "structure": {
-      "type": "flex row / mobile flex col",
-      "left_col": "shrink-0 pt-0.5 (Handle badge)",
-      "right_col": "flex-1 min-w-0 flex flex-col gap-1.5 (Tweet text + Actions line)"
+    "hero": {
+      "headline": "AI-powered scientific paper rankings",
+      "supporting_text": "Kurate.org ranks scientific preprints using AI-assisted comparison, category-based leaderboards, and research intelligence signals, helping researchers and institutions identify promising work earlier.",
+      "ctas": {
+        "primary": "Explore rankings (bg-[#1E3A8A] text-white hover:bg-blue-900 px-6 py-2.5 rounded-md text-sm font-medium transition-colors)",
+        "secondary": "Methodology (border border-slate-300 text-slate-700 hover:bg-slate-50 px-6 py-2.5 rounded-md text-sm font-medium transition-colors)"
+      }
     },
-    "action_icons": {
-      "size": "h-6 w-6",
-      "icon_size": "h-3 w-3",
-      "radius": "rounded",
-      "border": "border"
+    "trust_badges": {
+      "layout": "Flex row, flex-wrap, justify-center gap-x-8 gap-y-4 py-8 border-y border-slate-100",
+      "style": "text-xs font-mono uppercase text-slate-500 flex items-center gap-2",
+      "items": [
+        "AI-assisted paper rankings",
+        "Category-based scientific discovery",
+        "Research intelligence from preprints",
+        "Built for fast-moving fields"
+      ]
+    },
+    "live_platform_metrics": {
+      "layout": "Dashboard-style grid-cols-2 lg:grid-cols-4 gap-4 mb-16",
+      "card_style": "p-5 border border-slate-200 bg-white rounded-lg flex flex-col gap-1",
+      "metrics": [
+        {
+          "label": "Papers ranked",
+          "value": "10.7k"
+        },
+        {
+          "label": "Active categories",
+          "value": "21"
+        },
+        {
+          "label": "AI comparisons",
+          "value": "280.2k"
+        },
+        {
+          "label": "Most active",
+          "value": "Robotics (2.4k)"
+        }
+      ]
+    },
+    "top_ranked_papers": {
+      "title": "Top ranked papers",
+      "layout": "List/Table hybrid. Pure app UI, no marketing fluff.",
+      "card_style": "border border-slate-200 bg-white rounded-lg overflow-hidden",
+      "row_style": "flex items-center justify-between p-4 border-b border-slate-100 hover:bg-slate-50 transition-colors last:border-0",
+      "data_points_per_row": [
+        "Rank (Large mono number, e.g., #1, text-slate-400)",
+        "Title (font-medium text-slate-900)",
+        "Category Badge (text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded)",
+        "Score (Mono font, brand_academic_blue)",
+        "Signals (Model agreement, Validation signal - shown as small flex pills with lucide-react icons)"
+      ]
+    },
+    "recent_rankings": {
+      "title": "Recent rankings",
+      "layout": "Grid grid-cols-1 md:grid-cols-3 gap-4",
+      "card_style": "p-4 border border-slate-200 bg-white rounded-lg hover:shadow-sm transition-shadow flex flex-col gap-3",
+      "content": "Paper title, timestamp, category, and AI score."
     }
-  },
-  "motion": {
-    "hover": "hover:bg-muted/30 transition-colors",
-    "buttons": "hover:border-blue-200 hover:text-blue-600 transition-colors"
-  },
-  "components": [
-    {
-      "name": "OutreachDesignPreview",
-      "path": "/app/frontend/src/pages/OutreachDesignPreview.jsx",
-      "description": "A standalone preview page for testing 4 variations of the outreach handle row."
-    }
-  ],
-  "accessibility": {
-    "contrast": "Using APCA validated text-blue-600 against white for engaged tweets.",
-    "aria": "Adding titles to all icon buttons to describe their function."
   },
   "media": {
-    "image_urls": []
+    "image_urls": [],
+    "icons": "Use lucide-react. Standardizing on 1.5px stroke width. Key icons: Trophy, Activity, Brain, CheckCircle2, ChevronRight, Search."
   },
-  "instructions_to_main_agent": "A new route '/admin/outreach/design-preview' has been added to App.js and OutreachDesignPreview.jsx has been created. The file fetches real data from /api/admin/outreach/medalists and renders 4 different candidate row layouts. No other files were modified. The user can review the designs and select one for later implementation."
+  "instructions_to_main_agent": [
+    "Build standard React/Tailwind elements. Use Shadcn for complex interactions if needed, but standard HTML/Tailwind for layout.",
+    "Do NOT use earthy colors, beige, or generic gradients.",
+    "Do NOT use Inter font for headings.",
+    "Ensure all interactive elements have data-testid attributes.",
+    "Keep spacing precise and grid-aligned to maintain the scientific dashboard look.",
+    "Create realistic placeholder data for the Top Ranked and Recent Rankings sections based on the prompt's context.",
+    "Implement Research Intelligence Signals as small pill UI with teal and green accents (e.g. Model agreement = Brain icon, Validation = Activity icon)."
+  ]
 }
