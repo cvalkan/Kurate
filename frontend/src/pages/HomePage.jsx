@@ -66,13 +66,14 @@ const FAQ = [
 export default function HomePage() {
   const [stats, setStats] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
+  const [catCounts, setCatCounts] = useState({});
   const [lbLoading, setLbLoading] = useState(true);
   const [showRatingCol, setShowRatingCol] = useState(true);
   const [showGapCol, setShowGapCol] = useState(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch leaderboard first (fast, cached) — stats in parallel
+    // Fetch leaderboard (fast, cached)
     axios.get(`${API}/api/leaderboard`, {
       params: { show_all: true, limit: 10, sort_by: "ts_score", sort_dir: "desc", global_stats: true },
     }).then(r => {
@@ -82,8 +83,23 @@ export default function HomePage() {
       setLbLoading(false);
     }).catch(() => setLbLoading(false));
 
+    // Fetch category counts (fast, cached)
+    axios.get(`${API}/api/categories`).then(r => {
+      const map = {};
+      (r.data.categories || []).forEach(c => { if (c.paper_count) map[c.id] = c.paper_count; });
+      setCatCounts(map);
+    }).catch(() => {});
+
+    // Fetch homepage stats (slower, non-blocking)
     axios.get(`${API}/api/homepage/stats`).then(r => {
       setStats(r.data);
+      // Backfill category counts from stats if categories API didn't have them
+      setCatCounts(prev => {
+        if (Object.keys(prev).length > 0) return prev;
+        const map = {};
+        (r.data.top_categories || []).forEach(c => { map[c.id] = c.count; });
+        return map;
+      });
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -125,7 +141,7 @@ export default function HomePage() {
             {FEATURED_CATS.map((catId, i) => {
               const meta = CATEGORY_META[catId];
               const href = catId === "cs.CL" ? "/?show_all=true" : `/?cat=${catId}&period=recent`;
-              const live = stats?.top_categories?.find(c => c.id === catId);
+              const count = catCounts[catId];
               return (
                 <a
                   key={catId}
@@ -134,7 +150,7 @@ export default function HomePage() {
                   data-testid={`hero-cat-${catId}`}
                 >
                   <span className="font-heading font-medium text-xs block">{meta.label}</span>
-                  {live && <span className="text-[10px] text-muted-foreground font-mono">{fmt(live.count)}</span>}
+                  {count != null && <span className="text-[10px] text-muted-foreground font-mono">{fmt(count)} papers</span>}
                 </a>
               );
             })}

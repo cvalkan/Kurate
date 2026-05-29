@@ -512,10 +512,16 @@ async def get_categories():
         get_group = lambda x: "Other"
     settings = await get_settings()
     active = settings.get("active_categories", list(CATEGORIES.keys()))
+    # Get paper counts from cached tags (populated by _refresh_cache)
+    cached_tags = _cache.get("_tags", [])
+    tag_paper_counts = {t["id"]: t["count"] for t in cached_tags} if cached_tags else {}
     cats = []
     for cat_id in active:
         name = CATEGORIES.get(cat_id) or ARXIV_TAXONOMY.get(cat_id) or cat_id
-        cats.append({"id": cat_id, "name": name, "group": get_group(cat_id)})
+        entry = {"id": cat_id, "name": name, "group": get_group(cat_id)}
+        if cat_id in tag_paper_counts:
+            entry["paper_count"] = tag_paper_counts[cat_id]
+        cats.append(entry)
     # First 5 preserve admin order (tabs), rest sorted alphabetically by group then name
     top5 = cats[:5]
     rest = sorted(cats[5:], key=lambda c: (c["group"], c["name"]))
