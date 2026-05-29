@@ -8,7 +8,7 @@ import os
 import time
 import uuid
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://ai-review-hub-25.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://heatmap-scale.preview.emergentagent.com').rstrip('/')
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 
 # Test user credentials - unique for each test run
