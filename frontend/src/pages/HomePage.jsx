@@ -150,7 +150,7 @@ export default function HomePage() {
                   data-testid={`hero-cat-${catId}`}
                 >
                   <span className="font-heading font-medium text-xs block">{meta.label}</span>
-                  {count != null && <span className="text-[10px] text-muted-foreground font-mono">{fmt(count)} papers</span>}
+                  {count != null && <span className="text-[10px] text-muted-foreground">{count.toLocaleString()} papers</span>}
                 </a>
               );
             })}
