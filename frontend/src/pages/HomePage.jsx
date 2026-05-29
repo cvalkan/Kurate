@@ -306,8 +306,8 @@ export default function HomePage() {
       {/* ── USE CASES ── */}
       <section className="border-b border-border" data-testid="use-cases">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
-          <h2 className="font-heading text-2xl md:text-3xl font-medium tracking-tight mb-8">Who uses Kurate</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight mb-8">Who uses Kurate</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {[
               { icon: Microscope, title: "Researchers", desc: "Prioritise reading across fast-moving fields and track preprints that may become important." },
               { icon: GraduationCap, title: "Postgraduate students", desc: "Build literature review pathways and understand research clusters without being overwhelmed." },
@@ -318,10 +318,10 @@ export default function HomePage() {
             ].map((u, i) => {
               const Icon = u.icon;
               return (
-                <div key={i} className="bg-card border border-border rounded-lg p-5" data-testid={`usecase-${i}`}>
-                  <Icon className="h-5 w-5 text-accent mb-3" />
-                  <h3 className="font-heading font-medium text-sm mb-2">{u.title}</h3>
-                  <p className="text-muted-foreground text-xs leading-relaxed">{u.desc}</p>
+                <div key={i} className="bg-accent/[0.04] border border-accent/15 rounded-lg p-6" data-testid={`usecase-${i}`}>
+                  <Icon className="h-6 w-6 text-accent mb-4" />
+                  <h3 className="font-heading font-semibold text-base mb-2">{u.title}</h3>
+                  <p className="text-muted-foreground text-sm leading-relaxed">{u.desc}</p>
                 </div>
               );
             })}
