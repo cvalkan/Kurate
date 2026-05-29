@@ -190,6 +190,7 @@ export default function HomePage() {
             These are the highest-ranked arXiv preprints currently on the platform. Rankings are produced
             by AI-assisted pairwise comparison across multiple models. Each paper's score reflects how
             consistently it was preferred in head-to-head evaluations within its category.
+            {" "}<a href="/?tagOpen=1&period=recent" className="text-accent hover:underline font-medium">View all rankings</a>
           </p>
           {/* Actual top papers */}
           {stats?.top_papers?.length > 0 && (
