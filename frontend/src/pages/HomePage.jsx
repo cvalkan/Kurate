@@ -1,13 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Helmet } from "react-helmet";
 import axios from "axios";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Trophy, BarChart3, BookOpen, ArrowRight, LogIn,
-  Layers, Brain, LayoutGrid, Lightbulb, TrendingUp,
-  Clock, Building2, GraduationCap, Users, Briefcase,
-  FileText, Globe, Shield, ChevronRight, Zap,
-  Microscope, BookMarked, Sparkles, FlaskConical,
+  Brain, LayoutGrid, Lightbulb, TrendingUp, Search,
+  Building2, GraduationCap, Briefcase, Shield,
+  FileText, Globe, ChevronRight, Zap, Sparkles, FlaskConical,
+  BookMarked, ExternalLink,
 } from "lucide-react";
 import {
   Accordion, AccordionItem, AccordionTrigger, AccordionContent,
@@ -20,13 +20,35 @@ function fmt(n) {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : n.toLocaleString();
 }
 
-/* ═══════════════ MAIN COMPONENT ═══════════════ */
+const CHIPS = [
+  { label: "Artificial Intelligence", cat: "cs.AI" },
+  { label: "Machine Learning", cat: "cs.LG" },
+  { label: "Robotics", cat: "cs.RO" },
+  { label: "Quantum Physics", cat: "quant-ph" },
+  { label: "Economics", cat: "econ.GN" },
+  { label: "Cryptography", cat: "cs.CR" },
+  { label: "Materials Science", cat: "cond-mat.mtrl-sci" },
+  { label: "Cosmology", cat: "astro-ph.CO" },
+];
+
 export default function HomePage() {
   const [stats, setStats] = useState(null);
+  const [query, setQuery] = useState("");
+  const navigate = useNavigate();
 
   useEffect(() => {
     axios.get(`${API}/api/homepage/stats`).then(r => setStats(r.data)).catch(() => {});
   }, []);
+
+  const handleSearch = useCallback((e) => {
+    e.preventDefault();
+    const q = query.trim();
+    if (q) {
+      navigate(`/?q=${encodeURIComponent(q)}&tagOpen=1&period=recent`);
+    } else {
+      navigate("/?tagOpen=1&period=recent");
+    }
+  }, [query, navigate]);
 
   const allCats = stats?.categories || [];
 
@@ -46,116 +68,164 @@ export default function HomePage() {
         <meta name="twitter:image" content="https://kurate.org/kurate-logo.png" />
       </Helmet>
 
-      {/* ── HERO ── */}
-      <section className="relative overflow-hidden border-b border-border" data-testid="hero-section">
-        <div className="absolute inset-0 bg-gradient-to-b from-accent/[0.04] to-transparent pointer-events-none" />
-        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-12 md:py-20 relative">
-          <div className="max-w-3xl mb-10">
-            <h1 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight mb-5 text-foreground whitespace-nowrap" data-testid="hero-heading">
-              Discover top-ranked arXiv preprints
-            </h1>
-            <p className="text-muted-foreground text-base md:text-lg leading-relaxed max-w-2xl">
-              Kurate ranks <strong className="text-foreground">arXiv preprints</strong> using
-              AI-assisted comparison across {stats?.total_categories || "multiple"} research
-              categories — helping researchers, students, and institutions identify promising
-              work before citation signals mature.
-            </p>
-            <div className="flex flex-wrap gap-3 mt-7">
-              <button onClick={() => window.dispatchEvent(new Event("open-auth-modal"))} className="inline-flex items-center gap-2 bg-accent text-accent-foreground px-5 py-2.5 rounded-md font-medium text-sm hover:bg-accent/90 transition-colors" data-testid="hero-signup-btn">
-                <LogIn className="h-4 w-4" /> Sign up free
-              </button>
-              <a href="/?tagOpen=1&period=recent" className="inline-flex items-center gap-2 border border-border bg-card text-foreground px-5 py-2.5 rounded-md font-medium text-sm hover:bg-secondary transition-colors" data-testid="hero-explore-btn">
-                Explore rankings <ArrowRight className="h-4 w-4" />
-              </a>
-              <Link to="/methodology" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-2.5" data-testid="hero-methodology-btn">
-                <BookOpen className="h-4 w-4" /> Methodology
-              </Link>
-            </div>
+      {/* ════════ HERO — full viewport, app-like ════════ */}
+      <section className="relative min-h-[calc(90vh-3.5rem)] flex flex-col items-center justify-center px-4" data-testid="hero-section">
+        {/* Subtle dot grid background */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{
+          backgroundImage: "radial-gradient(circle, hsl(217,60%,50%) 1px, transparent 1px)",
+          backgroundSize: "32px 32px",
+        }} />
+
+        <div className="relative w-full max-w-3xl mx-auto text-center">
+          {/* Social links row */}
+          <div className="flex items-center justify-center gap-4 mb-10 text-xs text-muted-foreground">
+            <a href="https://x.com/KurateOrg" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors" data-testid="social-x">X / Twitter</a>
+            <span className="text-border">·</span>
+            <a href="https://www.linkedin.com/company/kurate-org" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors" data-testid="social-linkedin">LinkedIn</a>
+            <span className="text-border">·</span>
+            <a href="https://www.instagram.com/kurate2026/" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors" data-testid="social-instagram">Instagram</a>
+            <span className="text-border">·</span>
+            <a href="https://www.facebook.com/Kurate/" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors" data-testid="social-facebook">Facebook</a>
           </div>
 
-          {/* Hero ranking cards */}
-          <h2 className="font-heading text-xl md:text-2xl font-semibold tracking-tight mb-2">Recent rankings</h2>
-          <p className="text-muted-foreground text-base mb-6">Newly ranked preprints across all active categories.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5" data-testid="hero-cards">
-            <a href="/?period=recent" className="group bg-accent/[0.06] border border-accent/20 rounded-lg p-7 hover:shadow-md hover:border-accent/40 transition-all flex flex-col" data-testid="hero-card-recent">
-              <Clock className="h-7 w-7 text-accent mb-4" />
-              <h3 className="font-heading font-semibold text-lg mb-2">All categories</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed flex-1">Latest ranked preprints across every active research field.</p>
-              <span className="inline-flex items-center gap-2 bg-accent text-accent-foreground px-4 py-2 rounded-md text-sm font-medium group-hover:gap-3 transition-all mt-5 self-start">View rankings <ArrowRight className="h-4 w-4" /></span>
-            </a>
-            <a href="/?cat=cs.AI&period=recent" className="group bg-accent/[0.06] border border-accent/20 rounded-lg p-7 hover:shadow-md hover:border-accent/40 transition-all flex flex-col" data-testid="hero-card-ai">
-              <Brain className="h-7 w-7 text-accent mb-4" />
-              <h3 className="font-heading font-semibold text-lg mb-2">AI papers</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed flex-1">Artificial Intelligence category rankings.</p>
-              <span className="inline-flex items-center gap-2 bg-accent text-accent-foreground px-4 py-2 rounded-md text-sm font-medium group-hover:gap-3 transition-all mt-5 self-start">View rankings <ArrowRight className="h-4 w-4" /></span>
-            </a>
-            <a href="/?cat=quant-ph&period=recent" className="group bg-accent/[0.06] border border-accent/20 rounded-lg p-7 hover:shadow-md hover:border-accent/40 transition-all flex flex-col" data-testid="hero-card-physics">
-              <Sparkles className="h-7 w-7 text-accent mb-4" />
-              <h3 className="font-heading font-semibold text-lg mb-2">Quantum Physics</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed flex-1">Quantum Physics category rankings.</p>
-              <span className="inline-flex items-center gap-2 bg-accent text-accent-foreground px-4 py-2 rounded-md text-sm font-medium group-hover:gap-3 transition-all mt-5 self-start">View rankings <ArrowRight className="h-4 w-4" /></span>
+          {/* Headline */}
+          <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight text-foreground mb-5 leading-[1.1]" data-testid="hero-heading">
+            Discover the most significant<br className="hidden sm:block" /> research before everyone else
+          </h1>
+
+          {/* Subtitle */}
+          <p className="text-muted-foreground text-base md:text-lg leading-relaxed max-w-2xl mx-auto mb-10">
+            Kurate helps researchers explore preprints and academic papers through ranked
+            signals, topic intelligence, and field-level context.
+          </p>
+
+          {/* Search bar */}
+          <form onSubmit={handleSearch} className="relative max-w-2xl mx-auto mb-6" data-testid="search-form">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+            <input
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search papers, topics, authors, methods, or research questions..."
+              className="w-full h-14 pl-12 pr-36 rounded-xl border border-border bg-card text-foreground text-base placeholder:text-muted-foreground/60 shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent transition-all"
+              data-testid="search-input"
+            />
+            <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 bg-accent text-accent-foreground px-5 py-2.5 rounded-lg font-medium text-sm hover:bg-accent/90 transition-colors" data-testid="search-btn">
+              Explore Research
+            </button>
+          </form>
+
+          {/* Category chips */}
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-8" data-testid="category-chips">
+            {CHIPS.map(c => (
+              <a
+                key={c.cat}
+                href={`/?cat=${c.cat}&period=recent`}
+                className="px-3 py-1.5 text-xs font-medium text-muted-foreground border border-border rounded-full hover:border-accent/50 hover:text-accent transition-all bg-card"
+                data-testid={`chip-${c.cat}`}
+              >
+                {c.label}
+              </a>
+            ))}
+            <a href="/?tagOpen=1&period=recent" className="px-3 py-1.5 text-xs font-medium text-accent border border-accent/30 rounded-full hover:bg-accent/5 transition-all" data-testid="chip-all">
+              All categories
             </a>
           </div>
+
+          {/* Secondary links */}
+          <div className="flex items-center justify-center gap-5 text-sm">
+            <a href="/?period=recent" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5" data-testid="link-leaderboards">
+              <Trophy className="h-4 w-4" /> View Leaderboards
+            </a>
+            <a href="/?tagOpen=1&period=recent" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5" data-testid="link-categories">
+              <LayoutGrid className="h-4 w-4" /> Browse Categories
+            </a>
+            <Link to="/methodology" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5" data-testid="link-methodology">
+              <BookOpen className="h-4 w-4" /> Methodology
+            </Link>
+          </div>
+
+          {/* Trust line */}
+          <p className="text-xs text-muted-foreground/60 mt-10">
+            Built for research discovery. Not a replacement for peer review.
+          </p>
         </div>
       </section>
 
-      {/* ── RESEARCH INTELLIGENCE (new panel) ── */}
-      <section className="bg-[hsl(218,60%,30%)] text-white border-b" data-testid="research-intelligence">
-        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
-          <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight mb-3">Research Intelligence</h2>
-          <p className="text-white/75 text-base md:text-lg leading-relaxed mb-10 max-w-3xl">
-            Kurate turns arXiv preprint rankings into structured research signals that help
-            users discover important papers, compare activity across fields, and monitor
-            emerging scientific directions.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-10">
+      {/* ════════ PANEL 2 — What Kurate does ════════ */}
+      <section className="border-t border-border bg-secondary/20" data-testid="what-kurate-does">
+        <div className="container mx-auto px-4 md:px-6 max-w-6xl py-16 md:py-24">
+          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-center mb-12">What Kurate does</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { icon: BarChart3, title: "Research signal mapping", desc: "Track how preprints are ranked, compared, and positioned across research categories." },
-              { icon: TrendingUp, title: "Category momentum", desc: "Identify which fields and topics are becoming more active through newly ranked and top-ranked papers." },
-              { icon: Brain, title: "Paper-level interpretation", desc: "Use AI-assisted analysis to understand novelty, rigour, relevance, and potential impact before deciding what to read in depth." },
-              { icon: Globe, title: "Strategic discovery", desc: "Support literature review, research monitoring, editorial scanning, funding analysis, and R&D horizon scanning." },
+              { icon: Trophy, title: "Rank emerging research", desc: "Papers are evaluated through AI-assisted pairwise comparison and ranked within their category, surfacing work that may be significant." },
+              { icon: Sparkles, title: "Show signals beyond citations", desc: "Kurate evaluates novelty, methodological strength, relevance, and potential impact — signals that citations take years to reveal." },
+              { icon: Lightbulb, title: "Help users understand significance", desc: "Ranked leaderboards, model analysis, and validation experiments give researchers structured context for deciding what to read." },
             ].map((c, i) => {
               const Icon = c.icon;
               return (
-                <div key={i} className="bg-white/[0.08] border border-white/12 rounded-lg p-6">
-                  <Icon className="h-6 w-6 text-blue-200 mb-4" />
+                <div key={i} className="text-center">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-accent/10 mb-5">
+                    <Icon className="h-6 w-6 text-accent" />
+                  </div>
                   <h3 className="font-heading font-semibold text-lg mb-2">{c.title}</h3>
-                  <p className="text-white/70 text-base leading-relaxed">{c.desc}</p>
+                  <p className="text-muted-foreground text-sm leading-relaxed">{c.desc}</p>
                 </div>
               );
             })}
           </div>
-          <div className="flex flex-wrap gap-3">
-            <a href="/?tagOpen=1&period=recent" className="inline-flex items-center gap-2 bg-white text-[hsl(218,60%,30%)] px-5 py-2.5 rounded-md font-medium text-sm hover:bg-white/90 transition-colors">
-              Explore rankings <ArrowRight className="h-4 w-4" />
-            </a>
-            <a href="/?period=recent" className="inline-flex items-center gap-2 border border-white/30 text-white px-5 py-2.5 rounded-md font-medium text-sm hover:bg-white/10 transition-colors">
-              Browse research categories
-            </a>
-            <button onClick={() => window.dispatchEvent(new Event("open-auth-modal"))} className="inline-flex items-center gap-2 border border-white/30 text-white px-5 py-2.5 rounded-md font-medium text-sm hover:bg-white/10 transition-colors">
-              <LogIn className="h-4 w-4" /> Create free account
-            </button>
+        </div>
+      </section>
+
+      {/* ════════ PANEL 3 — Research signals ════════ */}
+      <section className="border-t border-border" data-testid="research-signals">
+        <div className="container mx-auto px-4 md:px-6 max-w-6xl py-16 md:py-24">
+          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-center mb-4">Research signals</h2>
+          <p className="text-muted-foreground text-sm md:text-base text-center mb-12 max-w-2xl mx-auto">
+            Kurate surfaces structured signals for each paper and category, going beyond simple metadata.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {[
+              { icon: Sparkles, label: "Novelty" },
+              { icon: Brain, label: "Method strength" },
+              { icon: TrendingUp, label: "Field momentum" },
+              { icon: Globe, label: "Relevance" },
+              { icon: BarChart3, label: "Ranking movement" },
+              { icon: FileText, label: "Topic-level context" },
+              { icon: Zap, label: "Attention patterns" },
+              { icon: ExternalLink, label: "Paper visibility" },
+            ].map((s, i) => {
+              const Icon = s.icon;
+              return (
+                <div key={i} className="bg-accent/[0.05] border border-accent/15 rounded-lg px-4 py-4 flex items-center gap-3">
+                  <Icon className="h-4 w-4 text-accent shrink-0" />
+                  <span className="text-sm font-medium">{s.label}</span>
+                </div>
+              );
+            })}
+          </div>
+          {/* Live platform numbers */}
+          <div className="flex flex-wrap items-center justify-center gap-8 mt-12 pt-8 border-t border-border">
+            <Stat label="Preprints analysed" value={fmt(stats?.total_papers)} />
+            <Stat label="Research categories" value={stats?.total_categories || "—"} />
+            <Stat label="AI comparisons" value={fmt(stats?.total_matches)} />
+            <Stat label="AI judges" value={stats?.ai_judges || 3} />
           </div>
         </div>
       </section>
 
-      {/* ── RESEARCH CATEGORIES ── */}
-      <section className="bg-secondary/30 border-b border-border" data-testid="categories-section">
-        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-14">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-accent">Research categories</h2>
-            <a href="/?tagOpen=1&period=recent" className="text-sm text-accent hover:underline">View all rankings</a>
-          </div>
-          <p className="text-muted-foreground text-sm md:text-base leading-relaxed mb-6 max-w-3xl">
-            Kurate covers {stats?.total_categories || "multiple"} research categories spanning computer science,
-            physics, mathematics, economics, biology, and cryptography. Each category maintains its own
-            ranked leaderboard, updated as new arXiv preprints are analysed.
+      {/* ════════ PANEL 4 — Leaderboards & categories ════════ */}
+      <section className="border-t border-border bg-secondary/20" data-testid="leaderboards-categories">
+        <div className="container mx-auto px-4 md:px-6 max-w-6xl py-16 md:py-24">
+          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-center mb-4">Leaderboards and categories</h2>
+          <p className="text-muted-foreground text-sm md:text-base text-center mb-10 max-w-2xl mx-auto">
+            Rankings are organised by research area. Explore any category to see which preprints are currently ranked highest.
           </p>
-          {/* Top categories with paper counts */}
+          {/* Top categories with counts */}
           {stats?.top_categories?.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-8 max-w-4xl mx-auto">
               {stats.top_categories.map(tc => (
-                <a key={tc.id} href={`/?cat=${tc.id}&period=recent`} className="group flex items-center justify-between bg-accent/[0.06] border border-accent/20 rounded-lg px-5 py-3.5 hover:border-accent/40 transition-all">
+                <a key={tc.id} href={`/?cat=${tc.id}&period=recent`} className="group flex items-center justify-between bg-card border border-border rounded-lg px-5 py-3.5 hover:border-accent/40 hover:shadow-sm transition-all">
                   <div>
                     <p className="text-sm font-semibold">{tc.name}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{fmt(tc.count)} ranked preprints</p>
@@ -166,303 +236,105 @@ export default function HomePage() {
             </div>
           )}
           {/* All categories grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 max-w-5xl mx-auto">
             {allCats.map(cat => (
-              <a
-                key={cat.id}
-                href={`/?cat=${cat.id}&period=recent`}
-                className="group bg-card border border-border rounded-md px-3.5 py-2.5 hover:shadow-sm hover:border-accent/40 transition-all flex items-center justify-between gap-2"
-                data-testid={`category-${cat.id}`}
-              >
-                <span className="text-sm font-medium truncate">{cat.name}</span>
+              <a key={cat.id} href={`/?cat=${cat.id}&period=recent`} className="group bg-card border border-border rounded-md px-3 py-2 text-sm font-medium hover:border-accent/40 transition-all flex items-center justify-between gap-2" data-testid={`cat-${cat.id}`}>
+                <span className="truncate">{cat.name}</span>
                 <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0 group-hover:text-accent transition-colors" />
               </a>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* ── TOP RANKED PREPRINTS ── */}
-      <section className="border-b border-border" data-testid="top-papers-section">
-        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-14">
-          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-accent mb-3">Top ranked preprints</h2>
-          <p className="text-muted-foreground text-sm md:text-base leading-relaxed mb-8 max-w-3xl">
-            These are the highest-ranked arXiv preprints currently on the platform. Rankings are produced
-            by AI-assisted pairwise comparison across multiple models. Each paper's score reflects how
-            consistently it was preferred in head-to-head evaluations within its category.
-            {" "}<a href="/?tagOpen=1&period=recent" className="text-accent hover:underline font-medium">View all rankings</a>
-          </p>
-          {/* Actual top papers */}
-          {stats?.top_papers?.length > 0 && (
-            <div className="bg-card border border-border rounded-lg overflow-hidden mb-8 max-w-4xl">
-              <div className="divide-y divide-border">
-                {stats.top_papers.slice(0, 5).map((p, i) => (
-                  <Link to={`/paper/${p.id}`} key={p.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-secondary/30 transition-colors" data-testid={`top-paper-${i}`}>
-                    <span className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-mono font-semibold ${
-                      i === 0 ? "bg-amber-100 text-amber-700 border-2 border-amber-400 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-600"
-                      : i === 1 ? "bg-slate-100 text-slate-600 border-2 border-slate-400 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-500"
-                      : i === 2 ? "bg-orange-100 text-orange-700 border-2 border-orange-400 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-600"
-                      : "bg-secondary text-secondary-foreground"
-                    }`}>{i + 1}</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{p.title}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {p.primary_category}{p.ts_score ? ` · Score ${p.ts_score.toFixed(0)}` : ""}{p.authors?.length ? ` · ${p.authors.join(", ")}` : ""}
-                      </p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-          {/* Browse by category */}
-          <h3 className="font-heading font-medium text-sm text-muted-foreground uppercase tracking-wider mb-3">Browse top papers by category</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 max-w-5xl">
-            {allCats.map(cat => (
-              <a
-                key={cat.id}
-                href={`/?cat=${cat.id}&period=recent&sort=rank&dir=asc`}
-                className="group flex items-center justify-between py-2.5 border-b border-border/60 hover:border-accent/40 transition-colors"
-                data-testid={`top-cat-${cat.id}`}
-              >
-                <span className="text-sm font-medium">{cat.name}</span>
-                <span className="text-xs text-accent opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                  View top papers <ChevronRight className="h-3 w-3" />
-                </span>
-              </a>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── PLATFORM OVERVIEW ── */}
-      <section className="bg-secondary/30 border-b border-border" data-testid="metrics-section">
-        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-14">
-          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-accent mb-3">Platform overview</h2>
-          <p className="text-muted-foreground text-sm md:text-base leading-relaxed mb-8 max-w-3xl">
-            Kurate continuously analyses arXiv preprints using multiple AI models. Papers are compared
-            in pairwise evaluations and ranked within their research category. The metrics below
-            reflect the current scale of the platform.
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-            <MetricCard icon={FileText} label="Preprints analysed" value={fmt(stats?.total_papers)} testId="metric-papers" />
-            <MetricCard icon={LayoutGrid} label="Research categories" value={stats?.total_categories || "—"} testId="metric-categories" />
-            <MetricCard icon={Zap} label="AI comparisons" value={fmt(stats?.total_matches)} testId="metric-matches" />
-            <MetricCard icon={Brain} label="AI judges" value={stats?.ai_judges || 3} testId="metric-judges" />
-            {stats?.top_categories?.[0] && (
-              <MetricCard icon={TrendingUp} label="Most active field" value={stats.top_categories[0].name} sub={`${fmt(stats.top_categories[0].count)} preprints`} testId="metric-active" />
-            )}
-          </div>
-          <div className="flex flex-wrap gap-4">
-            <a href="/?tagOpen=1&period=recent" className="inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline">
-              <ArrowRight className="h-4 w-4" /> Explore all rankings
+          <div className="text-center mt-8">
+            <a href="/?tagOpen=1&period=recent" className="inline-flex items-center gap-2 bg-accent text-accent-foreground px-5 py-2.5 rounded-lg font-medium text-sm hover:bg-accent/90 transition-colors" data-testid="all-rankings-btn">
+              View all rankings <ArrowRight className="h-4 w-4" />
             </a>
-            <Link to="/methodology" className="inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline">
-              <BookOpen className="h-4 w-4" /> Read the methodology
-            </Link>
           </div>
         </div>
       </section>
 
-      {/* ── HOW KURATE WORKS — #3 larger text ── */}
-      <section className="bg-[hsl(218,60%,30%)] text-white border-b" data-testid="how-it-works">
-        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
-          <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight mb-3">How Kurate works</h2>
-          <p className="text-white/70 text-base md:text-lg mb-10 max-w-2xl leading-relaxed">
-            Kurate processes arXiv preprints daily, applies AI-assisted analysis, and produces
-            category-level rankings to help users discover and compare research.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      {/* ════════ PANEL 5 — For whom ════════ */}
+      <section className="border-t border-border" data-testid="for-whom">
+        <div className="container mx-auto px-4 md:px-6 max-w-6xl py-16 md:py-24">
+          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-center mb-12">For researchers, readers, and institutions</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { icon: FileText, title: "Collect preprints", desc: "Kurate monitors new arXiv submissions and organises them by research category." },
-              { icon: Brain, title: "Analyse research signals", desc: "Multiple AI models read paper content and evaluate research characteristics such as novelty, rigour, and potential impact." },
-              { icon: Trophy, title: "Rank by category", desc: "Papers are ranked within their research area, producing a leaderboard that is updated as new preprints arrive." },
-              { icon: Lightbulb, title: "Support discovery", desc: "Researchers can browse ranked categories, compare papers, and identify work that may be relevant to their interests." },
-            ].map((s, i) => {
-              const Icon = s.icon;
+              { icon: GraduationCap, title: "For researchers", desc: "Track field visibility, discover newly ranked preprints, and understand how your area of research is evolving." },
+              { icon: BookMarked, title: "For readers", desc: "Find important papers faster by browsing ranked leaderboards instead of scrolling through chronological feeds." },
+              { icon: Building2, title: "For institutions and labs", desc: "Understand emerging research areas, monitor topic movement, and support strategic research planning across disciplines." },
+            ].map((c, i) => {
+              const Icon = c.icon;
               return (
-                <div key={i} className="bg-white/[0.10] border border-white/15 rounded-lg p-6">
-                  <Icon className="h-6 w-6 text-blue-200 mb-4" />
-                  <h3 className="font-heading font-semibold text-lg mb-3">{s.title}</h3>
-                  <p className="text-white/75 text-base leading-relaxed">{s.desc}</p>
+                <div key={i} className="bg-accent/[0.04] border border-accent/15 rounded-lg p-6" data-testid={`audience-${i}`}>
+                  <Icon className="h-6 w-6 text-accent mb-4" />
+                  <h3 className="font-heading font-semibold text-base mb-2">{c.title}</h3>
+                  <p className="text-muted-foreground text-sm leading-relaxed">{c.desc}</p>
                 </div>
               );
             })}
+          </div>
+          <div className="text-center mt-10">
+            <button onClick={() => window.dispatchEvent(new Event("open-auth-modal"))} className="inline-flex items-center gap-2 bg-accent text-accent-foreground px-6 py-3 rounded-lg font-medium text-sm hover:bg-accent/90 transition-colors" data-testid="signup-cta">
+              <LogIn className="h-4 w-4" /> Create free account
+            </button>
           </div>
         </div>
       </section>
 
-      {/* ── RANKINGS ARE SIGNALS ── */}
-      <section className="bg-accent/[0.07] border-b border-border" data-testid="responsible-discovery">
-        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
-          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight mb-3">Rankings are signals, not verdicts</h2>
-          <p className="text-muted-foreground text-base md:text-lg mb-8 max-w-3xl leading-relaxed">
-            Kurate rankings are designed to support discovery, filtering, and prioritisation.
-            They provide an early signal about which preprints may be worth reading — but they
-            do not replace peer review, expert judgement, or careful reading of the paper itself.
+      {/* ════════ PANEL 6 — Not a replacement ════════ */}
+      <section className="border-t border-border bg-accent/[0.05]" data-testid="responsible-discovery">
+        <div className="container mx-auto px-4 md:px-6 max-w-3xl py-14 md:py-20 text-center">
+          <Shield className="h-8 w-8 text-accent mx-auto mb-5" />
+          <h2 className="font-heading text-xl md:text-2xl font-semibold tracking-tight mb-4">Not a replacement for peer review</h2>
+          <p className="text-muted-foreground text-base leading-relaxed">
+            Kurate does not replace peer review or expert reading. It provides discovery signals
+            that help users decide which papers deserve closer attention. Rankings are early indicators
+            — always read the paper and apply your own expertise.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { icon: Brain, text: "Multiple AI models reduce dependence on any single perspective." },
-              { icon: LayoutGrid, text: "Papers are compared within their research category, not across unrelated fields." },
-              { icon: Shield, text: "AI models have limitations. Users should read papers directly and apply domain expertise." },
-              { icon: BookOpen, text: "The methodology is documented and the ranking approach can evolve over time." },
-            ].map((p, i) => {
-              const Icon = p.icon;
-              return (
-                <div key={i} className="flex items-start gap-3 bg-card border border-accent/20 rounded-lg p-5">
-                  <Icon className="h-5 w-5 text-accent shrink-0 mt-0.5" />
-                  <p className="text-sm font-medium text-foreground/80 leading-relaxed">{p.text}</p>
-                </div>
-              );
-            })}
-          </div>
-          <div className="flex flex-wrap gap-4 mt-8">
-            <Link to="/methodology" className="inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline">
-              <BookOpen className="h-4 w-4" /> Read the methodology
+          <div className="flex flex-wrap items-center justify-center gap-4 mt-8">
+            <Link to="/methodology" className="text-sm font-medium text-accent hover:underline flex items-center gap-1.5">
+              <BookOpen className="h-4 w-4" /> Methodology
             </Link>
-            <Link to="/correlation" className="inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline">
+            <Link to="/correlation" className="text-sm font-medium text-accent hover:underline flex items-center gap-1.5">
               <BarChart3 className="h-4 w-4" /> Model analysis
             </Link>
-            <Link to="/validation" className="inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline">
-              <FlaskConical className="h-4 w-4" /> Validation experiments
+            <Link to="/validation" className="text-sm font-medium text-accent hover:underline flex items-center gap-1.5">
+              <FlaskConical className="h-4 w-4" /> Validation
             </Link>
           </div>
         </div>
       </section>
 
-      {/* ── FEATURES & ROADMAP — #2 linked items ── */}
-      <section className="bg-secondary/30 border-b border-border" data-testid="features-section">
-        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
-          <h2 className="font-heading text-2xl md:text-3xl font-medium tracking-tight mb-3">Features and roadmap</h2>
-          <p className="text-muted-foreground text-sm mb-10 max-w-2xl">
-            Kurate currently focuses on arXiv preprint ranking and discovery.
-            Additional research intelligence features are in development.
-          </p>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Current — linked */}
-            <div>
-              <h3 className="font-heading font-medium text-sm uppercase tracking-wider text-accent mb-4">Available now</h3>
-              <div className="space-y-3">
-                {[
-                  { icon: FileText, title: "arXiv preprint discovery", desc: "Browse and search preprints across multiple research areas.", href: "/?tagOpen=1&period=recent" },
-                  { icon: Trophy, title: "Category-based rankings", desc: "Papers ranked within their field by AI-assisted comparison.", href: "/?period=recent" },
-                  { icon: BarChart3, title: "Model analysis", desc: "Compare how different AI judges agree and disagree on paper rankings.", to: "/correlation" },
-                  { icon: FlaskConical, title: "Validation experiments", desc: "Ground-truth benchmarks that test ranking accuracy against expert judgements.", to: "/validation" },
-                  { icon: BookMarked, title: "Bookmarks and reading lists", desc: "Save papers and organise reading lists for later review.", href: "/bookmarks" },
-                ].map((f, i) => {
-                  const Icon = f.icon;
-                  const inner = (
-                    <>
-                      <Icon className="h-4 w-4 text-accent shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium group-hover:text-accent transition-colors">{f.title}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{f.desc}</p>
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </>
-                  );
-                  return f.to ? (
-                    <Link key={i} to={f.to} className="group flex items-start gap-3 bg-card border border-border rounded-lg p-4 hover:border-accent/40 transition-all">
-                      {inner}
-                    </Link>
-                  ) : (
-                    <a key={i} href={f.href} className="group flex items-start gap-3 bg-card border border-border rounded-lg p-4 hover:border-accent/40 transition-all">
-                      {inner}
-                    </a>
-                  );
-                })}
-              </div>
-            </div>
-            {/* Coming soon */}
-            <div>
-              <h3 className="font-heading font-medium text-sm uppercase tracking-wider text-muted-foreground mb-4">Coming soon</h3>
-              <div className="space-y-3">
-                {[
-                  { icon: Lightbulb, title: "Semantic search", desc: "Find papers by meaning, not just keywords." },
-                  { icon: Layers, title: "Similarity landscape", desc: "Visual maps of how papers relate to each other within a field." },
-                  { icon: Sparkles, title: "Novelty and difficulty signals", desc: "Indicators for methodological novelty and technical difficulty." },
-                  { icon: TrendingUp, title: "Emerging topic detection", desc: "Identify research themes that are gaining early attention." },
-                  { icon: Globe, title: "Broader source coverage", desc: "Extend beyond arXiv to additional preprint and publication sources." },
-                ].map((f, i) => {
-                  const Icon = f.icon;
-                  return (
-                    <div key={i} className="flex items-start gap-3 bg-card border border-border/60 rounded-lg p-4 opacity-80">
-                      <Icon className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">{f.title}</p>
-                        <p className="text-xs text-muted-foreground/80 mt-0.5">{f.desc}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── USE CASES ── */}
-      <section className="border-b border-border" data-testid="use-cases">
-        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
-          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight mb-8">Who uses Kurate</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      {/* ════════ PANEL 7 — FAQ ════════ */}
+      <section className="border-t border-border" data-testid="faq-section">
+        <div className="container mx-auto px-4 md:px-6 max-w-3xl py-14 md:py-20">
+          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-center mb-10">Frequently asked questions</h2>
+          <Accordion type="single" collapsible className="space-y-2">
             {[
-              { icon: Microscope, title: "Researchers", desc: "Prioritise reading across fast-moving fields and track preprints that may become important." },
-              { icon: GraduationCap, title: "Postgraduate students", desc: "Build literature review pathways and understand research clusters without being overwhelmed." },
-              { icon: Building2, title: "Universities and research offices", desc: "Monitor strategic fields and identify early signals across disciplines." },
-              { icon: Briefcase, title: "Industry R&D teams", desc: "Scan scientific developments relevant to technical strategy and product direction." },
-              { icon: Users, title: "Funding bodies", desc: "Track scientific momentum and compare research areas across categories." },
-              { icon: BookMarked, title: "Publishers and editors", desc: "Understand emerging topics and detect active research communities." },
-            ].map((u, i) => {
-              const Icon = u.icon;
+              { q: "What is Kurate.org?", a: "Kurate.org analyses arXiv preprints and ranks them using AI-assisted comparison across multiple research categories. It is designed to help researchers discover and prioritise papers earlier." },
+              { q: "How are papers ranked?", a: "Kurate uses multiple AI models to compare papers within each research category. The resulting rankings reflect AI-estimated research signals such as novelty, rigour, and potential impact." },
+              { q: "Does Kurate replace peer review?", a: "No. Kurate rankings are an early discovery signal. They should be used alongside expert judgement, direct reading, and peer review." },
+              { q: "Which research areas does Kurate cover?", a: `Kurate currently covers ${stats?.total_categories || "multiple"} research categories across computer science, physics, economics, mathematics, biology, and more.` },
+              { q: "Are rankings based on citations?", a: "No. Kurate is designed for early-stage discovery, where citation counts may not yet exist. Rankings are based on AI-assisted analysis of paper content." },
+              { q: "Can universities use Kurate?", a: "Yes. Kurate can support literature scanning, field monitoring, and research strategy discussions across disciplines." },
+              { q: "How should I interpret a ranking?", a: "Treat rankings as an early signal for discovery and prioritisation, not as a definitive quality judgement. Always read the paper and apply your own expertise." },
+            ].map((f, i, arr) => {
+              const t = i / Math.max(arr.length - 1, 1);
+              const bg = `hsl(217, ${60 + t * 15}%, ${97 - t * 12}%)`;
+              const white = (97 - t * 12) < 88;
               return (
-                <div key={i} className="bg-accent/[0.04] border border-accent/15 rounded-lg p-6" data-testid={`usecase-${i}`}>
-                  <Icon className="h-6 w-6 text-accent mb-4" />
-                  <h3 className="font-heading font-semibold text-base mb-2">{u.title}</h3>
-                  <p className="text-muted-foreground text-sm leading-relaxed">{u.desc}</p>
-                </div>
+                <AccordionItem key={i} value={`faq-${i}`} className="border-0 rounded-lg px-5 overflow-hidden" style={{ backgroundColor: bg }} data-testid={`faq-${i}`}>
+                  <AccordionTrigger className="text-sm font-medium py-4 hover:no-underline" style={white ? { color: "hsl(217,20%,98%)" } : undefined}>{f.q}</AccordionTrigger>
+                  <AccordionContent className="text-sm" style={white ? { color: "hsl(217,20%,90%)" } : undefined}>{f.a}</AccordionContent>
+                </AccordionItem>
               );
             })}
-          </div>
+          </Accordion>
         </div>
       </section>
 
-      {/* ── FAQ ── */}
-      <section className="bg-secondary/30 border-b border-border" data-testid="faq-section">
-        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
-          <h2 className="font-heading text-2xl md:text-3xl font-medium tracking-tight mb-8">Frequently asked questions</h2>
-          <div className="max-w-3xl">
-            <Accordion type="single" collapsible className="space-y-2">
-              {[
-                { q: "What is Kurate.org?", a: "Kurate.org analyses arXiv preprints and ranks them using AI-assisted comparison across multiple research categories. It is designed to help researchers discover and prioritise papers earlier." },
-                { q: "How are papers ranked?", a: "Kurate uses multiple AI models to compare papers within each research category. The resulting rankings reflect AI-estimated research signals such as novelty, rigour, and potential impact." },
-                { q: "Does Kurate replace peer review?", a: "No. Kurate rankings are an early discovery signal. They should be used alongside expert judgement, direct reading, and peer review." },
-                { q: "Which research areas does Kurate cover?", a: `Kurate currently covers ${stats?.total_categories || "multiple"} research categories across computer science, physics, economics, mathematics, biology, and more.` },
-                { q: "Are rankings based on citations?", a: "No. Kurate is designed for early-stage discovery, where citation counts may not yet exist. Rankings are based on AI-assisted analysis of paper content." },
-                { q: "Can universities or research offices use Kurate?", a: "Yes. Kurate can support literature scanning, field monitoring, and research strategy discussions across disciplines." },
-                { q: "How should I interpret a ranking?", a: "Treat rankings as an early signal for discovery and prioritisation, not as a definitive quality judgement. Always read the paper and apply your own expertise." },
-              ].map((f, i, arr) => {
-                const t = i / Math.max(arr.length - 1, 1);
-                const lightness = 97 - t * 12;
-                const saturation = 60 + t * 15;
-                const bg = `hsl(217, ${saturation}%, ${lightness}%)`;
-                const textColor = lightness < 88 ? "hsl(217,20%,98%)" : undefined;
-                return (
-                  <AccordionItem key={i} value={`faq-${i}`} className="border-0 rounded-lg px-5 overflow-hidden" style={{ backgroundColor: bg }} data-testid={`faq-${i}`}>
-                    <AccordionTrigger className="text-sm font-medium py-4 hover:no-underline" style={textColor ? { color: textColor } : undefined}>{f.q}</AccordionTrigger>
-                    <AccordionContent className="text-sm" style={textColor ? { color: `hsl(217,20%,90%)` } : undefined}>{f.a}</AccordionContent>
-                  </AccordionItem>
-                );
-              })}
-            </Accordion>
-          </div>
-        </div>
-      </section>
-
-      {/* ── FOOTER — #1 white logo text ── */}
+      {/* ════════ FOOTER ════════ */}
       <footer className="bg-[hsl(218,60%,30%)] text-white" data-testid="homepage-footer">
-        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-12 md:py-16">
+        <div className="container mx-auto px-4 md:px-6 max-w-6xl py-12 md:py-16">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
@@ -470,7 +342,7 @@ export default function HomePage() {
                 <img src="/kurate-logo.png" alt="Kurate.org" className="h-6 brightness-0 invert" />
               </div>
               <p className="text-white/60 text-sm leading-relaxed max-w-xs">
-                AI-assisted arXiv preprint rankings and research discovery across multiple fields.
+                Research discovery and ranking signals for preprints and academic papers.
               </p>
             </div>
             <div>
@@ -486,10 +358,10 @@ export default function HomePage() {
             <div>
               <h3 className="text-xs font-medium uppercase tracking-wider text-white/40 mb-4">Follow</h3>
               <nav className="space-y-2">
-                <a href="https://x.com/KurateOrg" target="_blank" rel="noopener noreferrer" className="block text-sm text-white/70 hover:text-white transition-colors" data-testid="footer-x">X (Twitter)</a>
-                <a href="https://www.linkedin.com/company/kurate-org" target="_blank" rel="noopener noreferrer" className="block text-sm text-white/70 hover:text-white transition-colors" data-testid="footer-linkedin">LinkedIn</a>
-                <a href="https://www.instagram.com/kurate2026/" target="_blank" rel="noopener noreferrer" className="block text-sm text-white/70 hover:text-white transition-colors" data-testid="footer-instagram">Instagram</a>
-                <a href="https://www.facebook.com/Kurate/" target="_blank" rel="noopener noreferrer" className="block text-sm text-white/70 hover:text-white transition-colors" data-testid="footer-facebook">Facebook</a>
+                <a href="https://x.com/KurateOrg" target="_blank" rel="noopener noreferrer" className="block text-sm text-white/70 hover:text-white transition-colors">X (Twitter)</a>
+                <a href="https://www.linkedin.com/company/kurate-org" target="_blank" rel="noopener noreferrer" className="block text-sm text-white/70 hover:text-white transition-colors">LinkedIn</a>
+                <a href="https://www.instagram.com/kurate2026/" target="_blank" rel="noopener noreferrer" className="block text-sm text-white/70 hover:text-white transition-colors">Instagram</a>
+                <a href="https://www.facebook.com/Kurate/" target="_blank" rel="noopener noreferrer" className="block text-sm text-white/70 hover:text-white transition-colors">Facebook</a>
               </nav>
             </div>
           </div>
@@ -504,13 +376,12 @@ export default function HomePage() {
   );
 }
 
-function MetricCard({ icon: Icon, label, value, sub, testId }) {
+/* ─── Sub-components ─── */
+function Stat({ label, value }) {
   return (
-    <div className="bg-accent/[0.07] border border-accent/20 rounded-lg p-4" data-testid={testId}>
-      <Icon className="h-4 w-4 text-accent mb-2" />
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-lg font-heading font-semibold mt-1">{value}</p>
-      {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+    <div className="text-center">
+      <p className="text-2xl font-heading font-semibold text-foreground">{value}</p>
+      <p className="text-xs text-muted-foreground mt-1">{label}</p>
     </div>
   );
 }
