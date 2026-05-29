@@ -1364,6 +1364,65 @@ async def get_llm_usage_aggregate(days: int = 7):
     return {"usage": results, "days": days}
 
 
+@router.get("/persona-stats", dependencies=[Depends(verify_admin)])
+async def get_persona_stats(category: str = None):
+    """Aggregate match statistics by reviewer persona."""
+    from core.config import REVIEWER_PERSONAS
+
+    match_filter = {
+        "completed": True, "failed": {"$ne": True},
+        "mode": {"$exists": False}, "persona": {"$exists": True},
+    }
+    if category:
+        match_filter["primary_category"] = category
+
+    pipeline = [
+        {"$match": match_filter},
+        {"$group": {
+            "_id": "$persona",
+            "matches": {"$sum": 1},
+            "paper1_wins": {"$sum": {"$cond": [{"$eq": ["$winner_id", "$paper1_id"]}, 1, 0]}},
+        }},
+    ]
+
+    persona_data = {}
+    async for doc in db.matches.aggregate(pipeline):
+        pid = doc["_id"]
+        meta = REVIEWER_PERSONAS.get(pid, {})
+        persona_data[pid] = {
+            "id": pid,
+            "label": meta.get("label", pid),
+            "description": meta.get("description", ""),
+            "matches": doc["matches"],
+            "paper1_win_rate": round(doc["paper1_wins"] / doc["matches"] * 100, 1) if doc["matches"] > 0 else 50.0,
+        }
+
+    # Include personas with 0 matches
+    for pid, meta in REVIEWER_PERSONAS.items():
+        if pid not in persona_data:
+            persona_data[pid] = {
+                "id": pid,
+                "label": meta.get("label", pid),
+                "description": meta.get("description", ""),
+                "matches": 0,
+                "paper1_win_rate": 50.0,
+            }
+
+    total_persona_matches = sum(p["matches"] for p in persona_data.values())
+    total_all_matches = await db.matches.count_documents({
+        "completed": True, "failed": {"$ne": True}, "mode": {"$exists": False},
+        **({"primary_category": category} if category else {}),
+    })
+
+    return {
+        "personas": list(persona_data.values()),
+        "total_persona_matches": total_persona_matches,
+        "total_all_matches": total_all_matches,
+        "coverage_pct": round(total_persona_matches / total_all_matches * 100, 1) if total_all_matches > 0 else 0,
+        "category": category,
+    }
+
+
 @router.get("/disqualified-papers", dependencies=[Depends(verify_admin)])
 async def get_disqualified_papers():
     """List papers with summary issues: refused, blocked (3+ failures), incomplete, or unprocessed."""

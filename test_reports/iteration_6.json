@@ -78,7 +78,7 @@
 
   "should_main_agent_self_test": false,
 
-  "context_for_next_testing_agent": "Complete rebuild from PaperSumo. App now has: Robotics paper leaderboard with automated daily arXiv fetching (cs.RO category), LLM comparison tournament using 3 models (GPT-5.2, Claude Opus 4.5, Gemini 3 Pro), Bradley-Terry ranking with Wilson confidence intervals. Admin panel with settings for fetch interval, comparisons per round, top-k focus, exploration constant, anchor comparisons, and custom evaluation prompts. 50 papers fetched, 80+ comparisons completed. Backend runs on port 8001, frontend on 3000. External URL: https://validation-hub-47.preview.emergentagent.com",
+  "context_for_next_testing_agent": "Complete rebuild from PaperSumo. App now has: Robotics paper leaderboard with automated daily arXiv fetching (cs.RO category), LLM comparison tournament using 3 models (GPT-5.2, Claude Opus 4.5, Gemini 3 Pro), Bradley-Terry ranking with Wilson confidence intervals. Admin panel with settings for fetch interval, comparisons per round, top-k focus, exploration constant, anchor comparisons, and custom evaluation prompts. 50 papers fetched, 80+ comparisons completed. Backend runs on port 8001, frontend on 3000. External URL: https://research-discovery-2.preview.emergentagent.com",
 
   "app_features_verified": {
     "public_features": [

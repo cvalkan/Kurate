@@ -7,7 +7,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://validation-hub-47.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://research-discovery-2.preview.emergentagent.com')
 
 class TestUCBBackendAPI:
     """Backend API tests for UCB feature"""

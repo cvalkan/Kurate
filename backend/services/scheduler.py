@@ -7,7 +7,7 @@ import secrets
 import hashlib
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict
-from core.config import db, logger, CATEGORIES
+from core.config import db, logger, CATEGORIES, REVIEWER_PERSONAS, PERSONA_IDS
 from core.auth import get_settings
 from services.arxiv import fetch_arxiv_papers, strip_arxiv_version
 from services.llm import download_and_extract_pdf, compare_papers, generate_precomparison_impact_summary
@@ -19,6 +19,17 @@ _scheduler_running = False
 _processing_locks = {}  # Per-category locks
 _fetching_cats = set()  # Categories currently being fetched
 _wake_event: asyncio.Event = None  # Wake scheduler immediately on resume
+
+# Persona round-robin counter (thread-safe via GIL for single-process use)
+_persona_counter = 0
+
+
+def _pick_persona() -> dict:
+    """Pick the next reviewer persona via round-robin."""
+    global _persona_counter
+    pid = PERSONA_IDS[_persona_counter % len(PERSONA_IDS)]
+    _persona_counter += 1
+    return REVIEWER_PERSONAS[pid]
 
 # --- Leader Election ---
 # In a multi-pod deployment, only the leader pod runs background scheduler loops.
@@ -1776,6 +1787,10 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                 p1_with_sum = {**p1, "ai_impact_summary": _get_paper_summary(p1, smk)}
                 p2_with_sum = {**p2, "ai_impact_summary": _get_paper_summary(p2, smk)}
 
+                # Assign a reviewer persona for this match
+                persona = _pick_persona()
+                persona_id = persona["id"]
+
                 async with sem:
                     # Check pause between acquiring semaphore and running
                     if _paused:
@@ -1783,7 +1798,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                     try:
                         llm_timeout = settings.get("llm_request_timeout", 120)
                         result = await asyncio.wait_for(
-                            compare_papers(p1_with_sum, p2_with_sum, prompt_config, content_mode="abstract_plus_summary"),
+                            compare_papers(p1_with_sum, p2_with_sum, prompt_config, content_mode="abstract_plus_summary", persona=persona),
                             timeout=llm_timeout,
                         )
                     except asyncio.TimeoutError:
@@ -1803,6 +1818,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                     "shared_categories": shared_cats,
                     "content_mode": "abstract_plus_summary",
                     "prompt_hash": current_prompt_hash,
+                    "persona": persona_id,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
 
@@ -1818,6 +1834,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                         "model_used": result.get("model_used", {}),
                         "tokens": result.get("tokens", {}),
                         "completed": True, "failed": False,
+                        "persona": result.get("persona", persona_id),
                     })
                     completed += 1
 

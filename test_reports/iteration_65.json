@@ -1,0 +1,33 @@
+{
+  "summary": "Tested Multiple Reviewer Personas feature end-to-end. Backend: 5/5 pytest tests passed — GET /api/homepage/personas returns 5 personas (methodologist, innovator, practitioner, generalist, skeptic) with id/label/description (system_prompt NOT leaked). GET /api/homepage/stats returns expected live keys including ai_judges=3. GET /api/admin/persona-stats: 401 without token, 200 with x-admin-token; returns all 5 personas (with matches=0 each, as expected since no live matches yet), supports ?category filter. Frontend: Homepage hero heading 'AI-powered paper rankings', subtitle mentions 'Multiple AI judges', search placeholder 'Search ranked papers by topic...', button 'View Rankings' — all correct. Section headings present: 'How Kurate ranks papers', 'Five reviewer personas', 'What the AI judges evaluate', 'Rankings by category'. All 5 persona cards visible by data-testid (persona-methodologist .. persona-skeptic). All 8 dimension labels (Novelty, Methodological rigor, Potential impact, Real-world applications, Breadth of influence, Timeliness, Reproducibility, Clarity of contribution) rendered. FAQ entries include 'Which AI models judge the papers?' and 'How are papers ranked?'. Methodology page step 4 'Diverse Reviewer Personas' renders the 5 persona badges correctly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "MethodologyPage", "issues": ["Step numbering bug: both 'Cross-Category Filtering' and 'Dynamic Leaderboard' are labelled as Step 9 in source (lines 109 and 113). They visually appear as two number-9 chips. Either Cross-Category Filtering should be 9 and Dynamic Leaderboard should be 10, with Continuous Operation = 11."]},
+      {"screen": "Homepage CSP", "issues": ["Pre-existing: external analytics scripts (gtag, reddit pixel, twitter uwt, plausible, cloudflareinsights) blocked by CSP — unrelated to personas feature."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_personas.py", "/app/test_reports/pytest/personas_results.xml"],
+  "action_items": [
+    "Fix Methodology page duplicate Step number={9}: renumber 'Dynamic Leaderboard' to 10 and 'Continuous Operation' to 11 (MethodologyPage.jsx lines 113, 117).",
+    "Optional: consider adding the system_prompt field to /api/admin/persona-stats or a dedicated admin endpoint for prompt inspection (currently no way to view persona prompts via API)."
+  ],
+  "critical_code_review_comments": [
+    "MethodologyPage.jsx has two Step components with number={9} — Cross-Category Filtering AND Dynamic Leaderboard. Renumber the subsequent steps.",
+    "core/config.py REVIEWER_PERSONAS is large (~100 lines of prompt text). Consider moving persona definitions to a dedicated module (e.g., core/personas.py) for maintainability.",
+    "routers/admin.py is very large (>1400 lines) — should be split into multiple routers (admin_settings, admin_diagnostics, admin_stats, admin_personas).",
+    "homepage.py /personas endpoint correctly omits system_prompt — good. But /admin/persona-stats does not return system_prompt either, so admins cannot inspect persona prompts from the API.",
+    "HomePage.jsx persona descriptions are duplicated client-side (lines 178-182) instead of being fetched from /api/homepage/personas. DRY: prefer rendering from API response so backend is single source of truth.",
+    "scheduler._pick_persona round-robin is mentioned but was not exercised in this test run since no live matches have run; will need a live tournament round to verify persona is persisted on match documents."
+  ],
+  "updated_files": ["/app/backend/tests/test_personas.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin password: papersumo2025 (POST /api/admin/login returns token; pass via x-admin-token header).",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Personas feature shipped and verified via API + UI. No live matches with personas yet, so persona-stats counts are 0 — that is expected. After a live tournament round runs, re-run test_personas.py and additionally verify db.matches has documents with a 'persona' field via a new test. HomePage persona section duplicates persona text client-side — should be sourced from /api/homepage/personas.",
+  "rca of the issue": "N/A — feature works as specified. Single minor UI bug: duplicate Step number={9} in MethodologyPage.jsx."
+}

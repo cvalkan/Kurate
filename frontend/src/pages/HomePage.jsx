@@ -7,7 +7,7 @@ import {
   Brain, LayoutGrid, Lightbulb, TrendingUp, Search,
   Building2, GraduationCap, Briefcase, Shield,
   FileText, Globe, ChevronRight, Zap, Sparkles, FlaskConical,
-  BookMarked, ExternalLink,
+  BookMarked, ExternalLink, Users, Microscope, Wrench, Scale, Eye,
 } from "lucide-react";
 import {
   Accordion, AccordionItem, AccordionTrigger, AccordionContent,
@@ -79,13 +79,13 @@ export default function HomePage() {
         <div className="relative w-full max-w-3xl mx-auto text-center">
           {/* Headline */}
           <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight text-foreground mb-5 leading-[1.1]" data-testid="hero-heading">
-            Find research that matters
+            AI-powered paper rankings
           </h1>
 
           {/* Subtitle */}
           <p className="text-muted-foreground text-base md:text-lg leading-relaxed max-w-2xl mx-auto mb-10">
-            Kurate helps researchers explore preprints and academic papers through ranked
-            signals, topic intelligence, and field-level context.
+            Multiple AI judges compare preprints head-to-head and rank them by
+            estimated scientific impact — before citations exist.
           </p>
 
           {/* Search bar */}
@@ -95,12 +95,12 @@ export default function HomePage() {
               type="text"
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Search papers, topics, or research areas..."
+              placeholder="Search ranked papers by topic..."
               className="w-full h-14 pl-12 pr-36 rounded-xl border border-border bg-card text-foreground text-base placeholder:text-muted-foreground/60 shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent transition-all"
               data-testid="search-input"
             />
             <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 bg-accent text-accent-foreground px-5 py-2.5 rounded-lg font-medium text-sm hover:bg-accent/90 transition-colors" data-testid="search-btn">
-              Explore Research
+              View Rankings
             </button>
           </form>
 
@@ -136,7 +136,7 @@ export default function HomePage() {
 
           {/* Trust line */}
           <p className="text-xs text-muted-foreground/60 mt-10">
-            Built for research discovery. Not a replacement for peer review.
+            Ranking preprints with AI. Not a replacement for peer review.
           </p>
         </div>
       </section>
@@ -144,12 +144,12 @@ export default function HomePage() {
       {/* ════════ PANEL 2 — What Kurate does ════════ */}
       <section className="border-t border-border bg-secondary/20" data-testid="what-kurate-does">
         <div className="container mx-auto px-4 md:px-6 max-w-6xl py-16 md:py-24">
-          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-center mb-12">What Kurate does</h2>
+          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-center mb-12">How Kurate ranks papers</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { icon: Trophy, title: "Rank emerging research", desc: "Papers are evaluated through AI-assisted pairwise comparison and ranked within their category, surfacing work that may be significant." },
-              { icon: Sparkles, title: "Show signals beyond citations", desc: "Kurate evaluates novelty, methodological strength, relevance, and potential impact — signals that citations take years to reveal." },
-              { icon: Lightbulb, title: "Help users understand significance", desc: "Ranked leaderboards, model analysis, and validation experiments give researchers structured context for deciding what to read." },
+              { icon: Trophy, title: "Pairwise AI tournaments", desc: "Three LLM judges (GPT, Claude, Gemini) compare papers head-to-head in round-robin tournaments. Each pair gets an independent verdict." },
+              { icon: Sparkles, title: "TrueSkill scoring", desc: "Match results feed into a TrueSkill rating system — the same Bayesian engine used in competitive gaming — to produce calibrated rankings." },
+              { icon: Lightbulb, title: "Transparent validation", desc: "Every ranking is backed by experiments: model agreement, positional bias tests, and correlation analysis against human expert scores." },
             ].map((c, i) => {
               const Icon = c.icon;
               return (
@@ -166,23 +166,53 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ════════ PANEL 2b — Reviewer Personas ════════ */}
+      <section className="border-t border-border" data-testid="reviewer-personas">
+        <div className="container mx-auto px-4 md:px-6 max-w-6xl py-16 md:py-24">
+          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-center mb-4">Five reviewer personas</h2>
+          <p className="text-muted-foreground text-sm md:text-base text-center mb-12 max-w-2xl mx-auto">
+            Each match is judged by one of five distinct AI reviewer personas. Like a real review panel, different perspectives reduce bias and surface different strengths.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {[
+              { icon: Microscope, id: "methodologist", label: "Methodologist", desc: "Prioritises rigor, reproducibility, and statistical soundness" },
+              { icon: Lightbulb, id: "innovator", label: "Innovator", desc: "Rewards novel ideas and paradigm-shifting potential" },
+              { icon: Wrench, id: "practitioner", label: "Practitioner", desc: "Values real-world applicability and engineering feasibility" },
+              { icon: Scale, id: "generalist", label: "Generalist", desc: "Balanced evaluation across all dimensions" },
+              { icon: Eye, id: "skeptic", label: "Skeptic", desc: "Probes for weaknesses, overclaims, and missing controls" },
+            ].map(p => {
+              const Icon = p.icon;
+              return (
+                <div key={p.id} className="bg-card border border-border rounded-lg p-5 text-center hover:border-accent/40 transition-all" data-testid={`persona-${p.id}`}>
+                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-accent/10 mb-3">
+                    <Icon className="h-5 w-5 text-accent" />
+                  </div>
+                  <h3 className="font-heading font-semibold text-sm mb-1">{p.label}</h3>
+                  <p className="text-muted-foreground text-xs leading-relaxed">{p.desc}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* ════════ PANEL 3 — Research signals ════════ */}
       <section className="border-t border-border" data-testid="research-signals">
         <div className="container mx-auto px-4 md:px-6 max-w-6xl py-16 md:py-24">
-          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-center mb-4">Research signals</h2>
+          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-center mb-4">What the AI judges evaluate</h2>
           <p className="text-muted-foreground text-sm md:text-base text-center mb-12 max-w-2xl mx-auto">
-            Kurate surfaces structured signals for each paper and category, going beyond simple metadata.
+            Each pairwise comparison is judged on these dimensions. The winner is the paper that scores higher overall.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {[
               { icon: Sparkles, label: "Novelty" },
-              { icon: Brain, label: "Method strength" },
-              { icon: TrendingUp, label: "Field momentum" },
-              { icon: Globe, label: "Relevance" },
-              { icon: BarChart3, label: "Ranking movement" },
-              { icon: FileText, label: "Topic-level context" },
-              { icon: Zap, label: "Attention patterns" },
-              { icon: ExternalLink, label: "Paper visibility" },
+              { icon: Brain, label: "Methodological rigor" },
+              { icon: TrendingUp, label: "Potential impact" },
+              { icon: Globe, label: "Real-world applications" },
+              { icon: BarChart3, label: "Breadth of influence" },
+              { icon: FileText, label: "Timeliness" },
+              { icon: Zap, label: "Reproducibility" },
+              { icon: ExternalLink, label: "Clarity of contribution" },
             ].map((s, i) => {
               const Icon = s.icon;
               return (
@@ -195,9 +225,9 @@ export default function HomePage() {
           </div>
           {/* Live platform numbers */}
           <div className="flex flex-wrap items-center justify-center gap-8 mt-12 pt-8 border-t border-border">
-            <Stat label="Preprints analysed" value={fmt(stats?.total_papers)} />
+            <Stat label="Papers ranked" value={fmt(stats?.total_papers)} />
             <Stat label="Research categories" value={stats?.total_categories || "—"} />
-            <Stat label="AI comparisons" value={fmt(stats?.total_matches)} />
+            <Stat label="Pairwise matches" value={fmt(stats?.total_matches)} />
             <Stat label="AI judges" value={stats?.ai_judges || 3} />
           </div>
         </div>
@@ -206,9 +236,9 @@ export default function HomePage() {
       {/* ════════ PANEL 4 — Leaderboards & categories ════════ */}
       <section className="border-t border-border bg-secondary/20" data-testid="leaderboards-categories">
         <div className="container mx-auto px-4 md:px-6 max-w-6xl py-16 md:py-24">
-          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-center mb-4">Leaderboards and categories</h2>
+          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-center mb-4">Rankings by category</h2>
           <p className="text-muted-foreground text-sm md:text-base text-center mb-10 max-w-2xl mx-auto">
-            Rankings are organised by research area. Explore any category to see which preprints are currently ranked highest.
+            Papers are ranked within their research area. Explore any category to see which preprints are currently top-ranked by AI judges.
           </p>
           {/* Top categories with counts */}
           {stats?.top_categories?.length > 0 && (
@@ -244,12 +274,12 @@ export default function HomePage() {
       {/* ════════ PANEL 5 — For whom ════════ */}
       <section className="border-t border-border" data-testid="for-whom">
         <div className="container mx-auto px-4 md:px-6 max-w-6xl py-16 md:py-24">
-          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-center mb-12">For researchers, readers, and institutions</h2>
+          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-center mb-12">Who benefits from AI rankings</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { icon: GraduationCap, title: "For researchers", desc: "Track field visibility, discover newly ranked preprints, and understand how your area of research is evolving." },
-              { icon: BookMarked, title: "For readers", desc: "Find important papers faster by browsing ranked leaderboards instead of scrolling through chronological feeds." },
-              { icon: Building2, title: "For institutions and labs", desc: "Understand emerging research areas, monitor topic movement, and support strategic research planning across disciplines." },
+              { icon: GraduationCap, title: "For researchers", desc: "See how your field's latest preprints rank. Discover high-impact work early, before citations reveal quality." },
+              { icon: BookMarked, title: "For readers", desc: "Stop scrolling chronological feeds. Browse ranked leaderboards to find the most impactful papers first." },
+              { icon: Building2, title: "For institutions", desc: "Monitor research momentum across disciplines. Identify emerging topics and high-potential work at scale." },
             ].map((c, i) => {
               const Icon = c.icon;
               return (
@@ -299,13 +329,13 @@ export default function HomePage() {
           <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-center mb-10">Frequently asked questions</h2>
           <Accordion type="single" collapsible className="space-y-2">
             {[
-              { q: "What is Kurate.org?", a: "Kurate.org analyses arXiv preprints and ranks them using AI-assisted comparison across multiple research categories. It is designed to help researchers discover and prioritise papers earlier." },
-              { q: "How are papers ranked?", a: "Kurate uses multiple AI models to compare papers within each research category. The resulting rankings reflect AI-estimated research signals such as novelty, rigour, and potential impact." },
-              { q: "Does Kurate replace peer review?", a: "No. Kurate rankings are an early discovery signal. They should be used alongside expert judgement, direct reading, and peer review." },
-              { q: "Which research areas does Kurate cover?", a: `Kurate currently covers ${stats?.total_categories || "multiple"} research categories across computer science, physics, economics, mathematics, biology, and more.` },
-              { q: "Are rankings based on citations?", a: "No. Kurate is designed for early-stage discovery, where citation counts may not yet exist. Rankings are based on AI-assisted analysis of paper content." },
-              { q: "Can universities use Kurate?", a: "Yes. Kurate can support literature scanning, field monitoring, and research strategy discussions across disciplines." },
-              { q: "How should I interpret a ranking?", a: "Treat rankings as an early signal for discovery and prioritisation, not as a definitive quality judgement. Always read the paper and apply your own expertise." },
+              { q: "What is Kurate.org?", a: "Kurate.org ranks arXiv preprints using AI-powered pairwise tournaments. Three LLM judges compare papers head-to-head and produce ranked leaderboards for each research category." },
+              { q: "How are papers ranked?", a: "Each match pits two papers against each other. An AI judge reads both papers' abstracts and AI-generated impact summaries, then picks the winner. Results feed into a TrueSkill rating system that produces calibrated rankings." },
+              { q: "Which AI models judge the papers?", a: "Kurate uses three judges: GPT-5.2 (OpenAI), Claude Opus 4.6 (Anthropic), and Gemini 3.1 Pro (Google). Each match is assigned to one judge via round-robin, ensuring equal representation." },
+              { q: "Does Kurate replace peer review?", a: "No. AI rankings are an early signal. They help you decide what to read, not what to publish. Always apply your own expertise." },
+              { q: "Which research areas does Kurate cover?", a: `Kurate currently covers ${stats?.total_categories || "multiple"} research categories across computer science, physics, economics, mathematics, biology, cryptography, and more.` },
+              { q: "Are rankings based on citations?", a: "No. Kurate ranks papers before citations exist. Rankings are based on AI analysis of paper content — novelty, rigor, potential impact, and real-world applications." },
+              { q: "How can I trust these rankings?", a: "Kurate runs extensive validation experiments: inter-model agreement, positional bias tests, and correlation analysis against human expert scores. All results are publicly available on the Validation page." },
             ].map((f, i, arr) => {
               const t = i / Math.max(arr.length - 1, 1);
               const bg = `hsl(217, ${60 + t * 15}%, ${97 - t * 12}%)`;
@@ -331,7 +361,7 @@ export default function HomePage() {
                 <img src="/kurate-logo.png" alt="Kurate.org" className="h-6 brightness-0 invert" />
               </div>
               <p className="text-white/60 text-sm leading-relaxed max-w-xs">
-                Research discovery and ranking signals for preprints and academic papers.
+                AI-powered paper rankings for preprints and academic papers.
               </p>
             </div>
             <div>

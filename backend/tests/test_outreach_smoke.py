@@ -3,7 +3,7 @@ import os
 import requests
 import pytest
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://validation-hub-47.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://research-discovery-2.preview.emergentagent.com").rstrip("/")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "papersumo2025")
 
 

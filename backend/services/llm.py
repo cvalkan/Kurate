@@ -634,16 +634,21 @@ def _build_full_pdf_content(paper: dict, char_limit: int = None) -> str:
     return f"Abstract: {abstract}"
 
 
-async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None, abstract_only: bool = False, char_limit: int = None, model_override: dict = None, content_mode: str = None, allow_tie: bool = False, multi_aspect: bool = False) -> Dict:
+async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None, abstract_only: bool = False, char_limit: int = None, model_override: dict = None, content_mode: str = None, allow_tie: bool = False, multi_aspect: bool = False, persona: dict = None) -> Dict:
     if prompt_config is None:
         prompt_config = DEFAULT_EVALUATION_PROMPT
+
+    # If a reviewer persona is provided, use its prompts instead
+    if persona:
+        system_msg = persona["system_prompt"]
+        user_template = persona["user_prompt"]
+    else:
+        system_msg = prompt_config["system_prompt"]
+        user_template = prompt_config["user_prompt"]
 
     model_info = model_override or _pick_round_robin_model()
     provider = model_info["provider"]
     model = model_info["model"]
-
-    system_msg = prompt_config["system_prompt"]
-    user_template = prompt_config["user_prompt"]
 
     # Use pre-fetched char_limit if provided, otherwise fetch from settings
     if char_limit is None:
@@ -793,6 +798,8 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
                     "input_est": input_tokens_est,
                     "output_est": output_tokens_est,
                 }
+                if persona:
+                    result["persona"] = persona.get("id", "unknown")
                 _PROXY_FAIL_COUNTS[provider] = 0  # Reset circuit breaker on success
                 return result
 
@@ -898,6 +905,8 @@ async def compare_papers(paper1: dict, paper2: dict, prompt_config: dict = None,
 
             result["model_used"] = model_info
             result["tokens"] = {"input_est": input_tokens_est, "output_est": output_tokens_est}
+            if persona:
+                result["persona"] = persona.get("id", "unknown")
             match_label = f"{paper1.get('title','')[:30]} vs {paper2.get('title','')[:30]}"
             await track_llm_usage(provider, model, context="match_fallback", success=True,
                                   input_tokens=input_tokens_est, output_tokens=output_tokens_est,

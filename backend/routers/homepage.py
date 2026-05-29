@@ -92,3 +92,16 @@ async def homepage_stats():
             "recent_papers": 0, "top_categories": [], "latest_update": None,
             "categories": [], "top_papers": [], "ai_judges": 3,
         }
+
+
+@router.get("/personas")
+async def get_personas():
+    """Public endpoint: list available reviewer personas and their descriptions."""
+    from core.config import REVIEWER_PERSONAS
+    return {
+        "personas": [
+            {"id": p["id"], "label": p["label"], "description": p["description"]}
+            for p in REVIEWER_PERSONAS.values()
+        ],
+        "count": len(REVIEWER_PERSONAS),
+    }

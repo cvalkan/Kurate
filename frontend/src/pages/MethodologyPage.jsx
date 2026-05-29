@@ -77,24 +77,36 @@ export default function MethodologyPage() {
           <p>Each model evaluates which paper has higher potential scientific impact across five dimensions: novelty, real-world applications, methodological rigor, breadth of impact, and timeliness. <Link to="/prompts" className="text-accent hover:underline" data-testid="prompts-link-evaluation">View the evaluation prompt &rarr;</Link></p>
         </Step>
 
-        <Step number={4} icon={Shuffle} title="Positional Bias Correction">
+        <Step number={4} icon={Users} title="Diverse Reviewer Personas">
+          <p>Each match is assigned one of <span className="text-foreground font-medium">five distinct reviewer personas</span>, inspired by multi-agent review panels. Different personas weight evaluation criteria differently, reducing systematic bias from any single perspective:</p>
+          <div className="flex flex-wrap gap-2 my-2">
+            <span className="text-xs font-mono px-2 py-1 rounded border bg-purple-50 text-purple-700 border-purple-200">Methodologist</span>
+            <span className="text-xs font-mono px-2 py-1 rounded border bg-amber-50 text-amber-700 border-amber-200">Innovator</span>
+            <span className="text-xs font-mono px-2 py-1 rounded border bg-teal-50 text-teal-700 border-teal-200">Practitioner</span>
+            <span className="text-xs font-mono px-2 py-1 rounded border bg-slate-50 text-slate-700 border-slate-200">Generalist</span>
+            <span className="text-xs font-mono px-2 py-1 rounded border bg-red-50 text-red-700 border-red-200">Skeptic</span>
+          </div>
+          <p>Personas are assigned via round-robin rotation across matches, ensuring equal representation. Combined with the three-model rotation, this gives 15 unique (model&nbsp;&times;&nbsp;persona) judge configurations.</p>
+        </Step>
+
+        <Step number={5} icon={Shuffle} title="Positional Bias Correction">
           <p>The presentation order of each pair is <span className="text-foreground font-medium">randomly flipped with 50% probability</span> before sending to the LLM, eliminating the known tendency for models to prefer the paper presented first.</p>
         </Step>
 
-        <Step number={5} icon={RefreshCw} title="Quality-Based Matchmaking">
+        <Step number={6} icon={RefreshCw} title="Quality-Based Matchmaking">
           <p>Opponent selection uses <span className="text-foreground font-medium">TrueSkill match quality</span> — a function that maximizes the information gained from each match by accounting for both skill difference and rating uncertainty. New papers with high uncertainty are matched against a wider range of opponents; established papers face similarly-rated peers for fine-grained ranking.</p>
           <p>Convergence uses two tiers of <span className="text-foreground font-medium">TrueSkill sigma targets</span>: general papers (&plusmn;50 Elo pts) and top-K papers (&plusmn;40 pts). Papers with extreme win rates (100% or 0%) continue receiving matches until they face a decisive result or reach the match floor (50 comparisons). A calibration ratio ensures new papers are compared against established ones for transitive score calibration.</p>
         </Step>
 
-        <Step number={6} icon={BarChart3} title="Ranking & Scoring">
+        <Step number={7} icon={BarChart3} title="Ranking & Scoring">
           <p>Global rankings use <span className="text-foreground font-medium">TrueSkill</span> (Bayesian skill estimation) as the primary metric, updated incrementally after each match. Scores use a conservative estimate (mu&nbsp;&minus;&nbsp;3&sigma;) mapped to an Elo-style scale centered at 1200. The 95% confidence interval is derived from TrueSkill sigma (&plusmn;2&sigma; in Elo points), reflecting both match count and opponent quality — not just win rate.</p>
         </Step>
 
-        <Step number={7} icon={Users} title="Multi-Model Consensus">
+        <Step number={8} icon={Users} title="Multi-Model Consensus">
           <p>Round-robin rotation ensures each model contributes equally to every paper's ranking. The <Link to="/correlation" className="text-accent hover:underline">Model Analysis</Link> page shows inter-model agreement rates and per-model ranking correlations.</p>
         </Step>
 
-        <Step number={8} icon={Tag} title="Cross-Category Filtering">
+        <Step number={9} icon={Tag} title="Cross-Category Filtering">
           <p>Papers with multiple arXiv tags can be viewed across primary categories using AND/OR tag filtering.</p>
         </Step>
 
