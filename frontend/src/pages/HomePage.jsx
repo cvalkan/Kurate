@@ -77,20 +77,9 @@ export default function HomePage() {
         }} />
 
         <div className="relative w-full max-w-3xl mx-auto text-center">
-          {/* Social links row */}
-          <div className="flex items-center justify-center gap-4 mb-10 text-xs text-muted-foreground">
-            <a href="https://x.com/KurateOrg" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors" data-testid="social-x">X / Twitter</a>
-            <span className="text-border">·</span>
-            <a href="https://www.linkedin.com/company/kurate-org" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors" data-testid="social-linkedin">LinkedIn</a>
-            <span className="text-border">·</span>
-            <a href="https://www.instagram.com/kurate2026/" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors" data-testid="social-instagram">Instagram</a>
-            <span className="text-border">·</span>
-            <a href="https://www.facebook.com/Kurate/" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors" data-testid="social-facebook">Facebook</a>
-          </div>
-
           {/* Headline */}
           <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight text-foreground mb-5 leading-[1.1]" data-testid="hero-heading">
-            Discover the most significant<br className="hidden sm:block" /> research before everyone else
+            Discover the most significant research<br className="hidden sm:block" /> before everyone else
           </h1>
 
           {/* Subtitle */}
@@ -106,7 +95,7 @@ export default function HomePage() {
               type="text"
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Search papers, topics, authors, methods, or research questions..."
+              placeholder="Search papers, topics, or research areas..."
               className="w-full h-14 pl-12 pr-36 rounded-xl border border-border bg-card text-foreground text-base placeholder:text-muted-foreground/60 shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent transition-all"
               data-testid="search-input"
             />
@@ -323,8 +312,8 @@ export default function HomePage() {
               const white = (97 - t * 12) < 88;
               return (
                 <AccordionItem key={i} value={`faq-${i}`} className="border-0 rounded-lg px-5 overflow-hidden" style={{ backgroundColor: bg }} data-testid={`faq-${i}`}>
-                  <AccordionTrigger className="text-sm font-medium py-4 hover:no-underline" style={white ? { color: "hsl(217,20%,98%)" } : undefined}>{f.q}</AccordionTrigger>
-                  <AccordionContent className="text-sm" style={white ? { color: "hsl(217,20%,90%)" } : undefined}>{f.a}</AccordionContent>
+                  <AccordionTrigger className="text-sm font-medium py-4 hover:no-underline text-foreground">{f.q}</AccordionTrigger>
+                  <AccordionContent className="text-sm text-foreground/80">{f.a}</AccordionContent>
                 </AccordionItem>
               );
             })}
