@@ -125,15 +125,15 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-gradient-to-b from-accent/[0.04] to-transparent pointer-events-none" />
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-14 relative">
           <div className="max-w-3xl mb-8">
-            <h1 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight mb-5 text-foreground whitespace-nowrap" data-testid="hero-heading">
+            <h1 className="font-heading text-3xl sm:text-4xl lg:text-[2.75rem] font-semibold tracking-tight mb-4 text-foreground whitespace-nowrap" data-testid="hero-heading">
               Scientific papers ranked by AI
             </h1>
             <p className="text-muted-foreground text-base md:text-lg leading-relaxed max-w-2xl">
               Kurate.org ranks <span className="font-semibold text-foreground">arXiv preprints</span> by predict scientific impact and other research intelligence signals, helping researchers and institutions identify promising work earlier.
+              <Link to="/methodology" className="inline-flex items-center gap-1 text-sm text-accent hover:underline ml-2" data-testid="hero-methodology-link">
+                <BookOpen className="h-3.5 w-3.5" /> Methodology
+              </Link>
             </p>
-            <Link to="/methodology" className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline mt-4" data-testid="hero-methodology-link">
-              <BookOpen className="h-4 w-4" /> Methodology
-            </Link>
           </div>
 
           {/* Category chips — colored left border, single row with paper counts */}
