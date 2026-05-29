@@ -143,7 +143,7 @@ export default function HomePage() {
       <section className="bg-secondary/30 border-b border-border" data-testid="categories-section">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-14">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="font-heading text-lg md:text-xl font-medium tracking-tight">Research categories</h2>
+            <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-accent">Research categories</h2>
             <a href="/?tagOpen=1&period=recent" className="text-sm text-accent hover:underline">View all rankings</a>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
@@ -165,7 +165,7 @@ export default function HomePage() {
       {/* ── TOP RANKED PREPRINTS — #4 two-column category links ── */}
       <section className="border-b border-border" data-testid="top-papers-section">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-14">
-          <h2 className="font-heading text-lg md:text-xl font-medium tracking-tight mb-2">Top ranked preprints</h2>
+          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-accent mb-2">Top ranked preprints</h2>
           <p className="text-muted-foreground text-sm mb-6">Explore the highest-ranked papers across active research categories.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 max-w-5xl">
             {allCats.map(cat => (
@@ -188,7 +188,7 @@ export default function HomePage() {
       {/* ── PLATFORM METRICS ── */}
       <section className="bg-secondary/30 border-b border-border" data-testid="metrics-section">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-14">
-          <h2 className="font-heading text-lg md:text-xl font-medium tracking-tight mb-6">Platform overview</h2>
+          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight text-accent mb-6">Platform overview</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             <MetricCard icon={FileText} label="Preprints analysed" value={fmt(stats?.total_papers)} testId="metric-papers" />
             <MetricCard icon={LayoutGrid} label="Research categories" value={stats?.total_categories || "—"} testId="metric-categories" />
