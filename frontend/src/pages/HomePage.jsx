@@ -91,9 +91,9 @@ export default function HomePage() {
       {/* ── HERO ── */}
       <section className="relative overflow-hidden border-b border-border" data-testid="hero-section">
         <div className="absolute inset-0 bg-gradient-to-b from-accent/[0.04] to-transparent pointer-events-none" />
-        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-12 md:py-20 relative">
-          <div className="max-w-3xl mb-10">
-            <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight mb-5 text-foreground" data-testid="hero-heading">
+        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-14 relative">
+          <div className="max-w-3xl mb-8">
+            <h1 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight mb-5 text-foreground whitespace-nowrap" data-testid="hero-heading">
               AI-powered scientific paper rankings
             </h1>
             <p className="text-muted-foreground text-base md:text-lg leading-relaxed max-w-2xl">
@@ -110,32 +110,21 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Hero linked cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4" data-testid="hero-cards">
-            <a href="/?period=recent" className="group bg-card border border-border rounded-lg p-5 hover:shadow-md hover:border-accent/40 transition-all" data-testid="hero-card-recent">
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="h-4 w-4 text-accent" />
-                <span className="font-heading font-medium text-sm">Recent rankings</span>
-              </div>
-              <p className="text-muted-foreground text-xs leading-relaxed">Newly ranked papers across fast-moving categories.</p>
-              <span className="inline-flex items-center gap-1 text-accent text-xs mt-3 group-hover:gap-2 transition-all">View <ChevronRight className="h-3 w-3" /></span>
-            </a>
-            <a href="/?cat=cs.AI&period=recent" className="group bg-card border border-border rounded-lg p-5 hover:shadow-md hover:border-accent/40 transition-all" data-testid="hero-card-ai">
-              <div className="flex items-center gap-2 mb-2">
-                <Brain className="h-4 w-4 text-accent" />
-                <span className="font-heading font-medium text-sm">AI papers</span>
-              </div>
-              <p className="text-muted-foreground text-xs leading-relaxed">Artificial Intelligence ranking page.</p>
-              <span className="inline-flex items-center gap-1 text-accent text-xs mt-3 group-hover:gap-2 transition-all">View <ChevronRight className="h-3 w-3" /></span>
-            </a>
-            <a href="/?cat=cs.LG&period=recent" className="group bg-card border border-border rounded-lg p-5 hover:shadow-md hover:border-accent/40 transition-all" data-testid="hero-card-ml">
-              <div className="flex items-center gap-2 mb-2">
-                <Layers className="h-4 w-4 text-accent" />
-                <span className="font-heading font-medium text-sm">ML papers</span>
-              </div>
-              <p className="text-muted-foreground text-xs leading-relaxed">Machine Learning ranking page.</p>
-              <span className="inline-flex items-center gap-1 text-accent text-xs mt-3 group-hover:gap-2 transition-all">View <ChevronRight className="h-3 w-3" /></span>
-            </a>
+          {/* Category chips — colored left border, compact */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" data-testid="hero-cards">
+            {FEATURED_CATS.map((catId, i) => {
+              const meta = CATEGORY_META[catId];
+              return (
+                <a
+                  key={catId}
+                  href={`/?cat=${catId}&period=recent`}
+                  className={`bg-card border border-border border-l-[3px] ${CAT_COLORS[i]} rounded-lg px-4 py-3 hover:shadow-md hover:border-accent/40 transition-all`}
+                  data-testid={`hero-cat-${catId}`}
+                >
+                  <span className="font-heading font-medium text-sm">{meta.label}</span>
+                </a>
+              );
+            })}
           </div>
 
           {/* Mini ranking preview */}
