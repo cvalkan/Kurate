@@ -74,7 +74,7 @@ export default function HomePage() {
   useEffect(() => {
     // Fetch leaderboard first (fast, cached) — stats in parallel
     axios.get(`${API}/api/leaderboard`, {
-      params: { show_all: true, limit: 15, sort_by: "ts_score", sort_dir: "desc", global_stats: true },
+      params: { show_all: true, limit: 10, sort_by: "ts_score", sort_dir: "desc", global_stats: true },
     }).then(r => {
       setLeaderboard((r.data.leaderboard || []).map((e, i) => ({ ...e, rank: i + 1 })));
       if (r.data.show_rating_column !== undefined) setShowRatingCol(r.data.show_rating_column);
@@ -126,7 +126,7 @@ export default function HomePage() {
           </div>
 
           {/* Category chips — colored left border, single row */}
-          <div className="flex flex-wrap gap-2" data-testid="hero-cards">
+          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2" data-testid="hero-cards">
             {FEATURED_CATS.map((catId, i) => {
               const meta = CATEGORY_META[catId];
               const href = catId === "cs.CL" ? "/?show_all=true" : `/?cat=${catId}&period=recent`;
@@ -134,7 +134,7 @@ export default function HomePage() {
                 <a
                   key={catId}
                   href={href}
-                  className={`bg-card border border-border border-l-[3px] ${CAT_COLORS[i]} rounded-md px-3 py-1.5 hover:shadow-md hover:border-accent/40 transition-all`}
+                  className={`bg-card border border-border border-l-[3px] ${CAT_COLORS[i]} rounded-md px-3 py-2 hover:shadow-md hover:border-accent/40 transition-all text-center`}
                   data-testid={`hero-cat-${catId}`}
                 >
                   <span className="font-heading font-medium text-xs">{meta.label}</span>
@@ -283,15 +283,16 @@ export default function HomePage() {
       <section className="border-b border-border" data-testid="ranking-signal">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
           <h2 className="font-heading text-2xl md:text-3xl font-medium tracking-tight mb-3">Ranking is a signal, not a verdict</h2>
-          <p className="text-muted-foreground text-sm md:text-base mb-8 max-w-2xl">
-            Kurate rankings provide an early discovery signal. They help users decide what to read, compare,
-            investigate, or track while preserving the role of peer review, expert judgment, replication,
-            and domain expertise.
+          <p className="text-muted-foreground text-sm md:text-base mb-8 max-w-3xl">
+            Kurate rankings provide an early discovery signal — not peer review. They help users decide what to read,
+            compare, or track while preserving the role of expert judgment, replication, and domain expertise.
+            AI models may have biases and limitations; the methodology should remain transparent and continuously improved.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <InfoCard icon={Brain} title="Multi-model evaluation" desc="Multiple AI perspectives reduce dependence on a single model judgement." />
             <InfoCard icon={LayoutGrid} title="Category-specific comparison" desc="Papers are evaluated within relevant research areas and leaderboards." />
-            <InfoCard icon={TrendingUp} title="Continuous improvement" desc="The ranking layer can evolve as methods, categories, and evaluation principles improve." />
+            <InfoCard icon={Shield} title="Read the papers" desc="Users should read papers directly and apply domain expertise alongside rankings." />
+            <InfoCard icon={TrendingUp} title="Continuous improvement" desc="The ranking layer evolves as methods, categories, and evaluation principles improve." />
           </div>
           <div className="flex flex-wrap gap-3">
             <Link to="/methodology" className="inline-flex items-center gap-2 text-sm text-accent hover:underline" data-testid="link-methodology">
@@ -389,76 +390,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── LIVE RESEARCH PULSE ── */}
-      <section className="bg-secondary/30 border-b border-border" data-testid="research-pulse">
-        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
-          <h2 className="font-heading text-2xl md:text-3xl font-medium tracking-tight mb-6">Live research pulse</h2>
-          {stats?.top_papers?.length > 0 || stats?.top_categories?.length > 0 ? (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Latest ranked papers */}
-              <div className="lg:col-span-2 bg-card border border-border rounded-lg overflow-hidden">
-                <div className="px-5 py-3 border-b border-border bg-secondary/40">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Latest ranked papers</span>
-                </div>
-                <div className="divide-y divide-border">
-                  {(stats?.top_papers || []).slice(0, 5).map((p, i) => (
-                    <Link to={`/paper/${p.id}`} key={p.id} className="flex items-center gap-3 px-5 py-3 hover:bg-secondary/30 transition-colors" data-testid={`pulse-paper-${i}`}>
-                      <span className="shrink-0 w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-[10px] font-mono text-muted-foreground">{i + 1}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm truncate">{p.title}</p>
-                        <p className="text-xs text-muted-foreground">{p.primary_category}</p>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-
-              {/* Sidebar */}
-              <div className="space-y-4">
-                {/* Most active categories */}
-                <div className="bg-card border border-border rounded-lg p-5">
-                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Most active categories</h3>
-                  <div className="space-y-2">
-                    {(stats?.top_categories || []).slice(0, 5).map((c, i) => (
-                      <a key={c.id} href={`/?cat=${c.id}&period=recent`} className="flex items-center justify-between text-sm hover:text-accent transition-colors" data-testid={`pulse-cat-${i}`}>
-                        <span className="truncate">{c.name}</span>
-                        <span className="text-xs text-muted-foreground font-mono shrink-0 ml-2">{fmt(c.count)}</span>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Quick links */}
-                <a href="/correlation" className="flex items-center gap-3 bg-card border border-border rounded-lg p-4 hover:shadow-md hover:border-accent/40 transition-all" data-testid="pulse-link-correlation">
-                  <BarChart3 className="h-5 w-5 text-accent shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium">Model Analysis</p>
-                    <p className="text-xs text-muted-foreground">Compare AI judge agreement</p>
-                  </div>
-                </a>
-                <a href="/validation" className="flex items-center gap-3 bg-card border border-border rounded-lg p-4 hover:shadow-md hover:border-accent/40 transition-all" data-testid="pulse-link-validation">
-                  <FlaskConical className="h-5 w-5 text-accent shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium">Validation</p>
-                    <p className="text-xs text-muted-foreground">Ground-truth benchmarks</p>
-                  </div>
-                </a>
-                {stats?.latest_update && (
-                  <div className="bg-card border border-border rounded-lg p-4">
-                    <p className="text-xs text-muted-foreground">Last activity</p>
-                    <p className="text-sm font-medium mt-1">{timeAgo(stats.latest_update)}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="bg-card border border-border rounded-lg p-8 text-center text-muted-foreground text-sm">
-              Live research pulse will appear here once ranking data is available.
-            </div>
-          )}
-        </div>
-      </section>
-
       {/* ── USE CASES ── */}
       <section className="border-b border-border" data-testid="use-cases">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
@@ -481,30 +412,6 @@ export default function HomePage() {
                 </div>
               );
             })}
-          </div>
-        </div>
-      </section>
-
-      {/* ── RESPONSIBLE AI ── */}
-      <section className="bg-secondary/30 border-b border-border" data-testid="responsible-ai">
-        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
-          <h2 className="font-heading text-2xl md:text-3xl font-medium tracking-tight mb-3">Responsible AI-assisted discovery</h2>
-          <p className="text-muted-foreground text-sm md:text-base mb-8 max-w-3xl">
-            Kurate rankings are not peer review and do not determine scientific truth.
-            They are designed to assist prioritisation while preserving scholarly caution and expert judgment.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl">
-            {[
-              "AI models may have biases and limitations.",
-              "Users should read papers directly and apply domain expertise.",
-              "Rankings are designed to assist prioritisation, not replace judgment.",
-              "The methodology should remain transparent and continuously improved.",
-            ].map((p, i) => (
-              <div key={i} className="flex items-start gap-3 bg-card border border-border rounded-lg p-4">
-                <Shield className="h-4 w-4 text-accent shrink-0 mt-0.5" />
-                <p className="text-sm text-muted-foreground">{p}</p>
-              </div>
-            ))}
           </div>
         </div>
       </section>
