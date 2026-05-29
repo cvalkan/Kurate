@@ -103,6 +103,46 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ── RESEARCH INTELLIGENCE (new panel) ── */}
+      <section className="bg-[hsl(218,60%,30%)] text-white border-b" data-testid="research-intelligence">
+        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
+          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight mb-3">Research Intelligence</h2>
+          <p className="text-white/75 text-base md:text-lg leading-relaxed mb-10 max-w-3xl">
+            Kurate turns arXiv preprint rankings into structured research signals that help
+            users discover important papers, compare activity across fields, and monitor
+            emerging scientific directions.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-10">
+            {[
+              { icon: BarChart3, title: "Research signal mapping", desc: "Track how preprints are ranked, compared, and positioned across research categories." },
+              { icon: TrendingUp, title: "Category momentum", desc: "Identify which fields and topics are becoming more active through newly ranked and top-ranked papers." },
+              { icon: Brain, title: "Paper-level interpretation", desc: "Use AI-assisted analysis to understand novelty, rigour, relevance, and potential impact before deciding what to read in depth." },
+              { icon: Globe, title: "Strategic discovery", desc: "Support literature review, research monitoring, editorial scanning, funding analysis, and R&D horizon scanning." },
+            ].map((c, i) => {
+              const Icon = c.icon;
+              return (
+                <div key={i} className="bg-white/[0.08] border border-white/12 rounded-lg p-6">
+                  <Icon className="h-6 w-6 text-blue-200 mb-4" />
+                  <h3 className="font-heading font-semibold text-lg mb-2">{c.title}</h3>
+                  <p className="text-white/70 text-base leading-relaxed">{c.desc}</p>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <a href="/?tagOpen=1&period=recent" className="inline-flex items-center gap-2 bg-white text-[hsl(218,60%,30%)] px-5 py-2.5 rounded-md font-medium text-sm hover:bg-white/90 transition-colors">
+              Explore rankings <ArrowRight className="h-4 w-4" />
+            </a>
+            <a href="/?period=recent" className="inline-flex items-center gap-2 border border-white/30 text-white px-5 py-2.5 rounded-md font-medium text-sm hover:bg-white/10 transition-colors">
+              Browse research categories
+            </a>
+            <button onClick={() => window.dispatchEvent(new Event("open-auth-modal"))} className="inline-flex items-center gap-2 border border-white/30 text-white px-5 py-2.5 rounded-md font-medium text-sm hover:bg-white/10 transition-colors">
+              <LogIn className="h-4 w-4" /> Create free account
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* ── RESEARCH CATEGORIES ── */}
       <section className="bg-secondary/30 border-b border-border" data-testid="categories-section">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-14">
