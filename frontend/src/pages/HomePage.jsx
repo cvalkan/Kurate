@@ -73,31 +73,27 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Hero quick-link cards — #5 larger text */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4" data-testid="hero-cards">
-            <a href="/?period=recent" className="group bg-card border border-border rounded-lg p-5 hover:shadow-md hover:border-accent/40 transition-all" data-testid="hero-card-recent">
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="h-5 w-5 text-accent" />
-                <span className="font-heading font-medium text-base">Recent rankings</span>
-              </div>
-              <p className="text-muted-foreground text-sm leading-relaxed">Newly ranked preprints across all active categories.</p>
-              <span className="inline-flex items-center gap-1 text-accent text-sm font-medium mt-3 group-hover:gap-2 transition-all">View rankings <ChevronRight className="h-4 w-4" /></span>
+          {/* Hero ranking cards */}
+          <h2 className="font-heading text-xl md:text-2xl font-semibold tracking-tight mb-2">Recent rankings</h2>
+          <p className="text-muted-foreground text-base mb-6">Newly ranked preprints across all active categories.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5" data-testid="hero-cards">
+            <a href="/?period=recent" className="group bg-accent/[0.06] border border-accent/20 rounded-lg p-7 hover:shadow-md hover:border-accent/40 transition-all" data-testid="hero-card-recent">
+              <Clock className="h-7 w-7 text-accent mb-4" />
+              <h3 className="font-heading font-semibold text-lg mb-2">All categories</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed mb-5">Latest ranked preprints across every active research field.</p>
+              <span className="inline-flex items-center gap-2 bg-accent text-accent-foreground px-4 py-2 rounded-md text-sm font-medium group-hover:gap-3 transition-all">View rankings <ArrowRight className="h-4 w-4" /></span>
             </a>
-            <a href="/?cat=cs.AI&period=recent" className="group bg-card border border-border rounded-lg p-5 hover:shadow-md hover:border-accent/40 transition-all" data-testid="hero-card-ai">
-              <div className="flex items-center gap-2 mb-2">
-                <Brain className="h-5 w-5 text-accent" />
-                <span className="font-heading font-medium text-base">AI papers</span>
-              </div>
-              <p className="text-muted-foreground text-sm leading-relaxed">Artificial Intelligence category rankings.</p>
-              <span className="inline-flex items-center gap-1 text-accent text-sm font-medium mt-3 group-hover:gap-2 transition-all">View rankings <ChevronRight className="h-4 w-4" /></span>
+            <a href="/?cat=cs.AI&period=recent" className="group bg-accent/[0.06] border border-accent/20 rounded-lg p-7 hover:shadow-md hover:border-accent/40 transition-all" data-testid="hero-card-ai">
+              <Brain className="h-7 w-7 text-accent mb-4" />
+              <h3 className="font-heading font-semibold text-lg mb-2">AI papers</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed mb-5">Artificial Intelligence category rankings.</p>
+              <span className="inline-flex items-center gap-2 bg-accent text-accent-foreground px-4 py-2 rounded-md text-sm font-medium group-hover:gap-3 transition-all">View rankings <ArrowRight className="h-4 w-4" /></span>
             </a>
-            <a href="/?cat=quant-ph&period=recent" className="group bg-card border border-border rounded-lg p-5 hover:shadow-md hover:border-accent/40 transition-all" data-testid="hero-card-physics">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="h-5 w-5 text-accent" />
-                <span className="font-heading font-medium text-base">Quantum Physics</span>
-              </div>
-              <p className="text-muted-foreground text-sm leading-relaxed">Quantum Physics category rankings.</p>
-              <span className="inline-flex items-center gap-1 text-accent text-sm font-medium mt-3 group-hover:gap-2 transition-all">View rankings <ChevronRight className="h-4 w-4" /></span>
+            <a href="/?cat=quant-ph&period=recent" className="group bg-accent/[0.06] border border-accent/20 rounded-lg p-7 hover:shadow-md hover:border-accent/40 transition-all" data-testid="hero-card-physics">
+              <Sparkles className="h-7 w-7 text-accent mb-4" />
+              <h3 className="font-heading font-semibold text-lg mb-2">Quantum Physics</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed mb-5">Quantum Physics category rankings.</p>
+              <span className="inline-flex items-center gap-2 bg-accent text-accent-foreground px-4 py-2 rounded-md text-sm font-medium group-hover:gap-3 transition-all">View rankings <ArrowRight className="h-4 w-4" /></span>
             </a>
           </div>
         </div>
