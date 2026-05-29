@@ -79,7 +79,7 @@ export default function HomePage() {
         <div className="relative w-full max-w-3xl mx-auto text-center">
           {/* Headline */}
           <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight text-foreground mb-5 leading-[1.1]" data-testid="hero-heading">
-            Discover the most significant research<br className="hidden sm:block" /> before everyone else
+            Find research that matters
           </h1>
 
           {/* Subtitle */}
