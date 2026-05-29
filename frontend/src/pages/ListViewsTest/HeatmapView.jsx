@@ -366,7 +366,7 @@ function _HeatmapRowCells({ paper, index, visibleMetrics }) {
           <td key={m.key} className="p-0 border-b border-border/30" data-testid={`cell-${index}-${m.key}`}>
             <MetricValue metric={m} value={v} reason={reason}>
               <div
-                className="w-full h-7 flex items-center justify-center font-mono text-[11px] tabular-nums cursor-default"
+                className="w-full h-7 flex items-center justify-center text-[11px] tabular-nums cursor-default"
                 style={{ backgroundColor: scoreColor(v), color: scoreTextColor(v) }}
               >
                 {v != null ? v.toFixed(1) : <span className="text-muted-foreground opacity-50">—</span>}
