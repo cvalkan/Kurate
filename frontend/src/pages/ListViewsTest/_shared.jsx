@@ -87,10 +87,7 @@ export function scoreColor(value) {
 
 export function scoreTextColor(value) {
   if (value == null) return "var(--muted-foreground)";
-  const dist = Math.abs(value - 5.5) / 4.5;
-  // Only use white text on the very deepest cells (score ≥ ~9.3 or ≤ ~1.7).
-  // For the typical 5-9 cluster we use dark text so light pastel backgrounds stay readable.
-  return dist > 0.85 ? "#fff" : "#0a0a0a";
+  return "#0a0a0a";
 }
 
 // Per-metric hue: each metric uses its brand color, intensity scaled by value.
