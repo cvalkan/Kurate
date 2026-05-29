@@ -12,6 +12,8 @@ import {
 import {
   Accordion, AccordionItem, AccordionTrigger, AccordionContent,
 } from "@/components/ui/accordion";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -40,7 +42,7 @@ const CATEGORY_META = {
   "stat.ML": { label: "Statistics (ML)", desc: "Ranked papers, topic signals, and early discovery context." },
   "econ.GN": { label: "Economics", desc: "Ranked papers, topic signals, and early discovery context." },
   "math.PR": { label: "Mathematics", desc: "Ranked papers, topic signals, and early discovery context." },
-  "cs.CL": { label: "Comp. Linguistics", desc: "Ranked papers, topic signals, and early discovery context." },
+  "cs.CL": { label: "All categories", desc: "Ranked papers, topic signals, and early discovery context." },
 };
 const FEATURED_CATS = ["cs.AI", "cs.LG", "cs.RO", "quant-ph", "stat.ML", "econ.GN", "math.PR", "cs.CL"];
 const CAT_COLORS = [
@@ -63,9 +65,23 @@ const FAQ = [
 /* ═══════════════ MAIN COMPONENT ═══════════════ */
 export default function HomePage() {
   const [stats, setStats] = useState(null);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [lbLoading, setLbLoading] = useState(true);
+  const [showRatingCol, setShowRatingCol] = useState(true);
+  const [showGapCol, setShowGapCol] = useState(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Fetch leaderboard first (fast, cached) — stats in parallel
+    axios.get(`${API}/api/leaderboard`, {
+      params: { show_all: true, limit: 15, sort_by: "ts_score", sort_dir: "desc", global_stats: true },
+    }).then(r => {
+      setLeaderboard((r.data.leaderboard || []).map((e, i) => ({ ...e, rank: i + 1 })));
+      if (r.data.show_rating_column !== undefined) setShowRatingCol(r.data.show_rating_column);
+      if (r.data.show_gap_column !== undefined) setShowGapCol(r.data.show_gap_column);
+      setLbLoading(false);
+    }).catch(() => setLbLoading(false));
+
     axios.get(`${API}/api/homepage/stats`).then(r => {
       setStats(r.data);
       setLoading(false);
@@ -94,11 +110,10 @@ export default function HomePage() {
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-10 md:py-14 relative">
           <div className="max-w-3xl mb-8">
             <h1 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight mb-5 text-foreground whitespace-nowrap" data-testid="hero-heading">
-              AI-powered scientific paper rankings
+              Scientific papers ranked by AI
             </h1>
             <p className="text-muted-foreground text-base md:text-lg leading-relaxed max-w-2xl">
-              Kurate.org ranks scientific preprints using AI-assisted comparison, category-based leaderboards,
-              and research intelligence signals, helping researchers and institutions identify promising work earlier.
+              Kurate.org ranks arXiv preprints by predict scientific impact and other research intelligence signals, helping researchers and institutions identify promising work earlier.
             </p>
             <div className="flex flex-wrap gap-3 mt-7">
               <a href="/?period=recent" className="inline-flex items-center gap-2 bg-accent text-accent-foreground px-5 py-2.5 rounded-md font-medium text-sm hover:bg-accent/90 transition-colors" data-testid="hero-explore-btn">
@@ -110,50 +125,51 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Category chips — colored left border, compact */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" data-testid="hero-cards">
+          {/* Category chips — colored left border, single row */}
+          <div className="flex flex-wrap gap-2" data-testid="hero-cards">
             {FEATURED_CATS.map((catId, i) => {
               const meta = CATEGORY_META[catId];
+              const href = catId === "cs.CL" ? "/?show_all=true" : `/?cat=${catId}&period=recent`;
               return (
                 <a
                   key={catId}
-                  href={`/?cat=${catId}&period=recent`}
-                  className={`bg-card border border-border border-l-[3px] ${CAT_COLORS[i]} rounded-lg px-4 py-3 hover:shadow-md hover:border-accent/40 transition-all`}
+                  href={href}
+                  className={`bg-card border border-border border-l-[3px] ${CAT_COLORS[i]} rounded-md px-3 py-1.5 hover:shadow-md hover:border-accent/40 transition-all`}
                   data-testid={`hero-cat-${catId}`}
                 >
-                  <span className="font-heading font-medium text-sm">{meta.label}</span>
+                  <span className="font-heading font-medium text-xs">{meta.label}</span>
                 </a>
               );
             })}
           </div>
 
-          {/* Mini ranking preview */}
-          {stats?.top_papers?.length > 0 && (
-            <div className="mt-8 bg-card border border-border rounded-lg overflow-hidden" data-testid="hero-ranking-preview">
-              <div className="px-5 py-3 border-b border-border bg-secondary/40 flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Top ranked papers</span>
-                <a href="/?period=recent" className="text-xs text-accent hover:underline">View full leaderboard</a>
-              </div>
-              <div className="divide-y divide-border">
-                {stats.top_papers.slice(0, 5).map((p, i) => (
-                  <Link to={`/paper/${p.id}`} key={p.id} className="flex items-center gap-4 px-5 py-3 hover:bg-secondary/30 transition-colors" data-testid={`hero-paper-${i}`}>
-                    <span className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-mono font-semibold ${
-                      i === 0 ? "bg-amber-100 text-amber-700 border-2 border-amber-400 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-600"
-                      : i === 1 ? "bg-slate-100 text-slate-600 border-2 border-slate-400 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-500"
-                      : i === 2 ? "bg-orange-100 text-orange-700 border-2 border-orange-400 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-600"
-                      : "bg-secondary text-secondary-foreground"
-                    }`}>{i + 1}</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{p.title}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {p.primary_category} {p.ts_score ? `· Score ${p.ts_score.toFixed(1)}` : ""}
-                      </p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
+          {/* Full leaderboard table — All Time top ranked */}
+          <div className="mt-6" data-testid="hero-ranking-preview">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">All-time top ranked papers</span>
+              <a href="/?period=recent" className="text-xs text-accent hover:underline">View full leaderboard</a>
             </div>
-          )}
+            <TooltipProvider delayDuration={200}>
+              <LeaderboardTable
+                leaderboard={leaderboard}
+                loading={lbLoading}
+                showCatCol={true}
+                hasSelectedTags={false}
+                globalStats={true}
+                debouncedKeyword=""
+                keyword=""
+                onLoadMore={null}
+                hasMore={false}
+                loadingMore={false}
+                sortKey="rank"
+                sortDir="asc"
+                onSort={() => {}}
+                showRatingCol={showRatingCol}
+                showGapCol={showGapCol}
+                scoringMethod="ts"
+              />
+            </TooltipProvider>
+          </div>
         </div>
       </section>
 
@@ -287,35 +303,6 @@ export default function HomePage() {
             <Link to="/validation" className="inline-flex items-center gap-2 text-sm text-accent hover:underline" data-testid="link-validation">
               <FlaskConical className="h-4 w-4" /> Validation
             </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ── CATEGORIES ── */}
-      <section className="bg-secondary/30 border-b border-border" data-testid="categories-section">
-        <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
-          <h2 className="font-heading text-2xl md:text-3xl font-medium tracking-tight mb-3">Research categories</h2>
-          <p className="text-muted-foreground text-sm mb-8 max-w-2xl">
-            Browse ranked papers across {stats?.total_categories || "multiple"} research categories.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {FEATURED_CATS.map((catId, i) => {
-              const meta = CATEGORY_META[catId];
-              const live = stats?.top_categories?.find(c => c.id === catId);
-              return (
-                <a
-                  key={catId}
-                  href={`/?cat=${catId}&period=recent`}
-                  className={`group bg-card border border-border border-l-4 ${CAT_COLORS[i]} rounded-lg p-5 hover:shadow-md hover:border-accent/40 transition-all`}
-                  data-testid={`category-${catId}`}
-                >
-                  <h3 className="font-heading font-medium text-sm mb-1">{meta.label}</h3>
-                  <p className="text-muted-foreground text-xs leading-relaxed mb-2">{meta.desc}</p>
-                  {live && <span className="text-xs text-accent font-mono">{fmt(live.count)} papers</span>}
-                  <span className="flex items-center gap-1 text-accent text-xs mt-2 group-hover:gap-2 transition-all">Browse <ChevronRight className="h-3 w-3" /></span>
-                </a>
-              );
-            })}
           </div>
         </div>
       </section>
