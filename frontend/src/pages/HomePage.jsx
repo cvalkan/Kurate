@@ -401,7 +401,7 @@ export default function HomePage() {
 
 function MetricCard({ icon: Icon, label, value, sub, testId }) {
   return (
-    <div className="bg-card border border-border rounded-lg p-4" data-testid={testId}>
+    <div className="bg-accent/[0.07] border border-accent/20 rounded-lg p-4" data-testid={testId}>
       <Icon className="h-4 w-4 text-accent mb-2" />
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="text-lg font-heading font-semibold mt-1">{value}</p>
