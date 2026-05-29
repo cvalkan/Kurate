@@ -2,9 +2,5 @@
 
 ## Admin Panel
 - Password: `papersumo2025`
-- Environment variable: `ADMIN_PASSWORD` in backend/.env
-
-## User Account (for testing logged-in features)
-- Email: `test@kurate.org`
-- Password: `test1234`
-- Status: Verified (email_verified: true)
+- Auth: POST `/api/admin/login` with `{"password":"papersumo2025"}` returns `{"token": "..."}`
+- Use token via `x-admin-token` header on admin endpoints

@@ -110,11 +110,11 @@ export default function MethodologyPage() {
           <p>Papers with multiple arXiv tags can be viewed across primary categories using AND/OR tag filtering.</p>
         </Step>
 
-        <Step number={9} icon={Trophy} title="Dynamic Leaderboard">
+        <Step number={10} icon={Trophy} title="Dynamic Leaderboard">
           <p>Rankings display TrueSkill score, win rate, confidence interval, AI rating (averaged SI score), gap score, match count, and publication date. Default sort is by TrueSkill. All data is pre-computed for instant loading and updates automatically as new papers arrive and matches complete.</p>
         </Step>
 
-        <Step number={10} icon={Download} title="Continuous Operation">
+        <Step number={11} icon={Download} title="Continuous Operation">
           <p>The system runs autonomously — fetching new papers on a configurable schedule, running pairwise comparisons until convergence targets are met, then idling. Administrators can trigger additional rounds or adjust parameters at any time.</p>
         </Step>
       </div>
