@@ -113,23 +113,19 @@ export default function HomePage() {
               Scientific papers ranked by AI
             </h1>
             <p className="text-muted-foreground text-base md:text-lg leading-relaxed max-w-2xl">
-              Kurate.org ranks arXiv preprints by predict scientific impact and other research intelligence signals, helping researchers and institutions identify promising work earlier.
+              Kurate.org ranks <span className="font-semibold text-foreground">arXiv preprints</span> by predict scientific impact and other research intelligence signals, helping researchers and institutions identify promising work earlier.
             </p>
-            <div className="flex flex-wrap gap-3 mt-7">
-              <a href="/?period=recent" className="inline-flex items-center gap-2 bg-accent text-accent-foreground px-5 py-2.5 rounded-md font-medium text-sm hover:bg-accent/90 transition-colors" data-testid="hero-explore-btn">
-                Explore rankings <ArrowRight className="h-4 w-4" />
-              </a>
-              <Link to="/methodology" className="inline-flex items-center gap-2 border border-border bg-card text-foreground px-5 py-2.5 rounded-md font-medium text-sm hover:bg-secondary transition-colors" data-testid="hero-methodology-btn">
-                <BookOpen className="h-4 w-4" /> Methodology
-              </Link>
-            </div>
+            <Link to="/methodology" className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline mt-4" data-testid="hero-methodology-link">
+              <BookOpen className="h-4 w-4" /> Methodology
+            </Link>
           </div>
 
-          {/* Category chips — colored left border, single row */}
+          {/* Category chips — colored left border, single row with paper counts */}
           <div className="grid grid-cols-4 sm:grid-cols-8 gap-2" data-testid="hero-cards">
             {FEATURED_CATS.map((catId, i) => {
               const meta = CATEGORY_META[catId];
               const href = catId === "cs.CL" ? "/?show_all=true" : `/?cat=${catId}&period=recent`;
+              const live = stats?.top_categories?.find(c => c.id === catId);
               return (
                 <a
                   key={catId}
@@ -137,7 +133,8 @@ export default function HomePage() {
                   className={`bg-card border border-border border-l-[3px] ${CAT_COLORS[i]} rounded-md px-3 py-2 hover:shadow-md hover:border-accent/40 transition-all text-center`}
                   data-testid={`hero-cat-${catId}`}
                 >
-                  <span className="font-heading font-medium text-xs">{meta.label}</span>
+                  <span className="font-heading font-medium text-xs block">{meta.label}</span>
+                  {live && <span className="text-[10px] text-muted-foreground font-mono">{fmt(live.count)}</span>}
                 </a>
               );
             })}
