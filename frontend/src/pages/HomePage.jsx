@@ -77,23 +77,23 @@ export default function HomePage() {
           <h2 className="font-heading text-xl md:text-2xl font-semibold tracking-tight mb-2">Recent rankings</h2>
           <p className="text-muted-foreground text-base mb-6">Newly ranked preprints across all active categories.</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5" data-testid="hero-cards">
-            <a href="/?period=recent" className="group bg-accent/[0.06] border border-accent/20 rounded-lg p-7 hover:shadow-md hover:border-accent/40 transition-all" data-testid="hero-card-recent">
+            <a href="/?period=recent" className="group bg-accent/[0.06] border border-accent/20 rounded-lg p-7 hover:shadow-md hover:border-accent/40 transition-all flex flex-col" data-testid="hero-card-recent">
               <Clock className="h-7 w-7 text-accent mb-4" />
               <h3 className="font-heading font-semibold text-lg mb-2">All categories</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed mb-5">Latest ranked preprints across every active research field.</p>
-              <span className="inline-flex items-center gap-2 bg-accent text-accent-foreground px-4 py-2 rounded-md text-sm font-medium group-hover:gap-3 transition-all">View rankings <ArrowRight className="h-4 w-4" /></span>
+              <p className="text-muted-foreground text-sm leading-relaxed flex-1">Latest ranked preprints across every active research field.</p>
+              <span className="inline-flex items-center gap-2 bg-accent text-accent-foreground px-4 py-2 rounded-md text-sm font-medium group-hover:gap-3 transition-all mt-5 self-start">View rankings <ArrowRight className="h-4 w-4" /></span>
             </a>
-            <a href="/?cat=cs.AI&period=recent" className="group bg-accent/[0.06] border border-accent/20 rounded-lg p-7 hover:shadow-md hover:border-accent/40 transition-all" data-testid="hero-card-ai">
+            <a href="/?cat=cs.AI&period=recent" className="group bg-accent/[0.06] border border-accent/20 rounded-lg p-7 hover:shadow-md hover:border-accent/40 transition-all flex flex-col" data-testid="hero-card-ai">
               <Brain className="h-7 w-7 text-accent mb-4" />
               <h3 className="font-heading font-semibold text-lg mb-2">AI papers</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed mb-5">Artificial Intelligence category rankings.</p>
-              <span className="inline-flex items-center gap-2 bg-accent text-accent-foreground px-4 py-2 rounded-md text-sm font-medium group-hover:gap-3 transition-all">View rankings <ArrowRight className="h-4 w-4" /></span>
+              <p className="text-muted-foreground text-sm leading-relaxed flex-1">Artificial Intelligence category rankings.</p>
+              <span className="inline-flex items-center gap-2 bg-accent text-accent-foreground px-4 py-2 rounded-md text-sm font-medium group-hover:gap-3 transition-all mt-5 self-start">View rankings <ArrowRight className="h-4 w-4" /></span>
             </a>
-            <a href="/?cat=quant-ph&period=recent" className="group bg-accent/[0.06] border border-accent/20 rounded-lg p-7 hover:shadow-md hover:border-accent/40 transition-all" data-testid="hero-card-physics">
+            <a href="/?cat=quant-ph&period=recent" className="group bg-accent/[0.06] border border-accent/20 rounded-lg p-7 hover:shadow-md hover:border-accent/40 transition-all flex flex-col" data-testid="hero-card-physics">
               <Sparkles className="h-7 w-7 text-accent mb-4" />
               <h3 className="font-heading font-semibold text-lg mb-2">Quantum Physics</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed mb-5">Quantum Physics category rankings.</p>
-              <span className="inline-flex items-center gap-2 bg-accent text-accent-foreground px-4 py-2 rounded-md text-sm font-medium group-hover:gap-3 transition-all">View rankings <ArrowRight className="h-4 w-4" /></span>
+              <p className="text-muted-foreground text-sm leading-relaxed flex-1">Quantum Physics category rankings.</p>
+              <span className="inline-flex items-center gap-2 bg-accent text-accent-foreground px-4 py-2 rounded-md text-sm font-medium group-hover:gap-3 transition-all mt-5 self-start">View rankings <ArrowRight className="h-4 w-4" /></span>
             </a>
           </div>
         </div>
@@ -102,7 +102,7 @@ export default function HomePage() {
       {/* ── RESEARCH INTELLIGENCE (new panel) ── */}
       <section className="bg-[hsl(218,60%,30%)] text-white border-b" data-testid="research-intelligence">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
-          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight mb-3">Research Intelligence</h2>
+          <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight mb-3">Research Intelligence</h2>
           <p className="text-white/75 text-base md:text-lg leading-relaxed mb-10 max-w-3xl">
             Kurate turns arXiv preprint rankings into structured research signals that help
             users discover important papers, compare activity across fields, and monitor
@@ -204,7 +204,7 @@ export default function HomePage() {
       {/* ── HOW KURATE WORKS — #3 larger text ── */}
       <section className="bg-[hsl(218,60%,30%)] text-white border-b" data-testid="how-it-works">
         <div className="container mx-auto px-4 md:px-6 max-w-7xl py-14 md:py-20">
-          <h2 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight mb-3">How Kurate works</h2>
+          <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight mb-3">How Kurate works</h2>
           <p className="text-white/70 text-base md:text-lg mb-10 max-w-2xl leading-relaxed">
             Kurate processes arXiv preprints daily, applies AI-assisted analysis, and produces
             category-level rankings to help users discover and compare research.
@@ -418,7 +418,6 @@ export default function HomePage() {
               <nav className="space-y-2">
                 <a href="https://x.com/KurateOrg" target="_blank" rel="noopener noreferrer" className="block text-sm text-white/70 hover:text-white transition-colors" data-testid="footer-x">X (Twitter)</a>
                 <a href="https://www.linkedin.com/company/kurate-org" target="_blank" rel="noopener noreferrer" className="block text-sm text-white/70 hover:text-white transition-colors" data-testid="footer-linkedin">LinkedIn</a>
-                <a href="https://github.com/cvalkan/PaperSumo/" target="_blank" rel="noopener noreferrer" className="block text-sm text-white/70 hover:text-white transition-colors" data-testid="footer-github">GitHub</a>
                 <a href="https://www.instagram.com/kurate2026/" target="_blank" rel="noopener noreferrer" className="block text-sm text-white/70 hover:text-white transition-colors" data-testid="footer-instagram">Instagram</a>
                 <a href="https://www.facebook.com/Kurate/" target="_blank" rel="noopener noreferrer" className="block text-sm text-white/70 hover:text-white transition-colors" data-testid="footer-facebook">Facebook</a>
               </nav>
