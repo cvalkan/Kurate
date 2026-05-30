@@ -366,11 +366,11 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
     si_result = _compute_si_stats(papers)
 
     # SI match-level agreement + controlled (using actual PW pairs)
-    if si_result and si_result.get("_si_model_scores"):
+    if si_result and si_result.get("inter_model_si"):
         import scipy.stats as _sp
         import random as _rnd
         _rng = _rnd.Random(42)
-        si_model_scores = si_result.pop("_si_model_scores")
+        si_model_scores = si_result.pop("_si_model_scores", {})
 
         # Enrich si_model_scores from ALL models' summaries for better coverage
         SUMMARY_KEYS = {
@@ -409,27 +409,24 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                         except (ValueError, KeyError):
                             pass
 
-        # Load PW match pairs for controlled comparison + PW pair-level agreement
+        # Compute agreements using a lightweight match scan (only 3 fields per doc)
         match_q = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
         if category:
             match_q["primary_category"] = category
-        pw_pairs_for_si = {}  # {model_key: set of (pa, pb)}
-        pw_pair_winners = {}  # {model_key: {(pa, pb): winner_direction}}
-        async for m in db.matches.find(match_q, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1}):
+        pw_pair_winners = {}
+        async for m in db.matches.find(match_q, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used.provider": 1, "model_used.model": 1}):
             mu = m.get("model_used", {})
-            raw = f"{mu.get('provider','')}/{mu.get('model','')}"
+            raw = f"{mu.get('provider', '')}/{mu.get('model', '')}"
             if "claude" in raw or "opus" in raw: mk = "claude"
             elif "gemini" in raw: mk = "gemini"
             elif "gpt" in raw: mk = "gpt"
             else: continue
             p1, p2 = m["paper1_id"], m["paper2_id"]
             pair = (p1, p2) if p1 < p2 else (p2, p1)
-            pw_pairs_for_si.setdefault(mk, set()).add(pair)
-            # Store winner direction (1 = first in sorted pair wins, -1 = second wins)
             winner = 1 if m.get("winner_id") == pair[0] else -1
             pw_pair_winners.setdefault(mk, {})[pair] = winner
 
-        # PW pair-level match agreement (actual: when both models judged the same pair)
+        # PW pair-level match agreement
         pw_match_agreement = {}
         for i, m1 in enumerate(sorted(pw_pair_winners)):
             for j, m2 in enumerate(sorted(pw_pair_winners)):
@@ -439,12 +436,9 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                 if not shared: continue
                 agree = sum(1 for p in shared if pw_pair_winners[m1][p] == pw_pair_winners[m2][p])
                 total = len(shared)
-                pw_match_agreement[pair_key] = {
-                    "agree": agree, "disagree": total - agree, "total": total,
-                    "rate": round(agree / total * 100, 1),
-                }
+                pw_match_agreement[pair_key] = {"agree": agree, "disagree": total - agree, "total": total, "rate": round(agree / total * 100, 1)}
 
-        # Full SI match agreement (random pairs)
+        # Full SI match agreement
         si_match_full = {}
         si_match_full_tiebreak = {}
         for i, m1 in enumerate(sorted(si_model_scores)):
@@ -464,18 +458,15 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                         a, b = _rng.sample(common, 2)
                         k = (a, b) if a < b else (b, a)
                         if k not in seen: seen.add(k); sampled.append(k)
-                agree = total = 0
-                agree_tb = total_tb = 0
+                agree = total = agree_tb = total_tb = 0
                 for pa, pb in sampled:
                     s1a, s1b = si_model_scores[m1].get(pa), si_model_scores[m1].get(pb)
                     s2a, s2b = si_model_scores[m2].get(pa), si_model_scores[m2].get(pb)
                     if s1a is None or s1b is None or s2a is None or s2b is None: continue
-                    # Tiebreak: include all pairs, resolve ties by coinflip
                     pred1_tb = (1 if s1a > s1b else -1 if s1a < s1b else (1 if _rng.random() < 0.5 else -1))
                     pred2_tb = (1 if s2a > s2b else -1 if s2a < s2b else (1 if _rng.random() < 0.5 else -1))
                     total_tb += 1
                     if pred1_tb == pred2_tb: agree_tb += 1
-                    # No-tie: skip ties
                     if s1a == s1b or s2a == s2b: continue
                     total += 1
                     if (s1a > s1b) == (s2a > s2b): agree += 1
@@ -483,80 +474,47 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                     si_match_full[pair_key] = {"agree": agree, "disagree": total - agree, "total": total, "rate": round(agree / total * 100, 1)}
                 if total_tb > 0:
                     si_match_full_tiebreak[pair_key] = {"agree": agree_tb, "disagree": total_tb - agree_tb, "total": total_tb, "rate": round(agree_tb / total_tb * 100, 1)}
-        si_result["si_match_agreement"] = si_match_full
-        si_result["si_match_agreement_tiebreak"] = si_match_full_tiebreak
 
-        # Controlled: on shared PW pairs, do both models' SI scores agree on
-        # which paper is better? (Same question as PW but using SI scores)
+        # Controlled SI + PW agreement (shared PW pairs with SI coverage)
         si_match_ctrl = {}
         si_match_ctrl_tiebreak = {}
+        pw_match_agreement_controlled = {}
         for i, m1 in enumerate(sorted(pw_pair_winners)):
             for j, m2 in enumerate(sorted(pw_pair_winners)):
                 if j <= i: continue
                 pair_key = f"{m1} vs {m2}"
-                shared_pw_pairs = set(pw_pair_winners[m1].keys()) & set(pw_pair_winners[m2].keys())
-                m1_scores = si_model_scores.get(m1, {})
-                m2_scores = si_model_scores.get(m2, {})
-                agree = total = 0
-                agree_tb = total_tb = 0
-                for pa, pb in shared_pw_pairs:
-                    s1a = m1_scores.get(pa)
-                    s1b = m1_scores.get(pb)
-                    s2a = m2_scores.get(pa)
-                    s2b = m2_scores.get(pb)
+                shared_pw = set(pw_pair_winners[m1].keys()) & set(pw_pair_winners[m2].keys())
+                m1s = si_model_scores.get(m1, {})
+                m2s = si_model_scores.get(m2, {})
+                si_agree = si_total = si_agree_tb = si_total_tb = pw_agree = pw_total = 0
+                for pa, pb in shared_pw:
+                    s1a, s1b = m1s.get(pa), m1s.get(pb)
+                    s2a, s2b = m2s.get(pa), m2s.get(pb)
                     if s1a is None or s1b is None or s2a is None or s2b is None: continue
-                    # Tiebreak
                     pred1_tb = (1 if s1a > s1b else -1 if s1a < s1b else (1 if _rng.random() < 0.5 else -1))
                     pred2_tb = (1 if s2a > s2b else -1 if s2a < s2b else (1 if _rng.random() < 0.5 else -1))
-                    total_tb += 1
-                    if pred1_tb == pred2_tb: agree_tb += 1
-                    # No-tie
+                    si_total_tb += 1
+                    if pred1_tb == pred2_tb: si_agree_tb += 1
                     if s1a == s1b or s2a == s2b: continue
-                    total += 1
-                    if (s1a > s1b) == (s2a > s2b): agree += 1
-                if total > 0:
-                    si_match_ctrl[pair_key] = {"agree": agree, "disagree": total - agree, "total": total, "rate": round(agree / total * 100, 1)}
-                if total_tb > 0:
-                    si_match_ctrl_tiebreak[pair_key] = {"agree": agree_tb, "disagree": total_tb - agree_tb, "total": total_tb, "rate": round(agree_tb / total_tb * 100, 1)}
-        si_result["si_match_agreement_controlled"] = si_match_ctrl
-        si_result["si_match_agreement_controlled_tiebreak"] = si_match_ctrl_tiebreak
+                    si_total += 1
+                    if (s1a > s1b) == (s2a > s2b): si_agree += 1
+                    pw_total += 1
+                    if pw_pair_winners[m1][(pa, pb)] == pw_pair_winners[m2][(pa, pb)]: pw_agree += 1
+                if si_total > 0:
+                    si_match_ctrl[pair_key] = {"agree": si_agree, "disagree": si_total - si_agree, "total": si_total, "rate": round(si_agree / si_total * 100, 1)}
+                if si_total_tb > 0:
+                    si_match_ctrl_tiebreak[pair_key] = {"agree": si_agree_tb, "disagree": si_total_tb - si_agree_tb, "total": si_total_tb, "rate": round(si_agree_tb / si_total_tb * 100, 1)}
+                if pw_total > 0:
+                    pw_match_agreement_controlled[pair_key] = {"agree": pw_agree, "disagree": pw_total - pw_agree, "total": pw_total, "rate": round(pw_agree / pw_total * 100, 1)}
 
-        # Controlled PW agreement: same pairs as SI controlled (where SI coverage exists)
-        pw_match_agreement_controlled = {}
-        for pair_key, si_ctrl_data in si_match_ctrl.items():
-            parts = pair_key.split(" vs ")
-            m1, m2 = parts[0], parts[1]
-            shared_pw_pairs = set(pw_pair_winners[m1].keys()) & set(pw_pair_winners[m2].keys())
-            m1_scores = si_model_scores.get(m1, {})
-            m2_scores = si_model_scores.get(m2, {})
-            agree = total = 0
-            for pa, pb in shared_pw_pairs:
-                # Same filter as SI: both papers need SI from both models, no ties
-                s1a, s1b = m1_scores.get(pa), m1_scores.get(pb)
-                s2a, s2b = m2_scores.get(pa), m2_scores.get(pb)
-                if s1a is None or s1b is None or s2a is None or s2b is None: continue
-                if s1a == s1b or s2a == s2b: continue
-                total += 1
-                if pw_pair_winners[m1][(pa, pb)] == pw_pair_winners[m2][(pa, pb)]:
-                    agree += 1
-            if total > 0:
-                pw_match_agreement_controlled[pair_key] = {
-                    "agree": agree, "disagree": total - agree, "total": total,
-                    "rate": round(agree / total * 100, 1),
-                }
-
-        si_result["pw_match_agreement"] = pw_match_agreement
-        si_result["pw_match_agreement_controlled"] = pw_match_agreement_controlled
-
-        # Controlled ranking correlation: papers appearing in PW pairs judged by both models
+        # Controlled ranking correlation
         controlled_corr = {}
         for i, m1 in enumerate(sorted(si_model_scores)):
             for j, m2 in enumerate(sorted(si_model_scores)):
                 if j <= i: continue
-                shared_pw = pw_pairs_for_si.get(m1, set()) & pw_pairs_for_si.get(m2, set())
+                shared_pw = set(pw_pair_winners.get(m1, {}).keys()) & set(pw_pair_winners.get(m2, {}).keys())
                 pw_paper_pool = set()
-                for p1, p2 in shared_pw:
-                    pw_paper_pool.add(p1); pw_paper_pool.add(p2)
+                for p1, p2 in shared_pw: pw_paper_pool.add(p1); pw_paper_pool.add(p2)
                 common = sorted(pw_paper_pool & set(si_model_scores[m1].keys()) & set(si_model_scores[m2].keys()))
                 if len(common) >= 10:
                     v1 = [si_model_scores[m1][p] for p in common]
@@ -564,8 +522,15 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                     rho, _ = _sp.spearmanr(v1, v2)
                     if not np.isnan(rho):
                         controlled_corr[f"{m1} vs {m2}"] = {"spearman": round(float(rho), 3), "n": len(common)}
+
+        si_result["si_match_agreement"] = si_match_full
+        si_result["si_match_agreement_tiebreak"] = si_match_full_tiebreak
+        si_result["si_match_agreement_controlled"] = si_match_ctrl
+        si_result["si_match_agreement_controlled_tiebreak"] = si_match_ctrl_tiebreak
         si_result["controlled_inter_model_si"] = controlled_corr
-        del pw_pairs_for_si
+        si_result["pw_match_agreement"] = pw_match_agreement
+        si_result["pw_match_agreement_controlled"] = pw_match_agreement_controlled
+        del pw_pair_winners
 
     # --- PW vs SI (WR/TS only, OS empty) ---
     pw_vs_si = _compute_pw_vs_si(
@@ -990,6 +955,8 @@ async def compute_openskill_cache(category: Optional[str] = None):
 
     all_matches_slim = [{"paper1_id": m["paper1_id"], "paper2_id": m["paper2_id"], "winner_id": m["winner_id"]}
                         for m in all_matches if m.get("winner_id")]
+
+
     all_pids = list(wr_scores.keys())
 
     os1_global = await compute_os(all_matches_slim, all_pids, passes=1)
@@ -1132,8 +1099,7 @@ async def compute_openskill_cache(category: Optional[str] = None):
 
 
 def merge_openskill_into_live(live: dict, os_cache: dict) -> dict:
-    """Previously injected cached OpenSkill 1p/3p/10p data into live analysis.
-    Now a no-op — incremental OpenSkill ('openskill') is computed live."""
+    """Previously injected cached OpenSkill data into live analysis. Now a no-op."""
     return live
 
     model_os = os_cache.get("os_per_model", {})
