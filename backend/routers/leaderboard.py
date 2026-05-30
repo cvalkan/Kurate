@@ -1399,16 +1399,19 @@ _analysis_compute_lock = asyncio.Lock()
 async def get_model_analysis(
     category: Optional[str] = Query(None, description="Filter by category (None = all)"),
 ):
-    """Live model analysis with optional cached OpenSkill.
-    WR/TS/SI data computed fresh from rankings (~200ms).
-    OpenSkill columns merged from cache if available."""
-    cat_key = category or "__all__"
+    """Serve precomputed model analysis (<50ms). Falls back to live computation if not yet precomputed."""
+    from services.precompute_analysis import get_precomputed, ALL_KEY
 
-    # Always compute live + merge OS (cached together as one complete result)
+    key = category or ALL_KEY
+    doc = await get_precomputed(key)
+    if doc and doc.get("data"):
+        result = doc["data"]
+        result["precomputed_at"] = doc.get("computed_at")
+        return result
+
+    # Fallback: compute live (first deploy before precompute runs)
     from services.model_analysis import compute_live_analysis
-    live = await compute_live_analysis(category)
-
-    return live
+    return await compute_live_analysis(category)
 
 @router.get("/convergence")
 async def get_convergence(

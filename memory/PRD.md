@@ -1,61 +1,57 @@
 # PRD — Kurate.org AI Paper Ranking Platform
 
 ## Problem Statement
-Build and maintain a sophisticated AI paper-judging system using multiple LLM judges to rank academic papers through pairwise tournaments, with validation experiments, convergence monitoring, and multi-category support.
+Build and maintain an AI paper-judging system using multiple LLM judges to rank academic papers through pairwise tournaments and single-item assessments, with validation experiments and multi-category support.
 
 ## Architecture
 - **Backend**: FastAPI + MongoDB (Motor async) + Background scheduler
-- **Frontend**: React + Shadcn UI + Recharts
-- **LLMs**: Claude Opus 4-6 (Emergent key), GPT-5.2/5.4 (direct key), Gemini 3 Pro (Emergent key)
-- **Scoring**: TrueSkill with sigma-based convergence + quality-based matchmaking
-- **Dual-Pod**: Leader election via MongoDB lock; follower runs lightweight startup
+- **Frontend**: React + Shadcn/UI + Recharts
+- **LLMs**: Claude Opus 4.6, GPT-5.2/5.4, Gemini 3 Pro
+- **Scoring**: TrueSkill with quality-based matchmaking
+- **Dual-Pod**: Leader/follower with MongoDB lock
 
-## What's Been Implemented (Latest Session)
+## Latest Changes (May 30, 2026)
 
-### Inter-Model Agreement Overhaul (May 2026)
-- PW Match Agreement: actual pair-level agreement (not median-split)
-- SI Score Agreement: with Full/Controlled toggle
-- Controlled = exact PW shared pairs (intersection of models' match pairs)
-- Both tables work for all-categories and per-category views
+### Precomputed Model Analysis
+- `/api/model-analysis` served from precomputed MongoDB documents (<50ms vs 7-15s)
+- Daily background job processes one category at a time (bounded memory)
+- Eliminated 2 of 3 duplicate match collection scans
+- Auto-triggers on startup + every 24h; manual trigger via admin endpoint
 
-### Prompt Stability Experiments (May 2026)
-- 3 experiments on 88-206 papers: baseline, with-reasons, extended (11 dimensions)
-- Extended prompt adds: difficulty, surprisingness, reproducibility, translational_potential, evidence_strength, generalisability
-- 11×11 correlation matrix, per-dimension histograms, ranked paper lists
-- Validation Hub pages: Rating Stability + Extended Dimensions
+### Inter-Model Agreement Overhaul
+- PW Match Agreement: actual pair-level (replaces median-split)
+- SI Score Agreement with Full/Controlled/Tiebreak toggle
+- Controlled: exact same pairs for PW and SI tables
+- Simulation table: SI scores through simulated TrueSkill tournament
 
-### Featured Categories System (May 2026)
-- Separated "featured" (homepage tabs) from "active" (tournament participation)
-- AdminCategories rewritten: drag-reorderable featured + unified dropdown
+### Prompt Stability Experiments
+- 3 experiments on 88-206 papers (baseline, with-reasons, extended 11 dimensions)
+- Extended: difficulty, surprisingness, reproducibility, translational_potential, evidence_strength, generalisability
+- 11x11 correlation matrix, histograms, ranked paper lists
 
-### ICLR Match Pipelines (May 2026)
-- Ran 16,395 matches across 4 ICLR sub-datasets (2025/2026 LLMs + Optimization)
-- Fetched abstracts + summaries for 911 new papers
-- Robust resumable pipeline with direct Anthropic fallback
+### Other
+- Featured categories system (admin-configurable homepage tabs)
+- Contact form, user export, privacy policy update
+- PMI surprise scores for Similarity Landscape
+- ICLR match pipelines (16,395 matches across 4 sub-datasets)
 
-### Other Changes
-- Prediction experiment cleanup + timeseries endpoint optimization
-- Qwen3-0.6B embedding evaluation
-- Contact form (/contact page, honeypot + rate limit, admin Messages tab)
-- User export CSV, privacy policy update (Google Search Console)
-- PMI surprise/multidisciplinarity scores for Similarity Landscape
-
-## Production Stats (May 27, 2026)
-- 20K+ papers, 500K+ matches across 32 categories
-- Inter-model PW agreement: 71-73% (pair-level)
-- Inter-model SI agreement: 85-87% (full), 78-79% (controlled)
-- $/paper: $0.16 (current), down from $0.75 in February
+## Production Stats (May 30, 2026)
+- 22K+ papers, 500K+ matches across 34 categories
+- $/paper: $0.16 (down from $0.75 at launch)
+- PW inter-model agreement: 71-73% (pair-level)
+- SI inter-model agreement: 82-84% (controlled), 70-77% (tiebreak)
 
 ## Known Issues
-- ChemRxiv papers: MOCKED
-- Twitter/X mobile unfurling: BLOCKED (Cloudflare WAF)
-- K8s liveness probes: BLOCKED (infrastructure)
+- astro-ph.HE and cond-mat.mes-hall: tournaments paused (351 + 314 papers with summaries, 0 matches)
+- SI score source: rankings.si_ratings is 33% populated on production; enrichment from summaries needed
+- ChemRxiv: mocked from static JSON
 
-## Pending Tasks
-- P0: Deploy latest changes to production
-- P0: Add 5 categorical metrics to extended prompt (paper_type, contribution_type, code_available, research_maturity, comparative_result)
+## Pending
+- P0: Deploy precomputed model analysis to production
+- P0: Unpause astro-ph.HE / cond-mat.mes-hall tournaments
+- P1: SI source of truth consolidation (read from papers.ai_ratings_by_model)
+- P1: Landing page merge from GitHub branch
+- P1: Extended prompt (5 categorical metrics)
 - P1: Semantic Search & "Papers Like This"
-- P1: Multiple Reviewer Personas
-- P1: Live ChemRxiv Fetcher
-- P1: All-arXiv category expansion (~$1,400 backfill)
-- P2: Scholarly positioning metric (highest-value skipped numerical metric)
+- P2: All-arXiv category expansion (~$1,400 backfill)
+- P2: Multiple Reviewer Personas

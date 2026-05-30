@@ -608,6 +608,7 @@ async def _deferred_startup():
         await db.matches.create_index([
             ("completed", 1), ("failed", 1), ("mode", 1), ("primary_category", 1), ("created_at", 1)
         ], name="timeseries_agg_idx")
+        await db.model_analysis_precomputed.create_index("key", unique=True, name="precomputed_key")
         await db.matches.create_index([
             ("primary_category", 1), ("completed", 1), ("failed", 1), ("mode", 1)
         ])

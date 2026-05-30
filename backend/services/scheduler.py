@@ -333,6 +333,7 @@ async def start_scheduler():
         logger.info("Background scheduler started (LEADER — running fetch + compare loops)")
         asyncio.create_task(_fetch_loop())
         asyncio.create_task(_compare_loop())
+        asyncio.create_task(_precompute_analysis_loop())
     else:
         logger.info("Background scheduler started (FOLLOWER — HTTP only, no background loops)")
         # Start a watcher that promotes to leader if the current leader dies
@@ -351,10 +352,31 @@ async def _follower_promotion_loop():
             set_pod_role("leader")
             asyncio.create_task(_fetch_loop())
             asyncio.create_task(_compare_loop())
+            asyncio.create_task(_precompute_analysis_loop())
             # Archive loop was skipped at follower startup — start it now
             from routers.leaderboard import _bg_archive_loop
             asyncio.create_task(_bg_archive_loop())
             return
+
+
+async def _precompute_analysis_loop():
+    """Precompute model analysis on startup + daily."""
+    from services.precompute_analysis import (
+        precompute_model_analysis, should_run_precompute, ensure_index,
+    )
+    await ensure_index()
+    # Initial delay to let other startup tasks complete
+    await asyncio.sleep(30)
+    while _scheduler_running:
+        try:
+            if await should_run_precompute(interval_hours=24):
+                logger.info("[precompute] Starting model analysis precomputation")
+                await precompute_model_analysis()
+        except Exception as e:
+            logger.warning(f"[precompute] Error: {e}")
+        # Check every hour if it's time to run
+        await asyncio.sleep(3600)
+
 
 
 async def _fetch_loop():

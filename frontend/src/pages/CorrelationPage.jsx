@@ -149,6 +149,12 @@ export default function CorrelationPage() {
         </div>
       )}
 
+      {data?.precomputed_at && (
+        <div className="text-[10px] text-muted-foreground text-right mb-2">
+          Last computed: {new Date(data.precomputed_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+        </div>
+      )}
+
       <SectionBoundary>
         <div id="tournament">
         <CorrelationSection

@@ -3818,6 +3818,15 @@ async def prune_duplicate_matches(request: Request, category: str = Query("cs.CR
     }
 
 
+
+@router.post("/recompute-model-analysis", dependencies=[Depends(verify_admin)])
+async def recompute_model_analysis():
+    """Trigger model analysis precomputation immediately."""
+    from services.precompute_analysis import precompute_model_analysis
+    asyncio.create_task(precompute_model_analysis())
+    return {"status": "started", "message": "Precomputation running in background"}
+
+
 @router.post("/clear-experiment-cache")
 async def clear_experiment_cache(request: Request, name: str = Query(None)):
     """Reload a specific experiment cache from precomputed JSON (or all).
