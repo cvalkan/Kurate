@@ -118,6 +118,7 @@ from routers.defi import router as defi_router
 from routers.bookmarks import router as bookmarks_router
 from routers.scaling_test import router as scaling_test_router
 from routers.papers_list import router as papers_list_router
+from routers.experiments_open_problems import router as experiments_open_problems_router
 from routers.reading_lists import router as reading_lists_router
 from routers.sync import router as sync_router
 from routers.human_ai_benchmark import router as benchmark_router
@@ -247,6 +248,7 @@ app.include_router(defi_router)
 app.include_router(bookmarks_router)
 app.include_router(scaling_test_router)
 app.include_router(papers_list_router)
+app.include_router(experiments_open_problems_router)
 app.include_router(sync_router)
 app.include_router(reading_lists_router)
 app.include_router(benchmark_router)

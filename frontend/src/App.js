@@ -28,6 +28,7 @@ import NewBadgeTest from "@/pages/NewBadgeTest";
 import SimulatedMemChart from "@/pages/SimulatedMemChart";
 import ListViewsHeatmap from "@/pages/ListViewsTest/HeatmapView";
 import ScaleTestPage from "@/pages/ListViewsTest/ScaleTestPage";
+import OpenProblemsExperimentPage from "@/pages/OpenProblemsExperimentPage";
 import PrivacyPage from "@/pages/PrivacyPage";
 import ImpressumPage from "@/pages/ImpressumPage";
 import ContactPage from "@/pages/ContactPage";
@@ -62,6 +63,7 @@ function AppRouter() {
           <Route path="/test/list-views" element={<ListViewsHeatmap />} />
           <Route path="/test/list-views/heatmap" element={<ListViewsHeatmap />} />
           <Route path="/test/list-views/scale-test" element={<ScaleTestPage />} />
+          <Route path="/validation/experiments/open-problems" element={<OpenProblemsExperimentPage />} />
           <Route path="/admin/dashboard" element={<AdminPage />} />
           <Route path="/admin/outreach" element={<OutreachPage />} />
           <Route path="/admin/outreach/activity" element={<OutreachActivityPage />} />
