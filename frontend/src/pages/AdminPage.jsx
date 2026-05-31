@@ -829,6 +829,17 @@ function UserList() {
     return { label: "Unverified", cls: "bg-amber-50 text-amber-700" };
   };
 
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "\u2014";
+    try {
+      const d = new Date(dateStr);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    } catch { return "\u2014"; }
+  };
+
   const formatTimestamp = (dateStr) => {
     if (!dateStr) return "\u2014";
     try {
@@ -838,7 +849,7 @@ function UserList() {
       const day = String(d.getDate()).padStart(2, "0");
       const h = String(d.getHours()).padStart(2, "0");
       const min = String(d.getMinutes()).padStart(2, "0");
-      return `${y}-${m}-${day} ${h}:${min}`;
+      return `${y}-${m}-${day}\u00A0${h}:${min}`;
     } catch { return "\u2014"; }
   };
 
@@ -917,9 +928,9 @@ function UserList() {
               const status = getUserStatus(u);
               const isActive = u.active !== false;
               return (
-                <div key={u.user_id} className={`grid grid-cols-[1fr_8rem_4.5rem_4.5rem_5.5rem_5rem_3rem_4.5rem] gap-2 px-4 py-2 border-b border-border/50 text-sm items-center ${!isActive ? "opacity-50" : ""}`} data-testid={`user-row-${u.user_id}`}>
-                  <div className="truncate text-xs">{u.email}</div>
-                  <div className="truncate text-xs text-muted-foreground">{u.name || "\u2014"}</div>
+                <div key={u.user_id} className={`grid grid-cols-[1fr_8rem_4.5rem_4.5rem_5.5rem_5rem_3rem_4.5rem] gap-2 px-4 py-2 border-b border-border/50 text-xs items-center ${!isActive ? "opacity-50" : ""}`} data-testid={`user-row-${u.user_id}`}>
+                  <div className="truncate">{u.email}</div>
+                  <div className="truncate text-muted-foreground">{u.name || "\u2014"}</div>
                   <div>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${u.provider === "google" ? "bg-blue-50 text-blue-700" : "bg-secondary text-muted-foreground"}`}>
                       {u.provider}
@@ -928,13 +939,13 @@ function UserList() {
                   <div>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded ${status.cls}`}>{status.label}</span>
                   </div>
-                  <div className="text-[10px] text-muted-foreground font-mono">
-                    {formatTimestamp(u.created_at)}
+                  <div className="text-muted-foreground whitespace-nowrap">
+                    {formatDate(u.created_at)}
                   </div>
-                  <div className="text-[10px] text-muted-foreground font-mono">
+                  <div className="text-muted-foreground whitespace-nowrap">
                     {formatTimestamp(u.last_active)}
                   </div>
-                  <div className="text-[10px] text-muted-foreground font-mono text-center">
+                  <div className="text-muted-foreground text-center">
                     {u.visit_count || 0}
                   </div>
                   <div className="text-right">
