@@ -8,15 +8,6 @@ import { useIsHoverDevice, scoreColor, scoreTextColor } from "@/pages/ListViewsT
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
-const SECTION_COLORS = {
-  "Limitations":  "#ef4444",
-  "Future Work":  "#3b82f6",
-  "Discussion":   "#a855f7",
-  "Conclusion":   "#22c55e",
-  "Introduction": "#eab308",
-  "Other":        "#6b7280",
-};
-
 const METRICS = [
   { key: "impact",     label: "Impact",     short: "Impact",     color: "#0ea5e9", desc: "How much the field gains if this problem is solved (1-10)." },
   { key: "difficulty", label: "Difficulty", short: "Diffic.",    color: "#8b5cf6", desc: "How hard it would be for a competent group to solve in 1-2 years (1-10)." },
@@ -46,7 +37,7 @@ function HoverTooltip({ content, children, side = "top" }) {
 
 const METRIC_COL_WIDTH = 64;
 const DATE_COL_WIDTH = 100;
-const SECTION_COL_WIDTH = 96;
+const CATEGORY_COL_WIDTH = 132;
 const SCOPE_COL_WIDTH = 96;
 
 function ScopePill({ scope }) {
@@ -124,7 +115,8 @@ const MetricCell = memo(_MetricCell);
 
 function _ProblemRow({ problem }) {
   const fruit = problem.fruit;
-  const sectionCol = SECTION_COLORS[problem.source_section] || SECTION_COLORS.Other;
+  const cats = problem.paper_categories || [];
+  const primary = cats[0] || "—";
   return (
     <>
       <td className="py-2 px-3 border-b border-border/30 align-top">
@@ -135,14 +127,33 @@ function _ProblemRow({ problem }) {
       <td className="py-2 px-3 border-b border-border/30 align-top">
         <ProblemCell problem={problem} />
       </td>
-      <td className="py-2 px-2 border-b border-border/30 align-top text-center">
-        <span
-          className="inline-block text-[10px] font-mono px-1.5 py-0.5 rounded border whitespace-nowrap"
-          style={{ borderColor: sectionCol, color: sectionCol, backgroundColor: `${sectionCol}10` }}
-          title={problem.source_section}
-        >
-          {problem.source_section}
-        </span>
+      <td className="py-2 px-2 border-b border-border/30 align-top">
+        <HoverTooltip content={cats.length > 1 ? (
+          <div className="space-y-1">
+            <div className="text-[11px] font-medium">arXiv categories</div>
+            <div className="flex flex-wrap gap-1">
+              {cats.map((c, i) => (
+                <span key={c} className="font-mono text-[10px] px-1.5 py-0.5 rounded border"
+                      style={i === 0
+                        ? { borderColor: "hsl(var(--accent))", color: "hsl(var(--accent))", backgroundColor: "hsl(var(--accent) / 0.10)" }
+                        : { borderColor: "hsl(var(--border))", color: "hsl(var(--muted-foreground))" }}>
+                  {c}
+                </span>
+              ))}
+            </div>
+            <div className="text-[10px] text-muted-foreground">First = primary; rest are secondary.</div>
+          </div>
+        ) : null}>
+          <div className="flex flex-wrap gap-1 items-center cursor-default">
+            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap"
+              style={{ borderColor: "hsl(var(--accent))", color: "hsl(var(--accent))", backgroundColor: "hsl(var(--accent) / 0.10)" }}>
+              {primary}
+            </span>
+            {cats.length > 1 && (
+              <span className="text-[10px] text-muted-foreground">+{cats.length - 1}</span>
+            )}
+          </div>
+        </HoverTooltip>
       </td>
       <td className="py-2 px-2 border-b border-border/30 align-top text-center">
         <ScopePill scope={problem.scope} />
@@ -166,7 +177,7 @@ export default function OpenProblemsExperimentPage() {
   const [search, setSearch] = useState("");
   const [searchDraft, setSearchDraft] = useState("");
   const [scope, setScope] = useState("all");
-  const [section, setSection] = useState("all");
+  const [categories, setCategories] = useState(() => new Set());  // multi-select
   const [sortKey, setSortKey] = useState("fruit");
   const [sortDir, setSortDir] = useState("desc");
 
@@ -198,9 +209,11 @@ export default function OpenProblemsExperimentPage() {
       });
     }
     if (scope !== "all") out = out.filter(p => p.scope === scope);
-    if (section !== "all") out = out.filter(p => p.source_section === section);
+    if (categories.size > 0) {
+      out = out.filter(p => (p.paper_categories || []).some(c => categories.has(c)));
+    }
     return out;
-  }, [data.problems, search, scope, section]);
+  }, [data.problems, search, scope, categories]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -219,6 +232,7 @@ export default function OpenProblemsExperimentPage() {
     return arr;
   }, [filtered, sortKey, sortDir]);
 
+  // Sort the sortable keys mapping: category sort by primary category alpha
   const setSort = useCallback((key) => {
     setSortKey(prev => {
       if (prev === key) {
@@ -230,11 +244,25 @@ export default function OpenProblemsExperimentPage() {
     });
   }, []);
 
-  const sectionCounts = useMemo(() => {
+  // Build category list — unique across all problems, sorted alphabetically,
+  // with counts (using paper-category multi-match: a problem in cs.LG+cs.AI counts in both).
+  const categoryCounts = useMemo(() => {
     const c = {};
-    data.problems.forEach(p => { c[p.source_section] = (c[p.source_section] || 0) + 1; });
+    data.problems.forEach(p => {
+      (p.paper_categories || []).forEach(cat => { c[cat] = (c[cat] || 0) + 1; });
+    });
     return c;
   }, [data.problems]);
+
+  const toggleCategory = useCallback((cat) => {
+    setCategories(prev => {
+      const next = new Set(prev);
+      next.has(cat) ? next.delete(cat) : next.add(cat);
+      return next;
+    });
+  }, []);
+
+  const allCategories = useMemo(() => Object.keys(categoryCounts).sort(), [categoryCounts]);
 
   const TableComponent = useMemo(() => {
     return ({ style, children, ...rest }) => (
@@ -242,7 +270,7 @@ export default function OpenProblemsExperimentPage() {
         <colgroup>
           <col style={{ width: DATE_COL_WIDTH }} />
           <col className="w-[260px] min-w-[230px] sm:w-auto sm:min-w-[360px]" />
-          <col style={{ width: SECTION_COL_WIDTH }} />
+          <col style={{ width: CATEGORY_COL_WIDTH }} />
           <col style={{ width: SCOPE_COL_WIDTH }} />
           {METRICS.map(m => <col key={m.key} style={{ width: METRIC_COL_WIDTH }} />)}
         </colgroup>
@@ -278,8 +306,8 @@ export default function OpenProblemsExperimentPage() {
       <th className="text-left py-2 px-3 border-b border-border bg-card">
         <SortHeader name="Problem" sortKey="title" current={sortKey} dir={sortDir} onClick={setSort} />
       </th>
-      <th className="text-center py-2 px-1 border-b border-border bg-card">
-        <SortHeader name="Section" sortKey="section" current={sortKey} dir={sortDir} onClick={setSort} />
+      <th className="text-left py-2 px-2 border-b border-border bg-card">
+        <SortHeader name="Category" sortKey="category" current={sortKey} dir={sortDir} onClick={setSort} />
       </th>
       <th className="text-center py-2 px-1 border-b border-border bg-card">
         <SortHeader name="Scope" sortKey="scope" current={sortKey} dir={sortDir} onClick={setSort} />
@@ -386,32 +414,42 @@ export default function OpenProblemsExperimentPage() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">Section</span>
-                <button
-                  onClick={() => setSection("all")}
-                  className={`text-[10px] px-2 py-0.5 rounded border ${section === "all" ? "bg-foreground text-background border-foreground" : "border-border bg-background text-muted-foreground hover:text-foreground"}`}
-                >
-                  All
-                </button>
-                {Object.entries(SECTION_COLORS).map(([s, col]) => {
-                  const count = sectionCounts[s] || 0;
-                  if (count === 0) return null;
-                  const active = section === s;
-                  return (
+              <details className="border-t border-border/40 pt-2 group">
+                <summary className="text-[10px] text-muted-foreground uppercase tracking-wider cursor-pointer select-none flex items-center gap-2 list-none [&::-webkit-details-marker]:hidden hover:text-foreground">
+                  <span className="text-sm leading-none inline-block transition-transform group-open:rotate-90">▸</span>
+                  <span>Category</span>
+                  <span className="normal-case tracking-normal text-[11px] text-foreground/70 font-normal">
+                    {categories.size === 0
+                      ? `Any · all ${allCategories.length} categories`
+                      : `${Array.from(categories).slice(0, 3).join(", ")}${categories.size > 3 ? ` +${categories.size - 3}` : ""}`}
+                  </span>
+                  {categories.size > 0 && (
                     <button
-                      key={s}
-                      onClick={() => setSection(s)}
-                      className="text-[10px] px-2 py-0.5 rounded border inline-flex items-center gap-1"
-                      style={active
-                        ? { borderColor: col, backgroundColor: col, color: "#fff" }
-                        : { borderColor: col, color: col, backgroundColor: `${col}10` }}
+                      onClick={(e) => { e.preventDefault(); setCategories(new Set()); }}
+                      className="ml-auto text-[10px] px-1.5 py-0.5 rounded border border-border hover:bg-secondary normal-case tracking-normal"
+                      data-testid="opx-cat-clear"
                     >
-                      {s} <span className="opacity-70 font-mono">{count}</span>
+                      Clear
                     </button>
-                  );
-                })}
-              </div>
+                  )}
+                </summary>
+                <div className="flex flex-wrap gap-1 mt-2" data-testid="opx-category">
+                  {allCategories.map(cat => {
+                    const active = categories.has(cat);
+                    const count = categoryCounts[cat] || 0;
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => toggleCategory(cat)}
+                        className={`text-[10px] font-mono px-1.5 py-0.5 rounded border inline-flex items-center gap-1 transition-colors ${active ? "bg-accent text-accent-foreground border-accent" : "border-border bg-background text-muted-foreground hover:text-foreground"}`}
+                        data-testid={`opx-cat-${cat}`}
+                      >
+                        {cat} <span className="opacity-70">{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </details>
             </div>
 
             <div className="border border-border rounded-lg bg-card" style={{ overflowX: "auto" }} data-testid="opx-table">
