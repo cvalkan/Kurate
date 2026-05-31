@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import axios from "axios";
 import {
   FlaskConical, GitCompare, Beaker, Trophy, ChevronRight, FlaskRound,
@@ -81,6 +81,28 @@ function CollapsibleGroup({ label, children, defaultOpen = false, icon: Icon }) 
 }
 
 function NavItem({ item, selected, onSelect }) {
+  if (item.to) {
+    return (
+      <Link
+        to={item.to}
+        className="w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors flex items-center justify-between text-muted-foreground hover:bg-secondary/30 hover:text-foreground border border-transparent"
+        data-testid={`nav-${item.id}`}
+      >
+        <div>
+          <div className="text-[11px] font-medium flex items-center gap-1.5">
+            {item.label}
+            {item.badge && (
+              <span className="text-[8px] font-mono uppercase tracking-wider px-1 py-px rounded bg-accent/15 text-accent">
+                {item.badge}
+              </span>
+            )}
+          </div>
+          {item.sub && <div className="text-[9px] opacity-60 mt-0.5">{item.sub}</div>}
+        </div>
+        <ChevronRight className="h-3 w-3 shrink-0 opacity-40" />
+      </Link>
+    );
+  }
   return (
     <button
       onClick={() => onSelect(item.id)}
@@ -404,6 +426,9 @@ export default function ValidationHubPage() {
               <CollapsibleGroup label="Prompt Stability" defaultOpen={selected?.startsWith("exp-prompt-")}>
                 <NavItem item={{ id: "exp-prompt-stability", label: "Rating Stability", sub: "88 papers, 3 variants" }} selected={selected} onSelect={setSelected} />
                 <NavItem item={{ id: "exp-prompt-extended", label: "Extended Dimensions", sub: "4 new metrics" }} selected={selected} onSelect={setSelected} />
+              </CollapsibleGroup>
+              <CollapsibleGroup label="Open Problems" defaultOpen={false}>
+                <NavItem item={{ id: "exp-open-problems", to: "/validation/experiments/open-problems", label: "Author-flagged problems", sub: "Top 100 papers · Opus 4.8", badge: "NEW" }} selected={selected} onSelect={setSelected} />
               </CollapsibleGroup>
             </CollapsibleGroup>
 
