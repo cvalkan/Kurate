@@ -78,6 +78,17 @@ async def precompute_model_analysis(categories: list = None):
         upsert=True,
     )
 
+    # Also precompute summarizer rating distributions
+    try:
+        from routers.si_benchmark import _compute_summarizer_ratings
+        import json as _json
+        sr_result = await _compute_summarizer_ratings()
+        with open("/app/backend/data/precomputed/summarizer_rating_distributions.json", "w") as f:
+            _json.dump(sr_result, f)
+        logger.info("[precompute] Summarizer rating distributions updated")
+    except Exception as e:
+        logger.warning(f"[precompute] Summarizer ratings failed: {e}")
+
     return {"success": success, "failed": failed, "total_time_s": total}
 
 

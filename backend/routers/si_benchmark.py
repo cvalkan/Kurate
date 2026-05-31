@@ -865,11 +865,15 @@ _summarizer_rating_cache = {"data": None}
 
 @router.get("/summarizer-rating-distributions")
 async def summarizer_rating_distributions():
-    """Rating distributions from production summarizer models.
-    
-    Sends raw values per dimension so the frontend can build histograms
-    at any resolution (0.1, 0.25, 0.5, 1.0).
-    """
+    """Serve precomputed rating distributions. Falls back to live computation."""
+    import json as _json
+    path = "/app/backend/data/precomputed/summarizer_rating_distributions.json"
+    try:
+        with open(path) as f:
+            return _json.load(f)
+    except FileNotFoundError:
+        pass
+    # Fallback: compute live
     if _summarizer_rating_cache["data"]:
         return _summarizer_rating_cache["data"]
     result = await _compute_summarizer_ratings()
