@@ -144,13 +144,17 @@ async def update_contact_message_status(message_id: str, request: Request):
 
 
 @router.get("/admin/users", dependencies=[Depends(verify_admin)])
-async def get_users(offset: int = 0, limit: int = 100, page: int = None):
+async def get_users(offset: int = 0, limit: int = 100, page: int = None, sort: str = "created_at", order: str = "desc"):
     if page is not None and page > 0:
         offset = (page - 1) * limit
+    sort_dir = -1 if order == "desc" else 1
+    allowed_sorts = {"created_at", "last_active", "visit_count", "name", "email", "provider"}
+    if sort not in allowed_sorts:
+        sort = "created_at"
     total = await db.users.count_documents({})
     users = await db.users.find(
         {}, {"_id": 0, "password_hash": 0, "verification_token": 0}
-    ).sort("created_at", -1).skip(offset).limit(limit).to_list(limit)
+    ).sort(sort, sort_dir).skip(offset).limit(limit).to_list(limit)
     return {"users": users, "total": total, "offset": offset, "limit": limit}
 
 

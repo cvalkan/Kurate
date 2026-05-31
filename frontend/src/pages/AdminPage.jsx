@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
@@ -726,39 +726,97 @@ function AdminMessages() {
 
 
 function AdminUsers() {
+  const [subTab, setSubTab] = useState("users");
+  return (
+    <div className="space-y-4" data-testid="admin-users">
+      <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-lg w-fit">
+        <button className={`px-3 py-1 text-xs rounded transition-colors ${subTab === "users" ? "bg-background text-foreground font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          onClick={() => setSubTab("users")}>Users</button>
+        <button className={`px-3 py-1 text-xs rounded transition-colors ${subTab === "orcid" ? "bg-background text-foreground font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          onClick={() => setSubTab("orcid")}>ORCID Verifications</button>
+      </div>
+      {subTab === "users" && <UserList />}
+      {subTab === "orcid" && <OrcidVerifications />}
+    </div>
+  );
+}
+
+function UserList() {
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(0);
+  const [sortField, setSortField] = useState("created_at");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [allUsers, setAllUsers] = useState([]);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [regData, setRegData] = useState(null);
-  const PAGE_SIZE = 100;
+  const PAGE_SIZE = 50;
+  const listRef = useRef(null);
 
-  const fetchUsers = async (pg = page) => {
+  const fetchUsers = async (offset = 0, append = false) => {
+    if (append) setLoadingMore(true); else setLoading(true);
     try {
-      const res = await axios.get(`${API}/api/admin/users`, { headers: getAdminHeaders(), params: { offset: pg * PAGE_SIZE, limit: PAGE_SIZE } });
-      setUsers(res.data.users || []);
+      const res = await axios.get(`${API}/api/admin/users`, {
+        headers: getAdminHeaders(),
+        params: { offset, limit: PAGE_SIZE, sort: sortField, order: sortOrder },
+      });
+      const newUsers = res.data.users || [];
       setTotal(res.data.total || 0);
+      if (append) {
+        setAllUsers(prev => [...prev, ...newUsers]);
+      } else {
+        setAllUsers(newUsers);
+      }
     } catch (err) {
       console.error("Failed to load users:", err);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
   useEffect(() => {
-    fetchUsers(page);
+    fetchUsers(0, false);
     axios.get(`${API}/api/admin/users/registrations`, { headers: getAdminHeaders() })
       .then(res => setRegData(res.data?.series || []))
       .catch(() => {});
-  }, []);
+  }, [sortField, sortOrder]);
 
-  useEffect(() => { fetchUsers(page); }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Infinite scroll
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const handleScroll = () => {
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 100 && !loadingMore && allUsers.length < total) {
+        fetchUsers(allUsers.length, true);
+      }
+    };
+    el.addEventListener("scroll", handleScroll);
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [allUsers, total, loadingMore, sortField, sortOrder]);
+
+  const toggleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder(o => o === "desc" ? "asc" : "desc");
+    } else {
+      setSortField(field);
+      setSortOrder("desc");
+    }
+  };
+
+  const SortHeader = ({ field, children, className = "" }) => (
+    <button className={`flex items-center gap-0.5 hover:text-foreground transition-colors ${className}`}
+      onClick={() => toggleSort(field)}>
+      {children}
+      {sortField === field && <span className="text-accent">{sortOrder === "desc" ? "\u2193" : "\u2191"}</span>}
+    </button>
+  );
 
   const toggleActive = async (userId, currentlyActive) => {
     try {
       await axios.post(`${API}/api/admin/users/${userId}/status`, { active: !currentlyActive }, { headers: getAdminHeaders() });
       toast.success(currentlyActive ? "User deactivated" : "User reactivated");
-      fetchUsers(page);
+      fetchUsers(0, false);
     } catch { toast.error("Failed"); }
   };
 
@@ -768,10 +826,22 @@ function AdminUsers() {
     return { label: "Unverified", cls: "bg-amber-50 text-amber-700" };
   };
 
+  const formatRelative = (dateStr) => {
+    if (!dateStr) return "\u2014";
+    try {
+      const d = new Date(dateStr);
+      const diff = (Date.now() - d.getTime()) / 1000;
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+      return d.toLocaleDateString();
+    } catch { return "\u2014"; }
+  };
+
   if (loading) return <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-12 bg-secondary/30 rounded-lg animate-pulse" />)}</div>;
 
   return (
-    <div className="space-y-4" data-testid="admin-users">
+    <div className="space-y-4">
       {/* Registration chart */}
       {regData && regData.length > 0 && (
         <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="registration-chart">
@@ -808,13 +878,9 @@ function AdminUsers() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="h-7 text-xs gap-1"
             onClick={() => {
-              const link = document.createElement("a");
-              link.href = `${API}/api/admin/users/export`;
-              link.setAttribute("download", "");
-              // Need to fetch with auth header
               fetch(`${API}/api/admin/users/export`, { headers: getAdminHeaders() })
                 .then(r => r.blob())
-                .then(blob => { const url = URL.createObjectURL(blob); link.href = url; link.click(); URL.revokeObjectURL(url); })
+                .then(blob => { const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "users.csv"; a.click(); URL.revokeObjectURL(url); })
                 .catch(() => toast.error("Export failed"));
             }}
             data-testid="export-users-btn"
@@ -825,76 +891,65 @@ function AdminUsers() {
         </div>
       </div>
 
-      {users.length === 0 ? (
+      {allUsers.length === 0 ? (
         <div className="p-8 text-center text-muted-foreground border border-border rounded-lg">
           <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
           <p className="text-sm">No registered users yet.</p>
         </div>
       ) : (
         <div className="border border-border rounded-lg overflow-hidden">
-          <div className="grid grid-cols-[1fr_10rem_5rem_5.5rem_6rem_5rem] gap-2 px-4 py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border">
-            <div>Email</div>
-            <div>Name</div>
+          <div className="grid grid-cols-[1fr_8rem_4.5rem_4.5rem_5.5rem_5rem_3rem_4.5rem] gap-2 px-4 py-2.5 bg-secondary/50 text-[10px] font-medium text-muted-foreground border-b border-border">
+            <SortHeader field="email">Email</SortHeader>
+            <SortHeader field="name">Name</SortHeader>
             <div>Provider</div>
             <div>Status</div>
-            <div>Registered</div>
+            <SortHeader field="created_at">Registered</SortHeader>
+            <SortHeader field="last_active">Last Active</SortHeader>
+            <SortHeader field="visit_count">Visits</SortHeader>
             <div className="text-right">Action</div>
           </div>
-          {users.map(u => {
-            const status = getUserStatus(u);
-            const isActive = u.active !== false;
-            return (
-              <div key={u.user_id} className={`grid grid-cols-[1fr_10rem_5rem_5.5rem_6rem_5rem] gap-2 px-4 py-2.5 border-b border-border/50 text-sm items-center ${!isActive ? "opacity-50" : ""}`} data-testid={`user-row-${u.user_id}`}>
-                <div className="truncate text-xs">{u.email}</div>
-                <div className="truncate text-xs text-muted-foreground">{u.name || "\u2014"}</div>
-                <div>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${u.provider === "google" ? "bg-blue-50 text-blue-700" : "bg-secondary text-muted-foreground"}`}>
-                    {u.provider}
-                  </span>
+          <div ref={listRef} className="max-h-[500px] overflow-y-auto">
+            {allUsers.map(u => {
+              const status = getUserStatus(u);
+              const isActive = u.active !== false;
+              return (
+                <div key={u.user_id} className={`grid grid-cols-[1fr_8rem_4.5rem_4.5rem_5.5rem_5rem_3rem_4.5rem] gap-2 px-4 py-2 border-b border-border/50 text-sm items-center ${!isActive ? "opacity-50" : ""}`} data-testid={`user-row-${u.user_id}`}>
+                  <div className="truncate text-xs">{u.email}</div>
+                  <div className="truncate text-xs text-muted-foreground">{u.name || "\u2014"}</div>
+                  <div>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${u.provider === "google" ? "bg-blue-50 text-blue-700" : "bg-secondary text-muted-foreground"}`}>
+                      {u.provider}
+                    </span>
+                  </div>
+                  <div>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${status.cls}`}>{status.label}</span>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground font-mono">
+                    {u.created_at ? new Date(u.created_at).toLocaleDateString() : "\u2014"}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground font-mono">
+                    {formatRelative(u.last_active)}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground font-mono text-center">
+                    {u.visit_count || 0}
+                  </div>
+                  <div className="text-right">
+                    <Button variant="ghost" size="sm"
+                      className={`h-6 text-[10px] px-2 ${isActive ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-green-600 hover:text-green-700 hover:bg-green-50"}`}
+                      onClick={() => toggleActive(u.user_id, isActive)}
+                      data-testid={`user-toggle-${u.user_id}`}
+                    >{isActive ? "Deactivate" : "Reactivate"}</Button>
+                  </div>
                 </div>
-                <div>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${status.cls}`}>
-                    {status.label}
-                  </span>
-                </div>
-                <div className="text-xs text-muted-foreground font-mono">
-                  {u.created_at ? new Date(u.created_at).toLocaleDateString() : "\u2014"}
-                </div>
-                <div className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={`h-6 text-[10px] px-2 ${isActive ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-green-600 hover:text-green-700 hover:bg-green-50"}`}
-                    onClick={() => toggleActive(u.user_id, isActive)}
-                    data-testid={`user-toggle-${u.user_id}`}
-                  >
-                    {isActive ? "Deactivate" : "Reactivate"}
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {total > PAGE_SIZE && (
-        <div className="flex items-center justify-between pt-2">
-          <span className="text-xs text-muted-foreground">
-            Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total}
-          </span>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="h-7 text-xs" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
-              Previous
-            </Button>
-            <Button variant="outline" size="sm" className="h-7 text-xs" disabled={(page + 1) * PAGE_SIZE >= total} onClick={() => setPage(p => p + 1)}>
-              Next
-            </Button>
+              );
+            })}
+            {loadingMore && <div className="py-3 text-center text-xs text-muted-foreground">Loading more...</div>}
+            {allUsers.length >= total && allUsers.length > 0 && (
+              <div className="py-2 text-center text-[10px] text-muted-foreground">All {total} users loaded</div>
+            )}
           </div>
         </div>
       )}
-
-      {/* ORCID Verifications */}
-      <OrcidVerifications />
     </div>
   );
 }
