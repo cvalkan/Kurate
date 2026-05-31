@@ -38,6 +38,10 @@ explicitly identified as unsolved, as limitations of their own work,
 or as future directions. You do not invent problems, infer them, or
 generalize from what would be interesting to study next. You are
 ruthlessly selective and prefer returning zero problems over weak ones.
+
+For each qualifying problem you also rate two things, treating yourself
+as a third-party reviewer judging the problem on its own merits, not
+as the paper's advocate.
 """
 
 USER_PROMPT_TEMPLATE = """\
@@ -73,6 +77,7 @@ DO NOT extract:
     paper ("understand transformers better", "scale to larger models").
 
 For each qualifying problem, return:
+
   - title:           5-12 words, plain English, mentions the key technical
                      noun. Aim for something a generalist researcher could
                      read at a glance and decide whether they care.
@@ -89,6 +94,42 @@ For each qualifying problem, return:
                      setting, "field_general" if a different group could
                      work on it without using this paper's artifacts.
 
+  - impact:          1-10. What does the field gain if this problem is
+                     solved? Judge as a third-party reviewer, not as the
+                     paper's advocate.
+                     Anchors: 1 = trivial / paper-internal cleanup; 3 = a
+                     small but real improvement to the subfield; 5 = solid
+                     follow-up that a PhD could publish; 7 = significant
+                     advance for the subfield, several papers would build
+                     on it; 9 = transformative, gates downstream work in
+                     multiple groups; 10 = field-changing.
+  - impact_reason:   ONE single rich sentence, ~150 chars, naming the
+                     concrete benefit or downstream unlock if solved.
+                     Style match: "Demonstrated hardware deployment on
+                     one platform; the automated calibration concept
+                     could reduce engineering effort for aquatic
+                     robotics labs, but proprietary VLM dependency
+                     limits adoption."
+
+  - difficulty:      1-10. How hard would it be for a competent research
+                     group to solve in 1-2 years?
+                     Anchors: 1 = mostly engineering, days-weeks of work;
+                     3 = a focused PhD chapter; 5 = a PhD thesis; 7 = a
+                     multi-year program; 9 = unsolved despite serious
+                     effort; 10 = blocked by a deeper open problem
+                     (e.g. interpretability of large LMs).
+  - difficulty_reason: ONE single rich sentence, ~150 chars, naming the
+                     specific bottleneck: missing method, missing data,
+                     compute / scale, theoretical limit, or dependence
+                     on another open problem.
+                     Style match: "Requires familiarity with sim-to-real
+                     transfer, system identification, VLM prompting, and
+                     RL, but the method itself is algorithmically
+                     straightforward."
+
+Use the full 1-10 range. Avoid clustering everything in 5-7. Be willing
+to assign 2 or 9 when warranted.
+
 Return at most 5 problems. Return an EMPTY LIST if the paper does not
 contain any problem that meets the bar above - this is the expected
 outcome for many papers and is preferable to padding.
@@ -101,7 +142,11 @@ Output STRICT JSON only, no prose around it:
       "description": "...",
       "evidence_quote": "...",
       "source_section": "...",
-      "scope": "..."
+      "scope": "...",
+      "impact": 0,
+      "impact_reason": "...",
+      "difficulty": 0,
+      "difficulty_reason": "..."
     }}
   ]
 }}
@@ -148,7 +193,7 @@ async def _extract_one(paper: dict, api_key: str) -> tuple:
             {"role": "user", "content": user_msg},
         ],
         api_key=api_key,
-        max_tokens=12000,
+        max_tokens=15000,
     )
     text = response.choices[0].message.content or ""
     usage = response.usage
@@ -197,6 +242,10 @@ async def _persist_result(db, paper: dict, parsed: dict, model: str, run_id: str
                 "evidence_quote": p.get("evidence_quote"),
                 "source_section": p.get("source_section"),
                 "scope": p.get("scope"),
+                "impact": p.get("impact"),
+                "impact_reason": p.get("impact_reason"),
+                "difficulty": p.get("difficulty"),
+                "difficulty_reason": p.get("difficulty_reason"),
                 "model": model,
                 "run_id": run_id,
                 "extracted_at": now,
