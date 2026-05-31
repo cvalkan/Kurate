@@ -829,11 +829,16 @@ function UserList() {
     return { label: "Unverified", cls: "bg-amber-50 text-amber-700" };
   };
 
-  const formatLastActive = (dateStr) => {
+  const formatTimestamp = (dateStr) => {
     if (!dateStr) return "\u2014";
     try {
       const d = new Date(dateStr);
-      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      const h = String(d.getHours()).padStart(2, "0");
+      const min = String(d.getMinutes()).padStart(2, "0");
+      return `${y}-${m}-${day} ${h}:${min}`;
     } catch { return "\u2014"; }
   };
 
@@ -924,10 +929,10 @@ function UserList() {
                     <span className={`text-[10px] px-1.5 py-0.5 rounded ${status.cls}`}>{status.label}</span>
                   </div>
                   <div className="text-[10px] text-muted-foreground font-mono">
-                    {u.created_at ? new Date(u.created_at).toLocaleDateString() : "\u2014"}
+                    {formatTimestamp(u.created_at)}
                   </div>
                   <div className="text-[10px] text-muted-foreground font-mono">
-                    {formatLastActive(u.last_active)}
+                    {formatTimestamp(u.last_active)}
                   </div>
                   <div className="text-[10px] text-muted-foreground font-mono text-center">
                     {u.visit_count || 0}
