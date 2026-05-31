@@ -97,7 +97,7 @@ export default function SummarizerRatingSection() {
 
   useEffect(() => {
     axios.get(`${API}/api/validation/summarizer-rating-distributions`)
-      .then(r => { setData(r.data); setLoading(false); })
+      .then(r => { setData(r.data); setLoading(false); if (r.data?.models?.length) setSelectedModel(r.data.models[0].key); })
       .catch(() => setLoading(false));
   }, []);
 
