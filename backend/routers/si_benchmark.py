@@ -891,6 +891,7 @@ async def _compute_summarizer_ratings():
         "deepseek:deepseek-v4-pro": {"label": "DeepSeek V4-Pro", "color": "#10b981"},
         "openai:kimi-k2_6": {"label": "Kimi K2.6", "color": "#f59e0b"},
         "anthropic:claude-opus-4-7:thinking": {"label": "Claude Opus 4.7", "color": "#ec4899"},
+        "anthropic:claude-opus-4-8:thinking": {"label": "Claude Opus 4.8", "color": "#06b6d4"},
     }
     DIMS = ["score", "significance", "rigor", "novelty", "clarity"]
 
