@@ -777,10 +777,13 @@ function UserList() {
 
   useEffect(() => {
     fetchUsers(0, false);
+  }, [sortField, sortOrder]);
+
+  useEffect(() => {
     axios.get(`${API}/api/admin/users/registrations`, { headers: getAdminHeaders() })
       .then(res => setRegData(res.data?.series || []))
       .catch(() => {});
-  }, [sortField, sortOrder]);
+  }, []);
 
   // Infinite scroll
   useEffect(() => {
@@ -826,15 +829,11 @@ function UserList() {
     return { label: "Unverified", cls: "bg-amber-50 text-amber-700" };
   };
 
-  const formatRelative = (dateStr) => {
+  const formatLastActive = (dateStr) => {
     if (!dateStr) return "\u2014";
     try {
       const d = new Date(dateStr);
-      const diff = (Date.now() - d.getTime()) / 1000;
-      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-      if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-      return d.toLocaleDateString();
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
     } catch { return "\u2014"; }
   };
 
@@ -928,7 +927,7 @@ function UserList() {
                     {u.created_at ? new Date(u.created_at).toLocaleDateString() : "\u2014"}
                   </div>
                   <div className="text-[10px] text-muted-foreground font-mono">
-                    {formatRelative(u.last_active)}
+                    {formatLastActive(u.last_active)}
                   </div>
                   <div className="text-[10px] text-muted-foreground font-mono text-center">
                     {u.visit_count || 0}
