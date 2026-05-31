@@ -163,11 +163,13 @@ async def export_users():
 
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["name", "email", "provider", "status", "registered"])
+    writer.writerow(["name", "email", "provider", "status", "registered", "last_active", "visits"])
     for u in users:
         status = "deactivated" if u.get("active") is False else ("verified" if u.get("email_verified") else "unverified")
         registered = str(u.get("created_at") or "")[:10]
-        writer.writerow([u.get("name", ""), u.get("email", ""), u.get("provider", ""), status, registered])
+        last_active = str(u.get("last_active") or "")[:19]
+        visits = u.get("visit_count", 0)
+        writer.writerow([u.get("name", ""), u.get("email", ""), u.get("provider", ""), status, registered, last_active, visits])
 
     buf.seek(0)
     return StreamingResponse(

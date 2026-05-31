@@ -104,6 +104,26 @@ async def _get_current_user(request: Request) -> Optional[dict]:
     )
     if not user or user.get("active") is False:
         return None
+
+    # Lightweight activity tracking — update at most once per hour
+    _last = user.get("last_active")
+    _now = datetime.now(timezone.utc)
+    _should_update = True
+    if _last:
+        try:
+            _la = _last if isinstance(_last, datetime) else datetime.fromisoformat(str(_last))
+            if _la.tzinfo is None:
+                _la = _la.replace(tzinfo=timezone.utc)
+            _should_update = (_now - _la).total_seconds() > 3600
+        except (ValueError, TypeError):
+            pass
+    if _should_update:
+        await db.users.update_one(
+            {"user_id": session["user_id"]},
+            {"$set": {"last_active": _now.isoformat()}, "$inc": {"visit_count": 1}},
+        )
+        user["last_active"] = _now.isoformat()
+
     return user
 
 
@@ -275,6 +295,12 @@ async def login(req: LoginRequest, response: Response):
 
     token = await _create_session(user["user_id"], response)
 
+    # Track login activity
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"last_active": datetime.now(timezone.utc).isoformat()}, "$inc": {"visit_count": 1}},
+    )
+
     orcid_admin_verified = False
     if user.get("orcid_id"):
         av = await db.author_verifications.find_one(
@@ -346,6 +372,12 @@ async def google_session(req: SessionRequest, response: Response):
         is_new_user = True
 
     token = await _create_session(user_id, response)
+
+    # Track login activity
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"last_active": datetime.now(timezone.utc).isoformat()}, "$inc": {"visit_count": 1}},
+    )
 
     # Server-side signup conversion tracking for new Google OAuth users
     if is_new_user:
