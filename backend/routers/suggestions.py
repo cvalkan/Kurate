@@ -223,9 +223,11 @@ async def user_behavior_stats():
 
     # 2. Visit frequency distribution
     visit_dist = defaultdict(int)
+    returning_since_may31 = 0
+    cutoff_date = "2026-05-31"
     async for u in db.users.find(
         {"visit_count": {"$gt": 0}},
-        {"_id": 0, "visit_count": 1},
+        {"_id": 0, "visit_count": 1, "last_active": 1},
     ):
         vc = u.get("visit_count", 0)
         if vc >= 10: bucket = "10+"
@@ -234,6 +236,11 @@ async def user_behavior_stats():
         elif vc == 2: bucket = "2"
         else: bucket = "1"
         visit_dist[bucket] += 1
+        # Count returning users (2+ visits) active since May 31
+        if vc >= 2:
+            last = str(u.get("last_active", ""))[:10]
+            if last >= cutoff_date:
+                returning_since_may31 += 1
     visit_buckets = []
     for b in ["1", "2", "3-4", "5-9", "10+"]:
         visit_buckets.append({"bucket": b, "count": visit_dist.get(b, 0)})
@@ -256,6 +263,7 @@ async def user_behavior_stats():
     return {
         "dau": dau_series,
         "visit_distribution": visit_buckets,
+        "returning_since_may31": returning_since_may31,
         "category_popularity": cat_ranking,
         "category_daily": cat_daily_series,
     }
