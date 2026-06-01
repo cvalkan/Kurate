@@ -2,7 +2,7 @@ export default function PrivacyPage() {
   return (
     <div className="container mx-auto px-4 max-w-3xl py-10">
       <h1 className="text-2xl font-bold mb-6">Privacy Policy</h1>
-      <p className="text-sm text-muted-foreground mb-8">Last updated: May 22, 2026</p>
+      <p className="text-sm text-muted-foreground mb-8">Last updated: June 1, 2026</p>
 
       <div className="prose prose-sm dark:prose-invert max-w-none space-y-6 text-sm leading-relaxed">
         <section>
@@ -61,21 +61,39 @@ export default function PrivacyPage() {
             It is processed by Google LLC under our Google Workspace account.
           </p>
 
-          <h3 className="font-medium mt-4 mb-2">2.4 Server Logs</h3>
+          <h3 className="font-medium mt-4 mb-2">2.4 Server-Side Visitor Analytics</h3>
+          <p>
+            We collect aggregated, pseudonymized visitor statistics to understand how many people use the Service
+            and which research categories are most popular. When you access our leaderboard or paper pages, we record:
+          </p>
+          <ul className="list-disc ml-5 space-y-1">
+            <li>A <strong>truncated, one-way hash</strong> (SHA-256, first 12 characters) of your IP address — this cannot be reversed to recover your actual IP address</li>
+            <li>The date of the visit</li>
+            <li>Whether the request came from an authenticated (logged-in) session</li>
+            <li>Which research category was viewed</li>
+          </ul>
+          <p className="mt-2">
+            This data is stored on our own servers and is <strong>not shared with any third party</strong>.
+            No cookies are set for this purpose. The hashed identifiers are used solely to count unique visitors
+            per day and cannot identify you personally. This processing is based on our legitimate interest
+            in understanding aggregate usage patterns to improve the Service (Art. 31 nDSG / Art. 6(1)(f) GDPR).
+          </p>
+
+          <h3 className="font-medium mt-4 mb-2">2.5 Server Logs</h3>
           <p>
             Our hosting infrastructure automatically logs HTTP requests, including IP addresses, request paths, timestamps,
             and user-agent strings. These logs are retained for up to 30 days for security and debugging purposes.
           </p>
 
-          <h3 className="font-medium mt-4 mb-2">2.5 Cookies and Local Storage</h3>
+          <h3 className="font-medium mt-4 mb-2">2.6 Cookies and Local Storage</h3>
           <p>
             We use essential cookies and browser local storage for authentication session management.
             Google Analytics sets its own cookies (<code>_ga</code>, <code>_ga_*</code>) for visitor identification across sessions.
             Reddit's advertising pixel sets a limited number of cookies (e.g. <code>_rdt_uuid</code>) used to measure
-            advertising effectiveness (see section 2.5).
+            advertising effectiveness (see section 2.7). Our server-side visitor analytics (section 2.4) do <strong>not</strong> use any cookies.
           </p>
 
-          <h3 className="font-medium mt-4 mb-2">2.6 Reddit Advertising Pixel</h3>
+          <h3 className="font-medium mt-4 mb-2">2.7 Reddit Advertising Pixel</h3>
           <p>
             We use the <strong>Reddit Pixel</strong> to measure the effectiveness of advertising campaigns we may
             run on reddit.com. The pixel fires a single <code>PageVisit</code> event when you load the site and
@@ -113,6 +131,7 @@ export default function PrivacyPage() {
               <tr><td className="py-2 pr-4">Website analytics (Google Analytics)</td><td className="py-2">Legitimate interest / Consent</td></tr>
               <tr><td className="py-2 pr-4">Search performance monitoring (Google Search Console)</td><td className="py-2">Legitimate interest</td></tr>
               <tr><td className="py-2 pr-4">Advertising measurement (Reddit Pixel)</td><td className="py-2">Legitimate interest / Consent</td></tr>
+              <tr><td className="py-2 pr-4">Visitor analytics (pseudonymized IP hashes)</td><td className="py-2">Legitimate interest (Art. 31 nDSG / Art. 6(1)(f) GDPR)</td></tr>
               <tr><td className="py-2 pr-4">Security and abuse prevention</td><td className="py-2">Legitimate interest</td></tr>
               <tr><td className="py-2 pr-4">Email notifications (if opted in)</td><td className="py-2">Consent</td></tr>
             </tbody>
@@ -143,6 +162,7 @@ export default function PrivacyPage() {
           <ul className="list-disc ml-5 space-y-1">
             <li><strong>Account data</strong>: retained as long as your account is active. Deleted within 30 days of account deletion request.</li>
             <li><strong>Analytics data</strong>: retained for 14 months (GA4 default), then automatically deleted.</li>
+            <li><strong>Visitor analytics data</strong> (pseudonymized IP hashes): retained for 90 days, then automatically deleted. This data cannot identify you personally.</li>
             <li><strong>Server logs</strong>: retained for up to 30 days.</li>
           </ul>
         </section>
