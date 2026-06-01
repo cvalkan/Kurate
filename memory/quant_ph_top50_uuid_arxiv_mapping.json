@@ -1,0 +1,252 @@
+[
+  {
+    "uuid": "f39a858c-907b-4b28-94e1-2f472fd9844b",
+    "arxiv_id": "2604.00431v1",
+    "title": "1-Mbps Twin-Field Quantum Key Distribution over 200 km Using Independent Dissipative Kerr Solitons"
+  },
+  {
+    "uuid": "722fabd3-6f38-4e43-8715-24e24b2f2128",
+    "arxiv_id": "2604.16216v1",
+    "title": "A digitally controlled silicon quantum processing unit"
+  },
+  {
+    "uuid": "f8bfc731-f5f1-4f7b-bedd-be31645b6115",
+    "arxiv_id": "2604.26605v1",
+    "title": "All pure entangled states can lead to fully nonlocal correlations"
+  },
+  {
+    "uuid": "03f69b06-19d1-42c7-a6ec-c4f1b9ba7f9a",
+    "arxiv_id": "2604.01296v1",
+    "title": "Bootstrapping Symmetries in Quantum Many-Body Systems from the Cross Spectral Form Factor"
+  },
+  {
+    "uuid": "3c5c3b7c-3066-45d7-a65a-77e16aa9fba5",
+    "arxiv_id": "2604.26909v1",
+    "title": "Cavity-mediated coherence protection and one-axis twisting for spins in solids"
+  },
+  {
+    "uuid": "e31e02a2-91dd-4fad-9426-4ec79fd2a74b",
+    "arxiv_id": "2604.26813v1",
+    "title": "Classical simulation of free-fermionic dynamics and quantum chemistry with magic input"
+  },
+  {
+    "uuid": "021c39d2-786f-4504-bebf-564e6dfe5635",
+    "arxiv_id": "2604.15111v1",
+    "title": "Constraints on phantom codes from automorphism group bounds"
+  },
+  {
+    "uuid": "4ca2b562-4faf-4d00-a16e-c5e0852bf191",
+    "arxiv_id": "2603.22795v1",
+    "title": "Exponential Separation of Quantum and Classical One-Way Numbers-on-Forehead Communication"
+  },
+  {
+    "uuid": "19528c42-ee79-42d0-9c1b-7a826ddd9d2b",
+    "arxiv_id": "2604.07639v1",
+    "title": "Exponential quantum advantage in processing massive classical data"
+  },
+  {
+    "uuid": "833d0539-f234-4a7f-aedd-2737b0705fe4",
+    "arxiv_id": "2604.16292v1",
+    "title": "Fast, High-Fidelity Erasure Detection of Dual-Rail Qubits with Symmetrically Coupled Readout"
+  },
+  {
+    "uuid": "3ef5aa61-63be-4029-82c4-00c6da28b140",
+    "arxiv_id": "2604.05870v1",
+    "title": "Fault-Tolerant One-Shot Entanglement Generation with Constant-Sized Quantum Devices in the Plane"
+  },
+  {
+    "uuid": "8d8d4b78-2719-4f54-aa6a-20be1d0913b9",
+    "arxiv_id": "2604.19481v1",
+    "title": "Fault-Tolerant Quantum Computing with Trapped Ions: The Walking Cat Architecture"
+  },
+  {
+    "uuid": "4a08922b-b911-4916-a2b6-d2d898c67374",
+    "arxiv_id": "2604.15258v1",
+    "title": "General framework for anticoncentration and linear cross-entropy benchmarking in photonic quantum advantage experiments"
+  },
+  {
+    "uuid": "3d4120e2-412c-4771-9dae-8ddc97b30f8a",
+    "arxiv_id": "2604.27858v1",
+    "title": "Geometric complexity in thermodynamics"
+  },
+  {
+    "uuid": "e3933064-0b06-43d8-bd1e-8be47d058c29",
+    "arxiv_id": "2604.06528v1",
+    "title": "High-Dimensional Quantum Photonics: Roadmap"
+  },
+  {
+    "uuid": "6e70f7e4-dc8b-4a85-9129-c718e8b50ede",
+    "arxiv_id": "2604.08655v1",
+    "title": "High-Fidelity Transmon Reset with a Multimode Acoustic Resonator"
+  },
+  {
+    "uuid": "91395acf-7f37-4850-90c3-d7f36d4283e4",
+    "arxiv_id": "2604.02033v1",
+    "title": "High-threshold decoding of non-Pauli codes for 2D universality"
+  },
+  {
+    "uuid": "7193cf9b-4b00-4488-8511-d3ff404a0db2",
+    "arxiv_id": "2604.27074v1",
+    "title": "Long-lived local quantum coherences from hydrodynamic large deviations"
+  },
+  {
+    "uuid": "3612226c-997e-41c6-92dd-cb7ccdf0cc0a",
+    "arxiv_id": "2604.00766v1",
+    "title": "Lower Bounds on Coherent State Rank"
+  },
+  {
+    "uuid": "b168b9db-f01c-42a6-af51-52490a796f17",
+    "arxiv_id": "2604.11795v1",
+    "title": "Many-Body Super- and Subradiance in Ordered Atomic Arrays"
+  },
+  {
+    "uuid": "29555656-a810-4c12-877a-655a88d7f443",
+    "arxiv_id": "2604.14601v1",
+    "title": "Observation of Tunable Superradiant Frequency Combs"
+  },
+  {
+    "uuid": "9c11a8be-6073-4739-b5e5-877f013d79b7",
+    "arxiv_id": "2604.06466v1",
+    "title": "One-to-one correspondence between Hierarchical Equations of Motion and Pseudomodes for Open Quantum System Dynamics"
+  },
+  {
+    "uuid": "d09b0796-f03e-4504-af22-78efe8d4af91",
+    "arxiv_id": "2604.24680v1",
+    "title": "Optical depth dictates universal bounds on many-body decay in atomic ensembles"
+  },
+  {
+    "uuid": "71f6e293-7d31-4ab9-93fc-5c5c6a41c9e5",
+    "arxiv_id": "2604.07460v1",
+    "title": "Optimal Quantum State Testing Even with Limited Entanglement"
+  },
+  {
+    "uuid": "78dfd532-13ff-4377-9574-914e12b8fe92",
+    "arxiv_id": "2604.18371v1",
+    "title": "Optomechanical Detection of Individual Gas Collisions"
+  },
+  {
+    "uuid": "6134169e-97a3-4416-8395-d03febdd5057",
+    "arxiv_id": "2604.02793v1",
+    "title": "Parity $\\notin$ QAC0 $\\iff$ QAC0 is Fourier-Concentrated"
+  },
+  {
+    "uuid": "7f2249b8-89cd-4b8a-99f3-8619d06cf250",
+    "arxiv_id": "2603.25708v1",
+    "title": "Provably Efficient Long-Time Exponential Decompositions of Non-Markovian Gaussian Baths"
+  },
+  {
+    "uuid": "cbe16b16-131b-4554-824e-c24bf2d21c51",
+    "arxiv_id": "2604.26376v1",
+    "title": "Quantum Complexity and New Directions in Nuclear Physics and High-Energy Physics Phenomenology"
+  },
+  {
+    "uuid": "d7c10042-1b37-42ba-8e3d-fbd134fd49c7",
+    "arxiv_id": "2604.19688v1",
+    "title": "Quantum Eigenvalue Transformations for Arbitrary Matrices"
+  },
+  {
+    "uuid": "6e36c6b1-a510-4984-b1a1-5705475d59e1",
+    "arxiv_id": "2604.01192v1",
+    "title": "Quantum Gibbs Sampling in Infinite Dimensions: Generation, Mixing Times and Circuit Implementation"
+  },
+  {
+    "uuid": "d2f0dad0-ee3d-4735-b8c9-e05dc6fccf33",
+    "arxiv_id": "2604.17369v1",
+    "title": "Quantum channel tomography: optimal bounds and a Heisenberg-to-classical phase transition"
+  },
+  {
+    "uuid": "c5ecd641-3ae7-463d-8220-be0ba0fcd17a",
+    "arxiv_id": "2604.13524v1",
+    "title": "Quantum thermodynamics with uncertain equilibrium"
+  },
+  {
+    "uuid": "b624f107-2121-4109-8002-3c4a0a1a549c",
+    "arxiv_id": "2604.08408v1",
+    "title": "Rapid mixing for high-temperature Gibbs states with arbitrary external fields"
+  },
+  {
+    "uuid": "2ea1b361-97c2-4c9f-9379-be0d9c7a8bd0",
+    "arxiv_id": "2603.25138v1",
+    "title": "Reinforcement learning for quantum processes with memory"
+  },
+  {
+    "uuid": "7e8409f5-c2e8-4138-8f25-3e0b3f48b2fa",
+    "arxiv_id": "2604.17719v1",
+    "title": "Repeated weak measurements: watching quantum correlations evolve"
+  },
+  {
+    "uuid": "dbda225b-02bd-4c6f-ab21-99e5b19b4fa9",
+    "arxiv_id": "2604.21791v1",
+    "title": "Rigorous Security Proofs for Practical Quantum Key Distribution"
+  },
+  {
+    "uuid": "9840c668-9589-4a1c-8f8e-798f40a99be2",
+    "arxiv_id": "2604.08358v1",
+    "title": "Scalable Neural Decoders for Practical Fault-Tolerant Quantum Computation"
+  },
+  {
+    "uuid": "6e0e61fb-8f6d-4200-8ea3-076bc227c7a3",
+    "arxiv_id": "2603.28846v1",
+    "title": "Securing Elliptic Curve Cryptocurrencies against Quantum Vulnerabilities: Resource Estimates and Mitigations"
+  },
+  {
+    "uuid": "32d3c37d-761a-4e9b-a75e-21767ccfa9d1",
+    "arxiv_id": "2603.28627v1",
+    "title": "Shor's algorithm is possible with as few as 10,000 reconfigurable atomic qubits"
+  },
+  {
+    "uuid": "fa40742d-b861-4c7d-b2d0-99b51ad6d5a1",
+    "arxiv_id": "2604.13172v1",
+    "title": "Simple slow operators and quantum thermalization"
+  },
+  {
+    "uuid": "51bf0725-4c3a-4b4f-9c51-3bd13003b70b",
+    "arxiv_id": "2604.06077v1",
+    "title": "Simulating Thermal Properties of Bose-Hubbard Models on a Quantum Computer"
+  },
+  {
+    "uuid": "44ded000-a3c5-4861-be4f-fbbb5a7ba7db",
+    "arxiv_id": "2603.24342v1",
+    "title": "Strong-to-Weak Spontaneous Symmetry Breaking in a $(2+1)$D Transverse-Field Ising Model under Decoherence"
+  },
+  {
+    "uuid": "45adae93-d2b1-4892-9b71-ab07d1a1d915",
+    "arxiv_id": "2604.08380v1",
+    "title": "Sufficiency and Petz recovery for positive maps"
+  },
+  {
+    "uuid": "ff95f29f-1766-4ff6-ae01-75695f819e8b",
+    "arxiv_id": "2604.15298v1",
+    "title": "Super-Constant Weight Dicke States in Constant Depth Without Fanout"
+  },
+  {
+    "uuid": "1d374f12-e8c3-45da-a243-81d4fe60e7ba",
+    "arxiv_id": "2604.07439v1",
+    "title": "Ten-Second Electron-Spin Coherence in Isotopically Engineered Diamond"
+  },
+  {
+    "uuid": "ba6bc120-cbe8-4bd8-9ce4-54c958f8047a",
+    "arxiv_id": "2602.11457v1",
+    "title": "The Pinnacle Architecture: Reducing the cost of breaking RSA-2048 to 100 000 physical qubits using quantum LDPC codes"
+  },
+  {
+    "uuid": "3f764b0b-3e36-47d9-a32e-ada3fb36afe2",
+    "arxiv_id": "2604.05133v1",
+    "title": "Tight Quantum Lower Bound for k-Distinctness"
+  },
+  {
+    "uuid": "f23e5783-57af-48c5-8b53-8ba43f557f00",
+    "arxiv_id": "2604.16209v1",
+    "title": "Towards Ultra-High-Rate Quantum Error Correction with Reconfigurable Atom Arrays"
+  },
+  {
+    "uuid": "7ba8e66e-ff16-42f2-8b5a-506db95f2a11",
+    "arxiv_id": "2604.01874v1",
+    "title": "Transversal non-Clifford gates on almost-good quantum LDPC and quantum locally testable codes"
+  },
+  {
+    "uuid": "879831aa-fea0-48d1-97a7-b71d66698659",
+    "arxiv_id": "2604.27886v1",
+    "title": "Unentangled stoquastic Merlin-Arthur proof systems: the power of unentanglement without destructive interference"
+  }
+]
