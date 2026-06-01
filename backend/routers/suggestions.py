@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 
-from core.config import db, logger
+from core.config import db, logger, CATEGORIES
 from routers.auth import _get_current_user
 from core.auth import verify_admin
 
@@ -209,29 +209,23 @@ async def user_registrations():
 async def user_behavior_stats():
     """User behavior data for 2x3 chart grid: All Visitors vs Registered Users."""
     from collections import defaultdict
+    from core.auth import get_settings
+
+    # Get active categories for full-list charts
+    settings = await get_settings()
+    active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
 
     # ── ALL VISITORS (from daily_visitors middleware collection) ──
 
-    # 1a. All Visitors DAU
+    # 1a. All Visitors DAU + daily page views
     all_dau = []
-    all_visit_freq = defaultdict(int)  # ip_hash -> total days seen
-    async for doc in db.daily_visitors.find({}, {"_id": 0, "date": 1, "all_ips": 1, "auth_ips": 1}):
-        all_ips = doc.get("all_ips", [])
-        all_dau.append({"date": doc["date"], "active_visitors": len(all_ips)})
-        for ip in all_ips:
-            all_visit_freq[ip] += 1
+    async for doc in db.daily_visitors.find({}, {"_id": 0, "date": 1, "all_ips": 1, "total_hits": 1}):
+        all_dau.append({
+            "date": doc["date"],
+            "active_visitors": len(doc.get("all_ips", [])),
+            "page_views": doc.get("total_hits", 0),
+        })
     all_dau.sort(key=lambda x: x["date"])
-
-    # 2a. All Visitors visit frequency distribution
-    all_visit_dist = defaultdict(int)
-    for ip, days in all_visit_freq.items():
-        if days >= 10: bucket = "10+"
-        elif days >= 5: bucket = "5-9"
-        elif days >= 3: bucket = "3-4"
-        elif days == 2: bucket = "2"
-        else: bucket = "1"
-        all_visit_dist[bucket] += 1
-    all_visit_buckets = [{"bucket": b, "count": all_visit_dist.get(b, 0)} for b in ["1", "2", "3-4", "5-9", "10+"]]
 
     # 3a. All Visitors category popularity (total views from category_views)
     cat_pop = []
@@ -244,8 +238,11 @@ async def user_behavior_stats():
         all_cat_totals[doc["category"]] += doc.get("views", 0)
         auth_cat_totals[doc["category"]] += doc.get("auth_views", 0)
 
-    all_cat_ranking = [{"category": c, "views": v} for c, v in sorted(all_cat_totals.items(), key=lambda x: -x[1])]
-    auth_cat_ranking = [{"category": c, "views": v} for c, v in sorted(auth_cat_totals.items(), key=lambda x: -x[1]) if v > 0]
+    # Build full category list (all active categories, even with 0 views)
+    all_cat_ranking = [{"category": c, "views": all_cat_totals.get(c, 0)} for c in active_cats]
+    all_cat_ranking.sort(key=lambda x: -x["views"])
+    auth_cat_ranking = [{"category": c, "views": auth_cat_totals.get(c, 0)} for c in active_cats]
+    auth_cat_ranking.sort(key=lambda x: -x["views"])
 
     # ── REGISTERED USERS ONLY (from users collection) ──
 
@@ -284,7 +281,6 @@ async def user_behavior_stats():
     return {
         "all_visitors": {
             "dau": all_dau,
-            "visit_frequency": all_visit_buckets,
             "category_popularity": all_cat_ranking,
         },
         "registered": {
