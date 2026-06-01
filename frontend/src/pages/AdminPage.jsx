@@ -892,63 +892,62 @@ function UserList() {
         </div>
       )}
 
-      {/* Behavior charts: DAU, Visit Distribution, Category Popularity */}
+      {/* Behavior charts: 2 rows x 3 charts (All Visitors + Registered Users) */}
       {behaviorData && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* DAU - Line Chart */}
-          <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="dau-chart">
-            <h3 className="text-sm font-medium mb-1">Daily Active Registered Users</h3>
-            <p className="text-[10px] text-muted-foreground mb-3">Unique authenticated sessions per day</p>
+        <>
+        {/* Row 1: All Visitors */}
+        <div className="mb-2">
+          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">All Visitors</h3>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+          <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="all-dau-chart">
+            <h3 className="text-sm font-medium mb-1">Daily Active Visitors</h3>
+            <p className="text-[10px] text-muted-foreground mb-3">Unique visitors per day (all traffic)</p>
             <div className="h-[180px]">
-              {behaviorData.dau?.length > 0 ? (
+              {behaviorData.all_visitors?.dau?.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={behaviorData.dau} margin={{ top: 5, right: 10, left: -5, bottom: 5 }}>
+                  <LineChart data={behaviorData.all_visitors.dau} margin={{ top: 5, right: 10, left: -5, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
                     <XAxis dataKey="date" tick={{ fontSize: 9 }}
                       tickFormatter={d => { try { return new Date(d + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric" }); } catch { return d; } }} />
                     <YAxis tick={{ fontSize: 9 }} width={35} />
                     <RTooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "6px", fontSize: "11px" }} />
-                    <Line type="monotone" dataKey="active_users" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3, fill: "#3b82f6" }} activeDot={{ r: 5 }} name="Active users" />
+                    <Line type="monotone" dataKey="active_visitors" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3, fill: "#3b82f6" }} activeDot={{ r: 5 }} name="Visitors" />
                   </LineChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No activity data yet</div>
+                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">Tracking starts after deploy</div>
               )}
             </div>
           </div>
 
-          {/* Visit Distribution - Bar Chart */}
-          <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="visit-freq-chart">
+          <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="all-visit-freq-chart">
             <h3 className="text-sm font-medium mb-1">Visit Frequency</h3>
-            <p className="text-[10px] text-muted-foreground mb-3">
-              How often registered users return (sessions since May 31)
-              {behaviorData.returning_since_may31 > 0 && <span> &middot; {behaviorData.returning_since_may31} returning</span>}
-            </p>
+            <p className="text-[10px] text-muted-foreground mb-3">How often visitors return (unique days)</p>
             <div className="h-[180px]">
-              {behaviorData.visit_distribution?.some(d => d.count > 0) ? (
+              {behaviorData.all_visitors?.visit_frequency?.some(d => d.count > 0) ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={behaviorData.visit_distribution} margin={{ top: 5, right: 10, left: -5, bottom: 5 }}>
+                  <BarChart data={behaviorData.all_visitors.visit_frequency} margin={{ top: 5, right: 10, left: -5, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
                     <XAxis dataKey="bucket" tick={{ fontSize: 10 }} />
                     <YAxis tick={{ fontSize: 9 }} width={35} />
                     <RTooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "6px", fontSize: "11px" }} />
-                    <Bar dataKey="count" fill="#8b5cf6" radius={[3, 3, 0, 0]} name="Users" />
+                    <Bar dataKey="count" fill="#3b82f6" radius={[3, 3, 0, 0]} name="Visitors" />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No visit data yet</div>
+                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">Tracking starts after deploy</div>
               )}
             </div>
           </div>
 
-          {/* Category Popularity - Bar Chart */}
-          <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="category-pop-chart">
+          <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="all-category-pop-chart">
             <h3 className="text-sm font-medium mb-1">Category Popularity</h3>
-            <p className="text-[10px] text-muted-foreground mb-3">Leaderboard API views by category</p>
+            <p className="text-[10px] text-muted-foreground mb-3">Leaderboard views by category (all traffic)</p>
             <div className="h-[180px]">
-              {behaviorData.category_popularity?.length > 0 ? (
+              {behaviorData.all_visitors?.category_popularity?.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={behaviorData.category_popularity.slice(0, 12)} margin={{ top: 5, right: 10, left: -5, bottom: 5 }}>
+                  <BarChart data={behaviorData.all_visitors.category_popularity.slice(0, 12)} margin={{ top: 5, right: 10, left: -5, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} vertical={false} />
                     <XAxis dataKey="category" tick={{ fontSize: 9 }} interval={0} />
                     <YAxis tick={{ fontSize: 9 }} width={35} />
@@ -962,6 +961,77 @@ function UserList() {
             </div>
           </div>
         </div>
+
+        {/* Row 2: Registered Users Only */}
+        <div className="mb-2">
+          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Registered Users Only</h3>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="reg-dau-chart">
+            <h3 className="text-sm font-medium mb-1">Daily Active Registered Users</h3>
+            <p className="text-[10px] text-muted-foreground mb-3">Unique authenticated sessions per day</p>
+            <div className="h-[180px]">
+              {behaviorData.registered?.dau?.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={behaviorData.registered.dau} margin={{ top: 5, right: 10, left: -5, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                    <XAxis dataKey="date" tick={{ fontSize: 9 }}
+                      tickFormatter={d => { try { return new Date(d + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric" }); } catch { return d; } }} />
+                    <YAxis tick={{ fontSize: 9 }} width={35} />
+                    <RTooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "6px", fontSize: "11px" }} />
+                    <Line type="monotone" dataKey="active_users" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3, fill: "#8b5cf6" }} activeDot={{ r: 5 }} name="Active users" />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No activity data yet</div>
+              )}
+            </div>
+          </div>
+
+          <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="reg-visit-freq-chart">
+            <h3 className="text-sm font-medium mb-1">Visit Frequency</h3>
+            <p className="text-[10px] text-muted-foreground mb-3">
+              How often registered users return (sessions since May 31)
+              {behaviorData.registered?.returning_since_may31 > 0 && <span> &middot; {behaviorData.registered.returning_since_may31} returning</span>}
+            </p>
+            <div className="h-[180px]">
+              {behaviorData.registered?.visit_frequency?.some(d => d.count > 0) ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={behaviorData.registered.visit_frequency} margin={{ top: 5, right: 10, left: -5, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                    <XAxis dataKey="bucket" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 9 }} width={35} />
+                    <RTooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "6px", fontSize: "11px" }} />
+                    <Bar dataKey="count" fill="#8b5cf6" radius={[3, 3, 0, 0]} name="Users" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No visit data yet</div>
+              )}
+            </div>
+          </div>
+
+          <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="reg-category-pop-chart">
+            <h3 className="text-sm font-medium mb-1">Category Popularity</h3>
+            <p className="text-[10px] text-muted-foreground mb-3">Leaderboard views by logged-in users</p>
+            <div className="h-[180px]">
+              {behaviorData.registered?.category_popularity?.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={behaviorData.registered.category_popularity.slice(0, 12)} margin={{ top: 5, right: 10, left: -5, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} vertical={false} />
+                    <XAxis dataKey="category" tick={{ fontSize: 9 }} interval={0} />
+                    <YAxis tick={{ fontSize: 9 }} width={35} />
+                    <RTooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "6px", fontSize: "11px" }} />
+                    <Bar dataKey="views" fill="#a78bfa" radius={[3, 3, 0, 0]} name="Views" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">Tracking starts after deploy</div>
+              )}
+            </div>
+          </div>
+        </div>
+        </>
       )}
 
       <div className="flex items-center justify-between">

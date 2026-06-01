@@ -207,22 +207,61 @@ async def user_registrations():
 
 @router.get("/admin/users/behavior-stats", dependencies=[Depends(verify_admin)])
 async def user_behavior_stats():
-    """User behavior data for charts: DAU, visit distribution, category popularity."""
+    """User behavior data for 2x3 chart grid: All Visitors vs Registered Users."""
     from collections import defaultdict
 
-    # 1. Daily Active Users (from last_active timestamps)
-    dau = defaultdict(int)
+    # ── ALL VISITORS (from daily_visitors middleware collection) ──
+
+    # 1a. All Visitors DAU
+    all_dau = []
+    all_visit_freq = defaultdict(int)  # ip_hash -> total days seen
+    async for doc in db.daily_visitors.find({}, {"_id": 0, "date": 1, "all_ips": 1, "auth_ips": 1}):
+        all_ips = doc.get("all_ips", [])
+        all_dau.append({"date": doc["date"], "active_visitors": len(all_ips)})
+        for ip in all_ips:
+            all_visit_freq[ip] += 1
+    all_dau.sort(key=lambda x: x["date"])
+
+    # 2a. All Visitors visit frequency distribution
+    all_visit_dist = defaultdict(int)
+    for ip, days in all_visit_freq.items():
+        if days >= 10: bucket = "10+"
+        elif days >= 5: bucket = "5-9"
+        elif days >= 3: bucket = "3-4"
+        elif days == 2: bucket = "2"
+        else: bucket = "1"
+        all_visit_dist[bucket] += 1
+    all_visit_buckets = [{"bucket": b, "count": all_visit_dist.get(b, 0)} for b in ["1", "2", "3-4", "5-9", "10+"]]
+
+    # 3a. All Visitors category popularity (total views from category_views)
+    cat_pop = []
+    async for doc in db.category_views.find({}, {"_id": 0}):
+        cat_pop.append(doc)
+
+    all_cat_totals = defaultdict(int)
+    auth_cat_totals = defaultdict(int)
+    for doc in cat_pop:
+        all_cat_totals[doc["category"]] += doc.get("views", 0)
+        auth_cat_totals[doc["category"]] += doc.get("auth_views", 0)
+
+    all_cat_ranking = [{"category": c, "views": v} for c, v in sorted(all_cat_totals.items(), key=lambda x: -x[1])]
+    auth_cat_ranking = [{"category": c, "views": v} for c, v in sorted(auth_cat_totals.items(), key=lambda x: -x[1]) if v > 0]
+
+    # ── REGISTERED USERS ONLY (from users collection) ──
+
+    # 1b. Registered DAU (from last_active timestamps)
+    reg_dau = defaultdict(int)
     async for u in db.users.find(
         {"last_active": {"$exists": True}},
         {"_id": 0, "last_active": 1},
     ):
         day = str(u.get("last_active", ""))[:10]
         if len(day) >= 10:
-            dau[day] += 1
-    dau_series = [{"date": d, "active_users": c} for d, c in sorted(dau.items())]
+            reg_dau[day] += 1
+    reg_dau_series = [{"date": d, "active_users": c} for d, c in sorted(reg_dau.items())]
 
-    # 2. Visit frequency distribution
-    visit_dist = defaultdict(int)
+    # 2b. Registered visit frequency distribution
+    reg_visit_dist = defaultdict(int)
     returning_since_may31 = 0
     cutoff_date = "2026-05-31"
     async for u in db.users.find(
@@ -235,37 +274,25 @@ async def user_behavior_stats():
         elif vc >= 3: bucket = "3-4"
         elif vc == 2: bucket = "2"
         else: bucket = "1"
-        visit_dist[bucket] += 1
-        # Count returning users (2+ visits) active since May 31
+        reg_visit_dist[bucket] += 1
         if vc >= 2:
             last = str(u.get("last_active", ""))[:10]
             if last >= cutoff_date:
                 returning_since_may31 += 1
-    visit_buckets = []
-    for b in ["1", "2", "3-4", "5-9", "10+"]:
-        visit_buckets.append({"bucket": b, "count": visit_dist.get(b, 0)})
-
-    # 3. Category popularity (from category_views collection)
-    cat_pop = []
-    async for doc in db.category_views.find({}, {"_id": 0}):
-        cat_pop.append(doc)
-
-    # Aggregate by category (total views) and by date
-    cat_totals = defaultdict(int)
-    cat_daily = defaultdict(lambda: defaultdict(int))
-    for doc in cat_pop:
-        cat_totals[doc["category"]] += doc.get("views", 0)
-        cat_daily[doc["date"]][doc["category"]] = doc.get("views", 0)
-
-    cat_ranking = [{"category": c, "views": v} for c, v in sorted(cat_totals.items(), key=lambda x: -x[1])]
-    cat_daily_series = [{"date": d, **counts} for d, counts in sorted(cat_daily.items())]
+    reg_visit_buckets = [{"bucket": b, "count": reg_visit_dist.get(b, 0)} for b in ["1", "2", "3-4", "5-9", "10+"]]
 
     return {
-        "dau": dau_series,
-        "visit_distribution": visit_buckets,
-        "returning_since_may31": returning_since_may31,
-        "category_popularity": cat_ranking,
-        "category_daily": cat_daily_series,
+        "all_visitors": {
+            "dau": all_dau,
+            "visit_frequency": all_visit_buckets,
+            "category_popularity": all_cat_ranking,
+        },
+        "registered": {
+            "dau": reg_dau_series,
+            "visit_frequency": reg_visit_buckets,
+            "returning_since_may31": returning_since_may31,
+            "category_popularity": auth_cat_ranking,
+        },
     }
 
 

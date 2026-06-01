@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from typing import Optional
 from datetime import datetime, timezone, timedelta
 from collections import Counter
@@ -1080,6 +1080,7 @@ async def _db_tag_leaderboard_impl(
 
 @router.get("/leaderboard")
 async def get_leaderboard(
+    request: Request,
     category: Optional[str] = Query("cs.RO", description="arXiv primary category"),
     period: Optional[str] = Query("all", description="Filter: recent, week, month, all"),
     tags: Optional[str] = Query(None, description="Comma-separated category tags to filter by (overrides category)"),
@@ -1095,9 +1096,16 @@ async def get_leaderboard(
 ):
     # Lightweight category view tracking (fire-and-forget, no await)
     if category:
+        has_session = bool(
+            request.cookies.get("session_token")
+            or request.headers.get("Authorization", "").startswith("Bearer ")
+        )
+        inc_fields = {"views": 1}
+        if has_session:
+            inc_fields["auth_views"] = 1
         asyncio.ensure_future(db.category_views.update_one(
             {"category": category, "date": datetime.now(timezone.utc).strftime("%Y-%m-%d")},
-            {"$inc": {"views": 1}},
+            {"$inc": inc_fields},
             upsert=True,
         ))
     # Tag-based filtering

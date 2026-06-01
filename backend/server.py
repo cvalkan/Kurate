@@ -214,7 +214,41 @@ async def rate_limit_middleware(request: Request, call_next):
 
     return await call_next(request)
 
-@app.get("/api/logo-compare", response_class=HTMLResponse)
+import hashlib
+
+# Visitor analytics: tracked path prefixes for user-facing pages
+_VISITOR_TRACKED = ("/api/leaderboard", "/api/paper/", "/api/categories")
+
+@app.middleware("http")
+async def visitor_tracking_middleware(request: Request, call_next):
+    """Lightweight visitor tracking — fire-and-forget DB writes, no PII stored."""
+    response = await call_next(request)
+    path = request.url.path
+    if not any(path.startswith(p) for p in _VISITOR_TRACKED):
+        return response
+    try:
+        forwarded = request.headers.get("x-forwarded-for", "")
+        ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+        ip_hash = hashlib.sha256(ip.encode()).hexdigest()[:12]
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        has_session = bool(
+            request.cookies.get("session_token")
+            or request.headers.get("Authorization", "").startswith("Bearer ")
+        )
+        update = {
+            "$addToSet": {"all_ips": ip_hash},
+            "$inc": {"total_hits": 1},
+        }
+        if has_session:
+            update["$addToSet"]["auth_ips"] = ip_hash
+        asyncio.ensure_future(db.daily_visitors.update_one(
+            {"date": today}, update, upsert=True,
+        ))
+    except Exception:
+        pass
+    return response
+
+
 async def logo_compare():
     import pathlib
     p = pathlib.Path(__file__).parent / "logo_compare.html"
