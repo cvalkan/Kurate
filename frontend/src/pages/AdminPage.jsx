@@ -896,11 +896,11 @@ function UserList() {
       {behaviorData && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* DAU - Line Chart */}
-          {behaviorData.dau?.length > 0 && (
-            <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="dau-chart">
-              <h3 className="text-sm font-medium mb-1">Daily Active Registered Users</h3>
-              <p className="text-[10px] text-muted-foreground mb-3">Unique authenticated sessions per day</p>
-              <div className="h-[180px]">
+          <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="dau-chart">
+            <h3 className="text-sm font-medium mb-1">Daily Active Registered Users</h3>
+            <p className="text-[10px] text-muted-foreground mb-3">Unique authenticated sessions per day</p>
+            <div className="h-[180px]">
+              {behaviorData.dau?.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={behaviorData.dau} margin={{ top: 5, right: 10, left: -5, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
@@ -911,21 +911,23 @@ function UserList() {
                     <Line type="monotone" dataKey="active_users" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3, fill: "#3b82f6" }} activeDot={{ r: 5 }} name="Active users" />
                   </LineChart>
                 </ResponsiveContainer>
-              </div>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No activity data yet</div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Visit Distribution - Bar Chart */}
-          {behaviorData.visit_distribution?.length > 0 && (
-            <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="visit-freq-chart">
-              <div className="flex items-baseline justify-between mb-1">
-                <h3 className="text-sm font-medium">Visit Frequency</h3>
-                {behaviorData.returning_since_may31 > 0 && (
-                  <span className="text-[10px] text-muted-foreground">{behaviorData.returning_since_may31} returning since May 31</span>
-                )}
-              </div>
-              <p className="text-[10px] text-muted-foreground mb-3">How often registered users return (sessions)</p>
-              <div className="h-[180px]">
+          <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="visit-freq-chart">
+            <div className="flex items-baseline justify-between mb-1">
+              <h3 className="text-sm font-medium">Visit Frequency</h3>
+              {behaviorData.returning_since_may31 > 0 && (
+                <span className="text-[10px] text-muted-foreground">{behaviorData.returning_since_may31} returning since May 31</span>
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground mb-3">How often registered users return (sessions)</p>
+            <div className="h-[180px]">
+              {behaviorData.visit_distribution?.some(d => d.count > 0) ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={behaviorData.visit_distribution} margin={{ top: 5, right: 10, left: -5, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
@@ -935,28 +937,32 @@ function UserList() {
                     <Bar dataKey="count" fill="#8b5cf6" radius={[3, 3, 0, 0]} name="Users" />
                   </BarChart>
                 </ResponsiveContainer>
-              </div>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No visit data yet</div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Category Popularity - Bar Chart */}
-          {behaviorData.category_popularity?.length > 0 && (
-            <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="category-pop-chart">
-              <h3 className="text-sm font-medium mb-1">Category Popularity</h3>
-              <p className="text-[10px] text-muted-foreground mb-3">Leaderboard API views by category</p>
-              <div className="h-[180px]">
+          <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="category-pop-chart">
+            <h3 className="text-sm font-medium mb-1">Category Popularity</h3>
+            <p className="text-[10px] text-muted-foreground mb-3">Leaderboard API views by category</p>
+            <div className="h-[180px]">
+              {behaviorData.category_popularity?.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={behaviorData.category_popularity.slice(0, 12)} margin={{ top: 5, right: 10, left: -5, bottom: 45 }}>
+                  <BarChart data={behaviorData.category_popularity.slice(0, 12)} margin={{ top: 5, right: 10, left: -5, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} vertical={false} />
-                    <XAxis dataKey="category" tick={{ fontSize: 8, angle: -45, textAnchor: "end" }} interval={0} height={50} />
+                    <XAxis dataKey="category" tick={{ fontSize: 9 }} interval={0} />
                     <YAxis tick={{ fontSize: 9 }} width={35} />
                     <RTooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "6px", fontSize: "11px" }} />
                     <Bar dataKey="views" fill="#10b981" radius={[3, 3, 0, 0]} name="Views" />
                   </BarChart>
                 </ResponsiveContainer>
-              </div>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No category data yet</div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
 
