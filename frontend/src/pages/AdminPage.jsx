@@ -751,6 +751,7 @@ function UserList() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [regData, setRegData] = useState(null);
   const [behaviorData, setBehaviorData] = useState(null);
+  const [catSortMode, setCatSortMode] = useState("aligned");
   const PAGE_SIZE = 50;
   const listRef = useRef(null);
 
@@ -898,9 +899,19 @@ function UserList() {
         const regCats = behaviorData.registered?.category_popularity || [];
         const catOrder = allCats.map(c => c.category);
         const regCatMap = Object.fromEntries(regCats.map(c => [c.category, c.views]));
-        const regCatsOrdered = catOrder.map(c => ({ category: c, views: regCatMap[c] || 0 }));
+
+        // Aligned: both use all-traffic order. Independent: each sorted by own views.
+        const regCatsSorted = catSortMode === "aligned"
+          ? catOrder.map(c => ({ category: c, views: regCatMap[c] || 0 }))
+          : [...regCats].sort((a, b) => b.views - a.views);
+        // Pad missing categories for independent mode
+        if (catSortMode === "independent") {
+          const regSet = new Set(regCatsSorted.map(c => c.category));
+          catOrder.forEach(c => { if (!regSet.has(c)) regCatsSorted.push({ category: c, views: 0 }); });
+        }
+
         const allCatsR = [...allCats].reverse();
-        const regCatsR = [...regCatsOrdered].reverse();
+        const regCatsR = [...regCatsSorted].reverse();
         const catH = Math.max(200, allCats.length * 22);
         const tt = { background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "6px", fontSize: "11px" };
         const fmtD = d => { try { return new Date(d + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric" }); } catch { return d; } };
@@ -973,6 +984,15 @@ function UserList() {
         </div>
 
         {/* Row 2: Category Popularity side by side */}
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-muted-foreground">Category sort:</span>
+          <div className="flex items-center gap-0.5 p-0.5 bg-secondary/50 rounded">
+            <button className={`px-2 py-0.5 text-[10px] rounded transition-colors ${catSortMode === "aligned" ? "bg-background text-foreground font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              onClick={() => setCatSortMode("aligned")} data-testid="cat-sort-aligned">Aligned</button>
+            <button className={`px-2 py-0.5 text-[10px] rounded transition-colors ${catSortMode === "independent" ? "bg-background text-foreground font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              onClick={() => setCatSortMode("independent")} data-testid="cat-sort-independent">Independent</button>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="all-category-pop-chart">
             <h3 className="text-sm font-medium mb-0.5">Category Popularity — All Traffic</h3>
@@ -997,7 +1017,7 @@ function UserList() {
             <h3 className="text-sm font-medium mb-0.5">Category Popularity — Registered Users</h3>
             <p className="text-[10px] text-muted-foreground mb-3">Leaderboard views by logged-in users</p>
             <div style={{ height: catH }}>
-              {regCatsOrdered.length > 0 ? (
+              {regCatsSorted.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart layout="vertical" data={regCatsR} margin={{ top: 5, right: 10, left: 5, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} horizontal={false} />

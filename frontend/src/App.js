@@ -30,7 +30,6 @@ import PrivacyPage from "@/pages/PrivacyPage";
 import ImpressumPage from "@/pages/ImpressumPage";
 import ContactPage from "@/pages/ContactPage";
 import StartRedirect from "@/pages/StartRedirect";
-import ChartTestPage from "@/pages/ChartTestPage";
 import Navbar from "@/components/Navbar";
 import { BookmarkProvider } from "@/contexts/BookmarkContext";
 
@@ -73,7 +72,6 @@ function AppRouter() {
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/impressum" element={<ImpressumPage />} />
-          <Route path="/test/charts" element={<ChartTestPage />} />
           <Route path="/contact" element={<ContactPage />} />
         </Routes>
       </main>
