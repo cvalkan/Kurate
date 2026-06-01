@@ -79,6 +79,7 @@ class AdminLogin(BaseModel):
 class SettingsUpdate(BaseModel):
     fetch_interval_hours: Optional[int] = None
     max_papers_per_fetch: Optional[int] = None
+    max_initial_backlog: Optional[int] = None
     parallel_agents: Optional[int] = None
     parallel_categories: Optional[int] = None
     ranking_method: Optional[str] = None  # reg_wr, trueskill
@@ -92,6 +93,16 @@ class SettingsUpdate(BaseModel):
     show_rating_column: Optional[bool] = None
     show_gap_column: Optional[bool] = None
     congrats_per_week: Optional[int] = None
+    top_k_focus: Optional[int] = None
+    sigma_target_general: Optional[float] = None
+    sigma_target_topk: Optional[float] = None
+    min_comparisons_converged: Optional[int] = None
+    min_papers_for_tournament: Optional[int] = None
+    compare_loop_interval: Optional[int] = None
+    llm_request_timeout: Optional[int] = None
+    max_pairs_per_round: Optional[int] = None
+    summary_batch_size: Optional[int] = None
+    summary_parallel: Optional[int] = None
 
 
 class PromptUpdate(BaseModel):
