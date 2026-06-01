@@ -979,6 +979,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
     try:
         settings = await get_settings()
         max_papers = settings.get("max_papers_per_fetch", 50)
+        max_initial_backlog = settings.get("max_initial_backlog", 200)
 
         # Determine date_from: use the publication date of our NEWEST paper in this category.
         # This is robust regardless of arXiv delays, our downtime, or rate limiting —
@@ -989,12 +990,16 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             {"_id": 0, "published": 1},
             sort=[("published", -1)],
         )
+        is_new_category = False
         if newest_paper and newest_paper.get("published"):
             pub = newest_paper["published"][:10]  # "2026-05-04"
             date_from = pub  # Fetch everything from that day onwards (dedup handles overlap)
         else:
-            # No papers in this category yet — use 30-day lookback
+            # No papers in this category yet — use 30-day lookback, capped by max_initial_backlog
             date_from = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
+            max_papers = min(max_papers, max_initial_backlog)
+            is_new_category = True
+            logger.info(f"[{category}] New category — initial backlog capped at {max_papers} papers (setting: {max_initial_backlog})")
 
         # --- STEP 1: Fetch new papers from source ---
         cat_status["current_activity"] = "Fetching new papers from source..."

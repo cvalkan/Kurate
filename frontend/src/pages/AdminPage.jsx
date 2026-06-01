@@ -211,7 +211,7 @@ export default function AdminPage() {
     setLoading(l => ({ ...l, settings: true }));
     try {
       const updates = {};
-      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "parallel_agents", "top_k_focus", "max_new_matches_per_round", "sigma_target_general", "sigma_target_topk", "min_comparisons_converged", "calibration_ratio", "parallel_categories", "compare_loop_interval", "llm_request_timeout", "max_pairs_per_round", "summary_batch_size", "summary_parallel", "min_papers_for_tournament"]) {
+      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "max_initial_backlog", "parallel_agents", "top_k_focus", "max_new_matches_per_round", "sigma_target_general", "sigma_target_topk", "min_comparisons_converged", "calibration_ratio", "parallel_categories", "compare_loop_interval", "llm_request_timeout", "max_pairs_per_round", "summary_batch_size", "summary_parallel", "min_papers_for_tournament"]) {
         if (editSettings[key] !== settings[key]) {
           updates[key] = Number(editSettings[key]);
         }
@@ -331,6 +331,7 @@ export default function AdminPage() {
             {[
               { key: "fetch_interval_hours", label: "Fetch Interval (hours)", dflt: 2, help: "How often to check arXiv for new papers. Safe range: 1-168. Default: 2.", min: 1, max: 168 },
               { key: "max_papers_per_fetch", label: "Max Papers Per Fetch", dflt: 50, help: "Papers to download per fetch cycle. Increase temporarily to catch up on a new category. Safe range: 10-2000. Default: 50.", min: 10, max: 2000 },
+              { key: "max_initial_backlog", label: "Max Initial Backlog", dflt: 200, help: "When a new category is added, cap the initial paper fetch to this many (most recent first). Prevents flooding with 1000+ papers from the last 30 days. Safe range: 10-2000. Default: 200.", min: 10, max: 2000 },
               { key: "min_papers_for_tournament", label: "Min Papers for Tournament", dflt: 8, help: "Minimum papers needed before a category starts matching. Safe range: 2-50. Default: 8.", min: 2, max: 50 },
               { key: "parallel_agents", label: "Parallel LLM Agents", dflt: 20, help: "Concurrent LLM comparison calls per batch. Higher = faster but more API cost/sec. Safe range: 1-20. Default: 20.", min: 1, max: 20 },
               { key: "parallel_categories", label: "Parallel Categories", dflt: 10, help: "Categories processed concurrently per compare cycle. Higher = faster convergence but more memory. Safe range: 1-10. Default: 10.", min: 1, max: 10 },
