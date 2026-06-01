@@ -995,25 +995,6 @@ function UserList() {
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="all-category-pop-chart">
-            <h3 className="text-sm font-medium mb-0.5">Category Popularity — All Traffic</h3>
-            <p className="text-[10px] text-muted-foreground mb-3">Leaderboard views by category</p>
-            <div style={{ height: catH }}>
-              {allCats.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart layout="vertical" data={allCatsR} margin={{ top: 5, right: 10, left: 5, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} horizontal={false} />
-                    <XAxis type="number" tick={{ fontSize: 9 }} />
-                    <YAxis type="category" dataKey="category" tick={{ fontSize: 8 }} width={90} interval={0} />
-                    <RTooltip contentStyle={tt} />
-                    <Bar dataKey="views" fill="#10b981" radius={[0, 3, 3, 0]} name="Views" barSize={14} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No category data yet</div>
-              )}
-            </div>
-          </div>
           <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="reg-category-pop-chart">
             <h3 className="text-sm font-medium mb-0.5">Category Popularity — Registered Users</h3>
             <p className="text-[10px] text-muted-foreground mb-3">Leaderboard views by logged-in users</p>
@@ -1030,6 +1011,25 @@ function UserList() {
                 </ResponsiveContainer>
               ) : (
                 <div className="h-full flex items-center justify-center text-xs text-muted-foreground">Tracking starts after deploy</div>
+              )}
+            </div>
+          </div>
+          <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="all-category-pop-chart">
+            <h3 className="text-sm font-medium mb-0.5">Category Popularity — All Traffic</h3>
+            <p className="text-[10px] text-muted-foreground mb-3">Leaderboard views by category</p>
+            <div style={{ height: catH }}>
+              {allCats.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart layout="vertical" data={allCatsR} margin={{ top: 5, right: 10, left: 5, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 9 }} />
+                    <YAxis type="category" dataKey="category" tick={{ fontSize: 8 }} width={90} interval={0} />
+                    <RTooltip contentStyle={tt} />
+                    <Bar dataKey="views" fill="#10b981" radius={[0, 3, 3, 0]} name="Views" barSize={14} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No category data yet</div>
               )}
             </div>
           </div>
