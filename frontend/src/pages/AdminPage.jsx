@@ -919,13 +919,11 @@ function UserList() {
 
           {/* Visit Distribution - Bar Chart */}
           <div className="p-4 rounded-lg border border-border bg-secondary/10" data-testid="visit-freq-chart">
-            <div className="flex items-baseline justify-between mb-1">
-              <h3 className="text-sm font-medium">Visit Frequency</h3>
-              {behaviorData.returning_since_may31 > 0 && (
-                <span className="text-[10px] text-muted-foreground">{behaviorData.returning_since_may31} returning since May 31</span>
-              )}
-            </div>
-            <p className="text-[10px] text-muted-foreground mb-3">How often registered users return (sessions)</p>
+            <h3 className="text-sm font-medium mb-1">Visit Frequency</h3>
+            <p className="text-[10px] text-muted-foreground mb-3">
+              How often registered users return (sessions since May 31)
+              {behaviorData.returning_since_may31 > 0 && <span> &middot; {behaviorData.returning_since_may31} returning</span>}
+            </p>
             <div className="h-[180px]">
               {behaviorData.visit_distribution?.some(d => d.count > 0) ? (
                 <ResponsiveContainer width="100%" height="100%">
