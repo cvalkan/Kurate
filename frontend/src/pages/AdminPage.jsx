@@ -941,12 +941,12 @@ function UserList() {
               <p className="text-[10px] text-muted-foreground mb-3">Leaderboard API views by category</p>
               <div className="h-[160px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={behaviorData.category_popularity.slice(0, 12)} layout="vertical" margin={{ top: 5, right: 10, left: 60, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} horizontal={false} />
-                    <XAxis type="number" tick={{ fontSize: 9 }} />
-                    <YAxis type="category" dataKey="category" tick={{ fontSize: 9 }} width={55} />
+                  <BarChart data={behaviorData.category_popularity.slice(0, 12)} margin={{ top: 5, right: 5, left: 0, bottom: 40 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} vertical={false} />
+                    <XAxis dataKey="category" tick={{ fontSize: 8, angle: -45, textAnchor: "end" }} interval={0} height={50} />
+                    <YAxis tick={{ fontSize: 9 }} width={30} />
                     <RTooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "6px", fontSize: "11px" }} />
-                    <Bar dataKey="views" fill="#10b981" radius={[0, 3, 3, 0]} name="Views" />
+                    <Bar dataKey="views" fill="#10b981" radius={[3, 3, 0, 0]} name="Views" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
