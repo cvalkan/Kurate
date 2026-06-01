@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 from pathlib import Path
@@ -719,48 +718,6 @@ async def get_summary_generation_progress(category: str = "cs.RO"):
         "db_papers_with_summaries": with_summaries,
         "db_papers_needing_summaries": with_text - with_summaries,
     }
-
-
-@router.get("/export-matches", dependencies=[Depends(verify_admin)])
-async def export_matches(category: str = Query(..., description="Category to export matches for")):
-    """Export all completed matches for a category as JSONL stream.
-    Includes paper_id -> arxiv_id mapping in header line."""
-    import json as _json
-
-    async def generate():
-        # First line: paper_id -> arxiv_id mapping for this category
-        id_map = {}
-        async for p in db.papers.find(
-            {"categories.0": category},
-            {"_id": 0, "paper_id": 1, "arxiv_id": 1, "title": 1},
-        ):
-            pid = p.get("paper_id")
-            if pid:
-                id_map[pid] = {"arxiv_id": p.get("arxiv_id", ""), "title": p.get("title", "")}
-        yield _json.dumps({"_type": "id_mapping", "papers": id_map}) + "\n"
-
-        # Stream matches
-        cursor = db.matches.find(
-            {"primary_category": category, "completed": True, "failed": {"$ne": True}},
-            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1,
-             "model_used": 1, "reasoning": 1, "created_at": 1},
-        ).sort("created_at", 1)
-        async for m in cursor:
-            model = m.get("model_used", {})
-            yield _json.dumps({
-                "p1": m["paper1_id"],
-                "p2": m["paper2_id"],
-                "winner": m.get("winner_id", ""),
-                "model": model.get("model", "") if isinstance(model, dict) else str(model),
-                "reasoning": (m.get("reasoning") or "")[:200],
-                "date": str(m.get("created_at", ""))[:10],
-            }) + "\n"
-
-    return StreamingResponse(
-        generate(),
-        media_type="application/x-ndjson",
-        headers={"Content-Disposition": f"attachment; filename={category.replace('.','_')}_matches.jsonl"},
-    )
 
 
 
