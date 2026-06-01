@@ -205,6 +205,63 @@ async def user_registrations():
     return {"series": series, "total": cumulative}
 
 
+@router.get("/admin/users/behavior-stats", dependencies=[Depends(verify_admin)])
+async def user_behavior_stats():
+    """User behavior data for charts: DAU, visit distribution, category popularity."""
+    from collections import defaultdict
+
+    # 1. Daily Active Users (from last_active timestamps)
+    dau = defaultdict(int)
+    async for u in db.users.find(
+        {"last_active": {"$exists": True}},
+        {"_id": 0, "last_active": 1},
+    ):
+        day = str(u.get("last_active", ""))[:10]
+        if len(day) >= 10:
+            dau[day] += 1
+    dau_series = [{"date": d, "active_users": c} for d, c in sorted(dau.items())]
+
+    # 2. Visit frequency distribution
+    visit_dist = defaultdict(int)
+    async for u in db.users.find(
+        {"visit_count": {"$gt": 0}},
+        {"_id": 0, "visit_count": 1},
+    ):
+        vc = u.get("visit_count", 0)
+        if vc >= 10: bucket = "10+"
+        elif vc >= 5: bucket = "5-9"
+        elif vc >= 3: bucket = "3-4"
+        elif vc == 2: bucket = "2"
+        else: bucket = "1"
+        visit_dist[bucket] += 1
+    visit_buckets = []
+    for b in ["1", "2", "3-4", "5-9", "10+"]:
+        visit_buckets.append({"bucket": b, "count": visit_dist.get(b, 0)})
+
+    # 3. Category popularity (from category_views collection)
+    cat_pop = []
+    async for doc in db.category_views.find({}, {"_id": 0}):
+        cat_pop.append(doc)
+
+    # Aggregate by category (total views) and by date
+    cat_totals = defaultdict(int)
+    cat_daily = defaultdict(lambda: defaultdict(int))
+    for doc in cat_pop:
+        cat_totals[doc["category"]] += doc.get("views", 0)
+        cat_daily[doc["date"]][doc["category"]] = doc.get("views", 0)
+
+    cat_ranking = [{"category": c, "views": v} for c, v in sorted(cat_totals.items(), key=lambda x: -x[1])]
+    cat_daily_series = [{"date": d, **counts} for d, counts in sorted(cat_daily.items())]
+
+    return {
+        "dau": dau_series,
+        "visit_distribution": visit_buckets,
+        "category_popularity": cat_ranking,
+        "category_daily": cat_daily_series,
+    }
+
+
+
 
 @router.post("/admin/users/{user_id}/status", dependencies=[Depends(verify_admin)])
 async def update_user_status(user_id: str, request: Request):

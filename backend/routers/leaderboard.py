@@ -1093,6 +1093,13 @@ async def get_leaderboard(
     sort_by: Optional[str] = Query(None, description="Sort field: score, win_rate, comparisons, published, wilson_margin, ts_score, ai_rating, gap_score, title"),
     sort_dir: Optional[str] = Query(None, description="Sort direction: asc or desc"),
 ):
+    # Lightweight category view tracking (fire-and-forget, no await)
+    if category:
+        asyncio.ensure_future(db.category_views.update_one(
+            {"category": category, "date": datetime.now(timezone.utc).strftime("%Y-%m-%d")},
+            {"$inc": {"views": 1}},
+            upsert=True,
+        ))
     # Tag-based filtering
     if tags:
         tag_list = [t.strip() for t in tags.split(",") if t.strip()][:50]

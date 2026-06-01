@@ -12,7 +12,7 @@ import {
   Sliders, Twitter, Mail, ScrollText, Download,
 } from "lucide-react";
 import { toast } from "sonner";
-import { ResponsiveContainer, ComposedChart, CartesianGrid, XAxis, YAxis, Tooltip as RTooltip, Area } from "recharts";
+import { ResponsiveContainer, ComposedChart, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip as RTooltip, Area } from "recharts";
 import { AdminOverview } from "@/components/AdminOverview";
 import { AdminLogs } from "@/components/AdminLogs";
 import { AdminStatistics } from "@/components/AdminStatistics";
@@ -750,6 +750,7 @@ function UserList() {
   const [allUsers, setAllUsers] = useState([]);
   const [loadingMore, setLoadingMore] = useState(false);
   const [regData, setRegData] = useState(null);
+  const [behaviorData, setBehaviorData] = useState(null);
   const PAGE_SIZE = 50;
   const listRef = useRef(null);
 
@@ -782,6 +783,9 @@ function UserList() {
   useEffect(() => {
     axios.get(`${API}/api/admin/users/registrations`, { headers: getAdminHeaders() })
       .then(res => setRegData(res.data?.series || []))
+      .catch(() => {});
+    axios.get(`${API}/api/admin/users/behavior-stats`, { headers: getAdminHeaders() })
+      .then(res => setBehaviorData(res.data))
       .catch(() => {});
   }, []);
 
@@ -885,6 +889,69 @@ function UserList() {
               );
             })()}
           </div>
+        </div>
+      )}
+
+      {/* Behavior charts: DAU, Visit Distribution, Category Popularity */}
+      {behaviorData && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* DAU */}
+          {behaviorData.dau?.length > 0 && (
+            <div className="p-4 rounded-lg border border-border bg-secondary/10">
+              <h3 className="text-sm font-medium mb-1">Daily Active Users</h3>
+              <p className="text-[10px] text-muted-foreground mb-3">Authenticated sessions per day</p>
+              <div className="h-[160px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={behaviorData.dau} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                    <XAxis dataKey="date" tick={{ fontSize: 9 }}
+                      tickFormatter={d => { try { return new Date(d + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric" }); } catch { return d; } }} />
+                    <YAxis tick={{ fontSize: 9 }} width={30} />
+                    <RTooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "6px", fontSize: "11px" }} />
+                    <Bar dataKey="active_users" fill="#3b82f6" radius={[3, 3, 0, 0]} name="Active users" />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Visit Distribution */}
+          {behaviorData.visit_distribution?.length > 0 && (
+            <div className="p-4 rounded-lg border border-border bg-secondary/10">
+              <h3 className="text-sm font-medium mb-1">Visit Frequency</h3>
+              <p className="text-[10px] text-muted-foreground mb-3">How often users return (sessions)</p>
+              <div className="h-[160px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={behaviorData.visit_distribution} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                    <XAxis dataKey="bucket" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 9 }} width={30} />
+                    <RTooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "6px", fontSize: "11px" }} />
+                    <Bar dataKey="count" fill="#8b5cf6" radius={[3, 3, 0, 0]} name="Users" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Category Popularity */}
+          {behaviorData.category_popularity?.length > 0 && (
+            <div className="p-4 rounded-lg border border-border bg-secondary/10">
+              <h3 className="text-sm font-medium mb-1">Category Popularity</h3>
+              <p className="text-[10px] text-muted-foreground mb-3">Leaderboard API views by category</p>
+              <div className="h-[160px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={behaviorData.category_popularity.slice(0, 12)} layout="vertical" margin={{ top: 5, right: 10, left: 60, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 9 }} />
+                    <YAxis type="category" dataKey="category" tick={{ fontSize: 9 }} width={55} />
+                    <RTooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "6px", fontSize: "11px" }} />
+                    <Bar dataKey="views" fill="#10b981" radius={[0, 3, 3, 0]} name="Views" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
