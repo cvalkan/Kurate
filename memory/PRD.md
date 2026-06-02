@@ -12,7 +12,14 @@ Build and maintain an AI paper-judging system using multiple LLM judges to rank 
 
 ## Latest Changes (Jun 2, 2026)
 
-### Admin Stats v2 — REBUILT at /admin2 (RESOLVED the Atlas timeout)
+### Admin Stats consolidated into the dashboard "Statistics" tab (replaces old panel)
+- The dashboard **Statistics** tab now renders the new scalable stats; the standalone `/admin2` route and "Stats v2" tab were **removed**. Old `/api/admin/timeseries` and `/api/admin/stats` endpoints **deleted** (Overview tab repointed to `/api/admin2/stats-overview`).
+- **One source of truth**: a single backfill pass writes `daily_stats` + `model_match_stats` + `model_summary_stats`; the endpoint reads ONLY these (+ `daily_registrations`, `system_logs`). No leaderboard-cache dependency, no match/paper scans. Cards, panel headers, rows, and timeseries all reconcile by construction. Accurate pricing (real tracked tokens + per-model avg for untracked).
+- **Large-data hardening**: added indexes — `daily_stats {category:1,date:1}` (read path now IXSCAN, was COLLSCAN), `model_match_stats {model:1}`, `model_summary_stats {model:1}`, `daily_registrations {date:1}`, `papers {added_at:1}`. Response cache (~45s). Precomputed user registrations (no users scan). Periodic leader-only `_admin2_stats_loop` (ensure_fresh every 30m, full self-heal ~12h) + `ensure_indexes` on startup.
+- **Charts**: 4 time-series charts (Papers/Matches/Tokens/Cost, incl. stacked-by-category) switched to **ECharts canvas** (fast at scale). Memory chart moved to the **bottom** (full-width), Recharts animations disabled.
+- Tested: 16/16 pytest (`tests/test_admin2_stats.py`), testing agent backend 28/28 + frontend 100% (iteration_66), endpoint ~0.27s.
+
+### (prior) Admin Stats v2 rebuild
 - New scalable admin statistics page at route `/admin2` (legacy `/admin/dashboard` Statistics tab untouched). Linked via a "Stats v2" tab next to "Statistics" in the admin dashboard.
 - Backend: `routers/admin2_stats.py` — single endpoint `GET /api/admin2/stats-overview` reads ONLY from the pre-aggregated `daily_stats` materialized view + `model_match_stats` + leaderboard cache + small `users`/`system_logs` aggregations. Responds in ~0.35s; NEVER scans matches/papers. Also `POST /api/admin2/backfill` and `GET /api/admin2/memory?hours=`.
 - Write-time O(1) `$inc` hooks in `scheduler.py` keep `daily_stats`/`model_match_stats` fresh on every match completion, paper add, and summary generation (with ACTUAL tokens).

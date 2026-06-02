@@ -367,8 +367,12 @@ async def _admin2_stats_loop():
     the views on first run and periodically self-heals any drift. The read path
     only ever polls these pre-aggregated collections, so it stays fast at scale.
     """
-    from routers.admin2_stats import ensure_fresh, self_heal
+    from routers.admin2_stats import ensure_fresh, self_heal, ensure_indexes
     await asyncio.sleep(60)  # let startup settle
+    try:
+        await ensure_indexes()
+    except Exception as e:
+        logger.warning(f"[admin2] ensure_indexes error: {e}")
     cycles = 0
     while _scheduler_running:
         try:

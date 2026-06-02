@@ -51,6 +51,26 @@ def _cache_clear():
     _CACHE.clear()
 
 
+async def ensure_indexes():
+    """Create the indexes the read + backfill paths rely on. Idempotent.
+
+    Without these, daily_stats reads (filtered by `category`) and the per-model
+    / registration lookups degrade to collection scans as data grows — the exact
+    O(N) behaviour that caused the original timeouts.
+    """
+    try:
+        # Read path filters by category first, then iterates dates → category-prefixed index.
+        await db.daily_stats.create_index([("category", 1), ("date", 1)], name="cat_date_idx")
+        await db.model_match_stats.create_index([("model", 1)], unique=True, name="model_idx")
+        await db.model_summary_stats.create_index([("model", 1)], unique=True, name="model_idx")
+        await db.daily_registrations.create_index([("date", 1)], unique=True, name="date_idx")
+        # Backfill scans/sorts papers by added_at.
+        await db.papers.create_index([("added_at", 1)], name="added_at_idx")
+        logger.info("[ADMIN2] ensure_indexes complete")
+    except Exception as e:
+        logger.warning(f"[ADMIN2] ensure_indexes failed: {e}")
+
+
 def _safe_day(raw) -> Optional[str]:
     """Extract YYYY-MM-DD from a value that may be a BSON Date or a string."""
     if raw is None:

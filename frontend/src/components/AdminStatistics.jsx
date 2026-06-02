@@ -533,6 +533,148 @@ export function AdminStatistics({ categories }) {
         )}
       </div>
 
+      {/* Repair Queue History */}
+      {repairQueueData && repairQueueData.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-4" data-testid="repair-queue-chart">
+          <div className="flex items-center gap-2 mb-4">
+            <Cpu className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-medium">Repair Queue Size</h3>
+            <span className="text-xs text-muted-foreground">
+              Current: {repairQueueData[repairQueueData.length - 1]?.size ?? 0}
+            </span>
+          </div>
+          <div className="h-[140px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={repairQueueData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                <XAxis
+                  dataKey="epoch" type="number" scale="time" domain={["dataMin", "dataMax"]}
+                  tickFormatter={(epoch) => {
+                    const d = new Date(epoch);
+                    const opts = { timeZone: "Europe/Berlin" };
+                    return memHours > 24
+                      ? d.toLocaleDateString("en-US", { ...opts, month: "short", day: "numeric" }) + " " + d.toLocaleTimeString("en-US", { ...opts, hour: "2-digit", minute: "2-digit", hour12: false })
+                      : d.toLocaleTimeString("en-US", { ...opts, hour: "2-digit", minute: "2-digit", hour12: false });
+                  }}
+                  tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))"
+                  tickCount={6}
+                />
+                <YAxis allowDecimals={false} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={30} />
+                <RechartsTooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0]?.payload;
+                    return (
+                      <div className="rounded-lg border border-border bg-popover p-2 shadow-lg text-xs">
+                        <div className="font-medium">{d?.ts ? new Date(d.ts.endsWith("Z") ? d.ts : d.ts + "Z").toLocaleString("en-US", { timeZone: "Europe/Berlin", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) + " CET" : ""}</div>
+                        <div className="font-mono mt-1">Queue: {d?.size} {d?.repaired > 0 && <span className="text-emerald-600">(repaired {d.repaired})</span>}</div>
+                      </div>
+                    );
+                  }}
+                />
+                <Area type="stepAfter" dataKey="size" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.15} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Chart controls */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md">
+          <Button
+            variant={viewMode === "cumulative" ? "default" : "ghost"} size="sm" className="h-7 text-xs gap-1"
+            onClick={() => setViewMode("cumulative")} data-testid="toggle-cumulative"
+          >
+            <TrendingUp className="h-3 w-3" /> Cumulative
+          </Button>
+          <Button
+            variant={viewMode === "daily" ? "default" : "ghost"} size="sm" className="h-7 text-xs gap-1"
+            onClick={() => setViewMode("daily")} data-testid="toggle-daily"
+          >
+            <BarChart3 className="h-3 w-3" /> Daily
+          </Button>
+        </div>
+        <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md">
+          <Button
+            variant={scopeMode === "system" ? "default" : "ghost"} size="sm" className="h-7 text-xs"
+            onClick={() => setScopeMode("system")} data-testid="toggle-system"
+          >
+            System
+          </Button>
+          <Button
+            variant={scopeMode === "category" ? "default" : "ghost"} size="sm" className="h-7 text-xs"
+            onClick={() => setScopeMode("category")} data-testid="toggle-category"
+          >
+            By Category
+          </Button>
+        </div>
+        <div className="flex items-center gap-2 ml-auto">
+          {timeseries?.refreshed_at && (
+            <span className="text-[10px] text-muted-foreground">
+              {new Date(timeseries.refreshed_at).toLocaleString("en-US", {month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false})}
+            </span>
+          )}
+          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1"
+            onClick={() => { setLoading(true); fetchData(0, true); }} data-testid="refresh-charts"
+          >
+            <RefreshCw className="h-3 w-3" /> Refresh
+          </Button>
+        </div>
+      </div>
+
+      {/* Charts grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <ChartCard title="Papers" icon={FileText} id="papers">
+          {renderChart("papers")}
+        </ChartCard>
+        <ChartCard title="Matches" icon={Swords} id="matches">
+          {renderChart("matches")}
+        </ChartCard>
+        <ChartCard title="Tokens" icon={Cpu} id="tokens">
+          {renderChart("tokens", formatTokens)}
+        </ChartCard>
+        <ChartCard title="Cost" icon={Coins} id="cost">
+          {renderChart("cost", formatCost)}
+        </ChartCard>
+      </div>
+
+      {/* Per-category daily table */}
+      {scopeMode === "category" && (
+        <div className="rounded-lg border border-border bg-card p-4 overflow-x-auto" data-testid="category-table">
+          <h3 className="text-sm font-medium mb-3">Per-Category Totals</h3>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left py-2 pr-4 text-muted-foreground font-medium">Category</th>
+                <th className="text-right py-2 px-3 text-muted-foreground font-medium">Papers</th>
+                <th className="text-right py-2 px-3 text-muted-foreground font-medium">Matches</th>
+                <th className="text-right py-2 px-3 text-muted-foreground font-medium">Tokens</th>
+                <th className="text-right py-2 pl-3 text-muted-foreground font-medium">Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {nonEmptyCats.map(cat => {
+                return (
+                  <tr key={cat} className="border-b border-border/50">
+                    <td className="py-2 pr-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: catColorMap[cat] }} />
+                        <span className="font-mono">{cat}</span>
+                      </div>
+                    </td>
+                    <td className="text-right py-2 px-3 font-mono">{(lastDay[`papers_cumulative_${cat}`] || 0).toLocaleString()}</td>
+                    <td className="text-right py-2 px-3 font-mono">{(lastDay[`matches_cumulative_${cat}`] || 0).toLocaleString()}</td>
+                    <td className="text-right py-2 px-3 font-mono">{formatTokens(lastDay[`tokens_cumulative_${cat}`] || 0)}</td>
+                    <td className="text-right py-2 pl-3 font-mono">${(lastDay[`cost_cumulative_${cat}`] || 0).toFixed(2)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Memory Usage Over Time */}
       {memoryData && memoryData.length > 0 && (
         <div className="rounded-lg border border-border bg-card p-4" data-testid="memory-chart">
@@ -664,7 +806,7 @@ export function AdminStatistics({ categories }) {
                       fill={roleColors[role] || "#9ca3af"}
                       fillOpacity={role === "unknown" ? 0.03 : 0.05}
                       strokeWidth={role === "unknown" ? 1 : 1.5}
-                      dot={false} connectNulls={false}
+                      dot={false} connectNulls={false} isAnimationActive={false}
                       name={role === "unknown" ? "pre-deploy" : role.charAt(0).toUpperCase() + role.slice(1)} />
                   ));
                 })()}
@@ -698,147 +840,6 @@ export function AdminStatistics({ categories }) {
         </div>
       )}
 
-      {/* Repair Queue History */}
-      {repairQueueData && repairQueueData.length > 0 && (
-        <div className="rounded-lg border border-border bg-card p-4" data-testid="repair-queue-chart">
-          <div className="flex items-center gap-2 mb-4">
-            <Cpu className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-medium">Repair Queue Size</h3>
-            <span className="text-xs text-muted-foreground">
-              Current: {repairQueueData[repairQueueData.length - 1]?.size ?? 0}
-            </span>
-          </div>
-          <div className="h-[140px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={repairQueueData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-                <XAxis
-                  dataKey="epoch" type="number" scale="time" domain={["dataMin", "dataMax"]}
-                  tickFormatter={(epoch) => {
-                    const d = new Date(epoch);
-                    const opts = { timeZone: "Europe/Berlin" };
-                    return memHours > 24
-                      ? d.toLocaleDateString("en-US", { ...opts, month: "short", day: "numeric" }) + " " + d.toLocaleTimeString("en-US", { ...opts, hour: "2-digit", minute: "2-digit", hour12: false })
-                      : d.toLocaleTimeString("en-US", { ...opts, hour: "2-digit", minute: "2-digit", hour12: false });
-                  }}
-                  tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))"
-                  tickCount={6}
-                />
-                <YAxis allowDecimals={false} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={30} />
-                <RechartsTooltip
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null;
-                    const d = payload[0]?.payload;
-                    return (
-                      <div className="rounded-lg border border-border bg-popover p-2 shadow-lg text-xs">
-                        <div className="font-medium">{d?.ts ? new Date(d.ts.endsWith("Z") ? d.ts : d.ts + "Z").toLocaleString("en-US", { timeZone: "Europe/Berlin", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) + " CET" : ""}</div>
-                        <div className="font-mono mt-1">Queue: {d?.size} {d?.repaired > 0 && <span className="text-emerald-600">(repaired {d.repaired})</span>}</div>
-                      </div>
-                    );
-                  }}
-                />
-                <Area type="stepAfter" dataKey="size" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.15} strokeWidth={1.5} dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
-      {/* Chart controls */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md">
-          <Button
-            variant={viewMode === "cumulative" ? "default" : "ghost"} size="sm" className="h-7 text-xs gap-1"
-            onClick={() => setViewMode("cumulative")} data-testid="toggle-cumulative"
-          >
-            <TrendingUp className="h-3 w-3" /> Cumulative
-          </Button>
-          <Button
-            variant={viewMode === "daily" ? "default" : "ghost"} size="sm" className="h-7 text-xs gap-1"
-            onClick={() => setViewMode("daily")} data-testid="toggle-daily"
-          >
-            <BarChart3 className="h-3 w-3" /> Daily
-          </Button>
-        </div>
-        <div className="flex items-center gap-1 p-0.5 bg-secondary/50 rounded-md">
-          <Button
-            variant={scopeMode === "system" ? "default" : "ghost"} size="sm" className="h-7 text-xs"
-            onClick={() => setScopeMode("system")} data-testid="toggle-system"
-          >
-            System
-          </Button>
-          <Button
-            variant={scopeMode === "category" ? "default" : "ghost"} size="sm" className="h-7 text-xs"
-            onClick={() => setScopeMode("category")} data-testid="toggle-category"
-          >
-            By Category
-          </Button>
-        </div>
-        <div className="flex items-center gap-2 ml-auto">
-          {timeseries?.refreshed_at && (
-            <span className="text-[10px] text-muted-foreground">
-              {new Date(timeseries.refreshed_at).toLocaleString("en-US", {month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false})}
-            </span>
-          )}
-          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1"
-            onClick={() => { setLoading(true); fetchData(0, true); }} data-testid="refresh-charts"
-          >
-            <RefreshCw className="h-3 w-3" /> Refresh
-          </Button>
-        </div>
-      </div>
-
-      {/* Charts grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Papers" icon={FileText} id="papers">
-          {renderChart("papers")}
-        </ChartCard>
-        <ChartCard title="Matches" icon={Swords} id="matches">
-          {renderChart("matches")}
-        </ChartCard>
-        <ChartCard title="Tokens" icon={Cpu} id="tokens">
-          {renderChart("tokens", formatTokens)}
-        </ChartCard>
-        <ChartCard title="Cost" icon={Coins} id="cost">
-          {renderChart("cost", formatCost)}
-        </ChartCard>
-      </div>
-
-      {/* Per-category daily table */}
-      {scopeMode === "category" && (
-        <div className="rounded-lg border border-border bg-card p-4 overflow-x-auto" data-testid="category-table">
-          <h3 className="text-sm font-medium mb-3">Per-Category Totals</h3>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-2 pr-4 text-muted-foreground font-medium">Category</th>
-                <th className="text-right py-2 px-3 text-muted-foreground font-medium">Papers</th>
-                <th className="text-right py-2 px-3 text-muted-foreground font-medium">Matches</th>
-                <th className="text-right py-2 px-3 text-muted-foreground font-medium">Tokens</th>
-                <th className="text-right py-2 pl-3 text-muted-foreground font-medium">Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              {nonEmptyCats.map(cat => {
-                return (
-                  <tr key={cat} className="border-b border-border/50">
-                    <td className="py-2 pr-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: catColorMap[cat] }} />
-                        <span className="font-mono">{cat}</span>
-                      </div>
-                    </td>
-                    <td className="text-right py-2 px-3 font-mono">{(lastDay[`papers_cumulative_${cat}`] || 0).toLocaleString()}</td>
-                    <td className="text-right py-2 px-3 font-mono">{(lastDay[`matches_cumulative_${cat}`] || 0).toLocaleString()}</td>
-                    <td className="text-right py-2 px-3 font-mono">{formatTokens(lastDay[`tokens_cumulative_${cat}`] || 0)}</td>
-                    <td className="text-right py-2 pl-3 font-mono">${(lastDay[`cost_cumulative_${cat}`] || 0).toFixed(2)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }
