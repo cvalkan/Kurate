@@ -992,8 +992,8 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         )
         is_new_category = False
         if newest_paper and newest_paper.get("published"):
-            pub = newest_paper["published"][:10]  # "2026-05-04"
-            date_from = pub  # Fetch everything from that day onwards (dedup handles overlap)
+            pub = newest_paper["published"]
+            date_from = pub.strftime("%Y-%m-%d") if hasattr(pub, "strftime") else str(pub)[:10]
         else:
             # No papers in this category yet — use 30-day lookback, capped by max_initial_backlog
             date_from = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
