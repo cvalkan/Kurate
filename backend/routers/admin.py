@@ -1597,7 +1597,12 @@ async def get_timeseries(category: Optional[str] = None, date_from: Optional[str
 
     # Force refresh: skip all caches
     if force:
-        result = await _compute_timeseries(category)
+        try:
+            result = await _compute_timeseries(category)
+        except Exception as e:
+            import traceback
+            logger.error(f"[TIMESERIES] Force recompute FAILED: {e}\n{traceback.format_exc()}")
+            raise HTTPException(status_code=500, detail=f"Timeseries computation failed: {str(e)[:500]}")
         _set_admin_cached("timeseries", cache_key, result)
         from core.cache import set_cached
         await set_cached(f"admin_timeseries_{cache_key}", result)
