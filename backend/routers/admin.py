@@ -1721,25 +1721,19 @@ async def _compute_timeseries(category: Optional[str] = None):
         "out": {"$sum": {"$ifNull": ["$tokens.output_est", 0]}},
     }
 
+    # Matches — single-pass aggregation (uses created_at index for incremental,
+    # full scan with $group for backfill — still faster than 45 sequential per-category queries on Atlas)
+    match_filter = {"completed": True, "failed": {"$ne": True}}
     if compute_from:
-        try:
-            async for doc in db.matches.aggregate([
-                {"$match": {"completed": True, "failed": {"$ne": True}, "created_at": {"$gte": compute_from}}},
-                {"$group": match_group},
-            ]):
-                _process_match_doc(doc)
-        except Exception as e:
-            logger.warning(f"[TIMESERIES] Incremental match agg failed: {e}")
-    else:
-        for qcat in cats:
-            try:
-                async for doc in db.matches.aggregate([
-                    {"$match": {"primary_category": qcat, "completed": True, "failed": {"$ne": True}}},
-                    {"$group": match_group},
-                ]):
-                    _process_match_doc(doc)
-            except Exception as e:
-                logger.warning(f"[TIMESERIES] Match agg failed for {qcat}: {e}")
+        match_filter["created_at"] = {"$gte": compute_from}
+    try:
+        async for doc in db.matches.aggregate([
+            {"$match": match_filter},
+            {"$group": match_group},
+        ]):
+            _process_match_doc(doc)
+    except Exception as e:
+        logger.warning(f"[TIMESERIES] Match agg failed: {e}")
 
     # Summaries — price each model's summaries at that model's rate
     AVG_IN, AVG_OUT = 10375, 1788
