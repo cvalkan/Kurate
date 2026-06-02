@@ -1591,12 +1591,6 @@ async def get_timeseries(
             s = [e for e in s if e["date"] >= date_from]
         if date_to:
             s = [e for e in s if e["date"] <= date_to]
-        # Strip per-category keys when no specific category requested
-        if not category and s:
-            base = {"date", "papers_daily", "papers_cumulative", "matches_daily",
-                    "matches_cumulative", "tokens_daily", "tokens_cumulative",
-                    "cost_daily", "cost_cumulative", "input_tokens_daily", "output_tokens_daily"}
-            s = [{k: v for k, v in e.items() if k in base} for e in s]
         return {**result, "series": s}
 
     empty = {"series": [], "categories": [], "totals": {
@@ -1697,13 +1691,13 @@ async def _compute_timeseries(category: Optional[str] = None):
             _acc(day, cat, papers=doc["n"])
 
     # Matches — incremental uses created_at index, backfill uses per-category compound index
-    def _process_match_doc(doc, cat_override=None):
-        day = doc["_id"].get("day") if isinstance(doc["_id"], dict) else doc["_id"]
+    def _process_match_doc(doc):
+        day = doc["_id"].get("day")
         if not day:
             return
-        cat = cat_override or doc["_id"].get("cat", "unknown")
-        prov = doc["_id"].get("provider", "unknown") if isinstance(doc["_id"], dict) else "unknown"
-        model = doc["_id"].get("model", "unknown") if isinstance(doc["_id"], dict) else "unknown"
+        cat = doc["_id"].get("cat", "unknown")
+        prov = doc["_id"].get("provider", "unknown")
+        model = doc["_id"].get("model", "unknown")
         inp, out, count = doc["inp"], doc["out"], doc["count"]
         cost = _price_match(inp, out, prov, model)
         _acc(day, cat, matches=count, input_tokens=inp, output_tokens=out, cost=cost)
