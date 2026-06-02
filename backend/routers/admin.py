@@ -734,11 +734,11 @@ async def get_admin_status(category: str = "cs.RO"):
         db.rankings.count_documents({"category": category}),
         db.papers.count_documents({"categories.0": category}),
         db.matches.count_documents(
-            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
+            {"completed": True, "failed": {"$ne": True}, "primary_category": category}
         ),
         db.rankings.count_documents({"category": category, "comparisons": {"$gt": 0}}),
         db.matches.find(
-            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}},
+            {"completed": True, "failed": {"$ne": True}, "primary_category": category},
             {"_id": 0, "id": 1, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "reasoning": 1, "created_at": 1, "model_used": 1}
         ).sort("created_at", -1).limit(10).to_list(10),
     )
@@ -949,7 +949,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
         matched_pairs_set = set()
         async for m in db.matches.find(
             {"completed": True, "failed": {"$ne": True}, "primary_category": category,
-             "mode": {"$exists": False},
+            
              "paper1_id": {"$in": top_k_list}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1},
         ):
@@ -958,7 +958,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
         # Also check reverse direction
         async for m in db.matches.find(
             {"completed": True, "failed": {"$ne": True}, "primary_category": category,
-             "mode": {"$exists": False},
+            
              "paper2_id": {"$in": top_k_list}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1},
         ):
@@ -977,7 +977,7 @@ async def get_progress_estimate(category: str = "cs.RO"):
     import asyncio
     cat_matches_done, cat_papers_with_pdf, cat_total_in_db, cat_papers_with_summaries = await asyncio.gather(
         db.matches.count_documents(
-            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "mode": {"$exists": False}}
+            {"completed": True, "failed": {"$ne": True}, "primary_category": category}
         ),
         db.papers.count_documents({"categories.0": category, "full_text": {"$ne": None}}),
         db.papers.count_documents({"categories.0": category}),
@@ -1054,13 +1054,13 @@ async def get_progress_estimate(category: str = "cs.RO"):
     # Add live diagnostics: last match time and failed count (direct DB query, not cached)
     try:
         last_match = await db.matches.find_one(
-            {"primary_category": category, "completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}},
+            {"primary_category": category, "completed": True, "failed": {"$ne": True}},
             {"_id": 0, "created_at": 1},
             sort=[("created_at", -1)],
         )
         result["last_match_at"] = last_match.get("created_at") if last_match else None
         failed_count = await db.matches.count_documents(
-            {"primary_category": category, "failed": True, "mode": {"$exists": False}}
+            {"primary_category": category, "failed": True}
         )
         result["failed_matches_total"] = failed_count
     except Exception:
@@ -1149,7 +1149,7 @@ async def diagnose_pair_selection(category: str = "cs.SI"):
 
     # Count total matches in DB vs sum of rankings comparisons
     total_db_matches = await db.matches.count_documents(
-        {"primary_category": category, "completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+        {"primary_category": category, "completed": True, "failed": {"$ne": True}}
     )
     sum_rankings_comps = sum(e.get("comparisons", 0) for e in entries)
 
@@ -1184,7 +1184,7 @@ async def get_usage_stats(category: str = None):
     all_stats_cached = _get_admin_cached("stats_all_cats", "__precomputed__")
     if not all_stats_cached:
         all_cat_model_stats = {}  # {category: {model_key: {matches, input_tokens, output_tokens}}}
-        match_query = {"completed": True, "failed": {"$ne": True}, "model_used": {"$exists": True}, "mode": {"$exists": False}}
+        match_query = {"completed": True, "failed": {"$ne": True}, "model_used": {"$exists": True}}
         async for doc in db.matches.aggregate([
             {"$match": match_query},
             {"$group": {
@@ -1664,7 +1664,7 @@ async def _compute_timeseries(category: Optional[str] = None):
         total_papers_count += doc["count"]
 
     # --- Matches by day + model stats (aggregation) ---
-    match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+    match_query = {"completed": True, "failed": {"$ne": True}}
     if category:
         match_query["primary_category"] = category
     matches_daily = defaultdict(lambda: defaultdict(lambda: {
@@ -2200,7 +2200,7 @@ async def estimate_category(cat_id: str):
     # Check if we already have papers for this category
     existing_papers = await db.papers.count_documents({"categories.0": cat_id})
     existing_matches = await db.matches.count_documents(
-        {"completed": True, "failed": {"$ne": True}, "primary_category": cat_id, "mode": {"$exists": False}}
+        {"completed": True, "failed": {"$ne": True}, "primary_category": cat_id}
     )
 
     # Calculate matches-per-paper ratio from historical data across ALL categories
@@ -2211,7 +2211,7 @@ async def estimate_category(cat_id: str):
     for ac in active_cats:
         hp = await db.papers.count_documents({"categories.0": ac})
         hm = await db.matches.count_documents(
-            {"completed": True, "failed": {"$ne": True}, "primary_category": ac, "mode": {"$exists": False}}
+            {"completed": True, "failed": {"$ne": True}, "primary_category": ac}
         )
         total_hist_papers += hp
         total_hist_matches += hm
@@ -3486,7 +3486,7 @@ async def backfill_archives():
             ai_ratings[p["id"]] = round(rating["score"], 1)
 
     all_matches = await collect_all(db.matches.find(
-        {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}},
+        {"completed": True, "failed": {"$ne": True}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "completed": 1, "failed": 1, "created_at": 1}
     ))
 
@@ -3716,7 +3716,7 @@ async def prune_duplicate_matches(request: Request, category: str = Query("cs.CR
         pipeline = [
             {"$match": {
                 "completed": True, "failed": {"$ne": True},
-                "primary_category": category, "mode": {"$exists": False},
+                "primary_category": category,
             }},
             {"$sort": {"created_at": 1}},
             {"$group": {
@@ -3782,7 +3782,7 @@ async def prune_duplicate_matches(request: Request, category: str = Query("cs.CR
     pipeline = [
         {"$match": {
             "completed": True, "failed": {"$ne": True},
-            "primary_category": category, "mode": {"$exists": False},
+            "primary_category": category,
             "$or": [
                 {"paper1_id": {"$in": list(recent_paper_ids)}},
                 {"paper2_id": {"$in": list(recent_paper_ids)}},
@@ -3940,7 +3940,7 @@ async def cap_paper_matches(request: Request, category: str = Query(...), cap: i
     paper_matches = defaultdict(list)
     async for m in db.matches.find(
         {"completed": True, "failed": {"$ne": True},
-         "primary_category": category, "mode": {"$exists": False}},
+         "primary_category": category},
         {"_id": 0, "id": 1, "paper1_id": 1, "paper2_id": 1, "created_at": 1},
     ):
         paper_matches[m["paper1_id"]].append((m["id"], m.get("created_at", "")))
@@ -4017,7 +4017,7 @@ async def prune_storm_matches(request: Request, category: str = Query(...), dry_
     paper_matches = defaultdict(list)  # pid -> [(match_id, date_str, created_at)]
     async for m in db.matches.find(
         {"completed": True, "failed": {"$ne": True},
-         "primary_category": category, "mode": {"$exists": False}},
+         "primary_category": category},
         {"_id": 0, "id": 1, "paper1_id": 1, "paper2_id": 1, "created_at": 1},
     ):
         ts = m.get("created_at", "")
@@ -4394,7 +4394,7 @@ async def _run_positional_ab(job_id: str, body: PositionalABRequest):
             "model_used.model": body.model_name,
             "content_mode": "abstract_plus_summary",
             "created_at": {"$gte": body.since},
-            "mode": {"$exists": False},  # live tournament only
+             # live tournament only
         }
         pipeline = [
             {"$match": match_filter},
