@@ -439,7 +439,7 @@ async def get_all_tags():
     # Serve pre-computed tags from background cache
     if "_tags" in cache:
         return {"tags": cache["_tags"]}
-    # Fallback: compute from DB (only on cold cache)
+    # Fast fallback on cold cache: tag counts from rankings only (indexed, <1s)
     from collections import Counter
     tag_counts = Counter()
     async for doc in db.rankings.aggregate([
@@ -447,15 +447,8 @@ async def get_all_tags():
         {"$group": {"_id": "$categories", "count": {"$sum": 1}}},
     ]):
         tag_counts[doc["_id"]] = doc["count"]
-    tag_match_counts = Counter()
-    async for doc in db.matches.aggregate([
-        {"$match": {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}, "revision_superseded": {"$ne": True}}},
-        {"$unwind": "$shared_categories"},
-        {"$group": {"_id": "$shared_categories", "count": {"$sum": 1}}},
-    ]):
-        tag_match_counts[doc["_id"]] = doc["count"]
     tags = [
-        {"id": tag, "count": count, "matches": tag_match_counts.get(tag, 0)}
+        {"id": tag, "count": count, "matches": 0}
         for tag, count in tag_counts.most_common()
     ]
     return {"tags": tags}
