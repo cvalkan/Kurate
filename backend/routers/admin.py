@@ -1644,43 +1644,79 @@ async def get_timeseries(category: Optional[str] = None, date_from: Optional[str
 
 
 async def _compute_timeseries(category: Optional[str] = None):
-    """Timeseries computation optimized for Atlas (remote MongoDB).
-    Uses simple indexed count queries instead of heavy aggregation pipelines."""
+    """Incremental timeseries: reads cached daily_stats, only computes new days."""
     
     settings_for_cats = await get_settings()
     query_cats = [category] if category else sorted(settings_for_cats.get("active_categories", list(CATEGORIES.keys())))
 
-    # --- Papers by day (lightweight: group by added_at date + category) ---
-    papers_daily = defaultdict(lambda: defaultdict(int))
-    total_papers_count = 0
-    paper_match = {"categories.0": category} if category else {}
+    # Load existing daily_stats from DB
+    stats_query = {"category": {"$in": query_cats + ["_total"]}} if not category else {"category": {"$in": [category, "_total"]}}
+    existing_stats = {}  # {(date, category): {papers, matches, ...}}
+    last_date = None
+    async for doc in db.daily_stats.find(stats_query, {"_id": 0}):
+        key = (doc["date"], doc["category"])
+        existing_stats[key] = doc
+        if not last_date or doc["date"] > last_date:
+            last_date = doc["date"]
+
+    # Determine what needs computing: everything after last_date (or all if no cache)
+    from datetime import date as _date, timedelta as _td, datetime as _dt, timezone as _tz
+    today = _dt.now(_tz.utc).strftime("%Y-%m-%d")
+
+    if last_date and last_date >= today:
+        # Up to date — just recompute today (might have partial data)
+        compute_from = today
+    elif last_date:
+        # Recompute from last_date (it might have been partial) + new days
+        compute_from = last_date
+    else:
+        # No cache at all — full backfill
+        compute_from = None
+
+    logger.info(f"[TIMESERIES] Incremental: cached up to {last_date}, computing from {compute_from}")
+
+    # --- Compute new daily stats ---
+    new_stats = {}  # {(date, cat): {papers, matches, input_tokens, output_tokens}}
+    model_stats = {}  # Accumulated during match loop
+
+    # Papers by day (only new days)
+    paper_match = {}
+    if compute_from:
+        paper_match["$or"] = [
+            {"added_at": {"$gte": compute_from}},
+            {"published": {"$gte": compute_from}},
+        ]
+    if category:
+        paper_match["categories.0"] = category
+
     async for doc in db.papers.aggregate([
         {"$match": paper_match} if paper_match else {"$match": {}},
         {"$project": {
             "day": {"$substrCP": [{"$ifNull": ["$added_at", {"$ifNull": ["$published", ""]}]}, 0, 10]},
             "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
         }},
-        {"$match": {"day": {"$ne": ""}}},
+        {"$match": {"day": {"$gte": compute_from} if compute_from else {"$ne": ""}}},
         {"$group": {"_id": {"day": "$day", "cat": "$cat"}, "count": {"$sum": 1}}},
     ]):
-        day = doc["_id"]["day"]
-        cat = doc["_id"]["cat"]
-        papers_daily[day][cat] += doc["count"]
-        papers_daily[day]["_total"] += doc["count"]
-        total_papers_count += doc["count"]
+        day, cat = doc["_id"]["day"], doc["_id"]["cat"]
+        if cat not in set(query_cats):
+            continue
+        for k in [cat, "_total"]:
+            key = (day, k)
+            if key not in new_stats:
+                new_stats[key] = {"date": day, "category": k, "papers": 0, "matches": 0,
+                                  "input_tokens": 0, "output_tokens": 0, "cost": 0.0,
+                                  "summaries": 0, "summary_cost": 0.0}
+            new_stats[key]["papers"] += doc["count"]
 
-    # --- Matches: per-category aggregation with model breakdown ---
-    # Uses compound index (primary_category, completed, failed).
-    # Groups by day+model to get accurate per-model pricing.
-    matches_daily = defaultdict(lambda: defaultdict(lambda: {
-        "count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0
-    }))
-    model_stats = {}
-
+    # Matches by day (only new days, per-category for index usage)
     for qcat in query_cats:
+        match_q = {"primary_category": qcat, "completed": True, "failed": {"$ne": True}}
+        if compute_from:
+            match_q["created_at"] = {"$gte": compute_from}
         try:
             async for doc in db.matches.aggregate([
-                {"$match": {"primary_category": qcat, "completed": True, "failed": {"$ne": True}}},
+                {"$match": match_q},
                 {"$group": {
                     "_id": {
                         "day": {"$substrCP": [{"$ifNull": ["$created_at", ""]}, 0, 10]},
@@ -1695,18 +1731,21 @@ async def _compute_timeseries(category: Optional[str] = None):
                 day = doc["_id"]["day"]
                 if not day:
                     continue
-                inp = doc["inp"]
-                out = doc["out"]
                 model_key = f"{doc['_id']['provider']}/{doc['_id']['model']}"
                 pricing = MODEL_PRICING.get(model_key, {"input": 2.0, "output": 10.0})
+                inp, out = doc["inp"], doc["out"]
                 cost = (inp / 1_000_000) * pricing["input"] + (out / 1_000_000) * pricing["output"]
 
-                for key in [qcat, "_total"]:
-                    bucket = matches_daily[day][key]
-                    bucket["count"] += doc["count"]
-                    bucket["input_tokens"] += inp
-                    bucket["output_tokens"] += out
-                    bucket["cost"] += cost
+                for k in [qcat, "_total"]:
+                    key = (day, k)
+                    if key not in new_stats:
+                        new_stats[key] = {"date": day, "category": k, "papers": 0, "matches": 0,
+                                          "input_tokens": 0, "output_tokens": 0, "cost": 0.0,
+                                          "summaries": 0, "summary_cost": 0.0}
+                    new_stats[key]["matches"] += doc["count"]
+                    new_stats[key]["input_tokens"] += inp
+                    new_stats[key]["output_tokens"] += out
+                    new_stats[key]["cost"] += cost
 
                 if model_key != "unknown/unknown":
                     if model_key not in model_stats:
@@ -1715,111 +1754,148 @@ async def _compute_timeseries(category: Optional[str] = None):
                     model_stats[model_key]["input_tokens"] += inp
                     model_stats[model_key]["output_tokens"] += out
         except Exception as e:
-            logger.warning(f"[TIMESERIES] Match aggregation failed for {qcat}: {e}")
+            logger.warning(f"[TIMESERIES] Match agg failed for {qcat}: {e}")
 
-    # --- Summary costs (estimated from paper count per day, no text loading) ---
-    summary_daily = defaultdict(lambda: defaultdict(lambda: {"count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0}))
+    # Summaries by day (only new days)
     AVG_INPUT_TOKENS = 10375
     AVG_OUTPUT_TOKENS = 1788
-    AVG_COST_PER_SUMMARY = (AVG_INPUT_TOKENS / 1_000_000) * 3.0 + (AVG_OUTPUT_TOKENS / 1_000_000) * 12.0
+    sum_match = {"summaries": {"$exists": True, "$ne": None}}
+    if compute_from:
+        sum_match["added_at"] = {"$gte": compute_from}
     try:
         async for doc in db.papers.aggregate([
-            {"$match": {"summaries": {"$exists": True, "$ne": None}}},
+            {"$match": sum_match},
             {"$project": {
                 "day": {"$substrCP": [{"$ifNull": ["$added_at", ""]}, 0, 10]},
                 "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
                 "n": {"$size": {"$ifNull": [{"$objectToArray": {"$ifNull": ["$summaries", {}]}}, []]}},
             }},
-            {"$match": {"day": {"$ne": ""}, "n": {"$gt": 0}}},
-            {"$group": {"_id": {"day": "$day", "cat": "$cat"}, "total_summaries": {"$sum": "$n"}}},
+            {"$match": {"day": {"$gte": compute_from} if compute_from else {"$ne": ""}, "n": {"$gt": 0}}},
+            {"$group": {"_id": {"day": "$day", "cat": "$cat"}, "total": {"$sum": "$n"}}},
         ]):
-            day = doc["_id"]["day"]
-            cat = doc["_id"]["cat"]
-            count = doc["total_summaries"]
-            inp_tok = AVG_INPUT_TOKENS * count
-            out_tok = AVG_OUTPUT_TOKENS * count
-            cost = AVG_COST_PER_SUMMARY * count
-
-            for key in [cat, "_total"]:
-                bucket = summary_daily[day][key]
-                bucket["count"] += count
-                bucket["input_tokens"] += inp_tok
-                bucket["output_tokens"] += out_tok
-                bucket["cost"] += cost
+            day, cat = doc["_id"]["day"], doc["_id"]["cat"]
+            count = doc["total"]
+            s_cost = count * ((AVG_INPUT_TOKENS / 1_000_000) * 3.0 + (AVG_OUTPUT_TOKENS / 1_000_000) * 12.0)
+            for k in [cat, "_total"]:
+                key = (day, k)
+                if key not in new_stats:
+                    new_stats[key] = {"date": day, "category": k, "papers": 0, "matches": 0,
+                                      "input_tokens": 0, "output_tokens": 0, "cost": 0.0,
+                                      "summaries": 0, "summary_cost": 0.0}
+                new_stats[key]["summaries"] += count
+                new_stats[key]["summary_cost"] += s_cost
     except Exception as e:
-        logger.warning(f"[TIMESERIES] Summary aggregation failed: {e}")
+        logger.warning(f"[TIMESERIES] Summary agg failed: {e}")
 
-    # Merge dates and build series
-    raw_dates = sorted(set(list(papers_daily.keys()) + list(matches_daily.keys()) + list(summary_daily.keys())))
-    all_cats = query_cats  # Already fetched above
+    # Persist new stats to DB (upsert per date+category)
+    if new_stats:
+        ops = []
+        from pymongo import UpdateOne
+        for (day, cat), data in new_stats.items():
+            ops.append(UpdateOne(
+                {"date": day, "category": cat},
+                {"$set": data},
+                upsert=True,
+            ))
+        if ops:
+            await db.daily_stats.bulk_write(ops, ordered=False)
+            logger.info(f"[TIMESERIES] Persisted {len(ops)} daily_stats entries")
 
-    # Generate continuous date range (no gaps)
-    if raw_dates:
-        from datetime import date as _date, timedelta as _td
-        start = _date.fromisoformat(raw_dates[0])
-        end = _date.fromisoformat(raw_dates[-1])
-        all_dates = []
-        cur = start
-        while cur <= end:
-            all_dates.append(cur.isoformat())
-            cur += _td(days=1)
-    else:
-        all_dates = []
+    # Merge existing + new into final stats
+    all_stats = {**existing_stats}
+    for key, data in new_stats.items():
+        all_stats[key] = data
 
-    # Build daily series
+    # Build model stats — already accumulated during match loop above.
+    # For incremental runs, merge with cached version.
+    cached_model_stats = await db.daily_stats.find_one({"_meta": "model_stats"}, {"_id": 0})
+    if cached_model_stats and compute_from:
+        # Incremental: start from cached, add new data
+        cached_models = cached_model_stats.get("models", {})
+        for mk, ms in cached_models.items():
+            if mk in model_stats:
+                # Merge: add cached totals to incremental delta
+                model_stats[mk]["matches"] += ms.get("matches", 0)
+                model_stats[mk]["input_tokens"] += ms.get("input_tokens", 0)
+                model_stats[mk]["output_tokens"] += ms.get("output_tokens", 0)
+            else:
+                model_stats[mk] = dict(ms)
+    
+    # Persist updated model_stats cache (only on full backfill when we have complete data)
+    if compute_from is None and model_stats:
+        await db.daily_stats.update_one(
+            {"_meta": "model_stats"},
+            {"$set": {"_meta": "model_stats", "models": model_stats}},
+            upsert=True,
+        )
+
+    # Build series from daily_stats
+    all_dates_set = set()
+    daily_by_date = defaultdict(dict)  # date -> {cat -> stats}
+    for (day, cat), data in all_stats.items():
+        all_dates_set.add(day)
+        daily_by_date[day][cat] = data
+
+    if not all_dates_set:
+        return {"series": [], "categories": query_cats, "totals": {"papers": 0, "matches": 0, "tokens": 0, "cost": 0.0}, "models": {}}
+
+    # Continuous date range
+    start = _date.fromisoformat(min(all_dates_set))
+    end = _date.fromisoformat(max(all_dates_set))
+    all_dates = []
+    cur = start
+    while cur <= end:
+        all_dates.append(cur.isoformat())
+        cur += _td(days=1)
+    all_cats = query_cats
+
+    # Build daily series from daily_by_date
     series = []
     cum_papers = defaultdict(int)
     cum_matches = defaultdict(int)
     cum_tokens = defaultdict(int)
     cum_cost = defaultdict(float)
 
+    zero = {"papers": 0, "matches": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0, "summaries": 0, "summary_cost": 0.0}
+
     for day in all_dates:
         entry = {"date": day}
+        td = daily_by_date.get(day, {})
+        t = td.get("_total", zero)
 
-        # Papers
-        p_total = papers_daily[day].get("_total", 0)
-        cum_papers["_total"] += p_total
-        entry["papers_daily"] = p_total
-        entry["papers_cumulative"] = cum_papers["_total"]
-
-        # Per-category papers
-        for cat in all_cats:
-            p_cat = papers_daily[day].get(cat, 0)
-            cum_papers[cat] += p_cat
-            entry[f"papers_daily_{cat}"] = p_cat
-            entry[f"papers_cumulative_{cat}"] = cum_papers[cat]
-
-        # Matches + Summaries combined in tokens/cost
-        m_data = matches_daily[day].get("_total", {"count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0})
-        s_data = summary_daily[day].get("_total", {"count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0})
-        cum_matches["_total"] += m_data["count"]
-        day_tokens = m_data["input_tokens"] + m_data["output_tokens"] + s_data["input_tokens"] + s_data["output_tokens"]
-        day_cost = m_data["cost"] + s_data["cost"]
+        cum_papers["_total"] += t.get("papers", 0)
+        cum_matches["_total"] += t.get("matches", 0)
+        day_tokens = t.get("input_tokens", 0) + t.get("output_tokens", 0)
+        day_cost = t.get("cost", 0.0) + t.get("summary_cost", 0.0)
         cum_tokens["_total"] += day_tokens
         cum_cost["_total"] += day_cost
-        entry["matches_daily"] = m_data["count"]
+
+        entry["papers_daily"] = t.get("papers", 0)
+        entry["papers_cumulative"] = cum_papers["_total"]
+        entry["matches_daily"] = t.get("matches", 0)
         entry["matches_cumulative"] = cum_matches["_total"]
         entry["tokens_daily"] = day_tokens
         entry["tokens_cumulative"] = cum_tokens["_total"]
         entry["cost_daily"] = round(day_cost, 4)
         entry["cost_cumulative"] = round(cum_cost["_total"], 4)
-        entry["input_tokens_daily"] = m_data["input_tokens"] + s_data["input_tokens"]
-        entry["output_tokens_daily"] = m_data["output_tokens"] + s_data["output_tokens"]
+        entry["input_tokens_daily"] = t.get("input_tokens", 0)
+        entry["output_tokens_daily"] = t.get("output_tokens", 0)
 
-        # Per-category matches + summaries
         for cat in all_cats:
-            mc = matches_daily[day].get(cat, {"count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0})
-            sc = summary_daily[day].get(cat, {"count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0})
-            cum_matches[cat] += mc["count"]
-            cat_day_tok = mc["input_tokens"] + mc["output_tokens"] + sc["input_tokens"] + sc["output_tokens"]
-            cat_day_cost = mc["cost"] + sc["cost"]
-            cum_tokens[cat] += cat_day_tok
-            cum_cost[cat] += cat_day_cost
-            entry[f"matches_daily_{cat}"] = mc["count"]
+            cd = td.get(cat, zero)
+            cum_papers[cat] += cd.get("papers", 0)
+            cum_matches[cat] += cd.get("matches", 0)
+            cat_tok = cd.get("input_tokens", 0) + cd.get("output_tokens", 0)
+            cat_cost = cd.get("cost", 0.0) + cd.get("summary_cost", 0.0)
+            cum_tokens[cat] += cat_tok
+            cum_cost[cat] += cat_cost
+            entry[f"papers_daily_{cat}"] = cd.get("papers", 0)
+            entry[f"papers_cumulative_{cat}"] = cum_papers[cat]
+            entry[f"matches_daily_{cat}"] = cd.get("matches", 0)
             entry[f"matches_cumulative_{cat}"] = cum_matches[cat]
-            entry[f"tokens_daily_{cat}"] = cat_day_tok
+            entry[f"tokens_daily_{cat}"] = cat_tok
             entry[f"tokens_cumulative_{cat}"] = cum_tokens[cat]
-            entry[f"cost_daily_{cat}"] = round(cat_day_cost, 4)
+            entry[f"cost_daily_{cat}"] = round(cat_cost, 4)
             entry[f"cost_cumulative_{cat}"] = round(cum_cost[cat], 4)
 
         series.append(entry)
@@ -1835,18 +1911,16 @@ async def _compute_timeseries(category: Optional[str] = None):
         stats["cost_total"] = round(cost_in + cost_out, 4)
         total_model_cost += cost_in + cost_out
 
-    # Compute total summary tokens/cost for the totals
-    sum(
-        summary_daily[day]["_total"]["input_tokens"] + summary_daily[day]["_total"]["output_tokens"]
-        for day in summary_daily
+    # Compute total summary cost from daily_stats
+    total_summary_cost = sum(
+        d.get("summary_cost", 0.0) for (_, cat), d in all_stats.items() if cat == "_total"
     )
-    total_summary_cost = sum(summary_daily[day]["_total"]["cost"] for day in summary_daily)
 
     return {
         "series": series,
         "categories": all_cats,
         "totals": {
-            "papers": max(cum_papers["_total"], total_papers_count),
+            "papers": cum_papers["_total"],
             "matches": cum_matches["_total"],
             "tokens": cum_tokens["_total"],
             "input_tokens": sum(s.get("input_tokens", 0) for s in model_stats.values()),
