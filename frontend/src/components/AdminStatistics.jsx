@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import {
@@ -216,6 +216,77 @@ export function AdminStatistics({ categories }) {
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  const _series = timeseries?.series || [];
+  const _allCats = timeseries?.categories || [];
+  const _totals = timeseries?.totals || {};
+  const _modelStats = timeseries?.models || {};
+  const suffix = viewMode === "cumulative" ? "cumulative" : "daily";
+
+  // Stable color map (memoized)
+  const catColorMap = useMemo(() => {
+    const m = {};
+    _allCats.forEach((cat, i) => { m[cat] = getColor(cat, i); });
+    return m;
+  }, [_allCats]);
+
+  const nonEmptyCats = useMemo(() => {
+    const lastDay = _series.length > 0 ? _series[_series.length - 1] : {};
+    return _allCats.filter(cat => {
+      const papers = lastDay[`papers_cumulative_${cat}`] || 0;
+      const matches = lastDay[`matches_cumulative_${cat}`] || 0;
+      return papers > 0 || matches > 0;
+    });
+  }, [_allCats, _series]);
+
+  const MAX_CHART_CATS = 10;
+  const chartCats = useMemo(() => {
+    if (nonEmptyCats.length <= MAX_CHART_CATS) return nonEmptyCats;
+    const lastDay = _series.length > 0 ? _series[_series.length - 1] : {};
+    const sorted = [...nonEmptyCats].sort((a, b) =>
+      (lastDay[`matches_cumulative_${b}`] || 0) - (lastDay[`matches_cumulative_${a}`] || 0)
+    );
+    return sorted.slice(0, MAX_CHART_CATS);
+  }, [nonEmptyCats, _series]);
+
+  const otherCats = useMemo(() => {
+    if (nonEmptyCats.length <= MAX_CHART_CATS) return [];
+    const top = new Set(chartCats);
+    return nonEmptyCats.filter(c => !top.has(c));
+  }, [nonEmptyCats, chartCats]);
+
+  const chartData = useMemo(() => _series.map(entry => {
+    const d = { date: entry.date };
+    if (scopeMode === "system") {
+      d.papers = entry[`papers_${suffix}`] || 0;
+      d.matches = entry[`matches_${suffix}`] || 0;
+      d.tokens = entry[`tokens_${suffix}`] || 0;
+      d.cost = entry[`cost_${suffix}`] || 0;
+      d.input_tokens = entry[`input_tokens_daily`] || 0;
+      d.output_tokens = entry[`output_tokens_daily`] || 0;
+    } else {
+      for (const cat of chartCats) {
+        d[`papers_${cat}`] = entry[`papers_${suffix}_${cat}`] || 0;
+        d[`matches_${cat}`] = entry[`matches_${suffix}_${cat}`] || 0;
+        d[`tokens_${cat}`] = entry[`tokens_${suffix}_${cat}`] || 0;
+        d[`cost_${cat}`] = entry[`cost_${suffix}_${cat}`] || 0;
+      }
+      if (otherCats.length > 0) {
+        let op = 0, om = 0, ot = 0, oc = 0;
+        for (const cat of otherCats) {
+          op += entry[`papers_${suffix}_${cat}`] || 0;
+          om += entry[`matches_${suffix}_${cat}`] || 0;
+          ot += entry[`tokens_${suffix}_${cat}`] || 0;
+          oc += entry[`cost_${suffix}_${cat}`] || 0;
+        }
+        d["papers_Other"] = op;
+        d["matches_Other"] = om;
+        d["tokens_Other"] = ot;
+        d["cost_Other"] = oc;
+      }
+    }
+    return d;
+  }), [_series, scopeMode, suffix, chartCats, otherCats]);
+
   if (loading || !timeseries) {
     return (
       <div className="space-y-4" data-testid="admin-statistics-loading">
@@ -226,44 +297,11 @@ export function AdminStatistics({ categories }) {
     );
   }
 
-  const { series, totals, models: modelStats } = timeseries;
-  const allCats = timeseries.categories || [];
-  const suffix = viewMode === "cumulative" ? "cumulative" : "daily";
+  const series = _series;
+  const totals = _totals;
+  const modelStats = _modelStats;
+  const allCats = _allCats;
   const modelCount = modelStats ? Object.keys(modelStats).length : 0;
-
-  // Build stable color map for categories
-  const catColorMap = {};
-  allCats.forEach((cat, i) => { catColorMap[cat] = getColor(cat, i); });
-
-  // Filter out empty categories (0 papers AND 0 matches in the dataset)
-  const lastDay = series.length > 0 ? series[series.length - 1] : {};
-  const nonEmptyCats = allCats.filter(cat => {
-    const papers = lastDay[`papers_cumulative_${cat}`] || 0;
-    const matches = lastDay[`matches_cumulative_${cat}`] || 0;
-    return papers > 0 || matches > 0;
-  });
-
-  // Build chart data based on scope
-  const chartData = series.map(entry => {
-    const d = { date: entry.date };
-    if (scopeMode === "system") {
-      d.papers = entry[`papers_${suffix}`] || 0;
-      d.matches = entry[`matches_${suffix}`] || 0;
-      d.tokens = entry[`tokens_${suffix}`] || 0;
-      d.cost = entry[`cost_${suffix}`] || 0;
-      d.input_tokens = entry[`input_tokens_daily`] || 0;
-      d.output_tokens = entry[`output_tokens_daily`] || 0;
-    } else {
-      // Per-category breakdown
-      for (const cat of allCats) {
-        d[`papers_${cat}`] = entry[`papers_${suffix}_${cat}`] || 0;
-        d[`matches_${cat}`] = entry[`matches_${suffix}_${cat}`] || 0;
-        d[`tokens_${cat}`] = entry[`tokens_${suffix}_${cat}`] || 0;
-        d[`cost_${cat}`] = entry[`cost_${suffix}_${cat}`] || 0;
-      }
-    }
-    return d;
-  });
 
   const ChartType = viewMode === "daily" ? BarChart : AreaChart;
   const DataElement = viewMode === "daily" ? Bar : Area;
@@ -296,11 +334,18 @@ export function AdminStatistics({ categories }) {
           <YAxis tickFormatter={metric === "cost" ? formatCost : (metric === "tokens" ? formatTokens : undefined)} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={55} />
           <RechartsTooltip content={<CustomTooltip formatter={formatter} />} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
-          {nonEmptyCats.map((cat) =>
+          {chartCats.map((cat) =>
             viewMode === "daily" ? (
               <Bar key={cat} dataKey={`${metric}_${cat}`} stackId="a" fill={catColorMap[cat]} name={cat} />
             ) : (
               <Area key={cat} type="monotone" dataKey={`${metric}_${cat}`} stackId="a" stroke={catColorMap[cat]} fill={catColorMap[cat]} fillOpacity={0.2} strokeWidth={1.5} name={cat} />
+            )
+          )}
+          {otherCats.length > 0 && (
+            viewMode === "daily" ? (
+              <Bar key="Other" dataKey={`${metric}_Other`} stackId="a" fill="#9ca3af" name={`Other (${otherCats.length})`} />
+            ) : (
+              <Area key="Other" type="monotone" dataKey={`${metric}_Other`} stackId="a" stroke="#9ca3af" fill="#9ca3af" fillOpacity={0.15} strokeWidth={1} name={`Other (${otherCats.length})`} />
             )
           )}
         </ChartType>
