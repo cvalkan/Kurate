@@ -459,9 +459,9 @@ export function AdminStatistics({ categories }) {
                   );
                 }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Area type="monotone" dataKey="total" stroke="#ec4899" fill="#ec4899" fillOpacity={0.08} strokeWidth={2} name="Total $/paper" />
-                <Area type="monotone" dataKey="matches" stroke="#3b82f6" fill="none" strokeWidth={1.5} strokeDasharray="4 2" name="Match $/paper" />
-                <Area type="monotone" dataKey="summaries" stroke="#10b981" fill="none" strokeWidth={1.5} strokeDasharray="4 2" name="Summary $/paper" />
+                <Area type="monotone" dataKey="total" stroke="#ec4899" fill="#ec4899" fillOpacity={0.08} strokeWidth={2} name="Total $/paper" isAnimationActive={false} />
+                <Area type="monotone" dataKey="matches" stroke="#3b82f6" fill="none" strokeWidth={1.5} strokeDasharray="4 2" name="Match $/paper" isAnimationActive={false} />
+                <Area type="monotone" dataKey="summaries" stroke="#10b981" fill="none" strokeWidth={1.5} strokeDasharray="4 2" name="Summary $/paper" isAnimationActive={false} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
