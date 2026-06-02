@@ -1810,22 +1810,29 @@ async def _compute_timeseries(category: Optional[str] = None):
 
     series = []
     cum = {"papers": defaultdict(int), "matches": defaultdict(int),
-           "tokens": defaultdict(int), "cost": defaultdict(float)}
+           "tokens": defaultdict(int), "cost": defaultdict(float),
+           "match_cost": defaultdict(float), "summary_cost": defaultdict(float)}
 
     for day in dates:
         t = total_by_date.get(day, _EMPTY_DAY)
         dtok = t.get("input_tokens", 0) + t.get("output_tokens", 0)
-        dcost = t.get("cost", 0.0) + t.get("summary_cost", 0.0)
+        d_match_cost = t.get("cost", 0.0)
+        d_sum_cost = t.get("summary_cost", 0.0)
+        dcost = d_match_cost + d_sum_cost
         cum["papers"]["_"] += t.get("papers", 0)
         cum["matches"]["_"] += t.get("matches", 0)
         cum["tokens"]["_"] += dtok
         cum["cost"]["_"] += dcost
+        cum["match_cost"]["_"] += d_match_cost
+        cum["summary_cost"]["_"] += d_sum_cost
 
         e = {"date": day,
              "papers_daily": t.get("papers", 0), "papers_cumulative": cum["papers"]["_"],
              "matches_daily": t.get("matches", 0), "matches_cumulative": cum["matches"]["_"],
              "tokens_daily": dtok, "tokens_cumulative": cum["tokens"]["_"],
              "cost_daily": round(dcost, 4), "cost_cumulative": round(cum["cost"]["_"], 4),
+             "match_cost_cumulative": round(cum["match_cost"]["_"], 4),
+             "summary_cost_cumulative": round(cum["summary_cost"]["_"], 4),
              "input_tokens_daily": t.get("input_tokens", 0),
              "output_tokens_daily": t.get("output_tokens", 0)}
 

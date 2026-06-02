@@ -400,6 +400,46 @@ export function AdminStatistics({ categories }) {
         />
       </div>
 
+      {/* Cost per Paper over time */}
+      {series.length > 5 && (
+        <div className="rounded-lg border border-border bg-card p-4" data-testid="cost-per-paper-chart">
+          <h3 className="text-sm font-medium mb-1">Cost / Paper Over Time</h3>
+          <p className="text-[10px] text-muted-foreground mb-3">Running average: cumulative cost / cumulative papers at each date</p>
+          <div className="h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={series.filter(e => (e.papers_cumulative || 0) > 50).map(e => {
+                const p = e.papers_cumulative || 1;
+                return {
+                  date: e.date,
+                  total: +((e.cost_cumulative || 0) / p).toFixed(4),
+                  matches: +((e.match_cost_cumulative || 0) / p).toFixed(4),
+                  summaries: +((e.summary_cost_cumulative || 0) / p).toFixed(4),
+                };
+              })} margin={{ top: 5, right: 10, left: 5, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+                <YAxis tickFormatter={v => `$${v.toFixed(2)}`} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={50} domain={[0, 'auto']} />
+                <RechartsTooltip content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  return (
+                    <div className="bg-background border border-border rounded-lg p-2 text-xs shadow-md">
+                      <p className="font-medium mb-1">{label ? new Date(label + "T00:00:00Z").toLocaleDateString("en-US", {month: "short", day: "numeric", year: "numeric"}) : ""}</p>
+                      {payload.map(p => (
+                        <p key={p.name} style={{ color: p.color }}>{p.name}: ${Number(p.value).toFixed(3)}</p>
+                      ))}
+                    </div>
+                  );
+                }} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Area type="monotone" dataKey="total" stroke="#ec4899" fill="#ec4899" fillOpacity={0.08} strokeWidth={2} name="Total $/paper" />
+                <Area type="monotone" dataKey="matches" stroke="#3b82f6" fill="none" strokeWidth={1.5} strokeDasharray="4 2" name="Match $/paper" />
+                <Area type="monotone" dataKey="summaries" stroke="#10b981" fill="none" strokeWidth={1.5} strokeDasharray="4 2" name="Summary $/paper" />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
       {/* Cost breakdown — Match Costs vs Summary Costs side by side */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Match costs — prefer live stats endpoint over timeseries */}
