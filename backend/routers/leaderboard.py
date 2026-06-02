@@ -116,8 +116,6 @@ async def _compute_summary_stats_agg():
                 "input": {"$objectToArray": {"$ifNull": ["$summaries", {}]}},
                 "as": "s", "in": "$$s.k",
             }},
-            "n": {"$size": {"$objectToArray": {"$ifNull": ["$summaries", {}]}}},
-            "token_keys": {"$objectToArray": {"$ifNull": ["$summary_tokens", {}]}},
         }},
         {"$unwind": "$keys"},
         {"$group": {
@@ -187,7 +185,6 @@ async def _compute_summary_stats_agg():
 
     # Assemble into the same structure the admin endpoint expects
     all_cats = set(c for c, _ in model_counts) | set(cat_paper_counts.keys())
-    set(m for _, m in model_counts)
 
     result = {"__all__": {"models": {}, "papers_with_summaries": 0, "papers_with_all_3": 0}}
     for cat in all_cats:

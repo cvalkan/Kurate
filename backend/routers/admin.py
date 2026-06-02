@@ -1741,13 +1741,13 @@ async def _compute_timeseries(category: Optional[str] = None):
             except Exception as e:
                 logger.warning(f"[TIMESERIES] Match agg failed for {qcat}: {e}")
 
-    # Summaries — average cost across the 3 summary models
+    # Summaries — price each model's summaries at that model's rate
     AVG_IN, AVG_OUT = 10375, 1788
-    AVG_COST = (
-        _price_match(AVG_IN, AVG_OUT, "anthropic", "claude-opus-4-6") +
-        _price_match(AVG_IN, AVG_OUT, "openai", "gpt-5.2") +
-        _price_match(AVG_IN, AVG_OUT, "gemini", "gemini-3-pro-preview")
-    ) / 3
+    _SUMMARY_PRICING = {  # summary model key prefix -> match pricing key
+        "anthropic": "anthropic/claude-opus-4-6",
+        "openai": "openai/gpt-5.2",
+        "gemini": "gemini/gemini-3-pro-preview",
+    }
     smatch = {"summaries": {"$exists": True, "$ne": None}}
     if compute_from:
         smatch["added_at"] = {"$gte": compute_from}
@@ -1757,14 +1757,25 @@ async def _compute_timeseries(category: Optional[str] = None):
             {"$project": {
                 "day": {"$substrCP": [{"$ifNull": ["$added_at", ""]}, 0, 10]},
                 "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
-                "n": {"$size": {"$ifNull": [{"$objectToArray": {"$ifNull": ["$summaries", {}]}}, []]}},
+                "mk": {"$map": {
+                    "input": {"$objectToArray": {"$ifNull": ["$summaries", {}]}},
+                    "as": "s", "in": "$$s.k",
+                }},
             }},
-            {"$match": {"day": {"$gte": compute_from} if compute_from else {"$ne": ""}, "n": {"$gt": 0}}},
-            {"$group": {"_id": {"day": "$day", "cat": "$cat"}, "total": {"$sum": "$n"}}},
+            {"$match": {"day": {"$gte": compute_from} if compute_from else {"$ne": ""}}},
+            {"$unwind": "$mk"},
+            {"$group": {"_id": {"day": "$day", "cat": "$cat", "mk": "$mk"}, "n": {"$sum": 1}}},
         ]):
             day, cat = doc["_id"]["day"], doc["_id"]["cat"]
-            n = doc["total"]
-            _acc(day, cat, summaries=n, summary_cost=AVG_COST * n)
+            mk = doc["_id"]["mk"]
+            n = doc["n"]
+            provider = mk.split(":")[0] if ":" in mk else mk
+            pricing_key = _SUMMARY_PRICING.get(provider)
+            if pricing_key:
+                cost = _price_match(AVG_IN, AVG_OUT, *pricing_key.split("/")) * n
+            else:
+                cost = _price_match(AVG_IN, AVG_OUT, "anthropic", "claude-opus-4-6") * n
+            _acc(day, cat, summaries=n, summary_cost=cost)
     except Exception as e:
         logger.warning(f"[TIMESERIES] Summary agg failed: {e}")
 
