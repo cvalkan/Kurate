@@ -103,60 +103,42 @@ _TAG_CACHE_MAX = 100  # Max cached tag combos
 async def _compute_summary_stats_agg():
     """Compute summary stats per category using MongoDB aggregation.
     
-    Runs entirely server-side — no summaries loaded into Python memory.
-    Replaces the old approach that iterated over all_papers with summaries in RAM.
+    Runs entirely server-side — no summary text loaded into Python memory.
+    Only extracts keys (model names) and counts, never touches summary values.
     """
-    # Pipeline: for each paper, extract summary model keys and token tracking,
-    # then group by category.
+    # Pipeline 1: count summaries per model per category (keys only, no text)
     pipeline = [
         {"$match": {"summaries": {"$exists": True, "$ne": {}}}},
         {"$project": {
             "_id": 0,
             "cat": {"$arrayElemAt": ["$categories", 0]},
-            "summary_keys": {"$objectToArray": {"$ifNull": ["$summaries", {}]}},
+            "keys": {"$map": {
+                "input": {"$objectToArray": {"$ifNull": ["$summaries", {}]}},
+                "as": "s", "in": "$$s.k",
+            }},
+            "n": {"$size": {"$objectToArray": {"$ifNull": ["$summaries", {}]}}},
             "token_keys": {"$objectToArray": {"$ifNull": ["$summary_tokens", {}]}},
         }},
-        {"$unwind": "$summary_keys"},
-        # Filter out short summaries (< 50 chars) — match the old Python logic
-        {"$match": {"summary_keys.v": {"$type": "string"}, "$expr": {"$gte": [{"$strLenCP": "$summary_keys.v"}, 50]}}},
+        {"$unwind": "$keys"},
         {"$group": {
-            "_id": {"cat": "$cat", "model": "$summary_keys.k"},
+            "_id": {"cat": "$cat", "model": "$keys"},
             "count": {"$sum": 1},
         }},
     ]
 
-    # Run the per-model-per-category counts
     model_counts = {}  # (cat, model) -> count
     async for doc in db.papers.aggregate(pipeline, allowDiskUse=True):
         cat = doc["_id"]["cat"] or "unknown"
         model = doc["_id"]["model"]
         model_counts[(cat, model)] = doc["count"]
 
-    # Also get per-paper model counts for papers_with_all_3
+    # Pipeline 2: papers_with_summaries and papers_with_all_3 per category
     pipeline_all3 = [
         {"$match": {"summaries": {"$exists": True, "$ne": {}}}},
         {"$project": {
             "_id": 0,
             "cat": {"$arrayElemAt": ["$categories", 0]},
-            "summary_keys": {"$objectToArray": {"$ifNull": ["$summaries", {}]}},
-        }},
-        # Count valid summaries per paper (>= 50 chars)
-        {"$project": {
-            "cat": 1,
-            "valid_summaries": {
-                "$filter": {
-                    "input": "$summary_keys",
-                    "as": "s",
-                    "cond": {"$and": [
-                        {"$eq": [{"$type": "$$s.v"}, "string"]},
-                        {"$gte": [{"$strLenCP": "$$s.v"}, 50]},
-                    ]},
-                },
-            },
-        }},
-        {"$project": {
-            "cat": 1,
-            "n_models": {"$size": "$valid_summaries"},
+            "n_models": {"$size": {"$objectToArray": {"$ifNull": ["$summaries", {}]}}},
         }},
         {"$group": {
             "_id": "$cat",
@@ -165,7 +147,7 @@ async def _compute_summary_stats_agg():
         }},
     ]
 
-    cat_paper_counts = {}  # cat -> {papers_with_summaries, papers_with_all_3}
+    cat_paper_counts = {}
     async for doc in db.papers.aggregate(pipeline_all3, allowDiskUse=True):
         cat = doc["_id"] or "unknown"
         cat_paper_counts[cat] = {
@@ -256,19 +238,21 @@ async def _refresh_cache():
     match_counts_by_cat, failed_by_cat = get_match_counts_snapshot()
     total_matches = sum(match_counts_by_cat.values())
 
-    # --- PDF/storage stats via aggregation ---
+    # --- PDF/storage stats via aggregation (no full_text loading) ---
     pdf_by_cat = Counter()
     storage_chars_by_cat = Counter()
     storage_chars_total = 0
     async for doc in db.papers.aggregate([
         {"$match": {"full_text": {"$ne": None}}},
-        {"$project": {"cat": {"$arrayElemAt": ["$categories", 0]}, "chars": {"$strLenCP": {"$ifNull": ["$full_text", ""]}}}},
-        {"$group": {"_id": "$cat", "count": {"$sum": 1}, "chars": {"$sum": "$chars"}}},
+        {"$project": {"cat": {"$arrayElemAt": ["$categories", 0]}}},
+        {"$group": {"_id": "$cat", "count": {"$sum": 1}}},
     ]):
         cat = doc["_id"] or "unknown"
         pdf_by_cat[cat] = doc["count"]
-        storage_chars_by_cat[cat] = doc["chars"]
-        storage_chars_total += doc["chars"]
+        # Estimate chars: ~40K avg per paper with full text
+        est_chars = doc["count"] * 40000
+        storage_chars_by_cat[cat] = est_chars
+        storage_chars_total += est_chars
 
     progress_by_cat = {}
 

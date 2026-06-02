@@ -746,11 +746,18 @@ export function AdminStatistics({ categories }) {
             By Category
           </Button>
         </div>
-        <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 ml-auto"
-          onClick={() => { setLoading(true); fetchData(0, true); }} data-testid="refresh-charts"
-        >
-          <RefreshCw className="h-3 w-3" /> Refresh
-        </Button>
+        <div className="flex items-center gap-2 ml-auto">
+          {timeseries?.refreshed_at && (
+            <span className="text-[10px] text-muted-foreground">
+              {new Date(timeseries.refreshed_at).toLocaleString("en-US", {month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false})}
+            </span>
+          )}
+          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1"
+            onClick={() => { setLoading(true); fetchData(0, true); }} data-testid="refresh-charts"
+          >
+            <RefreshCw className="h-3 w-3" /> Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Charts grid */}

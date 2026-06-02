@@ -1335,7 +1335,9 @@ async def get_usage_stats(category: str = None):
             },
         },
     }
-    _set_admin_cached("stats", cache_cat, result)
+    # Only cache if leaderboard cache has warmed (summary stats populated)
+    if summary_stats:
+        _set_admin_cached("stats", cache_cat, result)
     return result
 
 
@@ -1591,7 +1593,7 @@ async def get_timeseries(
             s = [e for e in s if e["date"] >= date_from]
         if date_to:
             s = [e for e in s if e["date"] <= date_to]
-        return {**result, "series": s}
+        return {**result, "series": s, "refreshed_at": datetime.now(timezone.utc).isoformat()}
 
     empty = {"series": [], "categories": [], "totals": {
         "papers": 0, "matches": 0, "tokens": 0, "input_tokens": 0,
