@@ -1669,9 +1669,9 @@ async def _compute_timeseries(category: Optional[str] = None):
         papers_daily[day]["_total"] += doc["count"]
         total_papers_count += doc["count"]
 
-    # --- Matches: lightweight per-category count + daily breakdown ---
+    # --- Matches: per-category aggregation with model breakdown ---
     # Uses compound index (primary_category, completed, failed).
-    # Only groups by day+category (skips per-match token extraction for speed).
+    # Groups by day+model to get accurate per-model pricing.
     matches_daily = defaultdict(lambda: defaultdict(lambda: {
         "count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0
     }))
@@ -1682,49 +1682,40 @@ async def _compute_timeseries(category: Optional[str] = None):
             async for doc in db.matches.aggregate([
                 {"$match": {"primary_category": qcat, "completed": True, "failed": {"$ne": True}}},
                 {"$group": {
-                    "_id": {"$substrCP": [{"$ifNull": ["$created_at", ""]}, 0, 10]},
+                    "_id": {
+                        "day": {"$substrCP": [{"$ifNull": ["$created_at", ""]}, 0, 10]},
+                        "provider": {"$ifNull": ["$model_used.provider", "unknown"]},
+                        "model": {"$ifNull": ["$model_used.model", "unknown"]},
+                    },
                     "count": {"$sum": 1},
                     "inp": {"$sum": {"$ifNull": ["$tokens.input_est", 0]}},
                     "out": {"$sum": {"$ifNull": ["$tokens.output_est", 0]}},
                 }},
             ]):
-                day = doc["_id"]
+                day = doc["_id"]["day"]
                 if not day:
                     continue
                 inp = doc["inp"]
                 out = doc["out"]
-                # Use average pricing across models (avoids per-match model extraction)
-                avg_cost = (inp / 1_000_000) * 3.0 + (out / 1_000_000) * 12.0
+                model_key = f"{doc['_id']['provider']}/{doc['_id']['model']}"
+                pricing = MODEL_PRICING.get(model_key, {"input": 2.0, "output": 10.0})
+                cost = (inp / 1_000_000) * pricing["input"] + (out / 1_000_000) * pricing["output"]
 
                 for key in [qcat, "_total"]:
                     bucket = matches_daily[day][key]
                     bucket["count"] += doc["count"]
                     bucket["input_tokens"] += inp
                     bucket["output_tokens"] += out
-                    bucket["cost"] += avg_cost
+                    bucket["cost"] += cost
+
+                if model_key != "unknown/unknown":
+                    if model_key not in model_stats:
+                        model_stats[model_key] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
+                    model_stats[model_key]["matches"] += doc["count"]
+                    model_stats[model_key]["input_tokens"] += inp
+                    model_stats[model_key]["output_tokens"] += out
         except Exception as e:
             logger.warning(f"[TIMESERIES] Match aggregation failed for {qcat}: {e}")
-
-    # --- Model stats (single lightweight aggregation) ---
-    try:
-        async for doc in db.matches.aggregate([
-            {"$match": {"completed": True, "failed": {"$ne": True}, "model_used": {"$exists": True}}},
-            {"$group": {
-                "_id": {"provider": "$model_used.provider", "model": "$model_used.model"},
-                "count": {"$sum": 1},
-                "inp": {"$sum": {"$ifNull": ["$tokens.input_est", 0]}},
-                "out": {"$sum": {"$ifNull": ["$tokens.output_est", 0]}},
-            }},
-        ]):
-            model_key = f"{doc['_id'].get('provider','unknown')}/{doc['_id'].get('model','unknown')}"
-            if model_key != "unknown/unknown":
-                model_stats[model_key] = {
-                    "matches": doc["count"],
-                    "input_tokens": doc["inp"],
-                    "output_tokens": doc["out"],
-                }
-    except Exception as e:
-        logger.warning(f"[TIMESERIES] Model stats aggregation failed: {e}")
 
     # --- Summary costs (estimated from paper count per day, no text loading) ---
     summary_daily = defaultdict(lambda: defaultdict(lambda: {"count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0}))

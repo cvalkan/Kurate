@@ -60,6 +60,7 @@ export default function LeaderboardPage() {
 
   const requireAuth = () => window.dispatchEvent(new Event("open-auth-modal"));
   const abortRef = useRef(null);
+  const warmupRetryRef = useRef(null);
 
   const categoryName = categories.find(c => c.id === category)?.name || "Papers";
   const hasSelectedTags = selectedTags.length > 0;
@@ -188,6 +189,7 @@ export default function LeaderboardPage() {
     if (activeArchive) return; // Archive data is sorted client-side
     if (!category && !isTagMode) return;
     if (abortRef.current) abortRef.current.abort();
+    if (warmupRetryRef.current) { clearTimeout(warmupRetryRef.current); warmupRetryRef.current = null; }
     const controller = new AbortController();
     abortRef.current = controller;
     try {
@@ -221,7 +223,6 @@ export default function LeaderboardPage() {
           setLeaderboard([]);
           setNextCursor(null);
           setLoading(false);
-          setTimeout(() => fetchLeaderboard(), 2000);
           return;
         }
         setWarmingUp(false);
@@ -320,6 +321,13 @@ export default function LeaderboardPage() {
     const interval = setInterval(fetchLeaderboard, 30000);
     return () => clearInterval(interval);
   }, [fetchLeaderboard, isTagMode]);
+
+  // Retry when warming up (cancels on category change via fetchLeaderboard dependency)
+  useEffect(() => {
+    if (!warmingUp) return;
+    warmupRetryRef.current = setTimeout(fetchLeaderboard, 2000);
+    return () => { if (warmupRetryRef.current) { clearTimeout(warmupRetryRef.current); warmupRetryRef.current = null; } };
+  }, [warmingUp, fetchLeaderboard]);
 
   // Load archive from URL param on mount (after archives list is populated)
   useEffect(() => {
