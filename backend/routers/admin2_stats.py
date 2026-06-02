@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, Query
 from typing import Optional
 from datetime import datetime, timezone
 import asyncio
+import time
 
 from core.config import db, logger, CATEGORIES
 from core.auth import verify_admin, get_settings
@@ -29,6 +30,25 @@ AVG_IN, AVG_OUT = 10375, 1788
 # If daily_stats has fewer than this many day-buckets, treat it as empty/sparse
 # and kick a background backfill (never blocks the read path).
 _SPARSE_THRESHOLD = 5
+
+# In-process response cache so repeated reads are O(1) regardless of data scale.
+_CACHE = {}
+_CACHE_TTL = 45  # seconds
+
+
+def _cache_get(key):
+    e = _CACHE.get(key)
+    if e and (time.time() - e[0]) < _CACHE_TTL:
+        return e[1]
+    return None
+
+
+def _cache_set(key, val):
+    _CACHE[key] = (time.time(), val)
+
+
+def _cache_clear():
+    _CACHE.clear()
 
 
 def _safe_day(raw) -> Optional[str]:
@@ -185,11 +205,36 @@ async def _run_backfill():
         # available). Overwrites the chunk's fixed-average estimate so the cost
         # timeseries and the per-model summary panel reconcile on real data.
         await _backfill_summary_costs()
+        await _backfill_registrations()
+        _cache_clear()
         logger.info(f"[ADMIN2] backfill complete: {len(all_models)} models")
     except Exception as e:
         logger.error(f"[ADMIN2] backfill failed: {e}")
     finally:
         _admin._ts_backfill_running = False
+
+
+async def ensure_fresh():
+    """Entry point for the periodic scheduler task (leader only). Runs the full
+    backfill when the materialized views are empty/sparse, otherwise just keeps
+    registrations current. Write-time $inc hooks keep the rest fresh between runs.
+    """
+    try:
+        n_days = await db.daily_stats.count_documents({"category": "_total"})
+        n_sum = await db.model_summary_stats.estimated_document_count()
+        if n_days < _SPARSE_THRESHOLD or n_sum == 0:
+            await _run_backfill()  # one-time / self-heal historical rebuild
+        else:
+            await _backfill_registrations()
+        _cache_clear()
+    except Exception as e:
+        logger.warning(f"[ADMIN2] ensure_fresh failed: {e}")
+
+
+async def self_heal():
+    """Periodic full self-heal rebuild (runs less frequently than ensure_fresh)."""
+    await _run_backfill()
+    _cache_clear()
 
 
 async def _backfill_summary_costs():
@@ -366,9 +411,19 @@ def _build_match_models(model_totals: dict) -> list:
     return out
 
 
-async def _user_registrations() -> list:
-    """Cumulative user registrations over time. Bounded by user count (small).
-    Type-safe for BSON Date vs string created_at."""
+async def record_registration(created_at=None):
+    """Fire-and-forget increment of daily_registrations on a new signup."""
+    try:
+        day = _safe_day(created_at) or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        await db.daily_registrations.update_one(
+            {"date": day}, {"$inc": {"count": 1}}, upsert=True)
+    except Exception as e:
+        logger.warning(f"[ADMIN2] record_registration failed: {e}")
+
+
+async def _backfill_registrations():
+    """Recompute daily_registrations from the users collection (bounded output:
+    one doc per day). Keeps the read path O(days) instead of O(users)."""
     by_date = {}
     try:
         async for doc in db.users.aggregate([
@@ -379,7 +434,25 @@ async def _user_registrations() -> list:
         ]):
             by_date[doc["_id"]] = doc["n"]
     except Exception as e:
-        logger.warning(f"[ADMIN2] user registration aggregation failed: {e}")
+        logger.warning(f"[ADMIN2] registration backfill aggregation failed: {e}")
+        return
+    if by_date:
+        from pymongo import UpdateOne
+        await db.daily_registrations.bulk_write(
+            [UpdateOne({"date": d}, {"$set": {"date": d, "count": n}}, upsert=True)
+             for d, n in by_date.items()], ordered=False)
+
+
+async def _user_registrations() -> list:
+    """Cumulative user registrations over time, read from the precomputed
+    daily_registrations collection (O(days), never scans the users collection)."""
+    by_date = {}
+    async for doc in db.daily_registrations.find({}, {"_id": 0}):
+        if doc.get("date"):
+            by_date[doc["date"]] = doc.get("count", 0)
+    if not by_date:
+        # First run before any backfill — populate once in the background.
+        asyncio.ensure_future(_backfill_registrations())
     cum, out = 0, []
     for d in sorted(by_date):
         cum += by_date[d]
@@ -400,6 +473,12 @@ async def stats_overview(category: Optional[str] = None, force: bool = False):
     """
     settings = await get_settings()
     cats = [category] if category else sorted(settings.get("active_categories", list(CATEGORIES.keys())))
+
+    cache_key = category or "__all__"
+    if not force:
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return cached
 
     # 1. daily_stats (bounded by number of days — instant)
     total_by_date, cat_by_key = {}, {}
@@ -474,7 +553,7 @@ async def stats_overview(category: Optional[str] = None, force: bool = False):
         },
     }
 
-    return {
+    response = {
         # Consumed by AdminStatistics:
         "timeseries": result,
         "stats": stats,
@@ -489,6 +568,9 @@ async def stats_overview(category: Optional[str] = None, force: bool = False):
         "data_complete": len(total_by_date) >= _SPARSE_THRESHOLD,
         "refreshed_at": datetime.now(timezone.utc).isoformat(),
     }
+    if not backfilling:
+        _cache_set(cache_key, response)
+    return response
 
 
 @router.post("/backfill", dependencies=[Depends(verify_admin)])

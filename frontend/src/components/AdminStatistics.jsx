@@ -5,6 +5,7 @@ import {
   AreaChart, Area, BarChart, Bar, ComposedChart, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, Legend, ReferenceLine,
 } from "recharts";
+import ReactECharts from "echarts-for-react";
 import {
   FileText, Swords, Coins, Cpu, TrendingUp, BarChart3,
   RefreshCw,
@@ -106,7 +107,6 @@ export function AdminStatistics({ categories }) {
   const [liveMatchStats, setLiveMatchStats] = useState(null);
   const [memoryData, setMemoryData] = useState(null);
   const [repairQueueData, setRepairQueueData] = useState(null);
-  const [registrationData, setRegistrationData] = useState(null);
   const [restartEvents, setRestartEvents] = useState([]);
   const [memHours, setMemHours] = useState(24);
   const [loading, setLoading] = useState(true);
@@ -124,16 +124,15 @@ export function AdminStatistics({ categories }) {
       }
     };
     try {
-      // Single source of truth for all stats: the admin2 endpoint returns
-      // `timeseries` (daily series + cumulative totals) and `stats` (per-model
-      // match/summary breakdowns), all reconciled from the same backfill pass.
-      // Memory + registrations come from their own (cheap, indexed) endpoints.
+      // Single source of truth: the admin2 endpoint returns `timeseries` (daily
+      // series + cumulative totals), `stats` (per-model match/summary breakdowns)
+      // and `user_registrations` (precomputed) — all reconciled from the same
+      // backfill pass. Memory comes from the (cheap, indexed) system-logs endpoint.
       const results = await Promise.allSettled([
         fetchWithRetry(`${API}/api/admin2/stats-overview${force ? "?force=true" : ""}`),
         fetchWithRetry(`${API}/api/admin/system-logs?hours=${memHours}&limit=3000`),
-        fetchWithRetry(`${API}/api/admin/users/registrations`),
       ]);
-      const [tsResult, memResult, regResult] = results;
+      const [tsResult, memResult] = results;
 
       // Retry once if the critical stats endpoint failed
       if (tsResult.status === "rejected" && retryCount < 2) {
@@ -198,9 +197,6 @@ export function AdminStatistics({ categories }) {
           repaired: l.repaired ?? 0,
         }));
         setRepairQueueData(queueData);
-      }
-      if (regResult.status === "fulfilled" && regResult.value) {
-        setRegistrationData(regResult.value.data?.series || []);
       }
     } catch (err) {
       console.error("Failed to load stats:", err);
@@ -308,53 +304,88 @@ export function AdminStatistics({ categories }) {
   const allCats = _allCats;
   const modelCount = modelStats ? Object.keys(modelStats).length : 0;
 
-  const ChartType = viewMode === "daily" ? BarChart : AreaChart;
-  const DataElement = viewMode === "daily" ? Bar : Area;
+  // High-performance ECharts (canvas) renderer for the time-series grid. Canvas
+  // rendering stays snappy even with hundreds of days × many stacked categories,
+  // unlike SVG. Visual style (colors, stacking, daily=bar / cumulative=area)
+  // matches the previous Recharts output.
+  const dates = chartData.map((d) => d.date);
 
   const renderChart = (metric, formatter) => {
+    const fmtVal = formatter || ((v) => Number(v || 0).toLocaleString());
+    const yFmt = metric === "cost" ? formatCost : (metric === "tokens" ? formatTokens : (v) => v.toLocaleString());
+    const isDaily = viewMode === "daily";
+
+    const mkBar = (name, color, key, stack) => ({
+      name, type: "bar", stack,
+      data: chartData.map((d) => d[key] || 0),
+      itemStyle: { color, borderRadius: stack ? 0 : [3, 3, 0, 0] },
+      large: true, largeThreshold: 100, barMaxWidth: 40,
+    });
+    const mkArea = (name, color, key, stack, opacity, width) => ({
+      name, type: "line", stack, smooth: true, showSymbol: false, sampling: "lttb",
+      data: chartData.map((d) => d[key] || 0),
+      lineStyle: { color, width }, itemStyle: { color },
+      areaStyle: { color, opacity },
+    });
+
+    let series;
+    let legendData = null;
     if (scopeMode === "system") {
-      return (
-        <ResponsiveContainer width="100%" height="100%">
-          <ChartType data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-            <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-            <YAxis tickFormatter={metric === "cost" ? formatCost : (metric === "tokens" ? formatTokens : undefined)} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={55} />
-            <RechartsTooltip content={<CustomTooltip formatter={formatter} />} />
-            {viewMode === "daily" ? (
-              <Bar dataKey={metric} fill="#3b82f6" radius={[3, 3, 0, 0]} name={metric.charAt(0).toUpperCase() + metric.slice(1)} />
-            ) : (
-              <Area type="monotone" dataKey={metric} stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.15} strokeWidth={2} name={metric.charAt(0).toUpperCase() + metric.slice(1)} />
-            )}
-          </ChartType>
-        </ResponsiveContainer>
-      );
+      const name = metric.charAt(0).toUpperCase() + metric.slice(1);
+      series = [isDaily ? mkBar(name, "#3b82f6", metric, null) : mkArea(name, "#3b82f6", metric, null, 0.15, 2)];
+    } else {
+      series = chartCats.map((cat) => isDaily
+        ? mkBar(cat, catColorMap[cat], `${metric}_${cat}`, "a")
+        : mkArea(cat, catColorMap[cat], `${metric}_${cat}`, "a", 0.2, 1.5));
+      if (otherCats.length > 0) {
+        const oName = `Other (${otherCats.length})`;
+        series.push(isDaily
+          ? mkBar(oName, "#9ca3af", `${metric}_Other`, "a")
+          : mkArea(oName, "#9ca3af", `${metric}_Other`, "a", 0.15, 1));
+      }
+      legendData = series.map((s) => s.name);
     }
 
-    // Per-category stacked
+    const option = {
+      animation: false,
+      grid: { top: legendData ? 28 : 10, right: 12, bottom: 24, left: 8, containLabel: true },
+      legend: legendData ? { type: "scroll", top: 0, textStyle: { fontSize: 11 }, data: legendData, itemHeight: 8, itemWidth: 12 } : undefined,
+      tooltip: {
+        trigger: "axis",
+        confine: true,
+        textStyle: { fontSize: 11 },
+        formatter: (params) => {
+          if (!params || !params.length) return "";
+          const rows = params.filter((p) => p.value).sort((a, b) => b.value - a.value);
+          let html = `<b>${formatDate(params[0].axisValue)}</b>`;
+          for (const p of rows) {
+            html += `<br/>${p.marker}${p.seriesName}: <b>${fmtVal(p.value)}</b>`;
+          }
+          return html;
+        },
+      },
+      xAxis: {
+        type: "category", data: dates, boundaryGap: isDaily,
+        axisLabel: { fontSize: 11, formatter: (v) => formatDate(v), hideOverlap: true, color: "#94a3b8" },
+        axisLine: { lineStyle: { color: "hsl(var(--border))" } },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: { fontSize: 11, formatter: (v) => yFmt(v), color: "#94a3b8" },
+        splitLine: { lineStyle: { color: "hsl(var(--border))", opacity: 0.5, type: "dashed" } },
+      },
+      series,
+    };
+
     return (
-      <ResponsiveContainer width="100%" height="100%">
-        <ChartType data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-          <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-          <YAxis tickFormatter={metric === "cost" ? formatCost : (metric === "tokens" ? formatTokens : undefined)} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={55} />
-          <RechartsTooltip content={<CustomTooltip formatter={formatter} />} />
-          <Legend wrapperStyle={{ fontSize: 11 }} />
-          {chartCats.map((cat) =>
-            viewMode === "daily" ? (
-              <Bar key={cat} dataKey={`${metric}_${cat}`} stackId="a" fill={catColorMap[cat]} name={cat} />
-            ) : (
-              <Area key={cat} type="monotone" dataKey={`${metric}_${cat}`} stackId="a" stroke={catColorMap[cat]} fill={catColorMap[cat]} fillOpacity={0.2} strokeWidth={1.5} name={cat} />
-            )
-          )}
-          {otherCats.length > 0 && (
-            viewMode === "daily" ? (
-              <Bar key="Other" dataKey={`${metric}_Other`} stackId="a" fill="#9ca3af" name={`Other (${otherCats.length})`} />
-            ) : (
-              <Area key="Other" type="monotone" dataKey={`${metric}_Other`} stackId="a" stroke="#9ca3af" fill="#9ca3af" fillOpacity={0.15} strokeWidth={1} name={`Other (${otherCats.length})`} />
-            )
-          )}
-        </ChartType>
-      </ResponsiveContainer>
+      <ReactECharts
+        option={option}
+        notMerge
+        lazyUpdate
+        style={{ height: "100%", width: "100%" }}
+        opts={{ renderer: "canvas" }}
+      />
     );
   };
 

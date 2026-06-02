@@ -334,6 +334,7 @@ async def start_scheduler():
         asyncio.create_task(_fetch_loop())
         asyncio.create_task(_compare_loop())
         asyncio.create_task(_precompute_analysis_loop())
+        asyncio.create_task(_admin2_stats_loop())
     else:
         logger.info("Background scheduler started (FOLLOWER — HTTP only, no background loops)")
         # Start a watcher that promotes to leader if the current leader dies
@@ -353,10 +354,33 @@ async def _follower_promotion_loop():
             asyncio.create_task(_fetch_loop())
             asyncio.create_task(_compare_loop())
             asyncio.create_task(_precompute_analysis_loop())
+            asyncio.create_task(_admin2_stats_loop())
             # Archive loop was skipped at follower startup — start it now
             from routers.leaderboard import _bg_archive_loop
             asyncio.create_task(_bg_archive_loop())
             return
+
+
+async def _admin2_stats_loop():
+    """Keep the admin2 materialized views (daily_stats / model_*/ registrations)
+    fresh on the LEADER. Write-time $inc hooks handle the bulk; this loop seeds
+    the views on first run and periodically self-heals any drift. The read path
+    only ever polls these pre-aggregated collections, so it stays fast at scale.
+    """
+    from routers.admin2_stats import ensure_fresh, self_heal
+    await asyncio.sleep(60)  # let startup settle
+    cycles = 0
+    while _scheduler_running:
+        try:
+            # Full self-heal rebuild roughly every 12h (24 × 30min); else light refresh.
+            if cycles % 24 == 0:
+                await self_heal()
+            else:
+                await ensure_fresh()
+        except Exception as e:
+            logger.warning(f"[admin2] stats refresh loop error: {e}")
+        cycles += 1
+        await asyncio.sleep(1800)  # 30 minutes
 
 
 async def _precompute_analysis_loop():

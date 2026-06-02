@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Settings, Activity, LogOut, FileText, Save, HelpCircle, FlaskConical, MessageSquare, Users,
-  Sliders, Twitter, Mail, ScrollText, Download, BarChart3,
+  Sliders, Twitter, Mail, ScrollText, Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ResponsiveContainer, ComposedChart, BarChart, Bar, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip as RTooltip, Area } from "recharts";
@@ -77,7 +77,7 @@ export default function AdminPage() {
       const [statusRes, progressRes, statsRes] = await Promise.all([
         axios.get(`${API}/api/admin/status`, { headers, params: { category: adminCat } }),
         axios.get(`${API}/api/admin/progress`, { headers, params: { category: adminCat } }),
-        axios.get(`${API}/api/admin/stats`, { headers, params: { category: adminCat } }),
+        axios.get(`${API}/api/admin2/stats-overview`, { headers, params: { category: adminCat } }),
       ]);
       setStatus(statusRes.data);
       setProgress(progressRes.data);
@@ -85,7 +85,18 @@ export default function AdminPage() {
         const est = progressRes.data?.estimated_matches_remaining;
         setManualMatches(est > 0 ? Math.min(est, 100) : 20);
       }
-      setUsageStats(statsRes.data);
+      // Map admin2 response to the usageStats shape consumed by AdminOverview.
+      const ov = statsRes.data;
+      setUsageStats({
+        totals: {
+          input_tokens: ov.timeseries?.totals?.input_tokens || 0,
+          output_tokens: ov.timeseries?.totals?.output_tokens || 0,
+          total_cost: ov.stats?.totals?.total_cost || 0,
+          total_matches: ov.stats?.totals?.total_matches || 0,
+        },
+        storage: { size_mb: 0 },
+        models: ov.stats?.models || {},
+      });
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {
         sessionStorage.removeItem("admin_token");
@@ -282,20 +293,12 @@ export default function AdminPage() {
         {tabs.map((t) => {
           const Icon = t.icon;
           return (
-            <span key={t.key} className="contents">
-              <Button variant={activeTab === t.key ? "default" : "ghost"} size="sm"
-                onClick={() => setActiveTab(t.key)} className="gap-1 text-xs h-7 px-2.5 shrink-0" data-testid={`tab-${t.key}`}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {t.label}
-              </Button>
-              {t.key === "statistics" && (
-                <a href="/admin2" className="inline-flex items-center gap-1 text-xs h-7 px-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors shrink-0" data-testid="tab-statistics-v2">
-                  <BarChart3 className="h-3.5 w-3.5" />
-                  Stats v2
-                </a>
-              )}
-            </span>
+            <Button key={t.key} variant={activeTab === t.key ? "default" : "ghost"} size="sm"
+              onClick={() => setActiveTab(t.key)} className="gap-1 text-xs h-7 px-2.5 shrink-0" data-testid={`tab-${t.key}`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {t.label}
+            </Button>
           );
         })}
         <a href="/admin/outreach" className="inline-flex items-center gap-1 text-xs h-7 px-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors shrink-0" data-testid="tab-outreach">

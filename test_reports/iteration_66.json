@@ -1,0 +1,37 @@
+{
+  "summary": "Validated the admin2 stats refactor: ALL critical contracts hold. Backend 28/28 pytest pass (12 new + 16 prior). Old /api/admin/timeseries and /api/admin/stats return 404 (deleted). Mutual cross-source equality holds within <$2 tolerance: summary.match_cost == sum(match_models.cost) == stats.totals.total_cost == timeseries.totals.match_cost; summary.summary_cost == sum(summary_models.cost) == stats.summaries.totals.total_cost == timeseries.totals.summary_cost; summary.total_cost == match+summary; total_papers/total_matches reconcile across summary/stats/timeseries. Response caching (~45s) confirmed (2nd call <2s and same refreshed_at). force=true bypasses cache + sets backfilling:true and stays <10s. summary_models count sum ~36,500 (model_summary_stats), matches timeseries summaries total. user_registrations is precomputed and non-decreasing. Category filter ?category=cs.AI returns consistent payload. Frontend: /admin/dashboard Statistics tab renders admin-statistics with the new ECharts canvas (4 canvases). Total Cost card subtext '$X matches + $Y summaries' exactly equals Match Costs panel header (data-testid match-cost-breakdown) and Summary Costs panel header (data-testid summary-cost-breakdown) — no header≠rows mismatch. Stats v2 tab GONE; /admin2 route REMOVED (router emits 'No routes matched location /admin2'). Daily/Cumulative + System/By Category toggles work, By Category renders the per-category table, all memory hour buttons (6h/12h/24h/3d/7d) clickable. Overview/Tournaments tab still renders Usage Statistics sourced from /api/admin2/stats-overview?category=cs.AI ($2303.94 cost, 275,497 API calls, per-model breakdown) without errors.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin/dashboard Statistics", "issues": ["Recharts (Memory chart) still logs benign width(-1)/height(-1) warnings on first render before container measures — cosmetic, chart renders correctly afterwards. Pre-existing, also flagged iter65."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_admin2_refactor.py",
+    "/app/backend/tests/test_admin2_stats.py",
+    "/app/test_reports/pytest/admin2_refactor_results.xml",
+    "/app/test_reports/pytest/admin2_stats_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Single-source-of-truth contract is now properly enforced server-side: summary, match_models, summary_models, stats.totals, stats.summaries.totals, and timeseries.totals all derive from the same daily_stats/model_match_stats/model_summary_stats collections and reconcile within $2 — the iter65 summary_cost drift bug is resolved.",
+    "Old /api/admin/timeseries and /api/admin/stats are truly removed (404) — confirmed no dead handlers remain.",
+    "Cache identity check uses refreshed_at — main agent should ensure the 45s TTL key includes category param (verified by hitting both /stats-overview and /stats-overview?category=cs.AI in sequence; both responses stay internally consistent).",
+    "Frontend 401s in console while page first mounts (registrations fetch fires before sessionStorage admin_token is set on the SPA's first paint). Functionally harmless because the page re-fetches after token is read; could be tightened by gating early fetches behind token presence."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_admin2_refactor.py (new — 12 tests covering deleted endpoints, caching, mutual equality, summary_models, registrations, category filter)"
+  ],
+  "success_rate": {"backend": "100% (28/28)", "frontend": "100% (Statistics tab, all toggles/canvases, removed Stats v2, removed /admin2, Overview/Tournaments tab usage stats all verified)"},
+  "test_credentials": "Admin password 'papersumo2025' from /app/memory/test_credentials.md; token retrieved via POST /api/admin/login and injected into sessionStorage.admin_token for frontend.",
+  "seed_data_creation": "None. Preview daily_stats / model_match_stats / model_summary_stats / daily_registrations already populated.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Regression bed = /app/backend/tests/test_admin2_refactor.py (new) + /app/backend/tests/test_admin2_stats.py. Run both with: pytest /app/backend/tests/test_admin2_refactor.py /app/backend/tests/test_admin2_stats.py -v. Mutual equality uses tol_abs=$2 per spec ('<2'). Live scheduler may shift absolute numbers between calls but consistency within a single response must always hold. Frontend selectors verified: admin-statistics, match-cost-breakdown, summary-cost-breakdown; canvases present (4) inside admin-statistics. Stats v2 tab absent (tab-statistics-v2 returns None). /admin2 route emits React Router warning 'No routes matched location /admin2' and renders no admin2-stats-page. Note the 'Overview' tab referenced in the request maps to the Tournaments tab which embeds AdminOverview/Usage Statistics — that block now sources from /api/admin2/stats-overview?category=... and renders fine.",
+  "rca of the issue": "N/A — iter65 summary_cost discrepancy is resolved: _run_backfill now also rebuilds model_summary_stats / daily_stats.summary_cost from the summaries collection, and stats_overview derives all four summary-cost views from those same docs, eliminating divergence."
+}

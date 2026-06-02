@@ -205,6 +205,13 @@ async def register(req: RegisterRequest, request: Request, response: Response):
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
 
+    # Track registration for admin2 stats (fire-and-forget, O(1))
+    try:
+        from routers.admin2_stats import record_registration
+        asyncio.ensure_future(record_registration())
+    except Exception:
+        pass
+
     # Send verification email — do NOT create session until verified
     origin = request.headers.get("origin", request.headers.get("referer", ""))
     if origin and "?" in origin:
@@ -370,6 +377,11 @@ async def google_session(req: SessionRequest, response: Response):
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
         is_new_user = True
+        try:
+            from routers.admin2_stats import record_registration
+            asyncio.ensure_future(record_registration())
+        except Exception:
+            pass
 
     token = await _create_session(user_id, response)
 
