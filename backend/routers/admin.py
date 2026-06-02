@@ -1667,53 +1667,56 @@ async def _compute_timeseries(category: Optional[str] = None):
         total_papers_count += doc["count"]
 
     # --- Matches by day + model stats (aggregation) ---
-    match_query = {"completed": True, "failed": {"$ne": True}}
-    if category:
-        match_query["primary_category"] = category
+    # Run per-category to use compound index (primary_category, completed, failed)
+    # instead of scanning 762K+ matches with no usable index.
     matches_daily = defaultdict(lambda: defaultdict(lambda: {
         "count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0
     }))
     model_stats = {}
 
-    async for doc in db.matches.aggregate([
-        {"$match": match_query},
-        {"$project": {
-            "day": {"$substrCP": [{"$ifNull": ["$created_at", ""]}, 0, 10]},
-            "cat": {"$ifNull": ["$primary_category", "unknown"]},
-            "inp": {"$ifNull": ["$tokens.input_est", 0]},
-            "out": {"$ifNull": ["$tokens.output_est", 0]},
-            "provider": {"$ifNull": ["$model_used.provider", "unknown"]},
-            "model": {"$ifNull": ["$model_used.model", "unknown"]},
-        }},
-        {"$match": {"day": {"$ne": ""}}},
-        {"$group": {
-            "_id": {"day": "$day", "cat": "$cat", "provider": "$provider", "model": "$model"},
-            "count": {"$sum": 1},
-            "input_tokens": {"$sum": "$inp"},
-            "output_tokens": {"$sum": "$out"},
-        }},
-    ]):
-        day = doc["_id"]["day"]
-        cat = doc["_id"]["cat"]
-        inp = doc["input_tokens"]
-        out = doc["output_tokens"]
-        model_key = f"{doc['_id']['provider']}/{doc['_id']['model']}"
-        pricing = MODEL_PRICING.get(model_key, {"input": 2.0, "output": 10.0})
-        cost = (inp / 1_000_000) * pricing["input"] + (out / 1_000_000) * pricing["output"]
+    settings_for_cats = await get_settings()
+    query_cats = [category] if category else sorted(settings_for_cats.get("active_categories", list(CATEGORIES.keys())))
 
-        for key in [cat, "_total"]:
-            bucket = matches_daily[day][key]
-            bucket["count"] += doc["count"]
-            bucket["input_tokens"] += inp
-            bucket["output_tokens"] += out
-            bucket["cost"] += cost
+    for qcat in query_cats:
+        async for doc in db.matches.aggregate([
+            {"$match": {"primary_category": qcat, "completed": True, "failed": {"$ne": True}}},
+            {"$project": {
+                "day": {"$substrCP": [{"$ifNull": ["$created_at", ""]}, 0, 10]},
+                "cat": {"$ifNull": ["$primary_category", "unknown"]},
+                "inp": {"$ifNull": ["$tokens.input_est", 0]},
+                "out": {"$ifNull": ["$tokens.output_est", 0]},
+                "provider": {"$ifNull": ["$model_used.provider", "unknown"]},
+                "model": {"$ifNull": ["$model_used.model", "unknown"]},
+            }},
+            {"$match": {"day": {"$ne": ""}}},
+            {"$group": {
+                "_id": {"day": "$day", "cat": "$cat", "provider": "$provider", "model": "$model"},
+                "count": {"$sum": 1},
+                "input_tokens": {"$sum": "$inp"},
+                "output_tokens": {"$sum": "$out"},
+            }},
+        ]):
+            day = doc["_id"]["day"]
+            cat = doc["_id"]["cat"]
+            inp = doc["input_tokens"]
+            out = doc["output_tokens"]
+            model_key = f"{doc['_id']['provider']}/{doc['_id']['model']}"
+            pricing = MODEL_PRICING.get(model_key, {"input": 2.0, "output": 10.0})
+            cost = (inp / 1_000_000) * pricing["input"] + (out / 1_000_000) * pricing["output"]
 
-        if model_key != "unknown/unknown":
-            if model_key not in model_stats:
-                model_stats[model_key] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
-            model_stats[model_key]["matches"] += doc["count"]
-            model_stats[model_key]["input_tokens"] += inp
-            model_stats[model_key]["output_tokens"] += out
+            for key in [cat, "_total"]:
+                bucket = matches_daily[day][key]
+                bucket["count"] += doc["count"]
+                bucket["input_tokens"] += inp
+                bucket["output_tokens"] += out
+                bucket["cost"] += cost
+
+            if model_key != "unknown/unknown":
+                if model_key not in model_stats:
+                    model_stats[model_key] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
+                model_stats[model_key]["matches"] += doc["count"]
+                model_stats[model_key]["input_tokens"] += inp
+                model_stats[model_key]["output_tokens"] += out
 
     # --- Summary generation costs (aggregation — count per model per day) ---
     # Uses fixed average sizes to avoid loading summary text into pipeline memory
@@ -1771,8 +1774,7 @@ async def _compute_timeseries(category: Optional[str] = None):
 
     # Merge summary dates into all_dates and fill gaps with zeros
     raw_dates = sorted(set(list(papers_daily.keys()) + list(matches_daily.keys()) + list(summary_daily.keys())))
-    settings_for_cats = await get_settings()
-    all_cats = sorted(settings_for_cats.get("active_categories", list(CATEGORIES.keys())))
+    all_cats = query_cats  # Already fetched above
 
     # Generate continuous date range (no gaps)
     if raw_dates:
