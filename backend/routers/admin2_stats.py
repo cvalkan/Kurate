@@ -197,18 +197,40 @@ async def _run_backfill():
         cur = _date.fromisoformat(start)
         end = _date.fromisoformat(today) + _td(days=1)
 
-        all_models = {}
+        # Build the ordered list of [from, to) chunk ranges once so we can retry
+        # any that fail rather than silently dropping their matches (the failure
+        # mode behind the production undercount).
+        ranges = []
         while cur < end:
             ce = min(cur + _td(days=7), end)
-            try:
-                _, mt = await _admin._backfill_daily_stats_chunk(cur.isoformat(), ce.isoformat())
-                for mk, ms in mt.items():
-                    a = all_models.setdefault(mk, {"matches": 0, "input_tokens": 0, "output_tokens": 0})
-                    for f in ("matches", "input_tokens", "output_tokens"):
-                        a[f] += ms.get(f, 0)
-            except Exception as ce_err:
-                logger.warning(f"[ADMIN2] backfill chunk [{cur}..{ce}) failed: {ce_err}")
+            ranges.append((cur.isoformat(), ce.isoformat()))
             cur = ce
+
+        async def _process_ranges(rs):
+            """Run the given chunk ranges; return (accumulated models, failures)."""
+            models, failed = {}, []
+            for df, dtq in rs:
+                try:
+                    _, mt = await _admin._backfill_daily_stats_chunk(df, dtq)
+                    for mk, ms in mt.items():
+                        a = models.setdefault(mk, {"matches": 0, "input_tokens": 0, "output_tokens": 0})
+                        for f in ("matches", "input_tokens", "output_tokens"):
+                            a[f] += ms.get(f, 0)
+                except Exception as ce_err:
+                    logger.warning(f"[ADMIN2] backfill chunk [{df}..{dtq}) failed: {ce_err}")
+                    failed.append((df, dtq))
+            return models, failed
+
+        all_models, failed_ranges = await _process_ranges(ranges)
+        # One bounded retry of only the chunks that failed (e.g. transient Atlas
+        # timeout). Merge their model totals into the running accumulator.
+        if failed_ranges:
+            logger.warning(f"[ADMIN2] retrying {len(failed_ranges)} failed chunk(s)")
+            retry_models, failed_ranges = await _process_ranges(failed_ranges)
+            for mk, a in retry_models.items():
+                tgt = all_models.setdefault(mk, {"matches": 0, "input_tokens": 0, "output_tokens": 0})
+                for f in ("matches", "input_tokens", "output_tokens"):
+                    tgt[f] += a.get(f, 0)
 
         from pymongo import UpdateOne
         if all_models:
@@ -226,12 +248,54 @@ async def _run_backfill():
         # timeseries and the per-model summary panel reconcile on real data.
         await _backfill_summary_costs()
         await _backfill_registrations()
+
+        # ── Completeness guard ───────────────────────────────────────────────
+        # The per-model accumulator (`all_models`) is built straight from the
+        # chunk results and is immune to the per-day `$set` overwrite, so its
+        # match sum is the authoritative "expected" total. Compare it against the
+        # materialized daily_stats `_total` sum: a meaningful gap means a chunk
+        # silently dropped data (the exact production failure mode). Surface it
+        # immediately via an ERROR log + a status doc instead of letting it hide
+        # until the next ~12h self-heal.
+        expected_matches = sum(a.get("matches", 0) for a in all_models.values())
+        daily_matches = await _sum_daily_total_matches()
+        # Tolerate tiny drift from live $inc hooks firing during the run (today's
+        # in-flight matches). Flag only a material divergence (>0.5%).
+        denom = expected_matches or 1
+        diverged = bool(failed_ranges) or (abs(daily_matches - expected_matches) / denom > 0.005)
+        status = {
+            "_meta": "backfill_status",
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "expected_matches": expected_matches,
+            "daily_matches": daily_matches,
+            "failed_chunks": len(failed_ranges),
+            "reconciled": not diverged,
+        }
+        await db.daily_stats.update_one(
+            {"_meta": "backfill_status"}, {"$set": status}, upsert=True)
+        if diverged:
+            logger.error(
+                f"[ADMIN2] backfill NOT reconciled: daily_total={daily_matches} "
+                f"expected={expected_matches} failed_chunks={len(failed_ranges)}")
+        else:
+            logger.info(
+                f"[ADMIN2] backfill complete & reconciled: {len(all_models)} models, "
+                f"{daily_matches} matches")
         _cache_clear()
-        logger.info(f"[ADMIN2] backfill complete: {len(all_models)} models")
     except Exception as e:
         logger.error(f"[ADMIN2] backfill failed: {e}")
     finally:
         _admin._ts_backfill_running = False
+
+
+async def _sum_daily_total_matches() -> int:
+    """Sum of `matches` across all daily_stats `_total` day-buckets (the
+    materialized figure the cards/charts display)."""
+    agg = await db.daily_stats.aggregate([
+        {"$match": {"category": "_total"}},
+        {"$group": {"_id": None, "m": {"$sum": "$matches"}}},
+    ]).to_list(1)
+    return int(agg[0]["m"]) if agg else 0
 
 
 async def ensure_fresh():
@@ -532,6 +596,7 @@ async def stats_overview(category: Optional[str] = None, force: bool = False):
     match_models = _build_match_models(result.get("models", {}))
     summary_models = await _build_summary_models()
     user_series = await _user_registrations()
+    backfill_status = await db.daily_stats.find_one({"_meta": "backfill_status"}, {"_id": 0, "_meta": 0})
 
     # 5. SINGLE SOURCE OF TRUTH: every aggregate number comes from daily_stats
     #    cumulative totals. Per-model panels are written by the same backfill pass
@@ -586,6 +651,7 @@ async def stats_overview(category: Optional[str] = None, force: bool = False):
         "user_registrations": user_series,
         "backfilling": backfilling,
         "data_complete": len(total_by_date) >= _SPARSE_THRESHOLD,
+        "backfill_status": backfill_status,
         "refreshed_at": datetime.now(timezone.utc).isoformat(),
     }
     if not backfilling:
