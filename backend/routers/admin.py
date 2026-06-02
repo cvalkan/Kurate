@@ -949,7 +949,6 @@ async def get_progress_estimate(category: str = "cs.RO"):
         matched_pairs_set = set()
         async for m in db.matches.find(
             {"completed": True, "failed": {"$ne": True}, "primary_category": category,
-            
              "paper1_id": {"$in": top_k_list}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1},
         ):
@@ -958,7 +957,6 @@ async def get_progress_estimate(category: str = "cs.RO"):
         # Also check reverse direction
         async for m in db.matches.find(
             {"completed": True, "failed": {"$ne": True}, "primary_category": category,
-            
              "paper2_id": {"$in": top_k_list}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1},
         ):
@@ -4394,7 +4392,6 @@ async def _run_positional_ab(job_id: str, body: PositionalABRequest):
             "model_used.model": body.model_name,
             "content_mode": "abstract_plus_summary",
             "created_at": {"$gte": body.since},
-             # live tournament only
         }
         pipeline = [
             {"$match": match_filter},
