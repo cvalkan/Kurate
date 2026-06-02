@@ -124,27 +124,28 @@ export function AdminStatistics({ categories }) {
       }
     };
     try {
-      const tsUrl = force ? `${API}/api/admin/timeseries?force=true` : `${API}/api/admin/timeseries`;
+      // Single source of truth for all stats: the admin2 endpoint returns
+      // `timeseries` (daily series + cumulative totals) and `stats` (per-model
+      // match/summary breakdowns), all reconciled from the same backfill pass.
+      // Memory + registrations come from their own (cheap, indexed) endpoints.
       const results = await Promise.allSettled([
-        fetchWithRetry(tsUrl),
-        fetchWithRetry(`${API}/api/admin/stats`),
+        fetchWithRetry(`${API}/api/admin2/stats-overview${force ? "?force=true" : ""}`),
         fetchWithRetry(`${API}/api/admin/system-logs?hours=${memHours}&limit=3000`),
         fetchWithRetry(`${API}/api/admin/users/registrations`),
       ]);
-      const [tsResult, statsResult, memResult, regResult] = results;
+      const [tsResult, memResult, regResult] = results;
 
-      // Check if critical endpoint (timeseries) failed — retry once
+      // Retry once if the critical stats endpoint failed
       if (tsResult.status === "rejected" && retryCount < 2) {
         setTimeout(() => fetchData(retryCount + 1), 1500);
         return;
       }
 
       if (tsResult.status === "fulfilled" && tsResult.value) {
-        setTimeseries(tsResult.value.data);
-      }
-      if (statsResult.status === "fulfilled" && statsResult.value) {
-        setSummaryStats(statsResult.value.data.summaries || null);
-        setLiveMatchStats(statsResult.value.data || null);
+        const d = tsResult.value.data;
+        setTimeseries(d.timeseries);
+        setSummaryStats(d.stats?.summaries || null);
+        setLiveMatchStats(d.stats || null);
       }
       if (memResult.status === "fulfilled" && memResult.value) {
         const allLogs = memResult.value.data?.logs || [];
@@ -357,21 +358,17 @@ export function AdminStatistics({ categories }) {
     );
   };
 
-  // Use live stats endpoint for accurate cost data (falls back to timeseries)
-  const liveMatchCost = liveMatchStats?.totals?.total_cost || 0;
-  const liveSummaryCost = summaryStats?.totals?.total_cost || 0;
-  const liveMatchCount = liveMatchStats?.totals?.total_matches || 0;
-  const livePaperCount = liveMatchStats?.storage?.total_papers || totals.papers || 0;
-
-  const summaryCost = liveSummaryCost || totals.summary_cost || 0;
-  const matchCost = liveMatchCost || totals.match_cost || totals.cost;
-  const combinedCost = (liveMatchCost && liveSummaryCost) ? liveMatchCost + liveSummaryCost : totals.cost;
-  const combinedTokens = totals.tokens;
-  const effectivePapers = livePaperCount || totals.papers;
-  const effectiveMatches = liveMatchCount || totals.matches;
-  const avgMatchesPerPaper = effectivePapers > 0 ? effectiveMatches / effectivePapers : 0;
-  const avgMatchCostPerPaper = effectivePapers > 0 ? matchCost / effectivePapers : 0;
-  const avgSummaryCostPerPaper = effectivePapers > 0 ? summaryCost / effectivePapers : 0;
+  // Single source of truth: every aggregate figure comes from the timeseries
+  // cumulative totals (daily_stats). The per-model match/summary panels below
+  // are produced by the same backfill pass, so their row-sums equal these
+  // totals exactly — cards, panel headers, rows, and charts all agree.
+  const matchCost = totals.match_cost || 0;
+  const summaryCost = totals.summary_cost || 0;
+  const combinedCost = matchCost + summaryCost;
+  const combinedTokens = totals.tokens || 0;
+  const avgMatchesPerPaper = totals.papers > 0 ? totals.matches / totals.papers : 0;
+  const avgMatchCostPerPaper = totals.papers > 0 ? matchCost / totals.papers : 0;
+  const avgSummaryCostPerPaper = totals.papers > 0 ? summaryCost / totals.papers : 0;
   const avgTotalCostPerPaper = avgMatchCostPerPaper + avgSummaryCostPerPaper;
 
   return (

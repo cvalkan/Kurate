@@ -20,7 +20,6 @@ import asyncio
 from core.config import db, logger, CATEGORIES
 from core.auth import verify_admin, get_settings
 import routers.admin as _admin
-import routers.leaderboard as _lb
 
 router = APIRouter(prefix="/api/admin2")
 
@@ -119,6 +118,12 @@ async def record_summary_daily_stat(category: str, model_key: str, added_at=None
                          {"$inc": {"summaries": 1, "summary_cost": cost}}, upsert=True)
                for c in (cat, "_total")]
         await db.daily_stats.bulk_write(ops, ordered=False)
+        # Per-model summary totals (model stored as a value → safe for dotted keys).
+        await db.model_summary_stats.update_one(
+            {"model": model_key},
+            {"$inc": {"summaries": 1, "input_tokens": inp, "output_tokens": out, "cost": cost}},
+            upsert=True,
+        )
     except Exception as e:
         logger.warning(f"[ADMIN2] record_summary_daily_stat failed: {e}")
 
@@ -217,6 +222,7 @@ async def _backfill_summary_costs():
     cost_by = defaultdict(float)   # (day, cat) -> summary_cost
     cnt_by = defaultdict(int)      # (day, cat) -> summaries count
     tracked_cnt = defaultdict(int)  # (day, cat) -> tracked summaries count
+    by_model = defaultdict(lambda: {"summaries": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0})
 
     # 2a. Tracked tokens per day×category×model → exact cost.
     async for doc in db.papers.aggregate([
@@ -238,6 +244,11 @@ async def _backfill_summary_costs():
         cost_by[(day, "_total")] += c
         tracked_cnt[(day, cat)] += doc["cnt"]
         tracked_cnt[(day, "_total")] += doc["cnt"]
+        m = by_model[mk]
+        m["summaries"] += doc["cnt"]
+        m["input_tokens"] += doc["in"]
+        m["output_tokens"] += doc["out"]
+        m["cost"] += c
 
     # 2b. Total summary counts per day×category×model (all keys, tracked or not).
     #     Untracked = total - tracked, priced at the model's tracked average.
@@ -281,6 +292,11 @@ async def _backfill_summary_costs():
         c = doc["cnt"] * ((avg_in / 1_000_000) * pin + (avg_out / 1_000_000) * pout)
         cost_by[(day, cat)] += c
         cost_by[(day, "_total")] += c
+        m = by_model[mk]
+        m["summaries"] += doc["cnt"]
+        m["input_tokens"] += int(avg_in * doc["cnt"])
+        m["output_tokens"] += int(avg_out * doc["cnt"])
+        m["cost"] += c
 
     # 3. Persist accurate summaries count + summary_cost per (day, category).
     keys = set(cost_by) | set(cnt_by)
@@ -291,6 +307,17 @@ async def _backfill_summary_costs():
            for (day, cat) in keys]
     for i in range(0, len(ops), 500):
         await db.daily_stats.bulk_write(ops[i:i + 500], ordered=False)
+
+    # 4. Persist per-model summary totals (same pass → reconciles with daily_stats).
+    if by_model:
+        await db.model_summary_stats.delete_many({"model": {"$nin": list(by_model.keys())}})
+        await db.model_summary_stats.bulk_write(
+            [UpdateOne({"model": mk},
+                       {"$set": {"model": mk, "summaries": v["summaries"],
+                                 "input_tokens": int(v["input_tokens"]),
+                                 "output_tokens": int(v["output_tokens"]),
+                                 "cost": round(v["cost"], 6)}}, upsert=True)
+             for mk, v in by_model.items()], ordered=False)
 
 
 def _kick_backfill() -> bool:
@@ -306,34 +333,19 @@ def _kick_backfill() -> bool:
 # Read-path helpers
 # ──────────────────────────────────────────────────────────────────────────
 
-def _build_summary_models() -> list:
-    """Per-model summary panel from the in-memory leaderboard cache.
+async def _build_summary_models() -> list:
+    """Per-model summary panel from the model_summary_stats collection.
 
-    Accurate pricing: real tracked tokens (tracked_input/tracked_output) for
-    summaries that reported usage, plus each model's own tracked average for the
-    untracked remainder. Reconciles exactly with daily_stats.summary_cost
-    (rebuilt by _backfill_summary_costs using the identical per-summary formula).
+    Single source of truth: this collection is written by the same backfill pass
+    (and write-time hook) that populates daily_stats.summary_cost, so the panel
+    rows sum exactly to summary.summary_cost — no leaderboard-cache dependency.
     """
-    ss = (_lb._cache or {}).get("_summary_stats", {}) or {}
-    allm = ss.get("__all__", {}).get("models", {}) or {}
     out = []
-    for mk, m in allm.items():
-        count = m.get("summaries", 0) or 0
+    async for d in db.model_summary_stats.find({}, {"_id": 0}):
+        count = d.get("summaries", 0) or 0
         if count <= 0:
             continue
-        ti = m.get("tracked_input", 0) or 0
-        to = m.get("tracked_output", 0) or 0
-        tc = m.get("tracked_count", 0) or 0
-        pin, pout = _price_for_summary(mk)
-        tracked_cost = (ti / 1_000_000) * pin + (to / 1_000_000) * pout
-        untracked = max(0, count - tc)
-        if tc and ti:
-            avg_in, avg_out = ti / tc, to / tc
-        else:
-            avg_in, avg_out = AVG_IN, AVG_OUT
-        untracked_cost = untracked * ((avg_in / 1_000_000) * pin + (avg_out / 1_000_000) * pout)
-        cost = round(tracked_cost + untracked_cost, 4)
-        out.append({"name": mk, "count": count, "cost": cost})
+        out.append({"name": d["model"], "count": count, "cost": round(d.get("cost", 0.0), 4)})
     total = sum(x["cost"] for x in out) or 1.0
     for x in out:
         x["pct"] = round(100.0 * x["cost"] / total, 1)
@@ -399,10 +411,11 @@ async def stats_overview(category: Optional[str] = None, force: bool = False):
             cat_by_key[(doc["date"], doc["category"])] = doc
 
     backfilling = False
-    if force or len(total_by_date) < _SPARSE_THRESHOLD:
+    summary_present = await db.model_summary_stats.estimated_document_count()
+    if force or len(total_by_date) < _SPARSE_THRESHOLD or summary_present == 0:
         backfilling = _kick_backfill()
 
-    # 2. per-model match totals
+    # 2. per-model match totals (single source: model_match_stats collection)
     model_totals = {}
     async for d in db.model_match_stats.find({}, {"_id": 0}):
         if d.get("model"):
@@ -411,25 +424,21 @@ async def stats_overview(category: Optional[str] = None, force: bool = False):
                 "input_tokens": d.get("input_tokens", 0),
                 "output_tokens": d.get("output_tokens", 0),
             }
-    if not model_totals:
-        meta = await db.daily_stats.find_one({"_meta": "model_stats"}, {"_id": 0})
-        if meta:
-            model_totals = meta.get("models", {}) or {}
 
-    # 3. timeseries series (pure builder; computes per-model cost too)
+    # 3. timeseries series (pure builder; computes per-model match cost too)
     result = _admin._build_series_from_daily_stats(total_by_date, cat_by_key, cats, model_totals)
     totals = result["totals"]
 
-    # 4. panels
+    # 4. per-model panels (each reconciles with its daily_stats total by construction)
     match_models = _build_match_models(result.get("models", {}))
-    summary_models = _build_summary_models()
+    summary_models = await _build_summary_models()
     user_series = await _user_registrations()
 
-    # 5. summary cards — papers/matches from cheap leaderboard snapshot, fall
-    #    back to daily_stats cumulative if the cache hasn't warmed.
-    lb = _lb._cache or {}
-    total_papers = lb.get("total_papers") or totals.get("papers", 0)
-    total_matches = lb.get("total_matches") or totals.get("matches", 0)
+    # 5. SINGLE SOURCE OF TRUTH: every aggregate number comes from daily_stats
+    #    cumulative totals. Per-model panels are written by the same backfill pass
+    #    so their row-sums equal these totals exactly.
+    total_papers = totals.get("papers", 0)
+    total_matches = totals.get("matches", 0)
     match_cost = totals.get("match_cost", 0.0)
     summary_cost = totals.get("summary_cost", 0.0)
     total_cost = round(match_cost + summary_cost, 4)
@@ -450,7 +459,26 @@ async def stats_overview(category: Optional[str] = None, force: bool = False):
         "summary_cost_per_paper": round(summary_cost / pp, 4),
     }
 
+    # Objects consumed by the AdminStatistics component. All totals reference the
+    # SAME daily_stats cumulative figures used by the cards and the charts, so the
+    # cards, panel headers, rows, and timeseries are mutually consistent.
+    result["refreshed_at"] = result.get("computed_at")
+    stats = {
+        "models": result.get("models", {}),
+        "totals": {"total_cost": round(match_cost, 4), "total_matches": total_matches},
+        "storage": {"total_papers": total_papers},
+        "summaries": {
+            "models": {m["name"]: {"summaries": m["count"], "cost_total": m["cost"]}
+                       for m in summary_models},
+            "totals": {"total_cost": round(summary_cost, 4)},
+        },
+    }
+
     return {
+        # Consumed by AdminStatistics:
+        "timeseries": result,
+        "stats": stats,
+        # Standalone fields (also used by pytest regression):
         "summary": summary,
         "series": result["series"],
         "categories": result["categories"],
@@ -458,7 +486,7 @@ async def stats_overview(category: Optional[str] = None, force: bool = False):
         "summary_models": summary_models,
         "user_registrations": user_series,
         "backfilling": backfilling,
-        "data_complete": len(total_by_date) >= 5,
+        "data_complete": len(total_by_date) >= _SPARSE_THRESHOLD,
         "refreshed_at": datetime.now(timezone.utc).isoformat(),
     }
 
