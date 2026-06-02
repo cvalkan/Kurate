@@ -1711,30 +1711,29 @@ async def _compute_timeseries(category: Optional[str] = None):
             model_stats[model_key]["output_tokens"] += out
 
     # --- Summary generation costs (aggregation — count per model per day) ---
-    # Uses fixed average input size to avoid loading full_text into the pipeline
-    # (full_text is ~40-100KB per paper; loading it in aggregation causes OOM on production)
+    # Uses fixed average sizes to avoid loading summary text into pipeline memory
+    # (full summary text is ~7KB per entry; $objectToArray + $strLenCP would exceed
+    # MongoDB's 100MB aggregation memory limit on 20K+ papers)
     summary_daily = defaultdict(lambda: defaultdict(lambda: {"count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0}))
     AVG_INPUT_TOKENS = 10375  # (~40K text + 1K abstract + 500 prompt) / 4
+    AVG_OUTPUT_TOKENS = 1788  # ~7150 chars / 4 chars per token
     async for doc in db.papers.aggregate([
         {"$match": {"summaries": {"$exists": True, "$ne": None}}},
         {"$project": {
             "day": {"$substrCP": [{"$ifNull": ["$added_at", ""]}, 0, 10]},
             "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
-            "summary_keys": {"$objectToArray": {"$ifNull": ["$summaries", {}]}},
+            "num_summaries": {"$size": {"$objectToArray": {"$ifNull": ["$summaries", {}]}}},
+            "summary_keys": {"$map": {
+                "input": {"$objectToArray": {"$ifNull": ["$summaries", {}]}},
+                "as": "s",
+                "in": "$$s.k",
+            }},
         }},
-        {"$match": {"day": {"$ne": ""}}},
+        {"$match": {"day": {"$ne": ""}, "num_summaries": {"$gt": 0}}},
         {"$unwind": "$summary_keys"},
-        {"$match": {"summary_keys.v": {"$type": "string"}}},
-        {"$project": {
-            "day": 1, "cat": 1,
-            "mk": "$summary_keys.k",
-            "text_len": {"$strLenCP": "$summary_keys.v"},
-        }},
-        {"$match": {"text_len": {"$gte": 50}}},
         {"$group": {
-            "_id": {"day": "$day", "cat": "$cat", "mk": "$mk"},
+            "_id": {"day": "$day", "cat": "$cat", "mk": "$summary_keys"},
             "count": {"$sum": 1},
-            "avg_text_len": {"$avg": "$text_len"},
         }},
     ]):
         day = doc["_id"]["day"]
@@ -1742,7 +1741,7 @@ async def _compute_timeseries(category: Optional[str] = None):
         mk = doc["_id"]["mk"]
         count = doc["count"]
         inp_tok = AVG_INPUT_TOKENS * count
-        out_tok = int(doc["avg_text_len"] * count) // 4
+        out_tok = AVG_OUTPUT_TOKENS * count
 
         provider = mk.split(":")[0]
         if "openai" in provider:
