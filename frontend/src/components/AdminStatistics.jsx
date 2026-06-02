@@ -256,7 +256,7 @@ export function AdminStatistics({ categories }) {
     return nonEmptyCats.filter(c => !top.has(c));
   }, [nonEmptyCats, chartCats]);
 
-  const lastDay = _series.length > 0 ? _series[_series.length - 1] : {};
+  const lastDay = useMemo(() => _series.length > 0 ? _series[_series.length - 1] : {}, [_series]);
 
   const chartData = useMemo(() => _series.map(entry => {
     const d = { date: entry.date };

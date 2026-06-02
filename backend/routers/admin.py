@@ -1593,7 +1593,7 @@ async def get_timeseries(
             s = [e for e in s if e["date"] >= date_from]
         if date_to:
             s = [e for e in s if e["date"] <= date_to]
-        return {**result, "series": s, "refreshed_at": datetime.now(timezone.utc).isoformat()}
+        return {**result, "series": s, "refreshed_at": result.get("computed_at", datetime.now(timezone.utc).isoformat())}
 
     empty = {"series": [], "categories": [], "totals": {
         "papers": 0, "matches": 0, "tokens": 0, "input_tokens": 0,
@@ -1680,7 +1680,7 @@ async def _compute_timeseries(category: Optional[str] = None):
     if category:
         pmatch["categories.0"] = category
     async for doc in db.papers.aggregate([
-        {"$match": pmatch} if pmatch else {"$match": {}},
+        {"$match": pmatch},
         {"$project": {
             "day": {"$substrCP": [{"$ifNull": ["$added_at", {"$ifNull": ["$published", ""]}]}, 0, 10]},
             "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
@@ -1741,9 +1741,13 @@ async def _compute_timeseries(category: Optional[str] = None):
             except Exception as e:
                 logger.warning(f"[TIMESERIES] Match agg failed for {qcat}: {e}")
 
-    # Summaries
+    # Summaries — average cost across the 3 summary models
     AVG_IN, AVG_OUT = 10375, 1788
-    AVG_COST = _price_match(AVG_IN, AVG_OUT, "anthropic", "claude-opus-4-6")
+    AVG_COST = (
+        _price_match(AVG_IN, AVG_OUT, "anthropic", "claude-opus-4-6") +
+        _price_match(AVG_IN, AVG_OUT, "openai", "gpt-5.2") +
+        _price_match(AVG_IN, AVG_OUT, "gemini", "gemini-3-pro-preview")
+    ) / 3
     smatch = {"summaries": {"$exists": True, "$ne": None}}
     if compute_from:
         smatch["added_at"] = {"$gte": compute_from}
@@ -1870,6 +1874,7 @@ async def _compute_timeseries(category: Optional[str] = None):
     return {
         "series": series,
         "categories": cats,
+        "computed_at": _dt.now(_tz.utc).isoformat(),
         "totals": {
             "papers": cum["papers"]["_"],
             "matches": cum["matches"]["_"],
