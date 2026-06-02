@@ -103,6 +103,7 @@ function CustomTooltip({ active, payload, label, formatter }) {
 export function AdminStatistics({ categories }) {
   const [timeseries, setTimeseries] = useState(null);
   const [summaryStats, setSummaryStats] = useState(null);
+  const [liveMatchStats, setLiveMatchStats] = useState(null);
   const [memoryData, setMemoryData] = useState(null);
   const [repairQueueData, setRepairQueueData] = useState(null);
   const [registrationData, setRegistrationData] = useState(null);
@@ -143,6 +144,7 @@ export function AdminStatistics({ categories }) {
       }
       if (statsResult.status === "fulfilled" && statsResult.value) {
         setSummaryStats(statsResult.value.data.summaries || null);
+        setLiveMatchStats(statsResult.value.data || null);
       }
       if (memResult.status === "fulfilled" && memResult.value) {
         const allLogs = memResult.value.data?.logs || [];
@@ -355,17 +357,29 @@ export function AdminStatistics({ categories }) {
     );
   };
 
-  const summaryCost = totals.summary_cost || 0;
-  const matchCost = totals.match_cost || totals.cost;
-  const combinedCost = totals.cost;  // Already includes summaries from timeseries
-  const combinedTokens = totals.tokens;  // Already includes summaries from timeseries
+  // Use live stats endpoint for accurate cost data (falls back to timeseries)
+  const liveMatchCost = liveMatchStats?.totals?.total_cost || 0;
+  const liveSummaryCost = summaryStats?.totals?.total_cost || 0;
+  const liveMatchCount = liveMatchStats?.totals?.total_matches || 0;
+  const livePaperCount = liveMatchStats?.storage?.total_papers || totals.papers || 0;
+
+  const summaryCost = liveSummaryCost || totals.summary_cost || 0;
+  const matchCost = liveMatchCost || totals.match_cost || totals.cost;
+  const combinedCost = (liveMatchCost && liveSummaryCost) ? liveMatchCost + liveSummaryCost : totals.cost;
+  const combinedTokens = totals.tokens;
+  const effectivePapers = livePaperCount || totals.papers;
+  const effectiveMatches = liveMatchCount || totals.matches;
+  const avgMatchesPerPaper = effectivePapers > 0 ? effectiveMatches / effectivePapers : 0;
+  const avgMatchCostPerPaper = effectivePapers > 0 ? matchCost / effectivePapers : 0;
+  const avgSummaryCostPerPaper = effectivePapers > 0 ? summaryCost / effectivePapers : 0;
+  const avgTotalCostPerPaper = avgMatchCostPerPaper + avgSummaryCostPerPaper;
 
   return (
     <div className="space-y-6" data-testid="admin-statistics">
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatSummaryCard label="Total Papers" value={totals.papers.toLocaleString()} icon={FileText} color="#3b82f6" />
-        <StatSummaryCard label="Total Matches" value={totals.matches.toLocaleString()} icon={Swords} color="#8b5cf6" />
+        <StatSummaryCard label="Total Matches" value={totals.matches.toLocaleString()} sub={`${avgMatchesPerPaper.toFixed(1)} per paper`} icon={Swords} color="#8b5cf6" />
         <StatSummaryCard
           label="Total Tokens"
           value={formatTokens(combinedTokens)}
@@ -378,17 +392,25 @@ export function AdminStatistics({ categories }) {
           sub={summaryCost > 0 ? `$${matchCost.toFixed(0)} matches + $${summaryCost.toFixed(0)} summaries` : `${modelCount} models`}
           icon={Coins} color="#f59e0b"
         />
+        <StatSummaryCard
+          label="Cost / Paper"
+          value={`$${avgTotalCostPerPaper.toFixed(2)}`}
+          sub={`$${avgMatchCostPerPaper.toFixed(2)} matches + $${avgSummaryCostPerPaper.toFixed(2)} summaries`}
+          icon={Coins} color="#ec4899"
+        />
       </div>
 
       {/* Cost breakdown — Match Costs vs Summary Costs side by side */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Match costs */}
-        {modelStats && Object.keys(modelStats).length > 0 && (
+        {/* Match costs — prefer live stats endpoint over timeseries */}
+        {((liveMatchStats?.models && Object.keys(liveMatchStats.models).length > 0) || (modelStats && Object.keys(modelStats).length > 0)) && (() => {
+          const mStats = (liveMatchStats?.models && Object.keys(liveMatchStats.models).length > 0) ? liveMatchStats.models : modelStats;
+          return (
           <div className="rounded-lg border border-border bg-card p-4" data-testid="match-cost-breakdown">
             <h3 className="text-sm font-medium mb-1">Match Costs</h3>
-            <p className="text-[10px] text-muted-foreground mb-3">${matchCost.toFixed(0)} total across {Object.values(modelStats).reduce((s,m) => s + (m.matches||0), 0).toLocaleString()} comparisons</p>
+            <p className="text-[10px] text-muted-foreground mb-3">${matchCost.toFixed(0)} total across {Object.values(mStats).reduce((s,m) => s + (m.matches||0), 0).toLocaleString()} comparisons</p>
             <div className="space-y-1.5">
-              {Object.entries(modelStats)
+              {Object.entries(mStats)
                 .filter(([, s]) => (s.matches || 0) > 0)
                 .sort((a, b) => (b[1].cost_total || 0) - (a[1].cost_total || 0))
                 .map(([model, stats], idx) => {
@@ -409,7 +431,8 @@ export function AdminStatistics({ categories }) {
                 })}
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Summary costs */}
         {summaryStats?.models && Object.keys(summaryStats.models).length > 0 && (
