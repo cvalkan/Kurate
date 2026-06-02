@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Settings, Activity, LogOut, FileText, Save, HelpCircle, FlaskConical, MessageSquare, Users,
-  Sliders, Twitter, Mail, ScrollText, Download,
+  Sliders, Twitter, Mail, ScrollText, Download, BarChart3,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ResponsiveContainer, ComposedChart, BarChart, Bar, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip as RTooltip, Area } from "recharts";
@@ -282,12 +282,20 @@ export default function AdminPage() {
         {tabs.map((t) => {
           const Icon = t.icon;
           return (
-            <Button key={t.key} variant={activeTab === t.key ? "default" : "ghost"} size="sm"
-              onClick={() => setActiveTab(t.key)} className="gap-1 text-xs h-7 px-2.5 shrink-0" data-testid={`tab-${t.key}`}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {t.label}
-            </Button>
+            <span key={t.key} className="contents">
+              <Button variant={activeTab === t.key ? "default" : "ghost"} size="sm"
+                onClick={() => setActiveTab(t.key)} className="gap-1 text-xs h-7 px-2.5 shrink-0" data-testid={`tab-${t.key}`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {t.label}
+              </Button>
+              {t.key === "statistics" && (
+                <a href="/admin2" className="inline-flex items-center gap-1 text-xs h-7 px-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors shrink-0" data-testid="tab-statistics-v2">
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  Stats v2
+                </a>
+              )}
+            </span>
           );
         })}
         <a href="/admin/outreach" className="inline-flex items-center gap-1 text-xs h-7 px-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors shrink-0" data-testid="tab-outreach">
