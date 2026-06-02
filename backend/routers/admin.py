@@ -1457,10 +1457,6 @@ async def _backfill_daily_stats_chunk(date_from: str, date_to: str):
 
     # Helper: date extraction that works for both string and Date fields
     day_expr = lambda field: {"$substrCP": [{"$toString": {"$ifNull": [f"${field}", ""]}}, 0, 10]}
-    date_range_filter = lambda field: {"$and": [
-        {"$gte": [day_expr(field), date_from]},
-        {"$lt": [day_expr(field), date_to]},
-    ]}
 
     AVG_IN, AVG_OUT = 10375, 1788
 
@@ -1480,12 +1476,23 @@ async def _backfill_daily_stats_chunk(date_from: str, date_to: str):
         if cat in cat_set:
             _acc(day, cat, papers=doc["n"])
 
-    # Matches in this date range
+    # Matches in this date range — INDEX-BACKED range on created_at.
+    # Filtering on a *computed* `_day` field via $expr forces a COLLSCAN, which
+    # times out on Atlas with 762K+ matches and silently drops chunks → the
+    # match undercount bug. An index-eligible $or over both representations
+    # (ISO-string on preview, BSON Date on production) keeps every chunk an
+    # IXSCAN, so the cold rebuild reconciles exactly at any scale. Both bounds
+    # delimit the SAME UTC instant, and type-bracketing ensures each branch only
+    # matches its own storage type (no double counting).
+    dt_from = _dt.fromisoformat(date_from).replace(tzinfo=_tz.utc)
+    dt_to = _dt.fromisoformat(date_to).replace(tzinfo=_tz.utc)
     try:
         async for doc in db.matches.aggregate([
-            {"$addFields": {"_day": {"$substrCP": [{"$toString": {"$ifNull": ["$created_at", ""]}}, 0, 10]}}},
             {"$match": {"completed": True, "failed": {"$ne": True},
-                        "$expr": {"$and": [{"$gte": ["$_day", date_from]}, {"$lt": ["$_day", date_to]}]}}},
+                        "$or": [
+                            {"created_at": {"$gte": date_from, "$lt": date_to}},
+                            {"created_at": {"$gte": dt_from, "$lt": dt_to}},
+                        ]}},
             {"$group": match_group},
         ]):
             _process_match_doc(doc)

@@ -12,6 +12,13 @@ Build and maintain an AI paper-judging system using multiple LLM judges to rank 
 
 ## Latest Changes (Jun 2, 2026)
 
+### FIX: admin2 cold-rebuild match UNDERCOUNT on production (Atlas)
+- **Symptom**: A cold-start reconciliation (clear admin2 collections + rebuild) reproduced summary_cost/summaries/registrations EXACTLY but matches differed (live $inc 275,497 → rebuild 209,458). Live $inc count == ground truth (`matches` completed&!failed) == 275,497, so the **backfill was undercounting** — a bug, not drift correction.
+- **Root cause**: `_backfill_daily_stats_chunk` (in `routers/admin.py`) filtered matches on a *computed* `_day` field via `$expr` → forced a **COLLSCAN** (confirmed via explain). On Atlas (762K+ matches, 30s read timeout) chunks time out, get caught by `except`→logged warning→**silently skipped** → missing matches. Preview (local Mongo) never times out, so it reconciled there.
+- **Fix**: Replaced the `$expr`-on-computed-substring filter with an index-eligible `$or` range on `created_at` (string bound for preview + UTC-datetime bound for prod BSON Date). Query is now **IXSCAN on `created_at_1`** → every chunk completes fast at any scale → no dropped chunks → exact reconciliation. Removed unused `date_range_filter` helper.
+- **Verified**: explain IXSCAN (was COLLSCAN); cold rebuild (backend stopped to avoid cross-process race) deterministically gives daily_stats matches=275,497 == model_match_stats == ground truth, papers=10,657, summaries=36,517, costs reconcile; 16/16 pytest; live API via REACT_APP_BACKEND_URL returns total_matches 275,497 with match_models summing to it. Note: the variance seen mid-debug (257k/243k) was a TEST-ONLY cross-process race (standalone script + running scheduler both backfilling); prod has a single leader + in-process `_ts_backfill_running` guard, so no race.
+
+
 ### Admin Stats consolidated into the dashboard "Statistics" tab (replaces old panel)
 - The dashboard **Statistics** tab now renders the new scalable stats; the standalone `/admin2` route and "Stats v2" tab were **removed**. Old `/api/admin/timeseries` and `/api/admin/stats` endpoints **deleted** (Overview tab repointed to `/api/admin2/stats-overview`).
 - **One source of truth**: a single backfill pass writes `daily_stats` + `model_match_stats` + `model_summary_stats`; the endpoint reads ONLY these (+ `daily_registrations`, `system_logs`). No leaderboard-cache dependency, no match/paper scans. Cards, panel headers, rows, and timeseries all reconcile by construction. Accurate pricing (real tracked tokens + per-model avg for untracked).
