@@ -1555,13 +1555,16 @@ MODEL_PRICING = {
 
 
 
-_timeseries_lock = False
-_timeseries_last_refresh = 0
+# ── Timeseries: incremental daily_stats with bounded chunk backfill ──
 
-# Empty daily stats template
 _EMPTY_DAY = {"papers": 0, "matches": 0, "input_tokens": 0, "output_tokens": 0,
               "cost": 0.0, "summaries": 0, "summary_cost": 0.0}
 
+_SUMMARY_PRICING = {
+    "anthropic": "anthropic/claude-opus-4-6",
+    "openai": "openai/gpt-5.2",
+    "gemini": "gemini/gemini-3-pro-preview",
+}
 
 def _make_day(date: str, category: str) -> dict:
     return {"date": date, "category": category, **_EMPTY_DAY}
@@ -1573,97 +1576,21 @@ def _price_match(inp: int, out: int, provider: str, model: str) -> float:
     return (inp / 1_000_000) * p["input"] + (out / 1_000_000) * p["output"]
 
 
-@router.get("/timeseries", dependencies=[Depends(verify_admin)])
-async def get_timeseries(
-    category: Optional[str] = None,
-    date_from: Optional[str] = None,
-    date_to: Optional[str] = None,
-    force: bool = False,
-):
-    """Daily time-series for papers, matches, tokens, costs.
-    Uses incremental `daily_stats` collection as persistent cache."""
-    global _timeseries_lock, _timeseries_last_refresh
-    cache_key = category or "__all__"
-
-    def _trim(result):
-        if not result or "series" not in result:
-            return result
-        s = result["series"]
-        if date_from:
-            s = [e for e in s if e["date"] >= date_from]
-        if date_to:
-            s = [e for e in s if e["date"] <= date_to]
-        return {**result, "series": s, "refreshed_at": result.get("computed_at", datetime.now(timezone.utc).isoformat())}
-
-    empty = {"series": [], "categories": [], "totals": {
-        "papers": 0, "matches": 0, "tokens": 0, "input_tokens": 0,
-        "output_tokens": 0, "cost": 0.0, "match_cost": 0.0, "summary_cost": 0.0}, "models": {}}
-
-    # Cached in-memory (5-min TTL)
-    if not force:
-        cached = _get_admin_cached("timeseries", cache_key)
-        if cached:
-            return _trim(cached)
-
-    # Compute (or wait if already computing)
-    if _timeseries_lock:
-        return empty
-    _timeseries_lock = True
-    try:
-        result = await _compute_timeseries(category)
-        _set_admin_cached("timeseries", cache_key, result)
-        _timeseries_last_refresh = _time.time()
-        return _trim(result)
-    except Exception as e:
-        import traceback
-        logger.error(f"[TIMESERIES] Failed: {e}\n{traceback.format_exc()}")
-        if force:
-            raise HTTPException(500, detail=f"Timeseries failed: {str(e)[:500]}")
-        return empty
-    finally:
-        _timeseries_lock = False
+_ts_backfill_running = False
 
 
-async def _compute_timeseries(category: Optional[str] = None):
-    """Incremental timeseries from daily_stats cache.
-    First call: full backfill. Subsequent: only aggregate recent days."""
-    from datetime import date as _date, timedelta as _td, datetime as _dt, timezone as _tz
+async def _backfill_daily_stats_chunk(date_from: str, date_to: str):
+    """Aggregate one date range chunk into daily_stats. Bounded by date range.
+    Each chunk only touches matches/papers within [date_from, date_to)."""
     from pymongo import UpdateOne
+    from datetime import datetime as _dt, timezone as _tz
 
     settings = await get_settings()
-    cats = [category] if category else sorted(settings.get("active_categories", list(CATEGORIES.keys())))
+    cats = sorted(settings.get("active_categories", list(CATEGORIES.keys())))
     cat_set = set(cats)
-    today = _dt.now(_tz.utc).strftime("%Y-%m-%d")
 
-    # ── Load cached daily_stats ──
-    total_by_date = {}   # date -> stats dict
-    cat_by_key = {}      # (date, cat) -> stats dict
-    last_date = None
-
-    async for doc in db.daily_stats.find({"category": "_total"}, {"_id": 0}):
-        total_by_date[doc["date"]] = doc
-        if not last_date or doc["date"] > last_date:
-            last_date = doc["date"]
-
-    async for doc in db.daily_stats.find(
-        {"category": {"$in": cats}},
-        {"_id": 0},
-    ):
-        cat_by_key[(doc["date"], doc["category"])] = doc
-
-    # ── Decide what to compute ──
-    if last_date and last_date >= today:
-        compute_from = today
-    elif last_date:
-        compute_from = last_date
-    else:
-        compute_from = None  # full backfill
-
-    logger.info(f"[TIMESERIES] {len(total_by_date)} cached days, compute_from={compute_from}")
-
-    # ── Aggregate new data ──
-    new = {}          # (date, cat) -> stats
-    model_totals = {} # model_key -> {matches, input_tokens, output_tokens}
+    new = {}
+    model_totals = {}
 
     def _acc(day, cat, **fields):
         for k in [cat, "_total"]:
@@ -1673,26 +1600,6 @@ async def _compute_timeseries(category: Optional[str] = None):
             for f, v in fields.items():
                 new[key][f] = new[key].get(f, 0) + v
 
-    # Papers
-    pmatch = {}
-    if compute_from:
-        pmatch["$or"] = [{"added_at": {"$gte": compute_from}}, {"published": {"$gte": compute_from}}]
-    if category:
-        pmatch["categories.0"] = category
-    async for doc in db.papers.aggregate([
-        {"$match": pmatch},
-        {"$project": {
-            "day": {"$substrCP": [{"$ifNull": ["$added_at", {"$ifNull": ["$published", ""]}]}, 0, 10]},
-            "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
-        }},
-        {"$match": {"day": {"$gte": compute_from} if compute_from else {"$ne": ""}}},
-        {"$group": {"_id": {"day": "$day", "cat": "$cat"}, "n": {"$sum": 1}}},
-    ]):
-        day, cat = doc["_id"]["day"], doc["_id"]["cat"]
-        if cat in cat_set:
-            _acc(day, cat, papers=doc["n"])
-
-    # Matches — incremental uses created_at index, backfill uses per-category compound index
     def _process_match_doc(doc):
         day = doc["_id"].get("day")
         if not day:
@@ -1721,33 +1628,41 @@ async def _compute_timeseries(category: Optional[str] = None):
         "out": {"$sum": {"$ifNull": ["$tokens.output_est", 0]}},
     }
 
-    # Matches — single-pass aggregation (uses created_at index for incremental,
-    # full scan with $group for backfill — still faster than 45 sequential per-category queries on Atlas)
-    match_filter = {"completed": True, "failed": {"$ne": True}}
-    if compute_from:
-        match_filter["created_at"] = {"$gte": compute_from}
+    AVG_IN, AVG_OUT = 10375, 1788
+
+    # Papers in this date range
+    async for doc in db.papers.aggregate([
+        {"$match": {"$or": [
+            {"added_at": {"$gte": date_from, "$lt": date_to}},
+            {"published": {"$gte": date_from, "$lt": date_to}},
+        ]}},
+        {"$project": {
+            "day": {"$substrCP": [{"$ifNull": ["$added_at", {"$ifNull": ["$published", ""]}]}, 0, 10]},
+            "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
+        }},
+        {"$match": {"day": {"$gte": date_from, "$lt": date_to}}},
+        {"$group": {"_id": {"day": "$day", "cat": "$cat"}, "n": {"$sum": 1}}},
+    ]):
+        day, cat = doc["_id"]["day"], doc["_id"]["cat"]
+        if cat in cat_set:
+            _acc(day, cat, papers=doc["n"])
+
+    # Matches in this date range (bounded by created_at index)
     try:
         async for doc in db.matches.aggregate([
-            {"$match": match_filter},
+            {"$match": {"completed": True, "failed": {"$ne": True},
+                        "created_at": {"$gte": date_from, "$lt": date_to}}},
             {"$group": match_group},
         ]):
             _process_match_doc(doc)
     except Exception as e:
-        logger.warning(f"[TIMESERIES] Match agg failed: {e}")
+        logger.warning(f"[TIMESERIES] Match chunk [{date_from}..{date_to}) failed: {e}")
 
-    # Summaries — price each model's summaries at that model's rate
-    AVG_IN, AVG_OUT = 10375, 1788
-    _SUMMARY_PRICING = {  # summary model key prefix -> match pricing key
-        "anthropic": "anthropic/claude-opus-4-6",
-        "openai": "openai/gpt-5.2",
-        "gemini": "gemini/gemini-3-pro-preview",
-    }
-    smatch = {"summaries": {"$exists": True, "$ne": None}}
-    if compute_from:
-        smatch["added_at"] = {"$gte": compute_from}
+    # Summaries in this date range
     try:
         async for doc in db.papers.aggregate([
-            {"$match": smatch},
+            {"$match": {"summaries": {"$exists": True, "$ne": None},
+                        "added_at": {"$gte": date_from, "$lt": date_to}}},
             {"$project": {
                 "day": {"$substrCP": [{"$ifNull": ["$added_at", ""]}, 0, 10]},
                 "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
@@ -1756,7 +1671,7 @@ async def _compute_timeseries(category: Optional[str] = None):
                     "as": "s", "in": "$$s.k",
                 }},
             }},
-            {"$match": {"day": {"$gte": compute_from} if compute_from else {"$ne": ""}}},
+            {"$match": {"day": {"$gte": date_from, "$lt": date_to}}},
             {"$unwind": "$mk"},
             {"$group": {"_id": {"day": "$day", "cat": "$cat", "mk": "$mk"}, "n": {"$sum": 1}}},
         ]):
@@ -1771,42 +1686,82 @@ async def _compute_timeseries(category: Optional[str] = None):
                 cost = _price_match(AVG_IN, AVG_OUT, "anthropic", "claude-opus-4-6") * n
             _acc(day, cat, summaries=n, summary_cost=cost)
     except Exception as e:
-        logger.warning(f"[TIMESERIES] Summary agg failed: {e}")
+        logger.warning(f"[TIMESERIES] Summary chunk [{date_from}..{date_to}) failed: {e}")
 
-    # ── Persist new daily_stats ──
+    # Persist
     if new:
         ops = [UpdateOne({"date": d, "category": c}, {"$set": v}, upsert=True)
                for (d, c), v in new.items()]
         await db.daily_stats.bulk_write(ops, ordered=False)
-        logger.info(f"[TIMESERIES] Persisted {len(ops)} daily_stats")
 
-    # ── Merge cached + new ──
-    for (d, c), v in new.items():
-        if c == "_total":
-            total_by_date[d] = v
-        else:
-            cat_by_key[(d, c)] = v
+    return len(new), model_totals
 
-    # ── Model stats: merge cached + new ──
-    if compute_from:
-        cached_ms = await db.daily_stats.find_one({"_meta": "model_stats"}, {"_id": 0})
-        if cached_ms:
-            for mk, ms in cached_ms.get("models", {}).items():
-                if mk in model_totals:
-                    for f in ("matches", "input_tokens", "output_tokens"):
-                        model_totals[mk][f] += ms.get(f, 0)
-                else:
-                    model_totals[mk] = dict(ms)
-    if not compute_from and model_totals:
-        await db.daily_stats.update_one(
-            {"_meta": "model_stats"},
-            {"$set": {"_meta": "model_stats", "models": model_totals}},
-            upsert=True,
+
+async def _backfill_all_daily_stats():
+    """Background: chunked backfill of daily_stats, 7 days at a time."""
+    global _ts_backfill_running
+    if _ts_backfill_running:
+        return
+    _ts_backfill_running = True
+    try:
+        from datetime import date as _date, timedelta as _td, datetime as _dt, timezone as _tz
+
+        # Find earliest paper date
+        earliest = await db.papers.find_one(
+            {"added_at": {"$exists": True, "$ne": None}},
+            {"_id": 0, "added_at": 1},
+            sort=[("added_at", 1)],
         )
+        if not earliest or not earliest.get("added_at"):
+            return
+        start = earliest["added_at"][:10]
+        today = _dt.now(_tz.utc).strftime("%Y-%m-%d")
 
-    # ── Build response series ──
+        # Find what we already have
+        last_doc = await db.daily_stats.find_one(
+            {"category": "_total"}, {"date": 1}, sort=[("date", -1)]
+        )
+        total_count = await db.daily_stats.count_documents({"category": "_total"})
+        # Only resume from last date if we have substantial data (>30 days = not a partial stub)
+        if last_doc and total_count > 30:
+            start = last_doc["date"]
+
+        cur = _date.fromisoformat(start)
+        end = _date.fromisoformat(today) + _td(days=1)
+        all_model_totals = {}
+        total_persisted = 0
+
+        while cur < end:
+            chunk_end = min(cur + _td(days=7), end)
+            n, mt = await _backfill_daily_stats_chunk(cur.isoformat(), chunk_end.isoformat())
+            total_persisted += n
+            for mk, ms in mt.items():
+                if mk not in all_model_totals:
+                    all_model_totals[mk] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
+                for f in ("matches", "input_tokens", "output_tokens"):
+                    all_model_totals[mk][f] += ms.get(f, 0)
+            cur = chunk_end
+
+        # Persist model totals
+        if all_model_totals:
+            await db.daily_stats.update_one(
+                {"_meta": "model_stats"},
+                {"$set": {"_meta": "model_stats", "models": all_model_totals}},
+                upsert=True,
+            )
+        logger.info(f"[TIMESERIES] Backfill complete: {total_persisted} entries, {len(all_model_totals)} models")
+    except Exception as e:
+        logger.error(f"[TIMESERIES] Backfill failed: {e}")
+    finally:
+        _ts_backfill_running = False
+
+
+def _build_series_from_daily_stats(total_by_date, cat_by_key, cats, model_totals):
+    """Pure function: build the response series from daily_stats dicts."""
+    from datetime import date as _date, timedelta as _td, datetime as _dt, timezone as _tz
+
     if not total_by_date:
-        return {"series": [], "categories": cats,
+        return {"series": [], "categories": cats, "computed_at": _dt.now(_tz.utc).isoformat(),
                 "totals": {"papers": 0, "matches": 0, "tokens": 0, "input_tokens": 0,
                            "output_tokens": 0, "cost": 0, "match_cost": 0, "summary_cost": 0},
                 "models": {}}
@@ -1827,15 +1782,15 @@ async def _compute_timeseries(category: Optional[str] = None):
     for day in dates:
         t = total_by_date.get(day, _EMPTY_DAY)
         dtok = t.get("input_tokens", 0) + t.get("output_tokens", 0)
-        d_match_cost = t.get("cost", 0.0)
-        d_sum_cost = t.get("summary_cost", 0.0)
-        dcost = d_match_cost + d_sum_cost
+        d_mc = t.get("cost", 0.0)
+        d_sc = t.get("summary_cost", 0.0)
+        dcost = d_mc + d_sc
         cum["papers"]["_"] += t.get("papers", 0)
         cum["matches"]["_"] += t.get("matches", 0)
         cum["tokens"]["_"] += dtok
         cum["cost"]["_"] += dcost
-        cum["match_cost"]["_"] += d_match_cost
-        cum["summary_cost"]["_"] += d_sum_cost
+        cum["match_cost"]["_"] += d_mc
+        cum["summary_cost"]["_"] += d_sc
 
         e = {"date": day,
              "papers_daily": t.get("papers", 0), "papers_cumulative": cum["papers"]["_"],
@@ -1865,7 +1820,7 @@ async def _compute_timeseries(category: Optional[str] = None):
             e[f"cost_cumulative_{cat}"] = round(cum["cost"][cat], 4)
         series.append(e)
 
-    # ── Model costs ──
+    # Model costs
     for mk, ms in model_totals.items():
         p = MODEL_PRICING.get(mk, {"input": 2.0, "output": 10.0})
         ci = (ms["input_tokens"] / 1_000_000) * p["input"]
@@ -1892,6 +1847,78 @@ async def _compute_timeseries(category: Optional[str] = None):
         },
         "models": model_totals,
     }
+
+
+@router.get("/timeseries", dependencies=[Depends(verify_admin)])
+async def get_timeseries(
+    category: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    force: bool = False,
+):
+    """Daily time-series. Always reads from daily_stats (instant).
+    Force=true triggers incremental update for today + background backfill if needed."""
+    cache_key = category or "__all__"
+
+    def _trim(result):
+        if not result or "series" not in result:
+            return result
+        s = result["series"]
+        if date_from:
+            s = [e for e in s if e["date"] >= date_from]
+        if date_to:
+            s = [e for e in s if e["date"] <= date_to]
+        return {**result, "series": s, "refreshed_at": result.get("computed_at", datetime.now(timezone.utc).isoformat())}
+
+    # In-memory cache (5-min TTL)
+    if not force:
+        cached = _get_admin_cached("timeseries", cache_key)
+        if cached:
+            return _trim(cached)
+
+    settings = await get_settings()
+    cats = [category] if category else sorted(settings.get("active_categories", list(CATEGORIES.keys())))
+
+    # Read daily_stats (always fast — bounded by number of days, not matches)
+    total_by_date = {}
+    cat_by_key = {}
+    async for doc in db.daily_stats.find({"category": "_total"}, {"_id": 0}):
+        total_by_date[doc["date"]] = doc
+    async for doc in db.daily_stats.find({"category": {"$in": cats}}, {"_id": 0}):
+        cat_by_key[(doc["date"], doc["category"])] = doc
+
+    # If empty or force, do a bounded incremental update (today only) + trigger background backfill
+    if force or not total_by_date:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        try:
+            n, mt = await _backfill_daily_stats_chunk(today, today + "Z")  # today only
+            # Merge into loaded data
+            for (d, c), v in ((k, v) for k, v in zip(
+                [(today, c) for c in cats + ["_total"]], [None]
+            )):
+                pass  # chunk already persisted to DB
+            # Re-read today's data
+            async for doc in db.daily_stats.find({"date": today}, {"_id": 0}):
+                if doc["category"] == "_total":
+                    total_by_date[today] = doc
+                elif doc["category"] in set(cats):
+                    cat_by_key[(today, doc["category"])] = doc
+        except Exception as e:
+            logger.warning(f"[TIMESERIES] Today chunk failed: {e}")
+
+        # Trigger full backfill in background if daily_stats is sparse
+        if len(total_by_date) < 30:
+            asyncio.ensure_future(_backfill_all_daily_stats())
+
+    # Load model stats
+    model_totals = {}
+    cached_ms = await db.daily_stats.find_one({"_meta": "model_stats"}, {"_id": 0})
+    if cached_ms:
+        model_totals = cached_ms.get("models", {})
+
+    result = _build_series_from_daily_stats(total_by_date, cat_by_key, cats, model_totals)
+    _set_admin_cached("timeseries", cache_key, result)
+    return _trim(result)
 
 
 
