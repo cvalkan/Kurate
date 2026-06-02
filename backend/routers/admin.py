@@ -1644,13 +1644,16 @@ async def get_timeseries(category: Optional[str] = None, date_from: Optional[str
 
 
 async def _compute_timeseries(category: Optional[str] = None):
-    """Heavy timeseries computation — uses aggregation pipelines (no Python iteration)."""
-    # --- Papers by day (aggregation) ---
-    paper_match = {}
-    if category:
-        paper_match["categories.0"] = category
+    """Timeseries computation optimized for Atlas (remote MongoDB).
+    Uses simple indexed count queries instead of heavy aggregation pipelines."""
+    
+    settings_for_cats = await get_settings()
+    query_cats = [category] if category else sorted(settings_for_cats.get("active_categories", list(CATEGORIES.keys())))
+
+    # --- Papers by day (lightweight: group by added_at date + category) ---
     papers_daily = defaultdict(lambda: defaultdict(int))
     total_papers_count = 0
+    paper_match = {"categories.0": category} if category else {}
     async for doc in db.papers.aggregate([
         {"$match": paper_match} if paper_match else {"$match": {}},
         {"$project": {
@@ -1666,113 +1669,96 @@ async def _compute_timeseries(category: Optional[str] = None):
         papers_daily[day]["_total"] += doc["count"]
         total_papers_count += doc["count"]
 
-    # --- Matches by day + model stats (aggregation) ---
-    # Run per-category to use compound index (primary_category, completed, failed)
-    # instead of scanning 762K+ matches with no usable index.
+    # --- Matches: lightweight per-category count + daily breakdown ---
+    # Uses compound index (primary_category, completed, failed).
+    # Only groups by day+category (skips per-match token extraction for speed).
     matches_daily = defaultdict(lambda: defaultdict(lambda: {
         "count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0
     }))
     model_stats = {}
 
-    settings_for_cats = await get_settings()
-    query_cats = [category] if category else sorted(settings_for_cats.get("active_categories", list(CATEGORIES.keys())))
-
     for qcat in query_cats:
+        try:
+            async for doc in db.matches.aggregate([
+                {"$match": {"primary_category": qcat, "completed": True, "failed": {"$ne": True}}},
+                {"$group": {
+                    "_id": {"$substrCP": [{"$ifNull": ["$created_at", ""]}, 0, 10]},
+                    "count": {"$sum": 1},
+                    "inp": {"$sum": {"$ifNull": ["$tokens.input_est", 0]}},
+                    "out": {"$sum": {"$ifNull": ["$tokens.output_est", 0]}},
+                }},
+            ]):
+                day = doc["_id"]
+                if not day:
+                    continue
+                inp = doc["inp"]
+                out = doc["out"]
+                # Use average pricing across models (avoids per-match model extraction)
+                avg_cost = (inp / 1_000_000) * 3.0 + (out / 1_000_000) * 12.0
+
+                for key in [qcat, "_total"]:
+                    bucket = matches_daily[day][key]
+                    bucket["count"] += doc["count"]
+                    bucket["input_tokens"] += inp
+                    bucket["output_tokens"] += out
+                    bucket["cost"] += avg_cost
+        except Exception as e:
+            logger.warning(f"[TIMESERIES] Match aggregation failed for {qcat}: {e}")
+
+    # --- Model stats (single lightweight aggregation) ---
+    try:
         async for doc in db.matches.aggregate([
-            {"$match": {"primary_category": qcat, "completed": True, "failed": {"$ne": True}}},
-            {"$project": {
-                "day": {"$substrCP": [{"$ifNull": ["$created_at", ""]}, 0, 10]},
-                "cat": {"$ifNull": ["$primary_category", "unknown"]},
-                "inp": {"$ifNull": ["$tokens.input_est", 0]},
-                "out": {"$ifNull": ["$tokens.output_est", 0]},
-                "provider": {"$ifNull": ["$model_used.provider", "unknown"]},
-                "model": {"$ifNull": ["$model_used.model", "unknown"]},
-            }},
-            {"$match": {"day": {"$ne": ""}}},
+            {"$match": {"completed": True, "failed": {"$ne": True}, "model_used": {"$exists": True}}},
             {"$group": {
-                "_id": {"day": "$day", "cat": "$cat", "provider": "$provider", "model": "$model"},
+                "_id": {"provider": "$model_used.provider", "model": "$model_used.model"},
                 "count": {"$sum": 1},
-                "input_tokens": {"$sum": "$inp"},
-                "output_tokens": {"$sum": "$out"},
+                "inp": {"$sum": {"$ifNull": ["$tokens.input_est", 0]}},
+                "out": {"$sum": {"$ifNull": ["$tokens.output_est", 0]}},
             }},
+        ]):
+            model_key = f"{doc['_id'].get('provider','unknown')}/{doc['_id'].get('model','unknown')}"
+            if model_key != "unknown/unknown":
+                model_stats[model_key] = {
+                    "matches": doc["count"],
+                    "input_tokens": doc["inp"],
+                    "output_tokens": doc["out"],
+                }
+    except Exception as e:
+        logger.warning(f"[TIMESERIES] Model stats aggregation failed: {e}")
+
+    # --- Summary costs (estimated from paper count per day, no text loading) ---
+    summary_daily = defaultdict(lambda: defaultdict(lambda: {"count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0}))
+    AVG_INPUT_TOKENS = 10375
+    AVG_OUTPUT_TOKENS = 1788
+    AVG_COST_PER_SUMMARY = (AVG_INPUT_TOKENS / 1_000_000) * 3.0 + (AVG_OUTPUT_TOKENS / 1_000_000) * 12.0
+    try:
+        async for doc in db.papers.aggregate([
+            {"$match": {"summaries": {"$exists": True, "$ne": None}}},
+            {"$project": {
+                "day": {"$substrCP": [{"$ifNull": ["$added_at", ""]}, 0, 10]},
+                "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
+                "n": {"$size": {"$ifNull": [{"$objectToArray": {"$ifNull": ["$summaries", {}]}}, []]}},
+            }},
+            {"$match": {"day": {"$ne": ""}, "n": {"$gt": 0}}},
+            {"$group": {"_id": {"day": "$day", "cat": "$cat"}, "total_summaries": {"$sum": "$n"}}},
         ]):
             day = doc["_id"]["day"]
             cat = doc["_id"]["cat"]
-            inp = doc["input_tokens"]
-            out = doc["output_tokens"]
-            model_key = f"{doc['_id']['provider']}/{doc['_id']['model']}"
-            pricing = MODEL_PRICING.get(model_key, {"input": 2.0, "output": 10.0})
-            cost = (inp / 1_000_000) * pricing["input"] + (out / 1_000_000) * pricing["output"]
+            count = doc["total_summaries"]
+            inp_tok = AVG_INPUT_TOKENS * count
+            out_tok = AVG_OUTPUT_TOKENS * count
+            cost = AVG_COST_PER_SUMMARY * count
 
             for key in [cat, "_total"]:
-                bucket = matches_daily[day][key]
-                bucket["count"] += doc["count"]
-                bucket["input_tokens"] += inp
-                bucket["output_tokens"] += out
+                bucket = summary_daily[day][key]
+                bucket["count"] += count
+                bucket["input_tokens"] += inp_tok
+                bucket["output_tokens"] += out_tok
                 bucket["cost"] += cost
+    except Exception as e:
+        logger.warning(f"[TIMESERIES] Summary aggregation failed: {e}")
 
-            if model_key != "unknown/unknown":
-                if model_key not in model_stats:
-                    model_stats[model_key] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
-                model_stats[model_key]["matches"] += doc["count"]
-                model_stats[model_key]["input_tokens"] += inp
-                model_stats[model_key]["output_tokens"] += out
-
-    # --- Summary generation costs (aggregation — count per model per day) ---
-    # Uses fixed average sizes to avoid loading summary text into pipeline memory
-    # (full summary text is ~7KB per entry; $objectToArray + $strLenCP would exceed
-    # MongoDB's 100MB aggregation memory limit on 20K+ papers)
-    summary_daily = defaultdict(lambda: defaultdict(lambda: {"count": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0}))
-    AVG_INPUT_TOKENS = 10375  # (~40K text + 1K abstract + 500 prompt) / 4
-    AVG_OUTPUT_TOKENS = 1788  # ~7150 chars / 4 chars per token
-    async for doc in db.papers.aggregate([
-        {"$match": {"summaries": {"$exists": True, "$ne": None}}},
-        {"$project": {
-            "day": {"$substrCP": [{"$ifNull": ["$added_at", ""]}, 0, 10]},
-            "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
-            "num_summaries": {"$size": {"$objectToArray": {"$ifNull": ["$summaries", {}]}}},
-            "summary_keys": {"$map": {
-                "input": {"$objectToArray": {"$ifNull": ["$summaries", {}]}},
-                "as": "s",
-                "in": "$$s.k",
-            }},
-        }},
-        {"$match": {"day": {"$ne": ""}, "num_summaries": {"$gt": 0}}},
-        {"$unwind": "$summary_keys"},
-        {"$group": {
-            "_id": {"day": "$day", "cat": "$cat", "mk": "$summary_keys"},
-            "count": {"$sum": 1},
-        }},
-    ]):
-        day = doc["_id"]["day"]
-        cat = doc["_id"]["cat"]
-        mk = doc["_id"]["mk"]
-        count = doc["count"]
-        inp_tok = AVG_INPUT_TOKENS * count
-        out_tok = AVG_OUTPUT_TOKENS * count
-
-        provider = mk.split(":")[0]
-        if "openai" in provider:
-            pricing_key = "openai/gpt-5.2"
-        elif "anthropic" in provider:
-            pricing_key = f"anthropic/{mk.split(chr(58))[1]}" if ":" in mk else "anthropic/claude-opus-4-6"
-        elif "gemini" in provider:
-            pricing_key = "gemini/gemini-3.1-pro-preview"
-        else:
-            pricing_key = None
-        cost = 0.0
-        if pricing_key:
-            pr = MODEL_PRICING.get(pricing_key, {"input": 2.0, "output": 10.0})
-            cost = (inp_tok / 1_000_000) * pr["input"] + (out_tok / 1_000_000) * pr["output"]
-
-        for key in [cat, "_total"]:
-            bucket = summary_daily[day][key]
-            bucket["count"] += count
-            bucket["input_tokens"] += inp_tok
-            bucket["output_tokens"] += out_tok
-            bucket["cost"] += cost
-
-    # Merge summary dates into all_dates and fill gaps with zeros
+    # Merge dates and build series
     raw_dates = sorted(set(list(papers_daily.keys()) + list(matches_daily.keys()) + list(summary_daily.keys())))
     all_cats = query_cats  # Already fetched above
 
