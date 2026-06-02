@@ -7,44 +7,36 @@ Build and maintain an AI paper-judging system using multiple LLM judges to rank 
 - **Backend**: FastAPI + MongoDB (Motor async) + Background scheduler
 - **Frontend**: React + Shadcn/UI + Recharts
 - **LLMs**: Claude Opus 4.5-4.8, GPT-5.2/5.4/5.5, Gemini 3 Pro, DeepSeek v4-Pro, Kimi K2.6
-- **Scoring**: TrueSkill with quality-based matchmaking
-- **Production DB**: MongoDB Atlas (remote)
+- **Production DB**: MongoDB Atlas (BSON Date types, 30s read timeout)
+- **Preview DB**: MongoDB localhost (string date types)
 
 ## Latest Changes (Jun 2, 2026)
 
-### Timeseries Statistics Redesign
-- Replaced full-scan aggregation with incremental `daily_stats` collection
-- First call: full backfill (~3s local, ~10-15s Atlas). Subsequent: only new days (~2s)
-- Per-model pricing preserved via per-category indexed aggregation
-- Removed stale `computation_cache` writes (was 677KB per save)
-- Removed all `mode: {$exists: False}` from admin.py queries
+### Admin Stats — Ongoing Production Issue
+- Statistics page shows empty/zero data on production despite working on preview
+- Root cause: BSON Date vs string type mismatch between preview (strings) and production (Date objects)
+- Multiple fix attempts: removed $strLenCP on text, added $toString wrappers, chunked backfill
+- **Decision: Rebuild from scratch as /admin2 with principled architecture**
+- Handoff document: `/app/memory/ADMIN2_STATS_REBUILD.md`
 
-### Admin User Behavior Charts
-- 2×2 grid (DAU all/registered, Page Views, Visit Frequency) + side-by-side Category Popularity
-- Aligned/Independent sort toggle for category comparison
-- Visitor tracking middleware (IP hash, fire-and-forget)
-- Privacy policy updated for Swiss nDSG compliance
-
-### Frontend Performance
-- By Category charts: top 10 + "Other" aggregation (reduces SVG from 27K to 6.6K elements)
-- All chart data memoized with useMemo
-- Playwright removed from requirements.txt (saves ~470MB / 15min per deploy)
-- Warming-up bug fixed (stale setTimeout closure on category switch)
-
-### Admin Settings
-- `max_initial_backlog`: caps paper fetch for new categories (default: 200)
-
-## DB Collections
-- `papers`, `matches`, `rankings`, `users` (unchanged)
-- `daily_stats`: {date, category, papers, matches, input_tokens, output_tokens, cost, summaries, summary_cost} — incremental timeseries cache
-- `daily_visitors`: {date, all_ips[], auth_ips[], total_hits} — visitor tracking
-- `category_views`: {date, category, views, auth_views}
+### Other Completed Work (Jun 1-2)
+- 2×2+2 User Behavior Charts with visitor tracking middleware
+- Privacy policy updated (Swiss nDSG)
+- `max_initial_backlog` admin setting
+- Warming-up bug fixed (stale setTimeout closure)
+- Playwright + Selenium removed from requirements
+- Tags endpoint fast fallback (rankings-only, no match scan)
+- Leaderboard cache: parallel aggregations, removed $strLenCP on full_text
+- Re-added 9 removed categories on production
+- Spearman correlation analysis (Claude SI vs TrueSkill, 10K papers)
 
 ## Known Issues
+- **Admin stats page broken on production** (empty data) — rebuild planned as /admin2
 - TweetAPI returns 401 (external account limitation)
-- `mode: {$exists: False}` still in leaderboard.py, ranking.py, scheduler.py (not blocking but should be cleaned)
+- `mode: {$exists: False}` still in leaderboard.py, ranking.py, scheduler.py
 
 ## Pending
+- P0: Admin2 stats rebuild (handoff to Opus 4.8)
 - P1: Extended prompt (5 categorical metrics)
 - P1: Landing page merge from GitHub branch
 - P1: SI source of truth consolidation
