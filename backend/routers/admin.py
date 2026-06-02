@@ -1581,7 +1581,8 @@ _ts_backfill_running = False
 
 async def _backfill_daily_stats_chunk(date_from: str, date_to: str):
     """Aggregate one date range chunk into daily_stats. Bounded by date range.
-    Each chunk only touches matches/papers within [date_from, date_to)."""
+    Each chunk only touches matches/papers within [date_from, date_to).
+    Handles both string and BSON Date stored fields via $expr + $substrCP."""
     from pymongo import UpdateOne
     from datetime import datetime as _dt, timezone as _tz
 
@@ -1619,7 +1620,7 @@ async def _backfill_daily_stats_chunk(date_from: str, date_to: str):
             model_totals[mk]["output_tokens"] += out
 
     match_group = {
-        "_id": {"day": {"$substrCP": [{"$ifNull": ["$created_at", ""]}, 0, 10]},
+        "_id": {"day": {"$substrCP": [{"$toString": {"$ifNull": ["$created_at", ""]}}, 0, 10]},
                 "cat": "$primary_category",
                 "provider": {"$ifNull": ["$model_used.provider", "unknown"]},
                 "model": {"$ifNull": ["$model_used.model", "unknown"]}},
@@ -1628,30 +1629,37 @@ async def _backfill_daily_stats_chunk(date_from: str, date_to: str):
         "out": {"$sum": {"$ifNull": ["$tokens.output_est", 0]}},
     }
 
+    # Helper: date extraction that works for both string and Date fields
+    day_expr = lambda field: {"$substrCP": [{"$toString": {"$ifNull": [f"${field}", ""]}}, 0, 10]}
+    date_range_filter = lambda field: {"$and": [
+        {"$gte": [day_expr(field), date_from]},
+        {"$lt": [day_expr(field), date_to]},
+    ]}
+
     AVG_IN, AVG_OUT = 10375, 1788
 
     # Papers in this date range
     async for doc in db.papers.aggregate([
-        {"$match": {"$or": [
-            {"added_at": {"$gte": date_from, "$lt": date_to}},
-            {"published": {"$gte": date_from, "$lt": date_to}},
-        ]}},
-        {"$project": {
-            "day": {"$substrCP": [{"$ifNull": ["$added_at", {"$ifNull": ["$published", ""]}]}, 0, 10]},
-            "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
-        }},
-        {"$match": {"day": {"$gte": date_from, "$lt": date_to}}},
+        {"$addFields": {"_day": day_expr("added_at"), "_day2": day_expr("published")}},
+        {"$match": {"$expr": {"$or": [
+            {"$and": [{"$gte": ["$_day", date_from]}, {"$lt": ["$_day", date_to]}]},
+            {"$and": [{"$gte": ["$_day2", date_from]}, {"$lt": ["$_day2", date_to]}]},
+        ]}}},
+        {"$project": {"day": {"$cond": [{"$gte": ["$_day", date_from]}, "$_day", "$_day2"]},
+                      "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]}}},
+        {"$match": {"day": {"$ne": ""}}},
         {"$group": {"_id": {"day": "$day", "cat": "$cat"}, "n": {"$sum": 1}}},
     ]):
         day, cat = doc["_id"]["day"], doc["_id"]["cat"]
         if cat in cat_set:
             _acc(day, cat, papers=doc["n"])
 
-    # Matches in this date range (bounded by created_at index)
+    # Matches in this date range
     try:
         async for doc in db.matches.aggregate([
+            {"$addFields": {"_day": {"$substrCP": [{"$toString": {"$ifNull": ["$created_at", ""]}}, 0, 10]}}},
             {"$match": {"completed": True, "failed": {"$ne": True},
-                        "created_at": {"$gte": date_from, "$lt": date_to}}},
+                        "$expr": {"$and": [{"$gte": ["$_day", date_from]}, {"$lt": ["$_day", date_to]}]}}},
             {"$group": match_group},
         ]):
             _process_match_doc(doc)
@@ -1661,17 +1669,18 @@ async def _backfill_daily_stats_chunk(date_from: str, date_to: str):
     # Summaries in this date range
     try:
         async for doc in db.papers.aggregate([
-            {"$match": {"summaries": {"$exists": True, "$ne": None},
-                        "added_at": {"$gte": date_from, "$lt": date_to}}},
+            {"$match": {"summaries": {"$exists": True, "$ne": None}}},
+            {"$addFields": {"_day": day_expr("added_at")}},
+            {"$match": {"$expr": {"$and": [{"$gte": ["$_day", date_from]}, {"$lt": ["$_day", date_to]}]}}},
             {"$project": {
-                "day": {"$substrCP": [{"$ifNull": ["$added_at", ""]}, 0, 10]},
+                "day": "$_day",
                 "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
                 "mk": {"$map": {
                     "input": {"$objectToArray": {"$ifNull": ["$summaries", {}]}},
                     "as": "s", "in": "$$s.k",
                 }},
             }},
-            {"$match": {"day": {"$gte": date_from, "$lt": date_to}}},
+            {"$match": {"day": {"$ne": ""}}},
             {"$unwind": "$mk"},
             {"$group": {"_id": {"day": "$day", "cat": "$cat", "mk": "$mk"}, "n": {"$sum": 1}}},
         ]):
@@ -1706,7 +1715,7 @@ async def _backfill_all_daily_stats():
     try:
         from datetime import date as _date, timedelta as _td, datetime as _dt, timezone as _tz
 
-        # Find earliest paper date
+        # Find earliest paper date (handle both string and Date types)
         earliest = await db.papers.find_one(
             {"added_at": {"$exists": True, "$ne": None}},
             {"_id": 0, "added_at": 1},
@@ -1714,7 +1723,8 @@ async def _backfill_all_daily_stats():
         )
         if not earliest or not earliest.get("added_at"):
             return
-        start = earliest["added_at"][:10]
+        ea = earliest["added_at"]
+        start = ea.strftime("%Y-%m-%d") if hasattr(ea, "strftime") else str(ea)[:10]
         today = _dt.now(_tz.utc).strftime("%Y-%m-%d")
 
         # Find what we already have
@@ -1891,7 +1901,8 @@ async def get_timeseries(
     if force or not total_by_date:
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         try:
-            n, mt = await _backfill_daily_stats_chunk(today, today + "Z")  # today only
+            tomorrow = (datetime.now(timezone.utc) + __import__('datetime').timedelta(days=1)).strftime("%Y-%m-%d")
+            n, mt = await _backfill_daily_stats_chunk(today, tomorrow)  # today only
             # Merge into loaded data
             for (d, c), v in ((k, v) for k, v in zip(
                 [(today, c) for c in cats + ["_total"]], [None]
