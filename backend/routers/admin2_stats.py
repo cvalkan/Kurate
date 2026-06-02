@@ -14,9 +14,11 @@ Design principles (see /app/memory/ADMIN2_STATS_REBUILD.md):
 
 from fastapi import APIRouter, Depends, Query
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import asyncio
 import time
+import os
+import uuid
 
 from core.config import db, logger, CATEGORIES
 from core.auth import verify_admin, get_settings
@@ -34,6 +36,49 @@ _SPARSE_THRESHOLD = 5
 # In-process response cache so repeated reads are O(1) regardless of data scale.
 _CACHE = {}
 _CACHE_TTL = 45  # seconds
+
+# ── Distributed backfill lock ────────────────────────────────────────────────
+# The per-process `_ts_backfill_running` flag only guards within one pod. In a
+# multi-pod deployment, `POST /api/admin2/backfill` (routed to ANY pod by the
+# load balancer) can run concurrently with the leader's periodic self-heal on a
+# DIFFERENT pod. Two `_run_backfill`s then issue conflicting per-day `$set`s,
+# corrupting daily_stats (observed on prod: reconciled=False, 422k vs 568k).
+# This MongoDB lease lock (same pattern as scheduler leader election) ensures
+# only ONE pod rebuilds cluster-wide at a time.
+_LOCK_ID = "admin2_backfill"
+_LOCK_TTL = 900  # 15 min — generous upper bound; IXSCAN chunks are fast
+_LOCK_HOLDER = f"pod-{uuid.uuid4().hex[:8]}-{os.getpid()}"
+
+
+async def _acquire_backfill_lock(ttl: int = _LOCK_TTL) -> bool:
+    """Atomically claim the cluster-wide backfill lock. Returns True if held."""
+    now = datetime.now(timezone.utc)
+    try:
+        result = await db.admin2_lock.find_one_and_update(
+            {"_id": _LOCK_ID, "$or": [
+                {"expires_at": {"$lt": now}},
+                {"holder": _LOCK_HOLDER},
+            ]},
+            {"$set": {"holder": _LOCK_HOLDER,
+                      "expires_at": now + timedelta(seconds=ttl),
+                      "acquired_at": now}},
+            upsert=True, return_document=True,
+        )
+        return bool(result and result.get("holder") == _LOCK_HOLDER)
+    except Exception:
+        # DuplicateKey on upsert → a live lock is held by another pod.
+        return False
+
+
+async def _release_backfill_lock():
+    """Release the lock if we hold it (expire it immediately)."""
+    try:
+        await db.admin2_lock.update_one(
+            {"_id": _LOCK_ID, "holder": _LOCK_HOLDER},
+            {"$set": {"expires_at": datetime.now(timezone.utc) - timedelta(seconds=1)}},
+        )
+    except Exception as e:
+        logger.warning(f"[ADMIN2] release_backfill_lock failed: {e}")
 
 
 def _cache_get(key):
@@ -182,6 +227,9 @@ async def _run_backfill():
     """
     if getattr(_admin, "_ts_backfill_running", False):
         return
+    if not await _acquire_backfill_lock():
+        logger.info("[ADMIN2] full backfill skipped — lock held by another pod")
+        return
     _admin._ts_backfill_running = True
     try:
         from datetime import date as _date, timedelta as _td, datetime as _dt, timezone as _tz
@@ -286,6 +334,53 @@ async def _run_backfill():
         logger.error(f"[ADMIN2] backfill failed: {e}")
     finally:
         _admin._ts_backfill_running = False
+        await _release_backfill_lock()
+
+
+async def _run_incremental_backfill(days_back: int = 10):
+    """Cheap recent-days-only refresh of daily_stats.
+
+    Past days are immutable once their matches are recorded, so only RECENT
+    day-buckets can drift (from in-flight writes or a prior racey rebuild).
+    Re-running just the last `days_back` days keeps the frequent self-heal O(days)
+    instead of O(all-history), removing the recurring full-scan cost and shrinking
+    the window for cross-pod contention. Distributed-locked so it never races a
+    full rebuild. Does NOT touch all-time model_match_stats / accurate summary
+    costs — those stay current via $inc hooks + the periodic full self_heal.
+    """
+    if getattr(_admin, "_ts_backfill_running", False):
+        return
+    if not await _acquire_backfill_lock(ttl=300):
+        logger.info("[ADMIN2] incremental refresh skipped — lock held by another pod")
+        return
+    _admin._ts_backfill_running = True
+    try:
+        from datetime import date as _date, timedelta as _td, datetime as _dt, timezone as _tz
+        today = _dt.now(_tz.utc).date()
+        start = today - _td(days=days_back)
+        end = today + _td(days=1)
+        # Clear the recent day-buckets first so stale/racey values can't survive
+        # (a day that should now be zero, or was overwritten with a partial sum,
+        # gets fully recomputed from source). `_meta` docs have no `date` field
+        # and are untouched.
+        await db.daily_stats.delete_many(
+            {"date": {"$gte": start.isoformat(), "$lt": end.isoformat()}})
+        cur = start
+        while cur < end:
+            ce = min(cur + _td(days=7), end)
+            try:
+                await _admin._backfill_daily_stats_chunk(cur.isoformat(), ce.isoformat())
+            except Exception as e:
+                logger.warning(f"[ADMIN2] incremental chunk [{cur}..{ce}) failed: {e}")
+            cur = ce
+        await _backfill_registrations()
+        _cache_clear()
+        logger.info(f"[ADMIN2] incremental refresh complete (last {days_back}d)")
+    except Exception as e:
+        logger.warning(f"[ADMIN2] incremental backfill failed: {e}")
+    finally:
+        _admin._ts_backfill_running = False
+        await _release_backfill_lock()
 
 
 async def _sum_daily_total_matches() -> int:
@@ -299,17 +394,20 @@ async def _sum_daily_total_matches() -> int:
 
 
 async def ensure_fresh():
-    """Entry point for the periodic scheduler task (leader only). Runs the full
-    backfill when the materialized views are empty/sparse, otherwise just keeps
-    registrations current. Write-time $inc hooks keep the rest fresh between runs.
+    """Entry point for the frequent periodic scheduler task (leader only).
+
+    Cold start / empty views → full rebuild. Otherwise → cheap incremental
+    recent-days refresh (corrects any drift in recent buckets without an
+    all-history scan). The periodic `self_heal` still does an occasional full
+    re-sync to keep all-time model totals + accurate summary costs aligned.
     """
     try:
         n_days = await db.daily_stats.count_documents({"category": "_total"})
         n_sum = await db.model_summary_stats.estimated_document_count()
         if n_days < _SPARSE_THRESHOLD or n_sum == 0:
-            await _run_backfill()  # one-time / self-heal historical rebuild
+            await _run_backfill()  # one-time historical rebuild
         else:
-            await _backfill_registrations()
+            await _run_incremental_backfill()  # recent-days only (+ registrations)
         _cache_clear()
     except Exception as e:
         logger.warning(f"[ADMIN2] ensure_fresh failed: {e}")
@@ -449,11 +547,34 @@ async def _backfill_summary_costs():
              for mk, v in by_model.items()], ordered=False)
 
 
+def _is_leader_pod() -> bool:
+    """Whether this pod holds scheduler leadership. The backfill only runs on the
+    leader so concurrent rebuilds across pods are impossible by construction
+    (the distributed lock is kept as defense-in-depth during leadership handoff)."""
+    try:
+        from services.scheduler import is_scheduler_leader
+        return is_scheduler_leader()
+    except Exception:
+        return False
+
+
+async def consume_backfill_request() -> bool:
+    """Atomically claim a queued manual rebuild request (set by a non-leader pod
+    that received POST /backfill). Returns True if one was pending."""
+    doc = await db.admin2_lock.find_one_and_delete({"_id": "backfill_request"})
+    return doc is not None
+
+
 def _kick_backfill() -> bool:
-    """Start the background backfill if not already running. Returns True if
-    a backfill is in progress (newly started or already running)."""
+    """Start the background backfill if not already running. LEADER-ONLY: on a
+    non-leader pod this is a no-op (the leader's periodic loop keeps the views
+    fresh), preventing cross-pod write races at the source. Returns True if a
+    backfill is in progress (newly started or already running)."""
     if getattr(_admin, "_ts_backfill_running", False):
         return True
+    if not _is_leader_pod():
+        logger.info("[ADMIN2] backfill not kicked — this pod is not the leader")
+        return False
     asyncio.ensure_future(_run_backfill())
     return True
 
@@ -661,10 +782,20 @@ async def stats_overview(category: Optional[str] = None, force: bool = False):
 
 @router.post("/backfill", dependencies=[Depends(verify_admin)])
 async def trigger_backfill():
-    """Manually (re)build the daily_stats materialized view in the background."""
+    """Manually (re)build the daily_stats materialized view. LEADER-ONLY execution:
+    if this pod is the leader it starts immediately; otherwise the request is
+    queued and the leader picks it up within ~60s. This guarantees a single
+    rebuilder cluster-wide (no cross-pod write races)."""
     already = getattr(_admin, "_ts_backfill_running", False)
-    _kick_backfill()
-    return {"started": True, "already_running": already}
+    if _is_leader_pod():
+        _kick_backfill()
+        return {"started": True, "already_running": already, "leader": True}
+    await db.admin2_lock.update_one(
+        {"_id": "backfill_request"},
+        {"$set": {"requested_at": datetime.now(timezone.utc)}}, upsert=True)
+    return {"started": False, "already_running": already, "leader": False,
+            "queued": True,
+            "message": "Rebuild queued — the leader pod will run it within ~60s."}
 
 
 @router.get("/memory", dependencies=[Depends(verify_admin)])

@@ -213,6 +213,13 @@ def get_scheduler_diagnostics() -> dict:
     return diag
 
 
+def is_scheduler_leader() -> bool:
+    """True if THIS pod currently holds scheduler leadership. Used to gate the
+    admin2 backfill so only the leader ever rebuilds the materialized views,
+    eliminating cross-pod write races at the source."""
+    return bool(_is_leader)
+
+
 
 
 def wake_scheduler():
@@ -364,27 +371,38 @@ async def _follower_promotion_loop():
 async def _admin2_stats_loop():
     """Keep the admin2 materialized views (daily_stats / model_*/ registrations)
     fresh on the LEADER. Write-time $inc hooks handle the bulk; this loop seeds
-    the views on first run and periodically self-heals any drift. The read path
-    only ever polls these pre-aggregated collections, so it stays fast at scale.
+    the views on first run, periodically self-heals drift, and honors queued
+    manual rebuild requests. Runs ONLY on the leader, so backfills never race
+    across pods. Ticks every 60s: serves manual requests promptly while doing
+    the heavy full/incremental refresh on a 12h / 30min schedule.
     """
-    from routers.admin2_stats import ensure_fresh, self_heal, ensure_indexes
+    from routers.admin2_stats import (
+        ensure_fresh, self_heal, ensure_indexes, consume_backfill_request,
+    )
+    import time as _t
     await asyncio.sleep(60)  # let startup settle
     try:
         await ensure_indexes()
     except Exception as e:
         logger.warning(f"[admin2] ensure_indexes error: {e}")
-    cycles = 0
+    last_full = 0.0
+    last_fresh = 0.0
     while _scheduler_running:
         try:
-            # Full self-heal rebuild roughly every 12h (24 × 30min); else light refresh.
-            if cycles % 24 == 0:
+            now = _t.time()
+            if await consume_backfill_request():
+                logger.info("[admin2] honoring queued manual rebuild request")
                 await self_heal()
-            else:
+                last_full = last_fresh = now
+            elif now - last_full >= 12 * 3600:      # full self-heal ~every 12h
+                await self_heal()
+                last_full = last_fresh = now
+            elif now - last_fresh >= 1800:          # incremental refresh ~every 30m
                 await ensure_fresh()
+                last_fresh = now
         except Exception as e:
             logger.warning(f"[admin2] stats refresh loop error: {e}")
-        cycles += 1
-        await asyncio.sleep(1800)  # 30 minutes
+        await asyncio.sleep(60)  # tick — keeps manual requests responsive
 
 
 async def _precompute_analysis_loop():

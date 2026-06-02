@@ -71,6 +71,25 @@ function formatTokens(val) {
   return val;
 }
 
+function BackfillBadge({ status }) {
+  if (!status) return null;
+  const ok = status.reconciled;
+  const ts = status.ts ? new Date(status.ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) : "";
+  const title = ok
+    ? `Stats reconciled · ${Number(status.daily_matches || 0).toLocaleString()} matches · last rebuild ${ts}`
+    : `DRIFT: daily total ${Number(status.daily_matches || 0).toLocaleString()} vs expected ${Number(status.expected_matches || 0).toLocaleString()}${status.failed_chunks ? ` · ${status.failed_chunks} failed chunk(s)` : ""} · last rebuild ${ts}`;
+  return (
+    <span
+      data-testid="backfill-reconcile-badge"
+      title={title}
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium border ${ok ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600" : "border-red-500/40 bg-red-500/10 text-red-600"}`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${ok ? "bg-emerald-500" : "bg-red-500 animate-pulse"}`} />
+      {ok ? "Reconciled" : "Drift detected"}
+    </span>
+  );
+}
+
 function formatCost(val) {
   return `$${Number(val).toFixed(2)}`;
 }
@@ -106,6 +125,7 @@ export function AdminStatistics({ categories }) {
   const [summaryStats, setSummaryStats] = useState(null);
   const [liveMatchStats, setLiveMatchStats] = useState(null);
   const [memoryData, setMemoryData] = useState(null);
+  const [backfillStatus, setBackfillStatus] = useState(null);
   const [repairQueueData, setRepairQueueData] = useState(null);
   const [restartEvents, setRestartEvents] = useState([]);
   const [memHours, setMemHours] = useState(24);
@@ -145,6 +165,7 @@ export function AdminStatistics({ categories }) {
         setTimeseries(d.timeseries);
         setSummaryStats(d.stats?.summaries || null);
         setLiveMatchStats(d.stats || null);
+        setBackfillStatus(d.backfill_status || null);
       }
       if (memResult.status === "fulfilled" && memResult.value) {
         const allLogs = memResult.value.data?.logs || [];
@@ -610,6 +631,7 @@ export function AdminStatistics({ categories }) {
           </Button>
         </div>
         <div className="flex items-center gap-2 ml-auto">
+          <BackfillBadge status={backfillStatus} />
           {timeseries?.refreshed_at && (
             <span className="text-[10px] text-muted-foreground">
               {new Date(timeseries.refreshed_at).toLocaleString("en-US", {month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false})}

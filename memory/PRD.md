@@ -12,6 +12,16 @@ Build and maintain an AI paper-judging system using multiple LLM judges to rank 
 
 ## Latest Changes (Jun 2, 2026)
 
+### FIX: production multi-pod backfill race + leader-only execution
+- **Discovery (on prod)**: After redeploy, a forced `POST /backfill` completed with `failed_chunks:0` (IXSCAN fix eliminated Atlas timeouts ✅) but the guard flagged `reconciled:False` (daily 422,838 vs expected 568,069). Cause: the per-process `_ts_backfill_running` guard can't stop a cross-POD race — `POST /backfill` (LB-routed to any pod) ran concurrently with the leader's periodic loop, issuing conflicting per-day `$set`s.
+- **Fix**: (1) Distributed MongoDB lease lock (`admin2_lock`) around `_run_backfill`/`_run_incremental_backfill` — only one pod rebuilds cluster-wide. (2) **Leader-only execution**: `_kick_backfill` no-ops on non-leaders; `POST /backfill` on a non-leader queues a `backfill_request` marker the leader honors within ~60s (loop now ticks 60s instead of 30min). `is_scheduler_leader()` added to scheduler. (3) Incremental recent-days self-heal (deletes+recomputes last 10 days; idempotent; doesn't touch all-time model totals). (4) Frontend `BackfillBadge` (green Reconciled / red Drift) wired to `backfill_status`.
+- **Verified on preview**: leader gating works (`POST /backfill` → started:true,leader:true); reconciles 275,497 (`reconciled:True`); incremental idempotent; 28/28 pytest; lint clean; badge renders. NOT yet on prod — needs redeploy (then the leader auto-rebuilds cleanly).
+
+### INVESTIGATION: cost/paper ($0.52 preview / $0.40 prod) vs expected $0.16
+- Breakdown (preview clean): total $5,562 / 10,657 papers = $0.52/paper. Match $2,304 (25.9 matches/paper). Summary $3,258 = **3.43 model-summaries/paper** (each paper summarized by ~3 production models: claude-opus-4-6:thinking $1,530 + gemini $580 + gpt-5.2 $569 = $2,679, plus experimental models).
+- Concrete mispricing bugs found: models NOT in `MODEL_PRICING` (deepseek-v4-pro, kimi-k2.6, claude-opus-4-7/4-8, gpt-5.5, and the non-model key `abstract_plus_summary`) default to the most expensive opus rate ($5/$25) → overcount (~$300 of $3,258). The $0.52→$0.16 gap, however, is dominated by whether all ~3 summaries/paper should be counted — a product decision pending user input.
+
+
 ### FIX: admin2 cold-rebuild match UNDERCOUNT on production (Atlas)
 - **Symptom**: A cold-start reconciliation (clear admin2 collections + rebuild) reproduced summary_cost/summaries/registrations EXACTLY but matches differed (live $inc 275,497 → rebuild 209,458). Live $inc count == ground truth (`matches` completed&!failed) == 275,497, so the **backfill was undercounting** — a bug, not drift correction.
 - **Root cause**: `_backfill_daily_stats_chunk` (in `routers/admin.py`) filtered matches on a *computed* `_day` field via `$expr` → forced a **COLLSCAN** (confirmed via explain). On Atlas (762K+ matches, 30s read timeout) chunks time out, get caught by `except`→logged warning→**silently skipped** → missing matches. Preview (local Mongo) never times out, so it reconciled there.
