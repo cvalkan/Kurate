@@ -9,6 +9,7 @@ import MethodologyPage from "@/pages/MethodologyPage";
 import PaperPage from "@/pages/PaperPage";
 import AdminLoginPage from "@/pages/AdminLoginPage";
 import AdminPage from "@/pages/AdminPage";
+import Admin2StatsPage from "@/pages/Admin2StatsPage";
 import OutreachPage from "@/pages/OutreachPage";
 import OutreachActivityPage from "@/pages/OutreachActivityPage";
 import EmailOutreachPage from "@/pages/EmailOutreachPage";
@@ -58,6 +59,7 @@ function AppRouter() {
           <Route path="/test/new-badge" element={<NewBadgeTest />} />
           <Route path="/test/sim-mem" element={<SimulatedMemChart />} />
           <Route path="/admin/dashboard" element={<AdminPage />} />
+          <Route path="/admin2" element={<Admin2StatsPage />} />
           <Route path="/admin/outreach" element={<OutreachPage />} />
           <Route path="/admin/outreach/activity" element={<OutreachActivityPage />} />
           <Route path="/admin/outreach/email" element={<EmailOutreachPage />} />

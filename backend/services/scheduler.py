@@ -1125,6 +1125,12 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                     await db.papers.insert_one(paper_doc)
                     existing_hashes.add(content_hash)
                     new_count += 1
+                    try:
+                        from routers.admin2_stats import record_paper_daily_stat
+                        _pcat = (paper_doc.get("categories") or ["unknown"])[0]
+                        asyncio.ensure_future(record_paper_daily_stat(_pcat, paper_doc.get("added_at")))
+                    except Exception:
+                        pass
                 except Exception as ins_err:
                     # Most likely DuplicateKeyError on arxiv_id or arxiv_id_base
                     # (e.g., paper just inserted by a parallel fetcher, or
@@ -1596,6 +1602,13 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                         {"id": paper["id"]},
                         {"$set": update_fields, "$unset": {f"summary_failures.{mk}": ""}},
                     )
+                    # Fire-and-forget incremental daily_stats update (admin2)
+                    try:
+                        from routers.admin2_stats import record_summary_daily_stat
+                        _scat = (paper.get("categories") or [category or "unknown"])[0]
+                        asyncio.ensure_future(record_summary_daily_stat(_scat, mk, paper.get("added_at")))
+                    except Exception:
+                        pass
                     # Track successful summary generation
                     from services.llm import track_llm_usage
                     tokens = result.get("tokens", {})
@@ -1848,6 +1861,12 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                     completed += 1
 
                 await db.matches.insert_one(match_doc)
+                # Fire-and-forget incremental daily_stats update (admin2 read path)
+                try:
+                    from routers.admin2_stats import record_match_daily_stat
+                    asyncio.ensure_future(record_match_daily_stat(match_doc))
+                except Exception:
+                    pass
                 # Track LLM usage for this match
                 from services.llm import track_llm_usage
                 match_tokens = match_doc.get("tokens", {})

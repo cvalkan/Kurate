@@ -1,0 +1,49 @@
+{
+  "summary": "Tested new /admin2 stats endpoints (backend) and /admin2 page (frontend). Backend: 15/16 pytest cases pass. Frontend: page renders fully with all 5 cards, all 4 timeseries charts, both cost panels, memory chart, registrations chart; all toggles (daily/cumulative, system/by-category, memory 6h/24h/168h) work; refresh and back-btn navigate correctly. Stats-overview responds in <0.5s with valid schema. Memory bounds (0, 200) correctly return 422. Auth (no token, bad token) returns 401. One real cost-consistency bug found: summary_cost diverges across three independent sources.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/admin2/stats-overview",
+        "issue": "summary.summary_cost ($2333.05, derived from daily_stats.summary_cost) does NOT match sum(summary_models[].cost)=$3258.29 (derived from leaderboard cache _lb._cache._summary_stats x pricing). Divergence ~$925 (40%). The summary card in the UI shows $2333 (from summary.summary_cost) while the Summary Costs by Model panel rows sum to $3258. Additionally the legacy /admin/dashboard reports summary_cost=$3031 across 36,517 summaries, a third value. User explicitly required functional parity with the legacy page, so neither admin2 number matches it. match_cost ($2303.94) is internally consistent (matches sum(match_models)). RCA: _build_summary_models() in /app/backend/routers/admin2_stats.py reconstructs cost from leaderboard counts via fallback AVG_IN/AVG_OUT or per-model tracked averages, while daily_stats.summary_cost is the cumulative $inc fed by record_summary_daily_stat (which uses a fixed AVG_IN/AVG_OUT and only fires on NEW writes after rollout). Backfill does not populate daily_stats.summary_cost from historical summaries. Recommend: either backfill daily_stats.summary_cost from existing summaries collection during _run_backfill, or change summary card to use sum(summary_models[].cost) as the authoritative value (matching the panel) — and align with legacy method to satisfy parity requirement."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "admin2 summary card vs Summary Costs by Model panel",
+        "issue": "Card shows $2333.05 summary cost, panel rows sum to $3258.29. User-facing inconsistency on the same page.",
+        "affected_selectors": ["admin2-card-cost", "admin2-summary-costs"]
+      }
+    ],
+    "design_issues": [
+      {"screen": "/admin2", "issues": ["Memory chart shows brief width(-1) warnings on initial render before container measures (cosmetic ResponsiveContainer race; non-blocking, chart renders correctly afterward)"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_admin2_stats.py",
+    "/app/test_reports/pytest/admin2_results.xml"
+  ],
+  "action_items": [
+    "Reconcile summary_cost: decide single source of truth (recommend: backfill daily_stats.summary_cost from summaries collection in _run_backfill so daily_stats and per-model panel agree), and verify the resulting total matches legacy /admin/dashboard ($3031) per the user's parity requirement.",
+    "Optionally suppress recharts width(-1) console warning by ensuring memory chart container has explicit min-height on first paint."
+  ],
+  "critical_code_review_comments": [
+    "_build_summary_models() and daily_stats.summary_cost are populated by two different pricing paths (AVG_IN/AVG_OUT vs per-model tracked averages) with no reconciliation — guaranteed to drift; the panel header on the page even shows the daily_stats number while its rows sum to a different total.",
+    "record_summary_daily_stat uses _admin._SUMMARY_PRICING.get(provider, 'anthropic/claude-opus-4-6') default — a wrong provider lookup silently bills at Opus pricing; consider logging unknown providers.",
+    "_run_backfill rebuilds match cost & per-model match totals but does NOT rebuild summary_cost; this is the root cause of the summary divergence for pre-rollout data.",
+    "stats_overview computes len(total_by_date) < 5 as the 'sparse' heuristic to auto-kick backfill; with ~150 docs this is fine, but the constant is magic and should be a module-level named constant for clarity."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_admin2_stats.py (new)"
+  ],
+  "success_rate": {"backend": "94% (15/16)", "frontend": "100% (all toggles, cards, charts, navigation verified)"},
+  "test_credentials": "Admin password 'papersumo2025' from /app/memory/test_credentials.md; token retrieved via POST /api/admin/login and injected into sessionStorage.admin_token for frontend.",
+  "seed_data_creation": "None. Preview daily_stats already populated.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Pytest suite at /app/backend/tests/test_admin2_stats.py is the regression bed. The one failing case (test_internal_cost_consistency) is documenting a REAL backend bug, not a flaky test — do not relax the assertion; instead retest after main agent fixes summary_cost reconciliation. Frontend selectors used: admin2-stats-page, admin2-card-{papers,matches,tokens,cost,cost-per-paper}, admin2-chart-{cost-per-paper,memory,registrations}, admin2-{match,summary}-costs, admin2-ts-{papers,matches,tokens,cost}, admin2-view-{daily,cumulative}, admin2-scope-{category,system}, admin2-category-table, admin2-mem-{6,24,168}, admin2-refresh-btn, admin2-back-btn. To authenticate the frontend: POST /api/admin/login -> sessionStorage.setItem('admin_token', token) on origin -> goto /admin2.",
+  "rca of the issue": "summary_cost discrepancy: (a) daily_stats.summary_cost only accumulates via record_summary_daily_stat for NEW summaries written after the admin2 rollout — historical summaries were never backfilled because _run_backfill only handles matches, not summaries. (b) _build_summary_models() uses the in-memory leaderboard cache (which DOES include historical summaries) and computes cost per-model using tracked-average tokens × MODEL_PRICING, yielding a different (and more complete) total. (c) The legacy page computes yet another value ($3031) using a third method on the summaries collection directly. Reproduction: GET /api/admin2/stats-overview with valid token — observe summary.summary_cost=2333.05 while sum(m['cost'] for m in resp['summary_models'])≈3258.29. Mitigation: extend _run_backfill to recompute daily_stats.summary_cost by aggregating the summaries collection by day/category (analogous to existing match backfill), OR replace summary.summary_cost in stats_overview with sum(summary_models[].cost) so card and panel agree on a single number, then validate that value against legacy."
+}
