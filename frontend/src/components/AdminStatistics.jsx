@@ -358,36 +358,6 @@ export function AdminStatistics({ categories }) {
   const combinedCost = totals.cost;  // Already includes summaries from timeseries
   const combinedTokens = totals.tokens;  // Already includes summaries from timeseries
 
-  // Merge match model stats with summary model stats for unified view
-  const mergedModelStats = { ...modelStats };
-  if (summaryStats?.models) {
-    for (const [mk, ss] of Object.entries(summaryStats.models)) {
-      // Map summary model key (e.g. "anthropic:claude-opus-4-6") to match model key (e.g. "anthropic/claude-opus-4-6")
-      const provider = mk.split(":")[0];
-      const model = mk.split(":").slice(1).join(":").replace(/_/g, ".");
-      const matchKey = `${provider}/${model}`;
-      // Find by exact model name first, then by matchKey
-      const existingKey = Object.keys(mergedModelStats).find(k => k === matchKey)
-        || Object.keys(mergedModelStats).find(k => k.includes(model));
-      if (existingKey) {
-        mergedModelStats[existingKey] = {
-          ...mergedModelStats[existingKey],
-          summary_cost: (mergedModelStats[existingKey].summary_cost || 0) + (ss.cost_total || 0),
-          summary_count: (mergedModelStats[existingKey].summary_count || 0) + (ss.summaries || 0),
-          summary_tokens: (mergedModelStats[existingKey].summary_tokens || 0) + (ss.input_tokens || 0) + (ss.output_tokens || 0),
-        };
-      } else {
-        // New model with summaries but no match history yet — create entry
-        mergedModelStats[matchKey] = {
-          matches: 0, input_tokens: 0, output_tokens: 0, cost_total: 0,
-          summary_cost: ss.cost_total || 0,
-          summary_count: ss.summaries || 0,
-          summary_tokens: (ss.input_tokens || 0) + (ss.output_tokens || 0),
-        };
-      }
-    }
-  }
-
   return (
     <div className="space-y-6" data-testid="admin-statistics">
       {/* Summary cards */}
@@ -408,44 +378,67 @@ export function AdminStatistics({ categories }) {
         />
       </div>
 
-      {/* Model breakdown — combined match + summary costs */}
-      {mergedModelStats && Object.keys(mergedModelStats).length > 0 && (
-        <div className="rounded-lg border border-border bg-card p-4" data-testid="model-breakdown">
-          <h3 className="text-sm font-medium mb-3">Cost by Model</h3>
-          <div className="space-y-2">
-            {Object.entries(mergedModelStats)
-              .sort((a, b) => ((b[1].cost_total || 0) + (b[1].summary_cost || 0)) - ((a[1].cost_total || 0) + (a[1].summary_cost || 0)))
-              .map(([model, stats], idx) => {
-                const matchCost = stats.cost_total || 0;
-                const sumCost = stats.summary_cost || 0;
-                const totalModelCost = matchCost + sumCost;
-                const pct = combinedCost > 0 ? (totalModelCost / combinedCost) * 100 : 0;
-                return (
-                  <div key={model} className="flex items-center gap-3">
-                    <span className="text-xs font-mono w-36 shrink-0 truncate">{model.split("/").pop()}</span>
-                    <div className="flex-1 h-5 bg-secondary/50 rounded-full overflow-hidden flex">
-                      <div
-                        className="h-full transition-all"
-                        style={{ width: `${combinedCost > 0 ? (matchCost / combinedCost) * 100 : 0}%`, backgroundColor: getColor(model, idx) }}
-                      />
-                      {sumCost > 0 && (
-                        <div
-                          className="h-full transition-all opacity-50"
-                          style={{ width: `${combinedCost > 0 ? (sumCost / combinedCost) * 100 : 0}%`, backgroundColor: getColor(model, idx) }}
-                        />
-                      )}
+      {/* Cost breakdown — Match Costs vs Summary Costs side by side */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Match costs */}
+        {modelStats && Object.keys(modelStats).length > 0 && (
+          <div className="rounded-lg border border-border bg-card p-4" data-testid="match-cost-breakdown">
+            <h3 className="text-sm font-medium mb-1">Match Costs</h3>
+            <p className="text-[10px] text-muted-foreground mb-3">${matchCost.toFixed(0)} total across {Object.values(modelStats).reduce((s,m) => s + (m.matches||0), 0).toLocaleString()} comparisons</p>
+            <div className="space-y-1.5">
+              {Object.entries(modelStats)
+                .filter(([, s]) => (s.matches || 0) > 0)
+                .sort((a, b) => (b[1].cost_total || 0) - (a[1].cost_total || 0))
+                .map(([model, stats], idx) => {
+                  const cost = stats.cost_total || 0;
+                  const pct = matchCost > 0 ? (cost / matchCost) * 100 : 0;
+                  return (
+                    <div key={model} className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono w-32 shrink-0 truncate" title={model}>{model.split("/").pop()}</span>
+                      <div className="flex-1 h-4 bg-secondary/50 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: getColor(model, idx) }} />
+                      </div>
+                      <span className="text-[10px] font-mono text-muted-foreground shrink-0 w-24 text-right">
+                        {(stats.matches || 0).toLocaleString()} &middot; ${cost.toFixed(0)}
+                      </span>
+                      <span className="text-[10px] font-mono w-8 text-right text-muted-foreground">{pct.toFixed(0)}%</span>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
-                      <span className="font-mono">{stats.matches} calls{stats.summary_count ? ` + ${stats.summary_count} sums` : ""}</span>
-                      <span className="font-mono font-medium text-foreground">${totalModelCost.toFixed(2)}</span>
-                      <span className="w-10 text-right">{pct.toFixed(0)}%</span>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Summary costs */}
+        {summaryStats?.models && Object.keys(summaryStats.models).length > 0 && (
+          <div className="rounded-lg border border-border bg-card p-4" data-testid="summary-cost-breakdown">
+            <h3 className="text-sm font-medium mb-1">Summary Costs</h3>
+            <p className="text-[10px] text-muted-foreground mb-3">${summaryCost.toFixed(0)} total across {Object.values(summaryStats.models).reduce((s,m) => s + (m.summaries||0), 0).toLocaleString()} summaries</p>
+            <div className="space-y-1.5">
+              {Object.entries(summaryStats.models)
+                .filter(([, s]) => (s.summaries || 0) > 0)
+                .sort((a, b) => (b[1].cost_total || 0) - (a[1].cost_total || 0))
+                .map(([mk, stats], idx) => {
+                  const cost = stats.cost_total || 0;
+                  const pct = summaryCost > 0 ? (cost / summaryCost) * 100 : 0;
+                  const label = mk.split(":").slice(1).join(":").replace(/_/g, ".") || mk;
+                  return (
+                    <div key={mk} className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono w-32 shrink-0 truncate" title={mk}>{label}</span>
+                      <div className="flex-1 h-4 bg-secondary/50 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: getColor(mk, idx + 10) }} />
+                      </div>
+                      <span className="text-[10px] font-mono text-muted-foreground shrink-0 w-24 text-right">
+                        {(stats.summaries || 0).toLocaleString()} &middot; ${cost.toFixed(0)}
+                      </span>
+                      <span className="text-[10px] font-mono w-8 text-right text-muted-foreground">{pct.toFixed(0)}%</span>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Memory Usage Over Time */}
       {memoryData && memoryData.length > 0 && (
