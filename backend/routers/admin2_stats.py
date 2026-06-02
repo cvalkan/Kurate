@@ -27,12 +27,25 @@ router = APIRouter(prefix="/api/admin2")
 # Average tokens for an untracked summary generation (fallback pricing)
 AVG_IN, AVG_OUT = 10375, 1788
 
+# If daily_stats has fewer than this many day-buckets, treat it as empty/sparse
+# and kick a background backfill (never blocks the read path).
+_SPARSE_THRESHOLD = 5
+
 
 def _safe_day(raw) -> Optional[str]:
     """Extract YYYY-MM-DD from a value that may be a BSON Date or a string."""
     if raw is None:
         return None
     return raw.strftime("%Y-%m-%d") if hasattr(raw, "strftime") else str(raw)[:10]
+
+
+def _price_for_summary(model_key: str):
+    """Return (price_in, price_out) per-million-tokens for a summary model key
+    (colon format, e.g. 'anthropic:claude-opus-4-6:thinking')."""
+    provider = model_key.split(":")[0] if ":" in model_key else model_key
+    pk = _admin._SUMMARY_PRICING.get(provider) or "anthropic/claude-opus-4-6"
+    p = _admin.MODEL_PRICING.get(pk, {"input": 5.0, "output": 25.0})
+    return p["input"], p["output"]
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -85,14 +98,22 @@ async def record_paper_daily_stat(category: str, added_at=None):
         logger.warning(f"[ADMIN2] record_paper_daily_stat failed: {e}")
 
 
-async def record_summary_daily_stat(category: str, model_key: str, added_at=None):
-    """Increment daily_stats summaries count + summary_cost on a new summary."""
+async def record_summary_daily_stat(category: str, model_key: str, added_at=None, tokens=None):
+    """Increment daily_stats summaries count + summary_cost on a new summary.
+
+    Uses ACTUAL token counts when provided (accurate); falls back to the
+    fixed average estimate only when the generation didn't report tokens.
+    """
     try:
         day = _safe_day(added_at) or datetime.now(timezone.utc).strftime("%Y-%m-%d")
         cat = category or "unknown"
-        provider = model_key.split(":")[0] if ":" in model_key else model_key
-        pk = _admin._SUMMARY_PRICING.get(provider, "anthropic/claude-opus-4-6")
-        cost = _admin._price_match(AVG_IN, AVG_OUT, *pk.split("/"))
+        pin, pout = _price_for_summary(model_key)
+        if tokens and (tokens.get("input") or tokens.get("output")):
+            inp = tokens.get("input", 0) or 0
+            out = tokens.get("output", 0) or 0
+        else:
+            inp, out = AVG_IN, AVG_OUT
+        cost = (inp / 1_000_000) * pin + (out / 1_000_000) * pout
         from pymongo import UpdateOne
         ops = [UpdateOne({"date": day, "category": c},
                          {"$inc": {"summaries": 1, "summary_cost": cost}}, upsert=True)
@@ -154,11 +175,122 @@ async def _run_backfill():
             await db.daily_stats.update_one(
                 {"_meta": "model_stats"},
                 {"$set": {"_meta": "model_stats", "models": all_models}}, upsert=True)
+
+        # Recompute summary counts + costs ACCURATELY (real tracked tokens where
+        # available). Overwrites the chunk's fixed-average estimate so the cost
+        # timeseries and the per-model summary panel reconcile on real data.
+        await _backfill_summary_costs()
         logger.info(f"[ADMIN2] backfill complete: {len(all_models)} models")
     except Exception as e:
         logger.error(f"[ADMIN2] backfill failed: {e}")
     finally:
         _admin._ts_backfill_running = False
+
+
+async def _backfill_summary_costs():
+    """Recompute daily_stats `summaries` + `summary_cost` per day/category using
+    ACTUAL per-summary tokens (papers.summary_tokens) where available, falling
+    back to each model's own tracked average for untracked summaries. The grand
+    total reconciles exactly with _build_summary_models() (same per-summary cost).
+    """
+    from collections import defaultdict
+    from pymongo import UpdateOne
+
+    def day_expr(f):
+        return {"$substrCP": [{"$toString": {"$ifNull": [f"${f}", ""]}}, 0, 10]}
+
+    # 1. Per-model tracked averages (for pricing untracked summaries accurately).
+    model_avg = {}  # mk -> (avg_in, avg_out)
+    async for doc in db.papers.aggregate([
+        {"$match": {"summary_tokens": {"$exists": True, "$ne": {}}}},
+        {"$project": {"pairs": {"$objectToArray": "$summary_tokens"}}},
+        {"$unwind": "$pairs"},
+        {"$match": {"pairs.v": {"$type": "object"}}},
+        {"$group": {"_id": "$pairs.k",
+                    "in": {"$sum": {"$ifNull": ["$pairs.v.input", 0]}},
+                    "out": {"$sum": {"$ifNull": ["$pairs.v.output", 0]}},
+                    "cnt": {"$sum": 1}}},
+    ], allowDiskUse=True):
+        cnt = doc["cnt"] or 1
+        model_avg[doc["_id"]] = (doc["in"] / cnt, doc["out"] / cnt)
+
+    cost_by = defaultdict(float)   # (day, cat) -> summary_cost
+    cnt_by = defaultdict(int)      # (day, cat) -> summaries count
+    tracked_cnt = defaultdict(int)  # (day, cat) -> tracked summaries count
+
+    # 2a. Tracked tokens per day×category×model → exact cost.
+    async for doc in db.papers.aggregate([
+        {"$match": {"summary_tokens": {"$exists": True, "$ne": {}}}},
+        {"$addFields": {"_day": day_expr("added_at"),
+                        "_cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]}}},
+        {"$project": {"_day": 1, "_cat": 1, "pairs": {"$objectToArray": "$summary_tokens"}}},
+        {"$unwind": "$pairs"},
+        {"$match": {"pairs.v": {"$type": "object"}, "_day": {"$ne": ""}}},
+        {"$group": {"_id": {"day": "$_day", "cat": "$_cat", "mk": "$pairs.k"},
+                    "in": {"$sum": {"$ifNull": ["$pairs.v.input", 0]}},
+                    "out": {"$sum": {"$ifNull": ["$pairs.v.output", 0]}},
+                    "cnt": {"$sum": 1}}},
+    ], allowDiskUse=True):
+        day, cat, mk = doc["_id"]["day"], doc["_id"]["cat"], doc["_id"]["mk"]
+        pin, pout = _price_for_summary(mk)
+        c = (doc["in"] / 1_000_000) * pin + (doc["out"] / 1_000_000) * pout
+        cost_by[(day, cat)] += c
+        cost_by[(day, "_total")] += c
+        tracked_cnt[(day, cat)] += doc["cnt"]
+        tracked_cnt[(day, "_total")] += doc["cnt"]
+
+    # 2b. Total summary counts per day×category×model (all keys, tracked or not).
+    #     Untracked = total - tracked, priced at the model's tracked average.
+    async for doc in db.papers.aggregate([
+        {"$match": {"summaries": {"$exists": True, "$ne": {}}}},
+        {"$addFields": {"_day": day_expr("added_at"),
+                        "_cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]}}},
+        {"$project": {"_day": 1, "_cat": 1,
+                      "keys": {"$map": {"input": {"$objectToArray": {"$ifNull": ["$summaries", {}]}},
+                                        "as": "s", "in": "$$s.k"}}}},
+        {"$unwind": "$keys"},
+        {"$match": {"_day": {"$ne": ""}}},
+        {"$group": {"_id": {"day": "$_day", "cat": "$_cat", "mk": "$keys"}, "cnt": {"$sum": 1}}},
+    ], allowDiskUse=True):
+        day, cat, mk = doc["_id"]["day"], doc["_id"]["cat"], doc["_id"]["mk"]
+        n = doc["cnt"]
+        cnt_by[(day, cat)] += n
+        cnt_by[(day, "_total")] += n
+
+    # 2c. Untracked-summary cost: (total - tracked) per (day,cat) is hard to split
+    #     by model here, so price untracked at a per-(day,cat) model-weighted avg.
+    #     Instead recompute untracked cost from the count pipeline grouped by model.
+    async for doc in db.papers.aggregate([
+        {"$match": {"summaries": {"$exists": True, "$ne": {}}}},
+        {"$addFields": {"_day": day_expr("added_at"),
+                        "_cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
+                        "_tk": {"$objectToArray": {"$ifNull": ["$summary_tokens", {}]}}}},
+        {"$project": {"_day": 1, "_cat": 1,
+                      "tracked_keys": {"$map": {"input": "$_tk", "as": "t", "in": "$$t.k"}},
+                      "keys": {"$map": {"input": {"$objectToArray": {"$ifNull": ["$summaries", {}]}},
+                                        "as": "s", "in": "$$s.k"}}}},
+        {"$project": {"_day": 1, "_cat": 1,
+                      "untracked": {"$setDifference": ["$keys", "$tracked_keys"]}}},
+        {"$unwind": "$untracked"},
+        {"$match": {"_day": {"$ne": ""}}},
+        {"$group": {"_id": {"day": "$_day", "cat": "$_cat", "mk": "$untracked"}, "cnt": {"$sum": 1}}},
+    ], allowDiskUse=True):
+        day, cat, mk = doc["_id"]["day"], doc["_id"]["cat"], doc["_id"]["mk"]
+        pin, pout = _price_for_summary(mk)
+        avg_in, avg_out = model_avg.get(mk, (AVG_IN, AVG_OUT))
+        c = doc["cnt"] * ((avg_in / 1_000_000) * pin + (avg_out / 1_000_000) * pout)
+        cost_by[(day, cat)] += c
+        cost_by[(day, "_total")] += c
+
+    # 3. Persist accurate summaries count + summary_cost per (day, category).
+    keys = set(cost_by) | set(cnt_by)
+    ops = [UpdateOne({"date": day, "category": cat},
+                     {"$set": {"summaries": cnt_by.get((day, cat), 0),
+                               "summary_cost": round(cost_by.get((day, cat), 0.0), 6)}},
+                     upsert=True)
+           for (day, cat) in keys]
+    for i in range(0, len(ops), 500):
+        await db.daily_stats.bulk_write(ops[i:i + 500], ordered=False)
 
 
 def _kick_backfill() -> bool:
@@ -175,7 +307,13 @@ def _kick_backfill() -> bool:
 # ──────────────────────────────────────────────────────────────────────────
 
 def _build_summary_models() -> list:
-    """Per-model summary panel from the in-memory leaderboard cache."""
+    """Per-model summary panel from the in-memory leaderboard cache.
+
+    Accurate pricing: real tracked tokens (tracked_input/tracked_output) for
+    summaries that reported usage, plus each model's own tracked average for the
+    untracked remainder. Reconciles exactly with daily_stats.summary_cost
+    (rebuilt by _backfill_summary_costs using the identical per-summary formula).
+    """
     ss = (_lb._cache or {}).get("_summary_stats", {}) or {}
     allm = ss.get("__all__", {}).get("models", {}) or {}
     out = []
@@ -183,16 +321,19 @@ def _build_summary_models() -> list:
         count = m.get("summaries", 0) or 0
         if count <= 0:
             continue
-        ti, to, tc = m.get("tracked_input", 0), m.get("tracked_output", 0), m.get("tracked_count", 0)
-        provider = mk.split(":")[0] if ":" in mk else mk
-        pk = _admin._SUMMARY_PRICING.get(provider, "anthropic/claude-opus-4-6")
-        p = _admin.MODEL_PRICING.get(pk, {"input": 2.0, "output": 10.0})
+        ti = m.get("tracked_input", 0) or 0
+        to = m.get("tracked_output", 0) or 0
+        tc = m.get("tracked_count", 0) or 0
+        pin, pout = _price_for_summary(mk)
+        tracked_cost = (ti / 1_000_000) * pin + (to / 1_000_000) * pout
+        untracked = max(0, count - tc)
         if tc and ti:
             avg_in, avg_out = ti / tc, to / tc
         else:
             avg_in, avg_out = AVG_IN, AVG_OUT
-        cost = (avg_in * count / 1_000_000) * p["input"] + (avg_out * count / 1_000_000) * p["output"]
-        out.append({"name": mk, "count": count, "cost": round(cost, 4)})
+        untracked_cost = untracked * ((avg_in / 1_000_000) * pin + (avg_out / 1_000_000) * pout)
+        cost = round(tracked_cost + untracked_cost, 4)
+        out.append({"name": mk, "count": count, "cost": cost})
     total = sum(x["cost"] for x in out) or 1.0
     for x in out:
         x["pct"] = round(100.0 * x["cost"] / total, 1)
@@ -258,7 +399,7 @@ async def stats_overview(category: Optional[str] = None, force: bool = False):
             cat_by_key[(doc["date"], doc["category"])] = doc
 
     backfilling = False
-    if force or len(total_by_date) < 5:
+    if force or len(total_by_date) < _SPARSE_THRESHOLD:
         backfilling = _kick_backfill()
 
     # 2. per-model match totals

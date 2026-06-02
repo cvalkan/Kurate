@@ -1606,7 +1606,8 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                     try:
                         from routers.admin2_stats import record_summary_daily_stat
                         _scat = (paper.get("categories") or [category or "unknown"])[0]
-                        asyncio.ensure_future(record_summary_daily_stat(_scat, mk, paper.get("added_at")))
+                        asyncio.ensure_future(record_summary_daily_stat(
+                            _scat, mk, paper.get("added_at"), result.get("tokens")))
                     except Exception:
                         pass
                     # Track successful summary generation
