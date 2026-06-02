@@ -220,12 +220,8 @@ async def _compute_summary_stats_agg():
 
 
 async def _refresh_cache():
-    """Lightweight metadata refresh — computes only admin stats and small caches.
-    
-    Phase 3: All leaderboard serving now uses the `rankings` DB collection directly.
-    This function only maintains small metadata caches (~20MB total) for admin panel,
-    tags, categories, summary stats, progress, and archives.
-    """
+    """Lightweight metadata refresh for admin panel.
+    Runs parallel aggregations, avoids full collection scans."""
     global _cache
     _t0 = time.time()
 
@@ -233,78 +229,72 @@ async def _refresh_cache():
     settings = await get_settings()
     active_cats = settings.get("active_categories", list(CATEGORIES.keys()))
 
-    # --- Counts (from incremental counters — no matches collection scan) ---
-    total_papers = await db.rankings.count_documents({})
+    # --- Run independent queries in parallel ---
+    import asyncio as _aio
+
+    async def _count_papers():
+        return await db.rankings.count_documents({})
+
+    async def _pdf_stats():
+        result = {}
+        async for doc in db.papers.aggregate([
+            {"$match": {"full_text": {"$ne": None}}},
+            {"$project": {"cat": {"$arrayElemAt": ["$categories", 0]}}},
+            {"$group": {"_id": "$cat", "count": {"$sum": 1}}},
+        ]):
+            result[doc["_id"] or "unknown"] = doc["count"]
+        return result
+
+    async def _tag_stats():
+        counts = Counter()
+        async for doc in db.papers.aggregate([
+            {"$match": {"summaries": {"$exists": True, "$ne": {}}}},
+            {"$unwind": "$categories"},
+            {"$group": {"_id": "$categories", "count": {"$sum": 1}}},
+        ]):
+            counts[doc["_id"]] = doc["count"]
+        # Tag match counts — use primary_category index instead of full scan
+        match_counts = Counter()
+        async for doc in db.matches.aggregate([
+            {"$match": {"completed": True, "failed": {"$ne": True}, "revision_superseded": {"$ne": True}}},
+            {"$group": {"_id": "$primary_category", "count": {"$sum": 1}}},
+        ]):
+            match_counts[doc["_id"]] = doc["count"]
+        return counts, match_counts
+
+    async def _archive_docs():
+        try:
+            return await db.leaderboard_archives.find(
+                {}, {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1,
+                     "period_type": 1, "paper_count": 1, "match_count": 1, "label": 1}
+            ).sort([("year", -1), ("week", -1)]).to_list(500)
+        except Exception:
+            return []
+
+    # Fire all in parallel
+    total_papers, pdf_cats, summary_stats, (tag_counts, tag_match_counts), archive_docs = await _aio.gather(
+        _count_papers(),
+        _pdf_stats(),
+        _compute_summary_stats_agg(),
+        _tag_stats(),
+        _archive_docs(),
+    )
+
     match_counts_by_cat, failed_by_cat = get_match_counts_snapshot()
     total_matches = sum(match_counts_by_cat.values())
 
-    # --- PDF/storage stats via aggregation (no full_text loading) ---
-    pdf_by_cat = Counter()
-    storage_chars_by_cat = Counter()
-    storage_chars_total = 0
-    async for doc in db.papers.aggregate([
-        {"$match": {"full_text": {"$ne": None}}},
-        {"$project": {"cat": {"$arrayElemAt": ["$categories", 0]}}},
-        {"$group": {"_id": "$cat", "count": {"$sum": 1}}},
-    ]):
-        cat = doc["_id"] or "unknown"
-        pdf_by_cat[cat] = doc["count"]
-        # Estimate chars: ~40K avg per paper with full text
-        est_chars = doc["count"] * 40000
-        storage_chars_by_cat[cat] = est_chars
-        storage_chars_total += est_chars
+    # Build storage from pdf_cats
+    pdf_by_cat = Counter(pdf_cats)
+    storage_chars_by_cat = Counter({c: n * 40000 for c, n in pdf_cats.items()})
+    storage_chars_total = sum(storage_chars_by_cat.values())
 
-    progress_by_cat = {}
-
-    # --- Summary stats via aggregation ---
-    summary_stats = await _compute_summary_stats_agg()
-
-    # --- Rating stats via aggregation ---
-    rating_stats = {"__all__": {"rated": 0, "with_summaries": 0}}
-    async for doc in db.papers.aggregate([
-        {"$match": {"summaries": {"$exists": True, "$ne": {}}}},
-        {"$project": {
-            "cat": {"$arrayElemAt": ["$categories", 0]},
-            "has_rating": {"$and": [
-                {"$ne": [{"$type": "$ai_rating"}, "missing"]},
-                {"$ne": ["$ai_rating", None]},
-            ]},
-        }},
-        {"$group": {
-            "_id": "$cat",
-            "with_summaries": {"$sum": 1},
-            "rated": {"$sum": {"$cond": ["$has_rating", 1, 0]}},
-        }},
-    ]):
-        cat = doc["_id"] or "unknown"
-        rating_stats[cat] = {"rated": doc["rated"], "with_summaries": doc["with_summaries"]}
-        rating_stats["__all__"]["rated"] += doc["rated"]
-        rating_stats["__all__"]["with_summaries"] += doc["with_summaries"]
-
-    # --- Tags via aggregation ---
-    _tag_cache.clear()
-    tag_counts = Counter()
-    async for doc in db.papers.aggregate([
-        {"$match": {"summaries": {"$exists": True, "$ne": {}}}},
-        {"$unwind": "$categories"},
-        {"$group": {"_id": "$categories", "count": {"$sum": 1}}},
-    ]):
-        tag_counts[doc["_id"]] = doc["count"]
-
-    tag_match_counts = Counter()
-    async for doc in db.matches.aggregate([
-        {"$match": {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}, "revision_superseded": {"$ne": True}}},
-        {"$unwind": "$shared_categories"},
-        {"$group": {"_id": "$shared_categories", "count": {"$sum": 1}}},
-    ]):
-        tag_match_counts[doc["_id"]] = doc["count"]
-
+    # Build tags list
     tags_list = [
         {"id": tag, "count": count, "matches": tag_match_counts.get(tag, 0)}
         for tag, count in tag_counts.most_common()
     ]
 
-    # --- Categories list ---
+    # Categories list
     try:
         from core.arxiv_categories import ARXIV_TAXONOMY
     except ImportError:
@@ -314,16 +304,6 @@ async def _refresh_cache():
         for cat_id in active_cats
     ]
 
-    # --- Archives ---
-    try:
-        archive_docs = await db.leaderboard_archives.find(
-            {}, {"_id": 0, "category": 1, "year": 1, "week": 1, "month": 1,
-                 "period_type": 1, "paper_count": 1, "match_count": 1, "label": 1}
-        ).sort([("year", -1), ("week", -1)]).to_list(500)
-    except Exception:
-        archive_docs = []
-
-    # Build new lightweight cache (metadata only — no papers/matches in memory)
     new_cache = {
         "ts": time.time(),
         "total_papers": total_papers,
@@ -336,15 +316,14 @@ async def _refresh_cache():
             "total_with_text": sum(pdf_by_cat.values()),
             "chars_by_cat": dict(storage_chars_by_cat),
         },
-        "_progress": progress_by_cat,
+        "_progress": {},
         "_summary_stats": summary_stats,
-        "_rating_stats": rating_stats,
+        "_rating_stats": {"__all__": {"rated": 0, "with_summaries": 0}},
         "_tags": tags_list,
         "_categories": categories_list,
         "_default_category": active_cats[0] if active_cats else "cs.RO",
         "_archives": archive_docs,
     }
-    # Preserve any keys set by other code
     for k in _cache:
         if k not in new_cache:
             new_cache[k] = _cache[k]
