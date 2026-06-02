@@ -1559,12 +1559,13 @@ _timeseries_last_refresh = 0
 
 
 @router.get("/timeseries", dependencies=[Depends(verify_admin)])
-async def get_timeseries(category: Optional[str] = None, date_from: Optional[str] = None, date_to: Optional[str] = None):
+async def get_timeseries(category: Optional[str] = None, date_from: Optional[str] = None, date_to: Optional[str] = None, force: bool = False):
     """Return daily time-series data for papers, matches, tokens, costs.
     
     - Without `category`: returns totals only (lightweight).
     - With `category`: returns per-category breakdown for that single category.
     - `date_from` / `date_to`: ISO date strings (e.g. 2026-01-01) to limit range.
+    - `force`: bypass all caches and recompute from scratch.
     """
     global _timeseries_refresh_lock, _timeseries_last_refresh
     cache_key = category or "__all__"
@@ -1595,6 +1596,15 @@ async def get_timeseries(category: Optional[str] = None, date_from: Optional[str
             series = stripped
         out = {**result, "series": series}
         return out
+
+    # Force refresh: skip all caches
+    if force:
+        result = await _compute_timeseries(category)
+        _set_admin_cached("timeseries", cache_key, result)
+        from core.cache import set_cached
+        await set_cached(f"admin_timeseries_{cache_key}", result)
+        _timeseries_last_refresh = _time.time()
+        return _filter_result(result)
 
     cached = _get_admin_cached("timeseries", cache_key)
     if cached:

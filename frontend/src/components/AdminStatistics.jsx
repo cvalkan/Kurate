@@ -112,7 +112,7 @@ export function AdminStatistics({ categories }) {
   const [viewMode, setViewMode] = useState("cumulative"); // "daily" | "cumulative"
   const [scopeMode, setScopeMode] = useState("system"); // "system" | "category"
 
-  const fetchData = useCallback(async (retryCount = 0) => {
+  const fetchData = useCallback(async (retryCount = 0, force = false) => {
     const headers = getAdminHeaders();
     const fetchWithRetry = async (url) => {
       try {
@@ -123,8 +123,9 @@ export function AdminStatistics({ categories }) {
       }
     };
     try {
+      const tsUrl = force ? `${API}/api/admin/timeseries?force=true` : `${API}/api/admin/timeseries`;
       const results = await Promise.allSettled([
-        fetchWithRetry(`${API}/api/admin/timeseries`),
+        fetchWithRetry(tsUrl),
         fetchWithRetry(`${API}/api/admin/stats`),
         fetchWithRetry(`${API}/api/admin/system-logs?hours=${memHours}&limit=3000`),
         fetchWithRetry(`${API}/api/admin/users/registrations`),
@@ -643,7 +644,7 @@ export function AdminStatistics({ categories }) {
           </Button>
         </div>
         <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 ml-auto"
-          onClick={() => { setLoading(true); fetchData(); }} data-testid="refresh-charts"
+          onClick={() => { setLoading(true); fetchData(0, true); }} data-testid="refresh-charts"
         >
           <RefreshCw className="h-3 w-3" /> Refresh
         </Button>
