@@ -1552,254 +1552,208 @@ MODEL_PRICING = {
 }
 
 
-_timeseries_refresh_lock = False
+
+_timeseries_lock = False
 _timeseries_last_refresh = 0
+
+# Empty daily stats template
+_EMPTY_DAY = {"papers": 0, "matches": 0, "input_tokens": 0, "output_tokens": 0,
+              "cost": 0.0, "summaries": 0, "summary_cost": 0.0}
+
+
+def _make_day(date: str, category: str) -> dict:
+    return {"date": date, "category": category, **_EMPTY_DAY}
+
+
+def _price_match(inp: int, out: int, provider: str, model: str) -> float:
+    mk = f"{provider}/{model}"
+    p = MODEL_PRICING.get(mk, {"input": 2.0, "output": 10.0})
+    return (inp / 1_000_000) * p["input"] + (out / 1_000_000) * p["output"]
 
 
 @router.get("/timeseries", dependencies=[Depends(verify_admin)])
-async def get_timeseries(category: Optional[str] = None, date_from: Optional[str] = None, date_to: Optional[str] = None, force: bool = False):
-    """Return daily time-series data for papers, matches, tokens, costs.
-    
-    - Without `category`: returns totals only (lightweight).
-    - With `category`: returns per-category breakdown for that single category.
-    - `date_from` / `date_to`: ISO date strings (e.g. 2026-01-01) to limit range.
-    - `force`: bypass all caches and recompute from scratch.
-    """
-    global _timeseries_refresh_lock, _timeseries_last_refresh
+async def get_timeseries(
+    category: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    force: bool = False,
+):
+    """Daily time-series for papers, matches, tokens, costs.
+    Uses incremental `daily_stats` collection as persistent cache."""
+    global _timeseries_lock, _timeseries_last_refresh
     cache_key = category or "__all__"
 
-    def _filter_result(result):
-        """Slice series by date range and strip per-category fields when no category requested."""
+    def _trim(result):
         if not result or "series" not in result:
             return result
-        series = result["series"]
-        # Date range filter
+        s = result["series"]
         if date_from:
-            series = [e for e in series if e["date"] >= date_from]
+            s = [e for e in s if e["date"] >= date_from]
         if date_to:
-            series = [e for e in series if e["date"] <= date_to]
-        # When no category requested, strip per-category fields to reduce payload
-        if not category and series:
-            stripped = []
-            keep_prefixes = ("date", "papers_daily", "papers_cumulative", "matches_daily",
-                             "matches_cumulative", "tokens_daily", "tokens_cumulative",
-                             "cost_daily", "cost_cumulative", "input_tokens_daily", "output_tokens_daily")
-            for entry in series:
-                stripped.append({k: v for k, v in entry.items()
-                                if not any(k.startswith(f"{p}_") for p in
-                                           ("papers_daily", "papers_cumulative", "matches_daily",
-                                            "matches_cumulative", "tokens_daily", "tokens_cumulative",
-                                            "cost_daily", "cost_cumulative"))
-                                or k in keep_prefixes})
-            series = stripped
-        out = {**result, "series": series}
-        return out
+            s = [e for e in s if e["date"] <= date_to]
+        # Strip per-category keys when no specific category requested
+        if not category and s:
+            base = {"date", "papers_daily", "papers_cumulative", "matches_daily",
+                    "matches_cumulative", "tokens_daily", "tokens_cumulative",
+                    "cost_daily", "cost_cumulative", "input_tokens_daily", "output_tokens_daily"}
+            s = [{k: v for k, v in e.items() if k in base} for e in s]
+        return {**result, "series": s}
 
-    # Force refresh: skip all caches
-    if force:
-        try:
-            result = await _compute_timeseries(category)
-        except Exception as e:
-            import traceback
-            logger.error(f"[TIMESERIES] Force recompute FAILED: {e}\n{traceback.format_exc()}")
-            raise HTTPException(status_code=500, detail=f"Timeseries computation failed: {str(e)[:500]}")
+    empty = {"series": [], "categories": [], "totals": {
+        "papers": 0, "matches": 0, "tokens": 0, "input_tokens": 0,
+        "output_tokens": 0, "cost": 0.0, "match_cost": 0.0, "summary_cost": 0.0}, "models": {}}
+
+    # Cached in-memory (5-min TTL)
+    if not force:
+        cached = _get_admin_cached("timeseries", cache_key)
+        if cached:
+            return _trim(cached)
+
+    # Compute (or wait if already computing)
+    if _timeseries_lock:
+        return empty
+    _timeseries_lock = True
+    try:
+        result = await _compute_timeseries(category)
         _set_admin_cached("timeseries", cache_key, result)
-        # Don't write to computation_cache — daily_stats IS the persistent cache now
         _timeseries_last_refresh = _time.time()
-        return _filter_result(result)
-
-    cached = _get_admin_cached("timeseries", cache_key)
-    if cached:
-        return _filter_result(cached)
-
-    # Cold start: compute from daily_stats (fast — reads cached daily aggregates)
-    # No need for computation_cache — daily_stats IS the persistent cache
-    if not _timeseries_refresh_lock:
-        _timeseries_refresh_lock = True
-        try:
-            result = await _compute_timeseries(category)
-            _set_admin_cached("timeseries", cache_key, result)
-            _timeseries_last_refresh = _time.time()
-            return _filter_result(result)
-        except Exception as e:
-            logger.error(f"[TIMESERIES] Compute failed: {e}")
-            return {"series": [], "categories": [], "totals": {"papers": 0, "matches": 0, "tokens": 0, "cost": 0.0}, "models": {}}
-        finally:
-            _timeseries_refresh_lock = False
-    else:
-        return {"series": [], "categories": [], "totals": {"papers": 0, "matches": 0, "tokens": 0, "cost": 0.0}, "models": {}}
+        return _trim(result)
+    except Exception as e:
+        import traceback
+        logger.error(f"[TIMESERIES] Failed: {e}\n{traceback.format_exc()}")
+        if force:
+            raise HTTPException(500, detail=f"Timeseries failed: {str(e)[:500]}")
+        return empty
+    finally:
+        _timeseries_lock = False
 
 
 async def _compute_timeseries(category: Optional[str] = None):
-    """Incremental timeseries: reads cached daily_stats, only computes new days.
-    First call does a full backfill; subsequent calls only aggregate recent data."""
-    
-    settings_for_cats = await get_settings()
-    query_cats = [category] if category else sorted(settings_for_cats.get("active_categories", list(CATEGORIES.keys())))
-
+    """Incremental timeseries from daily_stats cache.
+    First call: full backfill. Subsequent: only aggregate recent days."""
     from datetime import date as _date, timedelta as _td, datetime as _dt, timezone as _tz
+    from pymongo import UpdateOne
+
+    settings = await get_settings()
+    cats = [category] if category else sorted(settings.get("active_categories", list(CATEGORIES.keys())))
+    cat_set = set(cats)
     today = _dt.now(_tz.utc).strftime("%Y-%m-%d")
 
-    # Load existing daily_stats (only _total rows for speed — per-cat loaded on demand)
-    existing_stats = {}  # {date: {papers, matches, ...}} for _total
-    existing_cat_stats = {}  # {(date, cat): {...}}
+    # ── Load cached daily_stats ──
+    total_by_date = {}   # date -> stats dict
+    cat_by_key = {}      # (date, cat) -> stats dict
     last_date = None
+
     async for doc in db.daily_stats.find({"category": "_total"}, {"_id": 0}):
-        existing_stats[doc["date"]] = doc
+        total_by_date[doc["date"]] = doc
         if not last_date or doc["date"] > last_date:
             last_date = doc["date"]
 
-    # Also load per-category stats (needed for series building)
     async for doc in db.daily_stats.find(
-        {"category": {"$in": query_cats}, "_meta": {"$exists": False}},
-        {"_id": 0}
+        {"category": {"$in": cats}},
+        {"_id": 0},
     ):
-        existing_cat_stats[(doc["date"], doc["category"])] = doc
+        cat_by_key[(doc["date"], doc["category"])] = doc
 
-    # Determine what needs computing
+    # ── Decide what to compute ──
     if last_date and last_date >= today:
-        compute_from = today  # Recompute today only
+        compute_from = today
     elif last_date:
-        compute_from = last_date  # Recompute from last cached day
+        compute_from = last_date
     else:
-        compute_from = None  # Full backfill
+        compute_from = None  # full backfill
 
-    logger.info(f"[TIMESERIES] Incremental: {len(existing_stats)} cached days (last={last_date}), computing from {compute_from}")
+    logger.info(f"[TIMESERIES] {len(total_by_date)} cached days, compute_from={compute_from}")
 
-    # --- Compute new daily stats ---
-    new_stats = {}  # {(date, cat): {...}}
-    model_stats = {}  # Accumulated during match loop
+    # ── Aggregate new data ──
+    new = {}          # (date, cat) -> stats
+    model_totals = {} # model_key -> {matches, input_tokens, output_tokens}
 
-    # Papers by day (only new days)
-    paper_match = {}
+    def _acc(day, cat, **fields):
+        for k in [cat, "_total"]:
+            key = (day, k)
+            if key not in new:
+                new[key] = _make_day(day, k)
+            for f, v in fields.items():
+                new[key][f] = new[key].get(f, 0) + v
+
+    # Papers
+    pmatch = {}
     if compute_from:
-        paper_match["$or"] = [
-            {"added_at": {"$gte": compute_from}},
-            {"published": {"$gte": compute_from}},
-        ]
+        pmatch["$or"] = [{"added_at": {"$gte": compute_from}}, {"published": {"$gte": compute_from}}]
     if category:
-        paper_match["categories.0"] = category
-
+        pmatch["categories.0"] = category
     async for doc in db.papers.aggregate([
-        {"$match": paper_match} if paper_match else {"$match": {}},
+        {"$match": pmatch} if pmatch else {"$match": {}},
         {"$project": {
             "day": {"$substrCP": [{"$ifNull": ["$added_at", {"$ifNull": ["$published", ""]}]}, 0, 10]},
             "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
         }},
         {"$match": {"day": {"$gte": compute_from} if compute_from else {"$ne": ""}}},
-        {"$group": {"_id": {"day": "$day", "cat": "$cat"}, "count": {"$sum": 1}}},
+        {"$group": {"_id": {"day": "$day", "cat": "$cat"}, "n": {"$sum": 1}}},
     ]):
         day, cat = doc["_id"]["day"], doc["_id"]["cat"]
-        if cat not in set(query_cats):
-            continue
-        for k in [cat, "_total"]:
-            key = (day, k)
-            if key not in new_stats:
-                new_stats[key] = {"date": day, "category": k, "papers": 0, "matches": 0,
-                                  "input_tokens": 0, "output_tokens": 0, "cost": 0.0,
-                                  "summaries": 0, "summary_cost": 0.0}
-            new_stats[key]["papers"] += doc["count"]
+        if cat in cat_set:
+            _acc(day, cat, papers=doc["n"])
 
-    # Matches by day — strategy depends on full backfill vs incremental
+    # Matches — incremental uses created_at index, backfill uses per-category compound index
+    def _process_match_doc(doc, cat_override=None):
+        day = doc["_id"].get("day") if isinstance(doc["_id"], dict) else doc["_id"]
+        if not day:
+            return
+        cat = cat_override or doc["_id"].get("cat", "unknown")
+        prov = doc["_id"].get("provider", "unknown") if isinstance(doc["_id"], dict) else "unknown"
+        model = doc["_id"].get("model", "unknown") if isinstance(doc["_id"], dict) else "unknown"
+        inp, out, count = doc["inp"], doc["out"], doc["count"]
+        cost = _price_match(inp, out, prov, model)
+        _acc(day, cat, matches=count, input_tokens=inp, output_tokens=out, cost=cost)
+        mk = f"{prov}/{model}"
+        if mk != "unknown/unknown":
+            if mk not in model_totals:
+                model_totals[mk] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
+            model_totals[mk]["matches"] += count
+            model_totals[mk]["input_tokens"] += inp
+            model_totals[mk]["output_tokens"] += out
+
+    match_group = {
+        "_id": {"day": {"$substrCP": [{"$ifNull": ["$created_at", ""]}, 0, 10]},
+                "cat": "$primary_category",
+                "provider": {"$ifNull": ["$model_used.provider", "unknown"]},
+                "model": {"$ifNull": ["$model_used.model", "unknown"]}},
+        "count": {"$sum": 1},
+        "inp": {"$sum": {"$ifNull": ["$tokens.input_est", 0]}},
+        "out": {"$sum": {"$ifNull": ["$tokens.output_est", 0]}},
+    }
+
     if compute_from:
-        # INCREMENTAL: single aggregation using created_at index (fast, ~1 day of data)
         try:
             async for doc in db.matches.aggregate([
                 {"$match": {"completed": True, "failed": {"$ne": True}, "created_at": {"$gte": compute_from}}},
-                {"$group": {
-                    "_id": {
-                        "day": {"$substrCP": [{"$ifNull": ["$created_at", ""]}, 0, 10]},
-                        "cat": "$primary_category",
-                        "provider": {"$ifNull": ["$model_used.provider", "unknown"]},
-                        "model": {"$ifNull": ["$model_used.model", "unknown"]},
-                    },
-                    "count": {"$sum": 1},
-                    "inp": {"$sum": {"$ifNull": ["$tokens.input_est", 0]}},
-                    "out": {"$sum": {"$ifNull": ["$tokens.output_est", 0]}},
-                }},
+                {"$group": match_group},
             ]):
-                day = doc["_id"]["day"]
-                cat = doc["_id"].get("cat", "unknown")
-                if not day:
-                    continue
-                model_key = f"{doc['_id']['provider']}/{doc['_id']['model']}"
-                pricing = MODEL_PRICING.get(model_key, {"input": 2.0, "output": 10.0})
-                inp, out = doc["inp"], doc["out"]
-                cost = (inp / 1_000_000) * pricing["input"] + (out / 1_000_000) * pricing["output"]
-
-                for k in [cat, "_total"]:
-                    key = (day, k)
-                    if key not in new_stats:
-                        new_stats[key] = {"date": day, "category": k, "papers": 0, "matches": 0,
-                                          "input_tokens": 0, "output_tokens": 0, "cost": 0.0,
-                                          "summaries": 0, "summary_cost": 0.0}
-                    new_stats[key]["matches"] += doc["count"]
-                    new_stats[key]["input_tokens"] += inp
-                    new_stats[key]["output_tokens"] += out
-                    new_stats[key]["cost"] += cost
-
-                if model_key != "unknown/unknown":
-                    if model_key not in model_stats:
-                        model_stats[model_key] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
-                    model_stats[model_key]["matches"] += doc["count"]
-                    model_stats[model_key]["input_tokens"] += inp
-                    model_stats[model_key]["output_tokens"] += out
+                _process_match_doc(doc)
         except Exception as e:
             logger.warning(f"[TIMESERIES] Incremental match agg failed: {e}")
     else:
-        # FULL BACKFILL: per-category aggregation using compound index
-        for qcat in query_cats:
+        for qcat in cats:
             try:
                 async for doc in db.matches.aggregate([
                     {"$match": {"primary_category": qcat, "completed": True, "failed": {"$ne": True}}},
-                    {"$group": {
-                        "_id": {
-                            "day": {"$substrCP": [{"$ifNull": ["$created_at", ""]}, 0, 10]},
-                            "provider": {"$ifNull": ["$model_used.provider", "unknown"]},
-                            "model": {"$ifNull": ["$model_used.model", "unknown"]},
-                        },
-                        "count": {"$sum": 1},
-                        "inp": {"$sum": {"$ifNull": ["$tokens.input_est", 0]}},
-                        "out": {"$sum": {"$ifNull": ["$tokens.output_est", 0]}},
-                    }},
+                    {"$group": match_group},
                 ]):
-                    day = doc["_id"]["day"]
-                    if not day:
-                        continue
-                    model_key = f"{doc['_id']['provider']}/{doc['_id']['model']}"
-                    pricing = MODEL_PRICING.get(model_key, {"input": 2.0, "output": 10.0})
-                    inp, out = doc["inp"], doc["out"]
-                    cost = (inp / 1_000_000) * pricing["input"] + (out / 1_000_000) * pricing["output"]
-
-                    for k in [qcat, "_total"]:
-                        key = (day, k)
-                        if key not in new_stats:
-                            new_stats[key] = {"date": day, "category": k, "papers": 0, "matches": 0,
-                                              "input_tokens": 0, "output_tokens": 0, "cost": 0.0,
-                                              "summaries": 0, "summary_cost": 0.0}
-                        new_stats[key]["matches"] += doc["count"]
-                        new_stats[key]["input_tokens"] += inp
-                        new_stats[key]["output_tokens"] += out
-                        new_stats[key]["cost"] += cost
-
-                    if model_key != "unknown/unknown":
-                        if model_key not in model_stats:
-                            model_stats[model_key] = {"matches": 0, "input_tokens": 0, "output_tokens": 0}
-                        model_stats[model_key]["matches"] += doc["count"]
-                        model_stats[model_key]["input_tokens"] += inp
-                        model_stats[model_key]["output_tokens"] += out
+                    _process_match_doc(doc)
             except Exception as e:
                 logger.warning(f"[TIMESERIES] Match agg failed for {qcat}: {e}")
 
-    # Summaries by day (only new days)
-    AVG_INPUT_TOKENS = 10375
-    AVG_OUTPUT_TOKENS = 1788
-    sum_match = {"summaries": {"$exists": True, "$ne": None}}
+    # Summaries
+    AVG_IN, AVG_OUT = 10375, 1788
+    AVG_COST = _price_match(AVG_IN, AVG_OUT, "anthropic", "claude-opus-4-6")
+    smatch = {"summaries": {"$exists": True, "$ne": None}}
     if compute_from:
-        sum_match["added_at"] = {"$gte": compute_from}
+        smatch["added_at"] = {"$gte": compute_from}
     try:
         async for doc in db.papers.aggregate([
-            {"$match": sum_match},
+            {"$match": smatch},
             {"$project": {
                 "day": {"$substrCP": [{"$ifNull": ["$added_at", ""]}, 0, 10]},
                 "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
@@ -1809,157 +1763,123 @@ async def _compute_timeseries(category: Optional[str] = None):
             {"$group": {"_id": {"day": "$day", "cat": "$cat"}, "total": {"$sum": "$n"}}},
         ]):
             day, cat = doc["_id"]["day"], doc["_id"]["cat"]
-            count = doc["total"]
-            s_cost = count * ((AVG_INPUT_TOKENS / 1_000_000) * 3.0 + (AVG_OUTPUT_TOKENS / 1_000_000) * 12.0)
-            for k in [cat, "_total"]:
-                key = (day, k)
-                if key not in new_stats:
-                    new_stats[key] = {"date": day, "category": k, "papers": 0, "matches": 0,
-                                      "input_tokens": 0, "output_tokens": 0, "cost": 0.0,
-                                      "summaries": 0, "summary_cost": 0.0}
-                new_stats[key]["summaries"] += count
-                new_stats[key]["summary_cost"] += s_cost
+            n = doc["total"]
+            _acc(day, cat, summaries=n, summary_cost=AVG_COST * n)
     except Exception as e:
         logger.warning(f"[TIMESERIES] Summary agg failed: {e}")
 
-    # Persist new stats to DB (upsert per date+category)
-    if new_stats:
-        ops = []
-        from pymongo import UpdateOne
-        for (day, cat), data in new_stats.items():
-            ops.append(UpdateOne(
-                {"date": day, "category": cat},
-                {"$set": data},
-                upsert=True,
-            ))
-        if ops:
-            await db.daily_stats.bulk_write(ops, ordered=False)
-            logger.info(f"[TIMESERIES] Persisted {len(ops)} daily_stats entries")
+    # ── Persist new daily_stats ──
+    if new:
+        ops = [UpdateOne({"date": d, "category": c}, {"$set": v}, upsert=True)
+               for (d, c), v in new.items()]
+        await db.daily_stats.bulk_write(ops, ordered=False)
+        logger.info(f"[TIMESERIES] Persisted {len(ops)} daily_stats")
 
-    # Merge existing + new into combined data
-    all_total_stats = dict(existing_stats)  # date -> total stats
-    all_cat_stats = dict(existing_cat_stats)  # (date, cat) -> cat stats
-    for (day, cat), data in new_stats.items():
-        if cat == "_total":
-            all_total_stats[day] = data
+    # ── Merge cached + new ──
+    for (d, c), v in new.items():
+        if c == "_total":
+            total_by_date[d] = v
         else:
-            all_cat_stats[(day, cat)] = data
+            cat_by_key[(d, c)] = v
 
-    # Build model stats — already accumulated during match loop above.
-    # For incremental runs, merge with cached version.
-    cached_model_stats = await db.daily_stats.find_one({"_meta": "model_stats"}, {"_id": 0})
-    if cached_model_stats and compute_from:
-        # Incremental: start from cached, add new data
-        cached_models = cached_model_stats.get("models", {})
-        for mk, ms in cached_models.items():
-            if mk in model_stats:
-                # Merge: add cached totals to incremental delta
-                model_stats[mk]["matches"] += ms.get("matches", 0)
-                model_stats[mk]["input_tokens"] += ms.get("input_tokens", 0)
-                model_stats[mk]["output_tokens"] += ms.get("output_tokens", 0)
-            else:
-                model_stats[mk] = dict(ms)
-    
-    # Persist updated model_stats cache (only on full backfill when we have complete data)
-    if compute_from is None and model_stats:
+    # ── Model stats: merge cached + new ──
+    if compute_from:
+        cached_ms = await db.daily_stats.find_one({"_meta": "model_stats"}, {"_id": 0})
+        if cached_ms:
+            for mk, ms in cached_ms.get("models", {}).items():
+                if mk in model_totals:
+                    for f in ("matches", "input_tokens", "output_tokens"):
+                        model_totals[mk][f] += ms.get(f, 0)
+                else:
+                    model_totals[mk] = dict(ms)
+    if not compute_from and model_totals:
         await db.daily_stats.update_one(
             {"_meta": "model_stats"},
-            {"$set": {"_meta": "model_stats", "models": model_stats}},
+            {"$set": {"_meta": "model_stats", "models": model_totals}},
             upsert=True,
         )
 
-    # Build series
-    if not all_total_stats:
-        return {"series": [], "categories": query_cats, "totals": {"papers": 0, "matches": 0, "tokens": 0, "cost": 0.0}, "models": {}}
+    # ── Build response series ──
+    if not total_by_date:
+        return {"series": [], "categories": cats,
+                "totals": {"papers": 0, "matches": 0, "tokens": 0, "input_tokens": 0,
+                           "output_tokens": 0, "cost": 0, "match_cost": 0, "summary_cost": 0},
+                "models": {}}
 
-    start = _date.fromisoformat(min(all_total_stats.keys()))
-    end = _date.fromisoformat(max(all_total_stats.keys()))
-    all_dates = []
+    start = _date.fromisoformat(min(total_by_date))
+    end = _date.fromisoformat(max(total_by_date))
+    dates = []
     cur = start
     while cur <= end:
-        all_dates.append(cur.isoformat())
+        dates.append(cur.isoformat())
         cur += _td(days=1)
-    all_cats = query_cats
 
     series = []
-    cum_papers = defaultdict(int)
-    cum_matches = defaultdict(int)
-    cum_tokens = defaultdict(int)
-    cum_cost = defaultdict(float)
-    zero = {"papers": 0, "matches": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0, "summaries": 0, "summary_cost": 0.0}
+    cum = {"papers": defaultdict(int), "matches": defaultdict(int),
+           "tokens": defaultdict(int), "cost": defaultdict(float)}
 
-    for day in all_dates:
-        entry = {"date": day}
-        t = all_total_stats.get(day, zero)
+    for day in dates:
+        t = total_by_date.get(day, _EMPTY_DAY)
+        dtok = t.get("input_tokens", 0) + t.get("output_tokens", 0)
+        dcost = t.get("cost", 0.0) + t.get("summary_cost", 0.0)
+        cum["papers"]["_"] += t.get("papers", 0)
+        cum["matches"]["_"] += t.get("matches", 0)
+        cum["tokens"]["_"] += dtok
+        cum["cost"]["_"] += dcost
 
-        cum_papers["_total"] += t.get("papers", 0)
-        cum_matches["_total"] += t.get("matches", 0)
-        day_tokens = t.get("input_tokens", 0) + t.get("output_tokens", 0)
-        day_cost = t.get("cost", 0.0) + t.get("summary_cost", 0.0)
-        cum_tokens["_total"] += day_tokens
-        cum_cost["_total"] += day_cost
+        e = {"date": day,
+             "papers_daily": t.get("papers", 0), "papers_cumulative": cum["papers"]["_"],
+             "matches_daily": t.get("matches", 0), "matches_cumulative": cum["matches"]["_"],
+             "tokens_daily": dtok, "tokens_cumulative": cum["tokens"]["_"],
+             "cost_daily": round(dcost, 4), "cost_cumulative": round(cum["cost"]["_"], 4),
+             "input_tokens_daily": t.get("input_tokens", 0),
+             "output_tokens_daily": t.get("output_tokens", 0)}
 
-        entry["papers_daily"] = t.get("papers", 0)
-        entry["papers_cumulative"] = cum_papers["_total"]
-        entry["matches_daily"] = t.get("matches", 0)
-        entry["matches_cumulative"] = cum_matches["_total"]
-        entry["tokens_daily"] = day_tokens
-        entry["tokens_cumulative"] = cum_tokens["_total"]
-        entry["cost_daily"] = round(day_cost, 4)
-        entry["cost_cumulative"] = round(cum_cost["_total"], 4)
-        entry["input_tokens_daily"] = t.get("input_tokens", 0)
-        entry["output_tokens_daily"] = t.get("output_tokens", 0)
+        for cat in cats:
+            cd = cat_by_key.get((day, cat), _EMPTY_DAY)
+            ct = cd.get("input_tokens", 0) + cd.get("output_tokens", 0)
+            cc = cd.get("cost", 0.0) + cd.get("summary_cost", 0.0)
+            cum["papers"][cat] += cd.get("papers", 0)
+            cum["matches"][cat] += cd.get("matches", 0)
+            cum["tokens"][cat] += ct
+            cum["cost"][cat] += cc
+            e[f"papers_daily_{cat}"] = cd.get("papers", 0)
+            e[f"papers_cumulative_{cat}"] = cum["papers"][cat]
+            e[f"matches_daily_{cat}"] = cd.get("matches", 0)
+            e[f"matches_cumulative_{cat}"] = cum["matches"][cat]
+            e[f"tokens_daily_{cat}"] = ct
+            e[f"tokens_cumulative_{cat}"] = cum["tokens"][cat]
+            e[f"cost_daily_{cat}"] = round(cc, 4)
+            e[f"cost_cumulative_{cat}"] = round(cum["cost"][cat], 4)
+        series.append(e)
 
-        for cat in all_cats:
-            cd = all_cat_stats.get((day, cat), zero)
-            cum_papers[cat] += cd.get("papers", 0)
-            cum_matches[cat] += cd.get("matches", 0)
-            cat_tok = cd.get("input_tokens", 0) + cd.get("output_tokens", 0)
-            cat_cost = cd.get("cost", 0.0) + cd.get("summary_cost", 0.0)
-            cum_tokens[cat] += cat_tok
-            cum_cost[cat] += cat_cost
-            entry[f"papers_daily_{cat}"] = cd.get("papers", 0)
-            entry[f"papers_cumulative_{cat}"] = cum_papers[cat]
-            entry[f"matches_daily_{cat}"] = cd.get("matches", 0)
-            entry[f"matches_cumulative_{cat}"] = cum_matches[cat]
-            entry[f"tokens_daily_{cat}"] = cat_tok
-            entry[f"tokens_cumulative_{cat}"] = cum_tokens[cat]
-            entry[f"cost_daily_{cat}"] = round(cat_cost, 4)
-            entry[f"cost_cumulative_{cat}"] = round(cum_cost[cat], 4)
+    # ── Model costs ──
+    for mk, ms in model_totals.items():
+        p = MODEL_PRICING.get(mk, {"input": 2.0, "output": 10.0})
+        ci = (ms["input_tokens"] / 1_000_000) * p["input"]
+        co = (ms["output_tokens"] / 1_000_000) * p["output"]
+        ms["cost_input"] = round(ci, 4)
+        ms["cost_output"] = round(co, 4)
+        ms["cost_total"] = round(ci + co, 4)
 
-        series.append(entry)
-
-    # Compute per-model costs
-    total_model_cost = 0.0
-    for key, stats in model_stats.items():
-        pricing = MODEL_PRICING.get(key, {"input": 2.0, "output": 10.0})
-        cost_in = (stats["input_tokens"] / 1_000_000) * pricing["input"]
-        cost_out = (stats["output_tokens"] / 1_000_000) * pricing["output"]
-        stats["cost_input"] = round(cost_in, 4)
-        stats["cost_output"] = round(cost_out, 4)
-        stats["cost_total"] = round(cost_in + cost_out, 4)
-        total_model_cost += cost_in + cost_out
-
-    # Compute total summary cost from daily_stats
-    total_summary_cost = sum(
-        d.get("summary_cost", 0.0) for d in all_total_stats.values()
-    )
+    total_summary_cost = sum(d.get("summary_cost", 0.0) for d in total_by_date.values())
 
     return {
         "series": series,
-        "categories": all_cats,
+        "categories": cats,
         "totals": {
-            "papers": cum_papers["_total"],
-            "matches": cum_matches["_total"],
-            "tokens": cum_tokens["_total"],
-            "input_tokens": sum(s.get("input_tokens", 0) for s in model_stats.values()),
-            "output_tokens": sum(s.get("output_tokens", 0) for s in model_stats.values()),
-            "cost": round(cum_cost["_total"], 4),
-            "match_cost": round(cum_cost["_total"] - total_summary_cost, 4),
+            "papers": cum["papers"]["_"],
+            "matches": cum["matches"]["_"],
+            "tokens": cum["tokens"]["_"],
+            "input_tokens": sum(s.get("input_tokens", 0) for s in model_totals.values()),
+            "output_tokens": sum(s.get("output_tokens", 0) for s in model_totals.values()),
+            "cost": round(cum["cost"]["_"], 4),
+            "match_cost": round(cum["cost"]["_"] - total_summary_cost, 4),
             "summary_cost": round(total_summary_cost, 4),
         },
-        "models": model_stats,
+        "models": model_totals,
     }
+
 
 
 @router.get("/tournaments", dependencies=[Depends(verify_admin)])
