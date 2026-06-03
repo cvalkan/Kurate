@@ -109,8 +109,10 @@ async def ensure_indexes():
         await db.model_match_stats.create_index([("model", 1)], unique=True, name="model_idx")
         await db.model_summary_stats.create_index([("model", 1)], unique=True, name="model_idx")
         await db.daily_registrations.create_index([("date", 1)], unique=True, name="date_idx")
-        # Backfill scans/sorts papers by added_at.
+        # Backfill scans/sorts papers by added_at; the per-chunk papers count also
+        # ranges over published → both must be indexed to stay IXSCAN (not COLLSCAN).
         await db.papers.create_index([("added_at", 1)], name="added_at_idx")
+        await db.papers.create_index([("published", 1)], name="published_1")
         logger.info("[ADMIN2] ensure_indexes complete")
     except Exception as e:
         logger.warning(f"[ADMIN2] ensure_indexes failed: {e}")

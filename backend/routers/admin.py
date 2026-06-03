@@ -1461,13 +1461,27 @@ async def _backfill_daily_stats_chunk(date_from: str, date_to: str):
     # Helper: date extraction that works for both string and Date fields
     day_expr = lambda field: {"$substrCP": [{"$toString": {"$ifNull": [f"${field}", ""]}}, 0, 10]}
 
-    # Papers in this date range
+    # Shared date-range bounds (string bound for preview, UTC-datetime bound for
+    # production BSON Date) so both the papers and matches scans are IXSCANs.
+    dt_from = _dt.fromisoformat(date_from).replace(tzinfo=_tz.utc)
+    dt_to = _dt.fromisoformat(date_to).replace(tzinfo=_tz.utc)
+
+    # Papers in this date range — INDEX-BACKED $or over added_at/published, each
+    # bracketed by storage type. Filtering on a *computed* `_day` via $expr forced
+    # a COLLSCAN that re-FETCHED every paper's full doc (incl. the multi-KB
+    # summaries text) on EVERY chunk → ~O(chunks×N) text reads (~57GB on prod)
+    # that HUNG the rebuild on Atlas. A raw-field range on added_at/published is
+    # an exact equivalent of the old `_day` substring range (string compare on the
+    # ISO field == day-prefix range) but restricts the FETCH to the papers in this
+    # chunk → each paper read at most once across the whole run.
     async for doc in db.papers.aggregate([
+        {"$match": {"$or": [
+            {"added_at": {"$gte": date_from, "$lt": date_to}},
+            {"added_at": {"$gte": dt_from, "$lt": dt_to}},
+            {"published": {"$gte": date_from, "$lt": date_to}},
+            {"published": {"$gte": dt_from, "$lt": dt_to}},
+        ]}},
         {"$addFields": {"_day": day_expr("added_at"), "_day2": day_expr("published")}},
-        {"$match": {"$expr": {"$or": [
-            {"$and": [{"$gte": ["$_day", date_from]}, {"$lt": ["$_day", date_to]}]},
-            {"$and": [{"$gte": ["$_day2", date_from]}, {"$lt": ["$_day2", date_to]}]},
-        ]}}},
         {"$project": {"day": {"$cond": [{"$gte": ["$_day", date_from]}, "$_day", "$_day2"]},
                       "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]}}},
         {"$match": {"day": {"$ne": ""}}},
@@ -1485,8 +1499,6 @@ async def _backfill_daily_stats_chunk(date_from: str, date_to: str):
     # IXSCAN, so the cold rebuild reconciles exactly at any scale. Both bounds
     # delimit the SAME UTC instant, and type-bracketing ensures each branch only
     # matches its own storage type (no double counting).
-    dt_from = _dt.fromisoformat(date_from).replace(tzinfo=_tz.utc)
-    dt_to = _dt.fromisoformat(date_to).replace(tzinfo=_tz.utc)
     try:
         async for doc in db.matches.aggregate([
             {"$match": {"completed": True, "failed": {"$ne": True},
