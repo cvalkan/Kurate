@@ -133,7 +133,7 @@ function normalizeRow(doc, source) {
 }
 
 export function AdminLogs() {
-  const [view, setView] = useState("logs"); // "logs" | "health"
+  const [view, setView] = useState("logs"); // "logs" | "arxiv" | "health"
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [type, setType] = useState("all");
@@ -450,12 +450,17 @@ function fmtCooldown(s) {
 function fmtAgo(ts) {
   if (!ts) return "never";
   try {
-    const diff = (Date.now() - new Date(ts.includes("Z") ? ts : ts + "Z").getTime()) / 1000;
+    // ISO strings may already carry a tz offset (+00:00) or 'Z'; only append 'Z'
+    // for naive timestamps so they're parsed as UTC (avoids "NaNd ago").
+    const hasTz = /[zZ]$|[+-]\d\d:?\d\d$/.test(ts);
+    const t = new Date(hasTz ? ts : ts + "Z").getTime();
+    if (isNaN(t)) return "—";
+    const diff = (Date.now() - t) / 1000;
     if (diff < 60) return `${Math.round(diff)}s ago`;
     if (diff < 3600) return `${Math.round(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.round(diff / 3600)}h ago`;
     return `${Math.round(diff / 86400)}d ago`;
-  } catch { return ts; }
+  } catch { return "—"; }
 }
 
 function ArxivHealthTable() {

@@ -12,6 +12,16 @@ Build and maintain an AI paper-judging system using multiple LLM judges to rank 
 
 ## Latest Changes (Jun 3, 2026)
 
+### FEATURE: Logging consolidation + arXiv Health indicator (Jun 3)
+- **Logging cleanup** (user request — make consistent/simple, remove duplicates):
+  - Removed the DEAD duplicate `log_event` in `core/memlog.py` (a sync `log_event(level,label,data)` was shadowed by the async `log_event(event,detail,...)`). Two callers (`leaderboard.py` slow_query x3, `scheduler.py` repair_queue) used the old signature → "coroutine never awaited" → never logged. Now fixed.
+  - Single canonical `log_event()` (async) + new `log_event_nowait()` (fire-and-forget, sync-context safe with MongoClient fallback) both write ONE consistent doc shape via `_event_doc()`: `{ts, level, event, detail, category, count, success, pod_id, pod_role, ...extra}`.
+  - Routed the ~6 hand-rolled `db.system_logs.insert_one` calls (server lifecycle: shutdown_signal/reload_reexec/server_started/server_shutdown in `server.py`; badge views in `badges.py`) through the helpers → no more ad-hoc shapes.
+  - **Fixed "errored but status OK"**: events now carry `success`; `fetch_cycle` passes `success=not errors`; frontend `AdminLogs` events normalizer maps `doc.success===false` → FAIL (red) instead of always showing OK/event.
+- **arXiv Health indicator (NEW)**: `GET /api/admin/arxiv-health` returns per active category `{status: healthy|cooling_down|never, last_fetch_at, cooldown_seconds, backoff_until, backoff_count, last_error, last_error_at}` from settings backoff keys + recent `fetch_failed` events. New "arXiv Health" tab in `AdminLogs.jsx` (next to Logs / Paper Health) renders it.
+- **Verified**: backend curl (endpoint returns correct JSON), both loggers write unified doc shape, testing_agent frontend pass (95%, 21 rows render, FAIL status correct). Fixed `fmtAgo` `NaNd ago` bug (ISO `+00:00` offset was getting a spurious `Z` appended). Frontend is STATIC-served (no HMR) → rebuilt via `yarn build` + restart.
+- **NOTE**: backend has no `--reload` (re-execs to strip it) → backend code changes need `sudo supervisorctl restart backend`.
+
 ### FEATURE: arXiv rate-limit hardening — P0+P1+P2 (Jun 3)
 - **P1 global throttle**: new `_throttle()` in `arxiv.py` (module-level `asyncio.Lock` + `_MIN_INTERVAL=3s`) gates EVERY arXiv request process-wide to ≥1 req/3s, replacing the scattered per-page/per-category sleeps (per-page 3s sleep removed). FIFO-fair so user-facing estimate/availability calls aren't starved. Fetching is leader-only so a per-process gate suffices.
 - **P2 backoff**: 429/5xx now use exponential back-off (5/10/20s + jitter, cap 90s) and honor the `Retry-After` header; back-off sleeps happen OUTSIDE the throttle lock so a long cool-down never freezes the pipeline. `max_retries=3` (fail fast under persistent blocking; rely on P0).
