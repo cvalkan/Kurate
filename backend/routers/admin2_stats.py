@@ -279,50 +279,53 @@ def _day_expr_safe(field: str) -> dict:
 
 
 async def _rebuild_match_buckets(active_set):
-    """Single server-side aggregation of ALL completed matches into per-(day,
-    category) totals + per-model totals. Returns (buckets, models). buckets[(day,
-    cat)] = {matches,input_tokens,output_tokens,cost}; cat '_total' is the per-day
-    sum across ACTIVE categories. Cost is computed app-side with the SAME
-    _price_match the live hook uses → exact parity. allowDiskUse keeps memory flat
-    as the collection grows (group cardinality ≈ days×cats×models, not match count).
-    No `_id`/`created_at` range windowing → no type assumptions, never drops a doc
-    (this exact aggregation was verified read-only on prod = 567,651)."""
+    """Per-ACTIVE-category server-side aggregation of completed matches into
+    per-(day,category) totals + per-model totals. Returns (buckets, models).
+    buckets[(day,cat)] = {matches,input_tokens,output_tokens,cost}; cat '_total' is
+    the per-day sum across active categories. Cost is computed app-side with the
+    SAME _price_match the live hook uses → exact parity.
+
+    Why per-category windowing: production enforces a ~30s socket read timeout that
+    a single full-collection group over 100k+ matches blows past (and that limit is
+    external, so raising the driver socketTimeoutMS doesn't help). Each category is
+    backed by the `primary_category_1_completed_1_failed_1` index → a small, fast
+    index scan well under 30s. Buckets accumulate app-side then write ONCE (no
+    per-chunk $set clobber). Day comes from `_day_expr_safe(created_at)` per doc, so
+    a null/odd created_at still buckets (via _id fallback) and is never dropped."""
     from collections import defaultdict
     buckets = defaultdict(lambda: {"matches": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0})
     models = defaultdict(lambda: {"matches": 0, "input_tokens": 0, "output_tokens": 0})
+    bdb = _backfill_db()
 
-    pipeline = [
-        {"$match": {"completed": True, "failed": {"$ne": True}}},
-        {"$group": {
-            "_id": {"day": _day_expr_safe("created_at"),
-                    "cat": {"$ifNull": ["$primary_category", "unknown"]},
-                    "prov": {"$ifNull": ["$model_used.provider", "unknown"]},
-                    "model": {"$ifNull": ["$model_used.model", "unknown"]}},
-            "count": {"$sum": 1},
-            "inp": {"$sum": {"$ifNull": ["$tokens.input_est", {"$ifNull": ["$tokens.input", 0]}]}},
-            "out": {"$sum": {"$ifNull": ["$tokens.output_est", {"$ifNull": ["$tokens.output", 0]}]}},
-        }},
-    ]
-    async for doc in _backfill_db().matches.aggregate(pipeline, allowDiskUse=True, maxTimeMS=280000):
-        g = doc["_id"]
-        cat = g["cat"]
-        if cat not in active_set:
-            continue  # only active categories count toward the system total
-        day = g["day"]
-        cnt, inp, out = doc["count"], doc["inp"], doc["out"]
-        cost = _admin._price_match(inp, out, g["prov"], g["model"])
-        for k in (cat, "_total"):
-            b = buckets[(day, k)]
-            b["matches"] += cnt
-            b["input_tokens"] += inp
-            b["output_tokens"] += out
-            b["cost"] += cost
-        mk = f"{g['prov']}/{g['model']}"
-        if mk != "unknown/unknown":
-            mm = models[mk]
-            mm["matches"] += cnt
-            mm["input_tokens"] += inp
-            mm["output_tokens"] += out
+    for cat in active_set:
+        pipeline = [
+            {"$match": {"primary_category": cat, "completed": True, "failed": {"$ne": True}}},
+            {"$group": {
+                "_id": {"day": _day_expr_safe("created_at"),
+                        "prov": {"$ifNull": ["$model_used.provider", "unknown"]},
+                        "model": {"$ifNull": ["$model_used.model", "unknown"]}},
+                "count": {"$sum": 1},
+                "inp": {"$sum": {"$ifNull": ["$tokens.input_est", {"$ifNull": ["$tokens.input", 0]}]}},
+                "out": {"$sum": {"$ifNull": ["$tokens.output_est", {"$ifNull": ["$tokens.output", 0]}]}},
+            }},
+        ]
+        async for doc in bdb.matches.aggregate(pipeline, allowDiskUse=True, maxTimeMS=60000):
+            g = doc["_id"]
+            day = g["day"]
+            cnt, inp, out = doc["count"], doc["inp"], doc["out"]
+            cost = _admin._price_match(inp, out, g["prov"], g["model"])
+            for k in (cat, "_total"):
+                b = buckets[(day, k)]
+                b["matches"] += cnt
+                b["input_tokens"] += inp
+                b["output_tokens"] += out
+                b["cost"] += cost
+            mk = f"{g['prov']}/{g['model']}"
+            if mk != "unknown/unknown":
+                mm = models[mk]
+                mm["matches"] += cnt
+                mm["input_tokens"] += inp
+                mm["output_tokens"] += out
     return buckets, models
 
 
