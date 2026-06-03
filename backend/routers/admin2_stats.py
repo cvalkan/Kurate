@@ -114,6 +114,10 @@ async def ensure_indexes():
         # ranges over published → both must be indexed to stay IXSCAN (not COLLSCAN).
         await db.papers.create_index([("added_at", 1)], name="added_at_idx")
         await db.papers.create_index([("published", 1)], name="published_1")
+        # The per-chunk MATCH aggregation ranges over created_at every chunk; without
+        # this index it COLLSCANs the whole matches collection on EVERY chunk
+        # (~100×) → the rebuild hangs on Atlas. Must exist, not assumed from elsewhere.
+        await db.matches.create_index([("created_at", 1)], name="created_at_1")
         logger.info("[ADMIN2] ensure_indexes complete")
     except Exception as e:
         logger.warning(f"[ADMIN2] ensure_indexes failed: {e}")
