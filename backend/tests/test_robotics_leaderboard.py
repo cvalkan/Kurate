@@ -8,7 +8,7 @@ import os
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://atlas-optimized.preview.emergentagent.com"
+    BASE_URL = "https://analytics-fix-32.preview.emergentagent.com"
 
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 ADMIN_HEADERS = {"X-Admin-Token": ADMIN_PASSWORD, "Content-Type": "application/json"}

@@ -7,7 +7,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://atlas-optimized.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://analytics-fix-32.preview.emergentagent.com')
 
 class TestUCBBackendAPI:
     """Backend API tests for UCB feature"""
