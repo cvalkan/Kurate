@@ -243,88 +243,64 @@ async def record_summary_daily_stat(category: str, model_key: str, added_at=None
 #   • lets the write-time `$inc` hooks own TODAY (sealed past days are exact and
 #     race-free; only today carries the tiny in-flight <0.5% tolerance).
 
-from bson import ObjectId as _ObjectId
-
-
 def _day_expr_safe(field: str) -> dict:
     """'YYYY-MM-DD' (UTC) from a field that may be a BSON Date, ISO string,
-    missing, or unparseable — falling back to the ObjectId generation time so
-    EVERY document buckets to exactly one day (guarantees Σ == count)."""
+    missing, or unparseable — falling back to the ObjectId timestamp, then to the
+    epoch. The nested $convert can NEVER raise (even on a non-ObjectId _id or an
+    odd date type), so EVERY document buckets to exactly one day → Σ == count."""
+    epoch = {"$toDate": "1970-01-01T00:00:00Z"}
+    oid_or_epoch = {"$convert": {"input": "$_id", "to": "date",
+                                 "onError": epoch, "onNull": epoch}}
     return {"$dateToString": {"format": "%Y-%m-%d", "date": {
         "$convert": {"input": f"${field}", "to": "date",
-                     "onError": {"$toDate": "$_id"},
-                     "onNull": {"$toDate": "$_id"}}}}}
-
-
-def _month_windows(start_dt, end_dt):
-    """Yield [from, to) UTC month boundaries covering [start_dt, end_dt]. Month
-    boundaries never split a UTC day, so each window's day-buckets are complete
-    and additive accumulation across windows is exact."""
-    from datetime import datetime as _dt, timezone as _tz
-    cur = _dt(start_dt.year, start_dt.month, 1, tzinfo=_tz.utc)
-    last = _dt(end_dt.year, end_dt.month, 1, tzinfo=_tz.utc)
-    while cur <= last:
-        ny, nm = (cur.year + 1, 1) if cur.month == 12 else (cur.year, cur.month + 1)
-        nxt = _dt(ny, nm, 1, tzinfo=_tz.utc)
-        yield cur, nxt
-        cur = nxt
+                     "onError": oid_or_epoch, "onNull": oid_or_epoch}}}}
 
 
 async def _rebuild_match_buckets(active_set):
-    """Server-side, ObjectId-month-windowed aggregation of completed matches into
-    per-(day,category) totals + per-model totals. Returns (buckets, models).
-    buckets[(day,cat)] = {matches,input_tokens,output_tokens,cost}; the special
-    cat '_total' is the per-day sum across ACTIVE categories. Cost is computed
-    app-side with the SAME _price_match the live hook uses → exact parity."""
+    """Single server-side aggregation of ALL completed matches into per-(day,
+    category) totals + per-model totals. Returns (buckets, models). buckets[(day,
+    cat)] = {matches,input_tokens,output_tokens,cost}; cat '_total' is the per-day
+    sum across ACTIVE categories. Cost is computed app-side with the SAME
+    _price_match the live hook uses → exact parity. allowDiskUse keeps memory flat
+    as the collection grows (group cardinality ≈ days×cats×models, not match count).
+    No `_id`/`created_at` range windowing → no type assumptions, never drops a doc
+    (this exact aggregation was verified read-only on prod = 567,651)."""
     from collections import defaultdict
     buckets = defaultdict(lambda: {"matches": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0})
     models = defaultdict(lambda: {"matches": 0, "input_tokens": 0, "output_tokens": 0})
 
-    oldest = await db.matches.find_one({}, {"_id": 1}, sort=[("_id", 1)])
-    if not oldest:
-        return buckets, models
-    start_dt = oldest["_id"].generation_time
-    end_dt = datetime.now(timezone.utc)
-
-    group = {
-        "_id": {"day": _day_expr_safe("created_at"),
-                "cat": {"$ifNull": ["$primary_category", "unknown"]},
-                "prov": {"$ifNull": ["$model_used.provider", "unknown"]},
-                "model": {"$ifNull": ["$model_used.model", "unknown"]}},
-        "count": {"$sum": 1},
-        "inp": {"$sum": {"$ifNull": ["$tokens.input_est", {"$ifNull": ["$tokens.input", 0]}]}},
-        "out": {"$sum": {"$ifNull": ["$tokens.output_est", {"$ifNull": ["$tokens.output", 0]}]}},
-    }
-
-    for w_from, w_to in _month_windows(start_dt, end_dt):
-        pipeline = [
-            {"$match": {"completed": True, "failed": {"$ne": True},
-                        "_id": {"$gte": _ObjectId.from_datetime(w_from),
-                                "$lt": _ObjectId.from_datetime(w_to)}}},
-            {"$group": group},
-        ]
-        # A window failure RAISES (never swallowed) — nothing is written until all
-        # windows succeed, so a transient error can't commit a partial/undercount.
-        async for doc in db.matches.aggregate(pipeline, allowDiskUse=True, maxTimeMS=120000):
-            g = doc["_id"]
-            cat = g["cat"]
-            if cat not in active_set:
-                continue  # only active categories count toward the system total
-            day = g["day"]
-            cnt, inp, out = doc["count"], doc["inp"], doc["out"]
-            cost = _admin._price_match(inp, out, g["prov"], g["model"])
-            for k in (cat, "_total"):
-                b = buckets[(day, k)]
-                b["matches"] += cnt
-                b["input_tokens"] += inp
-                b["output_tokens"] += out
-                b["cost"] += cost
-            mk = f"{g['prov']}/{g['model']}"
-            if mk != "unknown/unknown":
-                mm = models[mk]
-                mm["matches"] += cnt
-                mm["input_tokens"] += inp
-                mm["output_tokens"] += out
+    pipeline = [
+        {"$match": {"completed": True, "failed": {"$ne": True}}},
+        {"$group": {
+            "_id": {"day": _day_expr_safe("created_at"),
+                    "cat": {"$ifNull": ["$primary_category", "unknown"]},
+                    "prov": {"$ifNull": ["$model_used.provider", "unknown"]},
+                    "model": {"$ifNull": ["$model_used.model", "unknown"]}},
+            "count": {"$sum": 1},
+            "inp": {"$sum": {"$ifNull": ["$tokens.input_est", {"$ifNull": ["$tokens.input", 0]}]}},
+            "out": {"$sum": {"$ifNull": ["$tokens.output_est", {"$ifNull": ["$tokens.output", 0]}]}},
+        }},
+    ]
+    async for doc in db.matches.aggregate(pipeline, allowDiskUse=True, maxTimeMS=280000):
+        g = doc["_id"]
+        cat = g["cat"]
+        if cat not in active_set:
+            continue  # only active categories count toward the system total
+        day = g["day"]
+        cnt, inp, out = doc["count"], doc["inp"], doc["out"]
+        cost = _admin._price_match(inp, out, g["prov"], g["model"])
+        for k in (cat, "_total"):
+            b = buckets[(day, k)]
+            b["matches"] += cnt
+            b["input_tokens"] += inp
+            b["output_tokens"] += out
+            b["cost"] += cost
+        mk = f"{g['prov']}/{g['model']}"
+        if mk != "unknown/unknown":
+            mm = models[mk]
+            mm["matches"] += cnt
+            mm["input_tokens"] += inp
+            mm["output_tokens"] += out
     return buckets, models
 
 
@@ -420,7 +396,7 @@ async def _run_backfill():
             "reconciled": not diverged,
         }
         await db.daily_stats.update_one(
-            {"_meta": "backfill_status"}, {"$set": status}, upsert=True)
+            {"_meta": "backfill_status"}, {"$set": status, "$unset": {"error": ""}}, upsert=True)
         if diverged:
             logger.error(f"[ADMIN2] backfill NOT reconciled: daily={daily} expected={expected}")
         else:
@@ -435,7 +411,19 @@ async def _run_backfill():
             logger.error(f"[ADMIN2] summary/registration recompute failed (match rebuild OK): {e}")
         _cache_clear()
     except Exception as e:
-        logger.error(f"[ADMIN2] backfill failed: {e}")
+        logger.error(f"[ADMIN2] backfill failed: {e}", exc_info=True)
+        # Surface the failure in the status doc (fresh ts + error) so it's visible
+        # via stats-overview instead of silently freezing the previous status.
+        try:
+            await db.daily_stats.update_one(
+                {"_meta": "backfill_status"},
+                {"$set": {"_meta": "backfill_status",
+                          "ts": datetime.now(timezone.utc).isoformat(),
+                          "reconciled": False,
+                          "error": f"{type(e).__name__}: {str(e)[:400]}"}},
+                upsert=True)
+        except Exception:
+            pass
     finally:
         _admin._ts_backfill_running = False
         await _release_backfill_lock()
