@@ -90,6 +90,43 @@ function BackfillBadge({ status }) {
   );
 }
 
+function SeedProgressBadge({ progress }) {
+  if (!progress) return null;
+  const { status, done = 0, total = 0, failed = 0, pending = 0, last_category, last_error } = progress;
+  const active = status === "running" || status === "finalizing";
+  if (!active && status !== "drift" && status !== "completed_with_failures") return null;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const label = status === "finalizing"
+    ? "Finalizing…"
+    : status === "running"
+      ? `Seeding stats · ${done} / ${total} categories`
+      : status === "completed_with_failures"
+        ? `Seeded with ${failed} failed`
+        : "Drift — reseeding";
+  const title = [
+    `Durable seed: ${done}/${total} sealed`,
+    pending ? `${pending} pending` : null,
+    failed ? `${failed} failed: ${(progress.failed_categories || []).join(", ")}` : null,
+    last_category ? `last: ${last_category}` : null,
+    last_error ? `error: ${last_error}` : null,
+  ].filter(Boolean).join(" · ");
+  return (
+    <span
+      data-testid="seed-progress-badge"
+      title={title}
+      className={`inline-flex items-center gap-2 px-2 py-0.5 rounded-full text-[10px] font-medium border ${failed ? "border-amber-500/40 bg-amber-500/10 text-amber-600" : "border-sky-500/30 bg-sky-500/10 text-sky-600"}`}
+    >
+      {active && <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />}
+      {label}
+      {active && total > 0 && (
+        <span className="w-16 h-1 rounded-full bg-sky-500/20 overflow-hidden">
+          <span className="block h-full bg-sky-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+        </span>
+      )}
+    </span>
+  );
+}
+
 function formatCost(val) {
   return `$${Number(val).toFixed(2)}`;
 }
@@ -126,6 +163,8 @@ export function AdminStatistics({ categories }) {
   const [liveMatchStats, setLiveMatchStats] = useState(null);
   const [memoryData, setMemoryData] = useState(null);
   const [backfillStatus, setBackfillStatus] = useState(null);
+  const [seedProgress, setSeedProgress] = useState(null);
+  const [rebuilding, setRebuilding] = useState(false);
   const [repairQueueData, setRepairQueueData] = useState(null);
   const [restartEvents, setRestartEvents] = useState([]);
   const [memHours, setMemHours] = useState(24);
@@ -166,6 +205,7 @@ export function AdminStatistics({ categories }) {
         setSummaryStats(d.stats?.summaries || null);
         setLiveMatchStats(d.stats || null);
         setBackfillStatus(d.backfill_status || null);
+        setSeedProgress(d.seed_progress || null);
       }
       if (memResult.status === "fulfilled" && memResult.value) {
         const allLogs = memResult.value.data?.logs || [];
@@ -234,6 +274,19 @@ export function AdminStatistics({ categories }) {
     fetchData();
     const interval = setInterval(() => fetchData(), 15000);
     return () => clearInterval(interval);
+  }, [fetchData]);
+
+  const triggerRebuild = useCallback(async () => {
+    setRebuilding(true);
+    try {
+      await axios.post(`${API}/api/admin2/backfill`, {}, { headers: getAdminHeaders() });
+      // Pull fresh state so the seed-progress readout appears immediately.
+      setTimeout(() => fetchData(0, true), 1500);
+    } catch (e) {
+      console.error("Rebuild trigger failed:", e);
+    } finally {
+      setTimeout(() => setRebuilding(false), 2000);
+    }
   }, [fetchData]);
 
   const _series = timeseries?.series || [];
@@ -631,12 +684,20 @@ export function AdminStatistics({ categories }) {
           </Button>
         </div>
         <div className="flex items-center gap-2 ml-auto">
+          <SeedProgressBadge progress={seedProgress} />
           <BackfillBadge status={backfillStatus} />
           {timeseries?.refreshed_at && (
             <span className="text-[10px] text-muted-foreground">
               {new Date(timeseries.refreshed_at).toLocaleString("en-US", {month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false})}
             </span>
           )}
+          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1"
+            onClick={triggerRebuild} disabled={rebuilding || seedProgress?.status === "running" || seedProgress?.status === "finalizing"}
+            data-testid="rebuild-stats-btn"
+            title="Rebuild the daily_stats materialized view (durable drip seed — one category at a time)"
+          >
+            <RefreshCw className={`h-3 w-3 ${rebuilding ? "animate-spin" : ""}`} /> Rebuild
+          </Button>
           <Button variant="ghost" size="sm" className="h-7 text-xs gap-1"
             onClick={() => { setLoading(true); fetchData(0, true); }} data-testid="refresh-charts"
           >

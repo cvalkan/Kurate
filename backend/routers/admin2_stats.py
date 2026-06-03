@@ -278,175 +278,460 @@ def _day_expr_safe(field: str) -> dict:
                      "onError": oid_or_epoch, "onNull": oid_or_epoch}}}}
 
 
-async def _rebuild_match_buckets(active_set):
-    """Per-ACTIVE-category server-side aggregation of completed matches into
-    per-(day,category) totals + per-model totals. Returns (buckets, models).
-    buckets[(day,cat)] = {matches,input_tokens,output_tokens,cost}; cat '_total' is
-    the per-day sum across active categories. Cost is computed app-side with the
-    SAME _price_match the live hook uses → exact parity.
+# ──────────────────────────────────────────────────────────────────────────
+# Durable "drip" seed  (resumable, checkpointed, observable)
+# ──────────────────────────────────────────────────────────────────────────
+# Every prior rebuild shared one fatal flaw INDEPENDENT of chunk size: it was a
+# single long background job holding all progress in memory, so ANY interruption
+# (30s read timeout, pod restart, deploy rollover, cancelled task) lost
+# everything and froze the status. Smaller chunks didn't help because all chunks
+# still ran inside one invocation with no durable progress.
+#
+# The durable drip seed fixes this by making the unit of work that must succeed
+# atomically tiny + the progress durable:
+#   1. Progress lives in a DB doc (`daily_stats {_meta:"seed_progress"}`):
+#      {pending:[cats], done:[cats], failed:[cats], status, last_error, ...}.
+#   2. Each scheduler tick processes EXACTLY ONE category (the biggest, cs.LG,
+#      aggregates in ~3.4s on prod — well under the 30s read ceiling). It writes
+#      that category's (day,cat) buckets, records its per-category model totals
+#      to a temp collection, and moves the category pending→done. A
+#      timeout/restart/deploy mid-category just retries that one un-`done`
+#      category next tick; nothing already sealed is lost. Re-running a category
+#      is IDEMPOTENT (clears + $sets its own buckets and $sets its temp doc).
+#      If a single category ever approached 30s, sub-divide its match $match by
+#      _id month-windows here — the framework is unit-agnostic.
+#   3. When `pending` empties, a FINAL pass computes `_total` (per-day sum over
+#      the small daily_stats collection — never touches `matches`), per-model
+#      rows (from the temp collection), registrations, and the reconciliation
+#      badge. It can't time out because it never scans the big collections.
+#   4. `seed_progress` is exposed via stats-overview so the seal is observable
+#      ("31 / 46 categories sealed").
 
-    Why per-category windowing: production enforces a ~30s socket read timeout that
-    a single full-collection group over 100k+ matches blows past (and that limit is
-    external, so raising the driver socketTimeoutMS doesn't help). Each category is
-    backed by the `primary_category_1_completed_1_failed_1` index → a small, fast
-    index scan well under 30s. Buckets accumulate app-side then write ONCE (no
-    per-chunk $set clobber). Day comes from `_day_expr_safe(created_at)` per doc, so
-    a null/odd created_at still buckets (via _id fallback) and is never dropped."""
+_SEED_MODELS = "daily_stats_seed_models"   # temp per-category model contributions
+_SEED_MAX_ATTEMPTS = 3                      # give up on a persistently-failing category
+# When a single category's completed-match count exceeds this, its match
+# aggregation is sub-divided into _id month-windows so no single DB read can
+# approach the prod 30s ceiling — the category stays a durable unit, but the
+# work INSIDE it is bounded and growth-proof. Tunable (a test drops it to force
+# the windowed path on small data).
+_SEED_MATCH_CHUNK_THRESHOLD = 50000
+
+
+def _build_match_windows(start_iso: Optional[str], end_iso: Optional[str]):
+    """Calendar-month `_id` windows covering [start, end], with open-ended first
+    and last ranges so EVERY document falls in exactly one window (no drop, no
+    overlap). Returns a list of (gte_oid_or_None, lt_oid_or_None). A month
+    boundary is a clean UTC instant, so it never splits a UTC day → Σ windows ==
+    the un-windowed total by construction."""
+    from bson import ObjectId
+    if not start_iso or not end_iso:
+        return [(None, None)]
+    try:
+        s = datetime.fromisoformat(start_iso)
+        e = datetime.fromisoformat(end_iso)
+    except Exception:
+        return [(None, None)]
+    cur = datetime(s.year, s.month, 1, tzinfo=timezone.utc)
+    bounds = []
+    while cur <= e:
+        bounds.append(ObjectId.from_datetime(cur))
+        cur = (cur.replace(day=28) + timedelta(days=4)).replace(day=1)
+    if not bounds:
+        return [(None, None)]
+    windows, prev = [], None
+    for b in bounds:
+        windows.append((prev, b))   # (None, b0) catches anything before start
+        prev = b
+    windows.append((prev, None))    # (bn, None) catches anything after end
+    return windows
+
+
+async def get_seed_progress() -> Optional[dict]:
+    """The durable seed checkpoint doc (None if no seed has ever run)."""
+    return await db.daily_stats.find_one({"_meta": "seed_progress"}, {"_id": 0})
+
+
+async def _compute_model_avg() -> dict:
+    """Per-model average (input, output) tokens from tracked summaries, used to
+    price untracked summaries. Bounded output (~per model); the scan reads only
+    the small `summary_tokens` field (NOT the summary TEXT) so it stays fast."""
+    model_avg = {}
+    async for doc in db.papers.aggregate([
+        {"$match": {"summary_tokens": {"$exists": True, "$ne": {}}}},
+        {"$project": {"pairs": {"$objectToArray": "$summary_tokens"}}},
+        {"$unwind": "$pairs"},
+        {"$match": {"pairs.v": {"$type": "object"}}},
+        {"$group": {"_id": "$pairs.k",
+                    "in": {"$sum": {"$ifNull": ["$pairs.v.input", 0]}},
+                    "out": {"$sum": {"$ifNull": ["$pairs.v.output", 0]}},
+                    "cnt": {"$sum": 1}}},
+    ], allowDiskUse=True, maxTimeMS=60000):
+        cnt = doc["cnt"] or 1
+        model_avg[doc["_id"]] = (doc["in"] / cnt, doc["out"] / cnt)
+    return model_avg
+
+
+async def _seed_summary_for_category(cat: str, model_avg: dict, days: dict) -> list:
+    """Add this category's summary counts + accurate summary_cost into `days`
+    (keyed by YYYY-MM-DD) and return its per-model summary contributions. Mirrors
+    the all-category _backfill_summary_costs logic, scoped to ONE category."""
     from collections import defaultdict
-    buckets = defaultdict(lambda: {"matches": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0})
-    models = defaultdict(lambda: {"matches": 0, "input_tokens": 0, "output_tokens": 0})
-    bdb = _backfill_db()
+    cost_by, cnt_by = defaultdict(float), defaultdict(int)
+    by_model = defaultdict(lambda: {"summaries": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0})
 
-    for cat in active_set:
-        pipeline = [
-            {"$match": {"primary_category": cat, "completed": True, "failed": {"$ne": True}}},
-            {"$group": {
-                "_id": {"day": _day_expr_safe("created_at"),
-                        "prov": {"$ifNull": ["$model_used.provider", "unknown"]},
-                        "model": {"$ifNull": ["$model_used.model", "unknown"]}},
-                "count": {"$sum": 1},
-                "inp": {"$sum": {"$ifNull": ["$tokens.input_est", {"$ifNull": ["$tokens.input", 0]}]}},
-                "out": {"$sum": {"$ifNull": ["$tokens.output_est", {"$ifNull": ["$tokens.output", 0]}]}},
-            }},
-        ]
-        async for doc in bdb.matches.aggregate(pipeline, allowDiskUse=True, maxTimeMS=60000):
+    # 1. Tracked tokens per day×model → exact cost.
+    async for doc in db.papers.aggregate([
+        {"$match": {"categories.0": cat, "summary_tokens": {"$exists": True, "$ne": {}}}},
+        {"$addFields": {"_day": mongo_day_expr("added_at")}},
+        {"$project": {"_day": 1, "pairs": {"$objectToArray": "$summary_tokens"}}},
+        {"$unwind": "$pairs"},
+        {"$match": {"pairs.v": {"$type": "object"}, "_day": {"$ne": ""}}},
+        {"$group": {"_id": {"day": "$_day", "mk": "$pairs.k"},
+                    "in": {"$sum": {"$ifNull": ["$pairs.v.input", 0]}},
+                    "out": {"$sum": {"$ifNull": ["$pairs.v.output", 0]}},
+                    "cnt": {"$sum": 1}}},
+    ], allowDiskUse=True, maxTimeMS=60000):
+        day, mk = doc["_id"]["day"], doc["_id"]["mk"]
+        pin, pout = _price_for_summary(mk)
+        c = (doc["in"] / 1_000_000) * pin + (doc["out"] / 1_000_000) * pout
+        cost_by[day] += c
+        m = by_model[mk]
+        m["summaries"] += doc["cnt"]
+        m["input_tokens"] += doc["in"]
+        m["output_tokens"] += doc["out"]
+        m["cost"] += c
+
+    # 2. Total counts + untracked (priced at the model average) — one pass over
+    #    the lightweight `summary_keys` array (never the summary TEXT).
+    async for doc in db.papers.aggregate([
+        {"$match": {"categories.0": cat, "summary_keys": {"$exists": True, "$ne": []}}},
+        {"$addFields": {"_day": mongo_day_expr("added_at"),
+                        "_tkkeys": {"$map": {"input": {"$objectToArray": {"$ifNull": ["$summary_tokens", {}]}},
+                                             "as": "t", "in": "$$t.k"}}}},
+        {"$project": {"_day": 1,
+                      "pairs": {"$map": {"input": "$summary_keys", "as": "k",
+                                         "in": {"mk": "$$k", "tr": {"$in": ["$$k", "$_tkkeys"]}}}}}},
+        {"$unwind": "$pairs"},
+        {"$match": {"_day": {"$ne": ""}}},
+        {"$group": {"_id": {"day": "$_day", "mk": "$pairs.mk", "tr": "$pairs.tr"},
+                    "cnt": {"$sum": 1}}},
+    ], allowDiskUse=True, maxTimeMS=60000):
+        day, mk, tr, n = (doc["_id"]["day"], doc["_id"]["mk"], doc["_id"]["tr"], doc["cnt"])
+        cnt_by[day] += n
+        if not tr:
+            pin, pout = _price_for_summary(mk)
+            avg_in, avg_out = model_avg.get(mk, (AVG_IN, AVG_OUT))
+            c = n * ((avg_in / 1_000_000) * pin + (avg_out / 1_000_000) * pout)
+            cost_by[day] += c
+            m = by_model[mk]
+            m["summaries"] += n
+            m["input_tokens"] += int(avg_in * n)
+            m["output_tokens"] += int(avg_out * n)
+            m["cost"] += c
+
+    for day in set(cost_by) | set(cnt_by):
+        days[day]["summaries"] += cnt_by.get(day, 0)
+        days[day]["summary_cost"] += cost_by.get(day, 0.0)
+
+    return [{"mk": mk, "summaries": v["summaries"], "input_tokens": int(v["input_tokens"]),
+             "output_tokens": int(v["output_tokens"]), "cost": round(v["cost"], 6)}
+            for mk, v in by_model.items()]
+
+
+async def _seed_one_category(cat: str, model_avg: dict, window_start=None, window_end=None):
+    """Seal ONE category: aggregate its matches + papers + summaries into its
+    (day,cat) daily_stats buckets, and persist its per-category model totals to
+    the temp collection. Idempotent: clears the category's existing buckets, then
+    $sets fresh; temp model docs are $set.
+
+    SCALE-SAFE: the category is a durable UNIT, but its MATCH aggregation is
+    sub-divided into `_id` month-windows whenever the category's completed-match
+    count exceeds `_SEED_MATCH_CHUNK_THRESHOLD`, so no single DB read can approach
+    the prod 30s ceiling regardless of how large the category grows. Windows
+    accumulate app-side then write ONCE → no per-window $set clobber, and
+    open-ended first/last ranges guarantee Σ windows == count (never drop)."""
+    from collections import defaultdict
+    from pymongo import UpdateOne
+    bdb = _backfill_db()
+    days = defaultdict(lambda: {"matches": 0, "input_tokens": 0, "output_tokens": 0,
+                                "cost": 0.0, "papers": 0, "summaries": 0, "summary_cost": 0.0})
+    match_models = defaultdict(lambda: {"matches": 0, "input_tokens": 0, "output_tokens": 0})
+
+    # 1. Matches — adaptively windowed. Small categories run as ONE indexed scan;
+    #    large ones are sub-divided by _id month-windows (each a bounded read).
+    base_match = {"primary_category": cat, "completed": True, "failed": {"$ne": True}}
+    n_matches = await bdb.matches.count_documents(base_match)
+    if n_matches > _SEED_MATCH_CHUNK_THRESHOLD:
+        windows = _build_match_windows(window_start, window_end)
+    else:
+        windows = [(None, None)]
+    logger.info(f"[ADMIN2] sealing {cat}: {n_matches} matches in {len(windows)} window(s)")
+    for gte_oid, lt_oid in windows:
+        wmatch = dict(base_match)
+        idc = {}
+        if gte_oid is not None:
+            idc["$gte"] = gte_oid
+        if lt_oid is not None:
+            idc["$lt"] = lt_oid
+        if idc:
+            wmatch["_id"] = idc
+        async for doc in bdb.matches.aggregate([
+            {"$match": wmatch},
+            {"$group": {"_id": {"day": _day_expr_safe("created_at"),
+                                "prov": {"$ifNull": ["$model_used.provider", "unknown"]},
+                                "model": {"$ifNull": ["$model_used.model", "unknown"]}},
+                        "count": {"$sum": 1},
+                        "inp": {"$sum": {"$ifNull": ["$tokens.input_est", {"$ifNull": ["$tokens.input", 0]}]}},
+                        "out": {"$sum": {"$ifNull": ["$tokens.output_est", {"$ifNull": ["$tokens.output", 0]}]}}}},
+        ], allowDiskUse=True, maxTimeMS=60000):
             g = doc["_id"]
-            day = g["day"]
-            cnt, inp, out = doc["count"], doc["inp"], doc["out"]
+            day, cnt, inp, out = g["day"], doc["count"], doc["inp"], doc["out"]
             cost = _admin._price_match(inp, out, g["prov"], g["model"])
-            for k in (cat, "_total"):
-                b = buckets[(day, k)]
-                b["matches"] += cnt
-                b["input_tokens"] += inp
-                b["output_tokens"] += out
-                b["cost"] += cost
+            b = days[day]
+            b["matches"] += cnt
+            b["input_tokens"] += inp
+            b["output_tokens"] += out
+            b["cost"] += cost
             mk = f"{g['prov']}/{g['model']}"
             if mk != "unknown/unknown":
-                mm = models[mk]
+                mm = match_models[mk]
                 mm["matches"] += cnt
                 mm["input_tokens"] += inp
                 mm["output_tokens"] += out
-    return buckets, models
+
+    # 2. Papers — bucketed by added_at (mirrors record_paper_daily_stat).
+    async for doc in bdb.papers.aggregate([
+        {"$match": {"categories.0": cat}},
+        {"$group": {"_id": _day_expr_safe("added_at"), "n": {"$sum": 1}}},
+    ], allowDiskUse=True, maxTimeMS=60000):
+        days[doc["_id"]]["papers"] += doc["n"]
+
+    # 3. Summaries — counts + accurate cost + per-model contributions.
+    summary_models = await _seed_summary_for_category(cat, model_avg, days)
+
+    # 4. Write the category's buckets (clear stale days first → fully idempotent).
+    await db.daily_stats.delete_many({"category": cat})
+    ops = [UpdateOne({"date": day, "category": cat},
+                     {"$set": {"matches": v["matches"], "input_tokens": v["input_tokens"],
+                               "output_tokens": v["output_tokens"], "cost": round(v["cost"], 6),
+                               "papers": v["papers"], "summaries": v["summaries"],
+                               "summary_cost": round(v["summary_cost"], 6)}}, upsert=True)
+           for day, v in days.items() if day]
+    for i in range(0, len(ops), 500):
+        await db.daily_stats.bulk_write(ops[i:i + 500], ordered=False)
+
+    # 5. Persist per-category model contributions (idempotent $set in temp coll).
+    await db[_SEED_MODELS].update_one(
+        {"_id": f"m|{cat}"},
+        {"$set": {"models": [{"mk": mk, **v} for mk, v in match_models.items()]}}, upsert=True)
+    await db[_SEED_MODELS].update_one(
+        {"_id": f"s|{cat}"}, {"$set": {"models": summary_models}}, upsert=True)
 
 
-async def _rebuild_paper_buckets(active_set):
-    """Server-side aggregation of papers into per-(day,category) counts, bucketed
-    by `added_at` (mirrors the record_paper_daily_stat $inc hook). '_total' is the
-    per-day sum across ACTIVE categories."""
+async def start_seed(reason: str = "manual") -> dict:
+    """(Re)initialise the durable seed checkpoint: queue all active categories as
+    `pending` and reset the temp model collection. The scheduler's per-tick driver
+    then seals one category at a time. Leader-gated by the caller."""
+    settings = await get_settings()
+    active = [c for c in settings.get("active_categories", list(CATEGORIES.keys())) if c and c.strip()]
+    await _ensure_summary_keys()
+    model_avg = await _compute_model_avg()
+    await db[_SEED_MODELS].delete_many({})
+    # Global _id window bounds (cheap: served by the natural _id index) so the
+    # per-category match aggregation can sub-divide large categories by month.
+    window_start = window_end = None
+    try:
+        lo = await db.matches.find_one({}, sort=[("_id", 1)], projection={"_id": 1})
+        hi = await db.matches.find_one({}, sort=[("_id", -1)], projection={"_id": 1})
+        if lo and hi:
+            window_start = lo["_id"].generation_time.isoformat()
+            window_end = hi["_id"].generation_time.isoformat()
+    except Exception as e:
+        logger.warning(f"[ADMIN2] seed window-bounds probe failed: {e}")
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "_meta": "seed_progress", "status": "running",
+        "pending": active, "done": [], "failed": [], "total": len(active),
+        "model_avg": [{"mk": k, "in": v[0], "out": v[1]} for k, v in model_avg.items()],
+        "window_start": window_start, "window_end": window_end,
+        "started_at": now, "updated_at": now, "finished_at": None,
+        "last_category": None, "last_error": None, "reason": reason,
+    }
+    await db.daily_stats.update_one({"_meta": "seed_progress"}, {"$set": doc}, upsert=True)
+    logger.info(f"[ADMIN2] durable seed started ({reason}): {len(active)} categories queued")
+    return doc
+
+
+async def seed_tick() -> dict:
+    """Advance the durable seed by ONE category (or run the final pass when the
+    queue empties). Safe to call repeatedly; a no-op unless a seed is `running`."""
+    sp = await get_seed_progress()
+    if not sp or sp.get("status") != "running":
+        return {"did_work": False, "status": (sp or {}).get("status", "idle")}
+
+    pending = sp.get("pending") or []
+    if not pending:
+        await _seed_finalize(sp)
+        done = await get_seed_progress()
+        return {"did_work": True, "status": (done or {}).get("status", "reconciled")}
+
+    cat = pending[0]
+    model_avg = {m["mk"]: (m["in"], m["out"]) for m in (sp.get("model_avg") or [])}
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        await _seed_one_category(cat, model_avg, sp.get("window_start"), sp.get("window_end"))
+        await db.daily_stats.update_one(
+            {"_meta": "seed_progress"},
+            {"$pull": {"pending": cat}, "$addToSet": {"done": cat},
+             "$set": {"last_category": cat, "last_error": None, "updated_at": now}})
+        _cache_clear()
+        logger.info(f"[ADMIN2] sealed category {cat} ({len(sp.get('done') or []) + 1}/{sp.get('total')})")
+        return {"did_work": True, "category": cat, "remaining": len(pending) - 1}
+    except Exception as e:
+        # Leave the category in `pending` so it retries next tick. After
+        # _SEED_MAX_ATTEMPTS, move it to `failed` so the seed can still finalize.
+        logger.error(f"[ADMIN2] seed category {cat} failed: {e}", exc_info=True)
+        attempt_doc = await db[_SEED_MODELS].find_one_and_update(
+            {"_id": f"a|{cat}"}, {"$inc": {"n": 1}}, upsert=True, return_document=True)
+        attempts = (attempt_doc or {}).get("n", 1)
+        upd = {"$set": {"last_error": f"{cat}: {type(e).__name__}: {str(e)[:200]}",
+                        "updated_at": now}}
+        if attempts >= _SEED_MAX_ATTEMPTS:
+            upd["$pull"] = {"pending": cat}
+            upd["$addToSet"] = {"failed": cat}
+            logger.error(f"[ADMIN2] category {cat} failed {attempts}x — skipping (marked failed)")
+        await db.daily_stats.update_one({"_meta": "seed_progress"}, upd)
+        return {"did_work": True, "category": cat, "error": str(e)[:200]}
+
+
+async def _seed_finalize(sp: dict):
+    """Final pass once every category is sealed: compute `_total` per day (from the
+    small daily_stats collection, never `matches`), per-model rows (from the temp
+    collection), registrations, and the reconciliation badge. Cannot time out."""
     from collections import defaultdict
-    buckets = defaultdict(int)
-    async for doc in _backfill_db().papers.aggregate([
-        {"$group": {"_id": {"day": _day_expr_safe("added_at"),
-                            "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]}},
-                    "n": {"$sum": 1}}},
-    ], allowDiskUse=True, maxTimeMS=280000):
-        cat = doc["_id"]["cat"]
-        if cat not in active_set:
+    from pymongo import UpdateOne
+    now = datetime.now(timezone.utc).isoformat()
+    await db.daily_stats.update_one({"_meta": "seed_progress"},
+                                    {"$set": {"status": "finalizing", "updated_at": now}})
+
+    # 1. _total per day = sum over all per-category buckets (small collection).
+    await db.daily_stats.delete_many({"category": "_total"})
+    tops = []
+    async for doc in db.daily_stats.aggregate([
+        {"$match": {"date": {"$exists": True}, "category": {"$ne": "_total"}}},
+        {"$group": {"_id": "$date",
+                    "matches": {"$sum": "$matches"}, "papers": {"$sum": "$papers"},
+                    "input_tokens": {"$sum": "$input_tokens"}, "output_tokens": {"$sum": "$output_tokens"},
+                    "cost": {"$sum": "$cost"}, "summaries": {"$sum": "$summaries"},
+                    "summary_cost": {"$sum": "$summary_cost"}}},
+    ]):
+        if not doc["_id"]:
             continue
-        day, n = doc["_id"]["day"], doc["n"]
-        buckets[(day, cat)] += n
-        buckets[(day, "_total")] += n
-    return buckets
+        tops.append(UpdateOne({"date": doc["_id"], "category": "_total"},
+            {"$set": {"matches": doc["matches"], "papers": doc["papers"],
+                      "input_tokens": doc["input_tokens"], "output_tokens": doc["output_tokens"],
+                      "cost": round(doc["cost"], 6), "summaries": doc["summaries"],
+                      "summary_cost": round(doc["summary_cost"], 6)}}, upsert=True))
+    for i in range(0, len(tops), 500):
+        await db.daily_stats.bulk_write(tops[i:i + 500], ordered=False)
+
+    # 2. Per-model match totals (sum the temp m| docs).
+    mm = defaultdict(lambda: {"matches": 0, "input_tokens": 0, "output_tokens": 0})
+    async for d in db[_SEED_MODELS].find({"_id": {"$regex": r"^m\|"}}):
+        for row in d.get("models", []):
+            x = mm[row["mk"]]
+            x["matches"] += row.get("matches", 0)
+            x["input_tokens"] += row.get("input_tokens", 0)
+            x["output_tokens"] += row.get("output_tokens", 0)
+    if mm:
+        await db.model_match_stats.delete_many({"model": {"$nin": list(mm.keys())}})
+        await db.model_match_stats.bulk_write(
+            [UpdateOne({"model": mk}, {"$set": {"model": mk, **v}}, upsert=True)
+             for mk, v in mm.items()], ordered=False)
+        await db.daily_stats.update_one({"_meta": "model_stats"},
+            {"$set": {"_meta": "model_stats", "models": dict(mm)}}, upsert=True)
+
+    # 3. Per-model summary totals (sum the temp s| docs).
+    smod = defaultdict(lambda: {"summaries": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0})
+    async for d in db[_SEED_MODELS].find({"_id": {"$regex": r"^s\|"}}):
+        for row in d.get("models", []):
+            x = smod[row["mk"]]
+            x["summaries"] += row.get("summaries", 0)
+            x["input_tokens"] += row.get("input_tokens", 0)
+            x["output_tokens"] += row.get("output_tokens", 0)
+            x["cost"] += row.get("cost", 0.0)
+    if smod:
+        await db.model_summary_stats.delete_many({"model": {"$nin": list(smod.keys())}})
+        await db.model_summary_stats.bulk_write(
+            [UpdateOne({"model": mk}, {"$set": {"model": mk, "summaries": v["summaries"],
+                                                "input_tokens": int(v["input_tokens"]),
+                                                "output_tokens": int(v["output_tokens"]),
+                                                "cost": round(v["cost"], 6)}}, upsert=True)
+             for mk, v in smod.items()], ordered=False)
+
+    # 4. Registrations (bounded; one doc/day).
+    try:
+        await _backfill_registrations()
+    except Exception as e:
+        logger.warning(f"[ADMIN2] registration backfill failed: {e}")
+
+    # 5. Reconcile vs GROUND TRUTH (count of completed active matches).
+    settings = await get_settings()
+    active = [c for c in settings.get("active_categories", list(CATEGORIES.keys())) if c and c.strip()]
+    expected = await _backfill_db().matches.count_documents(
+        {"completed": True, "failed": {"$ne": True}, "primary_category": {"$in": active}})
+    daily = await _sum_daily_total_matches()
+    denom = expected or 1
+    diverged = abs(daily - expected) / denom > 0.005
+    await db.daily_stats.update_one({"_meta": "backfill_status"},
+        {"$set": {"_meta": "backfill_status", "ts": now, "expected_matches": expected,
+                  "daily_matches": daily, "failed_chunks": 0, "reconciled": not diverged},
+         "$unset": {"error": ""}}, upsert=True)
+
+    failed = sp.get("failed") or []
+    sp_now = await get_seed_progress()
+    failed = (sp_now or {}).get("failed") or failed
+    status = "reconciled" if (not diverged and not failed) else ("drift" if diverged else "completed_with_failures")
+    await db.daily_stats.update_one({"_meta": "seed_progress"},
+        {"$set": {"status": status, "reconciled": not diverged, "finished_at": now,
+                  "updated_at": now, "daily_matches": daily, "expected_matches": expected}})
+    try:
+        await db[_SEED_MODELS].drop()
+    except Exception:
+        pass
+    _cache_clear()
+    logger.info(f"[ADMIN2] seed finalized: daily={daily} expected={expected} "
+                f"reconciled={not diverged} failed={failed}")
 
 
 async def _run_backfill():
-    """Full, exact rebuild of daily_stats (matches+papers) + per-model totals +
-    accurate summary costs + registrations. Server-side, ObjectId-windowed,
-    accumulate-then-write-once (see the design note above). Leader-only; the
-    lease lock prevents concurrent cross-pod rebuilds."""
+    """Run a durable seed to completion synchronously (start → seal every category
+    → finalize). The scheduler normally drives this incrementally via seed_tick()
+    (one category per tick, resumable across restarts); this wrapper just runs the
+    ticks back-to-back in one call for the periodic self-heal and the regression
+    tests. Leader-only; the lease lock prevents concurrent cross-pod rebuilds."""
     if getattr(_admin, "_ts_backfill_running", False):
         return
     if not await _acquire_backfill_lock():
-        logger.info("[ADMIN2] full backfill skipped — lock held by another pod")
+        logger.info("[ADMIN2] seed skipped — lock held by another pod")
         return
     _admin._ts_backfill_running = True
     try:
-        from pymongo import UpdateOne
-        settings = await get_settings()
-        active_set = set(c for c in settings.get("active_categories", list(CATEGORIES.keys())) if c and c.strip())
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-
-        # 1. Aggregate server-side (heavy work stays in Mongo; only the bounded
-        #    aggregated buckets come back).
-        match_buckets, models = await _rebuild_match_buckets(active_set)
-        paper_buckets = await _rebuild_paper_buckets(active_set)
-
-        # 2. Seal past days exactly; let the $inc hooks own TODAY (no write race).
-        #    On a cold rebuild (today not yet materialized) we DO seed today so the
-        #    fresh view is complete; on a warm rebuild we leave today to the hooks.
-        today_present = await db.daily_stats.count_documents({"date": today, "category": "_total"}) > 0
-        skip_today = today_present
-
-        ops = []
-        for (day, cat), v in match_buckets.items():
-            if skip_today and day == today:
-                continue
-            ops.append(UpdateOne({"date": day, "category": cat},
-                {"$set": {"matches": v["matches"], "input_tokens": v["input_tokens"],
-                          "output_tokens": v["output_tokens"], "cost": round(v["cost"], 6)}},
-                upsert=True))
-        for (day, cat), n in paper_buckets.items():
-            if skip_today and day == today:
-                continue
-            ops.append(UpdateOne({"date": day, "category": cat},
-                {"$set": {"papers": n}}, upsert=True))
-        for i in range(0, len(ops), 500):
-            await _backfill_db().daily_stats.bulk_write(ops[i:i + 500], ordered=False)
-
-        # 3. Per-model match totals (single source for the match-model panel).
-        if models:
-            await db.model_match_stats.delete_many({"model": {"$nin": list(models.keys())}})
-            await db.model_match_stats.bulk_write(
-                [UpdateOne({"model": mk}, {"$set": {"model": mk, **v}}, upsert=True)
-                 for mk, v in models.items()], ordered=False)
-            await db.daily_stats.update_one(
-                {"_meta": "model_stats"},
-                {"$set": {"_meta": "model_stats", "models": dict(models)}}, upsert=True)
-
-        # 4. Reconcile against GROUND TRUTH (count of completed active matches).
-        #    Σ daily == count by construction; tolerate only today's in-flight
-        #    $inc drift (<0.5%).
-        expected = await _backfill_db().matches.count_documents(
-            {"completed": True, "failed": {"$ne": True},
-             "primary_category": {"$in": list(active_set)}})
-        daily = await _sum_daily_total_matches()
-        denom = expected or 1
-        diverged = abs(daily - expected) / denom > 0.005
-        status = {
-            "_meta": "backfill_status",
-            "ts": datetime.now(timezone.utc).isoformat(),
-            "expected_matches": expected,
-            "daily_matches": daily,
-            "failed_chunks": 0,
-            "reconciled": not diverged,
-        }
-        await db.daily_stats.update_one(
-            {"_meta": "backfill_status"}, {"$set": status, "$unset": {"error": ""}}, upsert=True)
-        if diverged:
-            logger.error(f"[ADMIN2] backfill NOT reconciled: daily={daily} expected={expected}")
-        else:
-            logger.info(f"[ADMIN2] backfill reconciled: {daily} matches, {len(models)} models")
-
-        # 5. Accurate summary costs + registrations (field-disjoint from matches/
-        #    papers → field-level $set never clobbers the match rebuild).
-        try:
-            await _backfill_summary_costs()
-            await _backfill_registrations()
-        except Exception as e:
-            logger.error(f"[ADMIN2] summary/registration recompute failed (match rebuild OK): {e}")
-        _cache_clear()
+        await start_seed("full_rebuild")
+        for _ in range(100000):  # bounded; categories drain + a single finalize
+            await seed_tick()
+            sp = await get_seed_progress()
+            if not sp or sp.get("status") in ("reconciled", "drift", "completed_with_failures", "idle"):
+                break
     except Exception as e:
-        logger.error(f"[ADMIN2] backfill failed: {e}", exc_info=True)
-        # Surface the failure in the status doc (fresh ts + error) so it's visible
-        # via stats-overview instead of silently freezing the previous status.
+        logger.error(f"[ADMIN2] seed failed: {e}", exc_info=True)
         try:
             await db.daily_stats.update_one(
                 {"_meta": "backfill_status"},
                 {"$set": {"_meta": "backfill_status",
                           "ts": datetime.now(timezone.utc).isoformat(),
                           "reconciled": False,
-                          "error": f"{type(e).__name__}: {str(e)[:400]}"}},
-                upsert=True)
+                          "error": f"{type(e).__name__}: {str(e)[:400]}"}}, upsert=True)
         except Exception:
             pass
     finally:
@@ -465,17 +750,20 @@ async def _sum_daily_total_matches() -> int:
 
 
 async def ensure_fresh():
-    """Frequent periodic task (leader only). Seeds the views on cold start with a
-    full rebuild; otherwise just refreshes registrations (cheap). Recent days are
-    kept current by write-time $inc hooks, and the periodic full `self_heal`
-    re-syncs everything (incl. model totals + accurate summary costs) and writes
-    the reconciliation status. No destructive recent-day deletes.
+    """Frequent periodic task (leader only). On a cold start it KICKS a durable
+    seed (the scheduler's per-tick driver then seals one category at a time —
+    never a blocking full scan); otherwise it just refreshes registrations
+    (cheap). Recent days are kept current by write-time $inc hooks. No-op while a
+    seed is already running.
     """
     try:
+        sp = await get_seed_progress()
+        if sp and sp.get("status") in ("running", "finalizing"):
+            return  # a durable seed is already in progress — let the driver finish it
         n_days = await db.daily_stats.count_documents({"category": "_total"})
         n_sum = await db.model_summary_stats.estimated_document_count()
         if n_days < _SPARSE_THRESHOLD or n_sum == 0:
-            await _run_backfill()  # one-time historical rebuild
+            await start_seed("cold_start")  # driver drains it incrementally
         else:
             await _backfill_registrations()  # cheap; keep user chart current
         _cache_clear()
@@ -484,19 +772,26 @@ async def ensure_fresh():
 
 
 async def self_heal():
-    """Periodic full self-heal rebuild (runs less frequently than ensure_fresh)."""
-    await _run_backfill()
+    """Periodic full self-heal — kicks a fresh durable seed (drained one category
+    per tick by the scheduler driver, so it survives any interruption)."""
+    sp = await get_seed_progress()
+    if sp and sp.get("status") in ("running", "finalizing"):
+        return
+    await start_seed("self_heal")
     _cache_clear()
 
 
 async def reconcile_check():
     """Cheap periodic drift check (leader only). Compares Σ daily_stats._total.matches
     against the live count of completed active matches. Only when they diverge beyond
-    tolerance does it kick the (expensive) full rebuild; otherwise it just refreshes
-    the reconciliation status so the badge stays current. This keeps the heavy
-    full-collection scan effectively one-time + on-demand instead of hourly — the
-    write-time $inc hooks already keep daily_stats fresh in steady state."""
+    tolerance does it KICK a fresh durable seed (drained one category per tick);
+    otherwise it just refreshes the reconciliation badge. Keeps the heavy scan
+    effectively one-time + on-demand — the write-time $inc hooks keep daily_stats
+    fresh in steady state."""
     try:
+        sp = await get_seed_progress()
+        if sp and sp.get("status") in ("running", "finalizing"):
+            return  # a seed is already running; don't kick another
         settings = await get_settings()
         active = [c for c in settings.get("active_categories", list(CATEGORIES.keys())) if c and c.strip()]
         daily = await _sum_daily_total_matches()
@@ -505,8 +800,8 @@ async def reconcile_check():
         drift = abs(daily - expected)
         if expected > 0 and drift > max(50, expected * 0.005):
             logger.warning(f"[ADMIN2] drift detected (daily={daily} expected={expected}, "
-                           f"drift={drift}) — running full rebuild")
-            await _run_backfill()
+                           f"drift={drift}) — kicking durable seed")
+            await start_seed("drift_reseed")
         else:
             await db.daily_stats.update_one(
                 {"_meta": "backfill_status"},
@@ -553,131 +848,6 @@ async def _ensure_summary_keys():
     logger.info(f"[ADMIN2] summary_keys materialized for {done} papers")
 
 
-async def _backfill_summary_costs():
-    """Recompute daily_stats `summaries` + `summary_cost` per day/category using
-    ACTUAL per-summary tokens (papers.summary_tokens) where available, falling
-    back to each model's own tracked average for untracked summaries. The grand
-    total reconciles exactly with _build_summary_models() (same per-summary cost).
-    """
-    from collections import defaultdict
-    from pymongo import UpdateOne
-
-    # Ensure the lightweight key index exists so the count/untracked passes never
-    # touch the heavy `summaries` text again.
-    await _ensure_summary_keys()
-
-    settings = await get_settings()
-    cat_set = set(settings.get("active_categories", list(CATEGORIES.keys())))
-
-    day_expr = mongo_day_expr
-
-    # 1. Per-model tracked averages (for pricing untracked summaries accurately).
-    model_avg = {}  # mk -> (avg_in, avg_out)
-    async for doc in db.papers.aggregate([
-        {"$match": {"summary_tokens": {"$exists": True, "$ne": {}}}},
-        {"$project": {"pairs": {"$objectToArray": "$summary_tokens"}}},
-        {"$unwind": "$pairs"},
-        {"$match": {"pairs.v": {"$type": "object"}}},
-        {"$group": {"_id": "$pairs.k",
-                    "in": {"$sum": {"$ifNull": ["$pairs.v.input", 0]}},
-                    "out": {"$sum": {"$ifNull": ["$pairs.v.output", 0]}},
-                    "cnt": {"$sum": 1}}},
-    ], allowDiskUse=True):
-        cnt = doc["cnt"] or 1
-        model_avg[doc["_id"]] = (doc["in"] / cnt, doc["out"] / cnt)
-
-    cost_by = defaultdict(float)   # (day, cat) -> summary_cost
-    cnt_by = defaultdict(int)      # (day, cat) -> summaries count
-    by_model = defaultdict(lambda: {"summaries": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0})
-
-    # 2a. Tracked tokens per day×category×model → exact cost.
-    async for doc in db.papers.aggregate([
-        {"$match": {"summary_tokens": {"$exists": True, "$ne": {}}}},
-        {"$addFields": {"_day": day_expr("added_at"),
-                        "_cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]}}},
-        {"$project": {"_day": 1, "_cat": 1, "pairs": {"$objectToArray": "$summary_tokens"}}},
-        {"$unwind": "$pairs"},
-        {"$match": {"pairs.v": {"$type": "object"}, "_day": {"$ne": ""}}},
-        {"$group": {"_id": {"day": "$_day", "cat": "$_cat", "mk": "$pairs.k"},
-                    "in": {"$sum": {"$ifNull": ["$pairs.v.input", 0]}},
-                    "out": {"$sum": {"$ifNull": ["$pairs.v.output", 0]}},
-                    "cnt": {"$sum": 1}}},
-    ], allowDiskUse=True):
-        day, cat, mk = doc["_id"]["day"], doc["_id"]["cat"], doc["_id"]["mk"]
-        if cat not in cat_set:
-            continue  # only active categories count toward the System total (tracked pass)
-        pin, pout = _price_for_summary(mk)
-        c = (doc["in"] / 1_000_000) * pin + (doc["out"] / 1_000_000) * pout
-        cost_by[(day, cat)] += c
-        cost_by[(day, "_total")] += c
-        m = by_model[mk]
-        m["summaries"] += doc["cnt"]
-        m["input_tokens"] += doc["in"]
-        m["output_tokens"] += doc["out"]
-        m["cost"] += c
-
-    # 2b. Counts per day×category×model with a `tracked` flag, in ONE pass over the
-    #     lightweight `summary_keys` array (no summary TEXT). `tracked` = the key is
-    #     present in summary_tokens. From this single scan we derive BOTH:
-    #       • total summaries count per (day,cat)  → daily_stats.summaries
-    #       • untracked count per (day,cat,model)  → priced at the model average
-    #     (replaces the old separate "total counts" + "untracked = total − tracked"
-    #     scans; tracked cost itself still comes from 2a's real token sums.)
-    async for doc in db.papers.aggregate([
-        {"$match": {"summary_keys": {"$exists": True, "$ne": []}}},
-        {"$addFields": {"_day": day_expr("added_at"),
-                        "_cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
-                        "_tkkeys": {"$map": {"input": {"$objectToArray": {"$ifNull": ["$summary_tokens", {}]}},
-                                             "as": "t", "in": "$$t.k"}}}},
-        {"$project": {"_day": 1, "_cat": 1,
-                      "pairs": {"$map": {"input": "$summary_keys", "as": "k",
-                                         "in": {"mk": "$$k", "tr": {"$in": ["$$k", "$_tkkeys"]}}}}}},
-        {"$unwind": "$pairs"},
-        {"$match": {"_day": {"$ne": ""}}},
-        {"$group": {"_id": {"day": "$_day", "cat": "$_cat", "mk": "$pairs.mk", "tr": "$pairs.tr"},
-                    "cnt": {"$sum": 1}}},
-    ], allowDiskUse=True):
-        day, cat, mk, tr = (doc["_id"]["day"], doc["_id"]["cat"],
-                            doc["_id"]["mk"], doc["_id"]["tr"])
-        if cat not in cat_set:
-            continue  # only active categories count toward the System total
-        n = doc["cnt"]
-        cnt_by[(day, cat)] += n
-        cnt_by[(day, "_total")] += n
-        if not tr:  # untracked summary → price at the model's tracked average
-            pin, pout = _price_for_summary(mk)
-            avg_in, avg_out = model_avg.get(mk, (AVG_IN, AVG_OUT))
-            c = n * ((avg_in / 1_000_000) * pin + (avg_out / 1_000_000) * pout)
-            cost_by[(day, cat)] += c
-            cost_by[(day, "_total")] += c
-            m = by_model[mk]
-            m["summaries"] += n
-            m["input_tokens"] += int(avg_in * n)
-            m["output_tokens"] += int(avg_out * n)
-            m["cost"] += c
-
-    # 3. Persist accurate summaries count + summary_cost per (day, category).
-    keys = set(cost_by) | set(cnt_by)
-    ops = [UpdateOne({"date": day, "category": cat},
-                     {"$set": {"summaries": cnt_by.get((day, cat), 0),
-                               "summary_cost": round(cost_by.get((day, cat), 0.0), 6)}},
-                     upsert=True)
-           for (day, cat) in keys]
-    for i in range(0, len(ops), 500):
-        await db.daily_stats.bulk_write(ops[i:i + 500], ordered=False)
-
-    # 4. Persist per-model summary totals (same pass → reconciles with daily_stats).
-    if by_model:
-        await db.model_summary_stats.delete_many({"model": {"$nin": list(by_model.keys())}})
-        await db.model_summary_stats.bulk_write(
-            [UpdateOne({"model": mk},
-                       {"$set": {"model": mk, "summaries": v["summaries"],
-                                 "input_tokens": int(v["input_tokens"]),
-                                 "output_tokens": int(v["output_tokens"]),
-                                 "cost": round(v["cost"], 6)}}, upsert=True)
-             for mk, v in by_model.items()], ordered=False)
-
-
 def _is_leader_pod() -> bool:
     """Whether this pod holds scheduler leadership. The backfill only runs on the
     leader so concurrent rebuilds across pods are impossible by construction
@@ -697,16 +867,21 @@ async def consume_backfill_request() -> bool:
 
 
 def _kick_backfill() -> bool:
-    """Start the background backfill if not already running. LEADER-ONLY: on a
-    non-leader pod this is a no-op (the leader's periodic loop keeps the views
-    fresh), preventing cross-pod write races at the source. Returns True if a
-    backfill is in progress (newly started or already running)."""
+    """Kick a durable seed if one isn't already running. LEADER-ONLY: on a
+    non-leader pod this is a no-op (the leader's loop owns seeding), preventing
+    cross-pod write races at the source. The scheduler's per-tick driver then
+    seals one category at a time (resumable). Returns True if a seed is now
+    pending/running."""
     if getattr(_admin, "_ts_backfill_running", False):
         return True
     if not _is_leader_pod():
-        logger.info("[ADMIN2] backfill not kicked — this pod is not the leader")
+        logger.info("[ADMIN2] seed not kicked — this pod is not the leader")
         return False
-    asyncio.ensure_future(_run_backfill())
+    async def _kick():
+        sp = await get_seed_progress()
+        if not (sp and sp.get("status") in ("running", "finalizing")):
+            await start_seed("kick")
+    asyncio.ensure_future(_kick())
     return True
 
 
@@ -850,6 +1025,29 @@ async def stats_overview(category: Optional[str] = None, force: bool = False):
     user_series = await _user_registrations()
     backfill_status = await db.daily_stats.find_one({"_meta": "backfill_status"}, {"_id": 0, "_meta": 0})
 
+    # Durable-seed progress (observable readout: "31 / 46 categories sealed").
+    sp = await get_seed_progress()
+    seed_progress = None
+    if sp:
+        done_n = len(sp.get("done") or [])
+        failed_n = len(sp.get("failed") or [])
+        pending_n = len(sp.get("pending") or [])
+        seed_progress = {
+            "status": sp.get("status"),
+            "done": done_n,
+            "pending": pending_n,
+            "failed": failed_n,
+            "failed_categories": sp.get("failed") or [],
+            "total": sp.get("total", done_n + failed_n + pending_n),
+            "last_category": sp.get("last_category"),
+            "last_error": sp.get("last_error"),
+            "started_at": sp.get("started_at"),
+            "finished_at": sp.get("finished_at"),
+            "reason": sp.get("reason"),
+        }
+        if sp.get("status") in ("running", "finalizing"):
+            backfilling = True
+
     # 5. SINGLE SOURCE OF TRUTH: every aggregate number comes from daily_stats
     #    cumulative totals. Per-model panels are written by the same backfill pass
     #    so their row-sums equal these totals exactly.
@@ -904,6 +1102,7 @@ async def stats_overview(category: Optional[str] = None, force: bool = False):
         "backfilling": backfilling,
         "data_complete": len(total_by_date) >= _SPARSE_THRESHOLD,
         "backfill_status": backfill_status,
+        "seed_progress": seed_progress,
         "refreshed_at": datetime.now(timezone.utc).isoformat(),
     }
     if not backfilling:

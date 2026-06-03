@@ -1,0 +1,26 @@
+{
+  "summary": "Frontend-only verification of the new durable-drip-seed UI in AdminStatistics.jsx. Admin login at /admin with password 'papersumo2025' → /admin/dashboard succeeds. Statistics tab renders cleanly (no crash, no visible errors): all 5 summary cards (Total Papers 10,674 / Total Matches 275,497 / Total Tokens 565.6M / Total Cost $5562.23 / Cost/Paper $0.52), Cost/Paper Over Time chart, Match Costs + Summary Costs per-model panels, and Papers/Matches/Tokens/Cost cumulative charts all render. Header row contains data-testid='rebuild-stats-btn' (enabled), data-testid='refresh-charts', and data-testid='backfill-reconcile-badge' showing green 'Reconciled' with title 'Stats reconciled · 275,497 matches · last rebuild Jun 3, 18:55'. Clicking Rebuild issues POST /api/admin2/backfill (200 OK) and a follow-up GET /api/admin2/stats-overview?force=true (200 OK) with no console/page errors. The seed-progress-badge did NOT appear because the seed had already reconciled (acceptable per spec — green Reconciled badge persists). Internal consistency verified: per-model match panel rows (85,842 + 91,966 + 90,250 + 6,765 + 651 + 23) sum to exactly 275,497, matching the Total Matches summary card. Costs are non-zero ($2304 match + $3258 summary = $5562). Memory Usage chart and user-registration / system charts also visible.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "AdminStatistics initial mount", "issues": ["Two transient Recharts console warnings during first render: 'The width(-1) and height(-1) of chart should be greater than 0' — non-blocking, charts render correctly once ResponsiveContainer measures its parent. Cosmetic only."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Recharts ResponsiveContainer initial-render width/height(-1) warnings: consider adding minWidth=0/minHeight={260} to ResponsiveContainer or use aspect ratio prop to suppress the noisy console warnings during dashboard mount. AdminStatistics.jsx ChartCard wraps charts in a h-[260px] div; the inner ResponsiveContainer probably mounts before the parent's height resolves on first paint.",
+    "AdminStatistics.jsx is 929 lines — exceeds the 700-line guideline. Consider extracting BackfillBadge, SeedProgressBadge, ChartCard, MatchCosts/SummaryCosts panels into separate files.",
+    "SeedProgressBadge correctly hides itself when seed is already reconciled (status not in running/finalizing/drift/completed_with_failures). This matches the spec — no fix needed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100% (all 5 listed acceptance criteria pass)"},
+  "test_credentials": "Admin password: papersumo2025 (entered on /admin login page; matches /app/memory/test_credentials.md)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Frontend is served as a STATIC BUILD via `npx serve -s build` (start.sh) — no hot reload. Current build main.5cc37b28.js (Jun 3 18:49) already contains all 4 testids: rebuild-stats-btn, refresh-charts, backfill-reconcile-badge, seed-progress-badge. After any AdminStatistics.jsx change: `cd /app/frontend && yarn build && sudo supervisorctl restart frontend`. Admin login: navigate to /admin, fill input[placeholder=Password] with 'papersumo2025', click button name='Sign In' exact=True (capital I — header 'Sign in' is a different end-user modal). After login URL becomes /admin/dashboard; click 'Statistics' tab to render AdminStatistics. POST /api/admin2/backfill is idempotent — clicking Rebuild when already reconciled returns 200 and the seed-progress-badge stays hidden (correct behavior).",
+  "rca of the issue": "No bug found. Durable drip seed UI works as specified. The seed-progress-badge correctly stays hidden when status is 'reconciled', and shows only during running/finalizing/drift/completed_with_failures states (per SeedProgressBadge logic at AdminStatistics.jsx line 97). Rebuild button is enabled (not running) and triggers the expected POST/refresh cycle."
+}

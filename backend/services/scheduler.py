@@ -377,7 +377,8 @@ async def _admin2_stats_loop():
     the heavy full/incremental refresh on a 12h / 30min schedule.
     """
     from routers.admin2_stats import (
-        ensure_fresh, self_heal, reconcile_check, ensure_indexes, consume_backfill_request,
+        ensure_fresh, reconcile_check, ensure_indexes, consume_backfill_request,
+        get_seed_progress, seed_tick, start_seed,
     )
     import time as _t
     await asyncio.sleep(60)  # let startup settle
@@ -390,11 +391,20 @@ async def _admin2_stats_loop():
     while _scheduler_running:
         try:
             now = _t.time()
+            # 1. DURABLE DRIP SEED: if a seed is in progress, advance it by exactly
+            #    ONE category (resumable across restarts/timeouts) and loop quickly.
+            sp = await get_seed_progress()
+            if sp and sp.get("status") in ("running", "finalizing"):
+                await seed_tick()
+                await asyncio.sleep(2)  # fast cadence while sealing categories
+                continue
+            # 2. Honor a queued manual rebuild request → kick a fresh durable seed.
             if await consume_backfill_request():
                 logger.info("[admin2] honoring queued manual rebuild request")
-                await self_heal()
+                await start_seed("manual_request")
                 last_full = last_fresh = now
-            elif now - last_full >= 3600:          # cheap drift check ~every 1h (full rebuild only on drift)
+                continue
+            elif now - last_full >= 3600:          # cheap drift check ~every 1h (re-seeds only on drift)
                 await reconcile_check()
                 last_full = last_fresh = now
             elif now - last_fresh >= 1800:          # registrations refresh ~every 30m
