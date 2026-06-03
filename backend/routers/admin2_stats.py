@@ -372,6 +372,38 @@ async def self_heal():
     _cache_clear()
 
 
+async def _ensure_summary_keys():
+    """Idempotent migration: materialize a lightweight `summary_keys` array (just
+    the model-key strings) on papers that have `summaries` but no `summary_keys`
+    yet. This lets the cost backfill read a tiny array instead of loading the
+    3–100KB summary TEXT via `$objectToArray` — the exact Atlas memory/timeout
+    that hung the production rebuild.
+
+    Streamed in bounded batches via a plain find() cursor (no server-side
+    aggregation, no allowDiskUse) so memory stays flat and each getMore is small.
+    Additive only — never deletes or modifies any existing field.
+    """
+    from pymongo import UpdateOne
+    flt = {"summaries": {"$exists": True, "$ne": {}}, "summary_keys": {"$exists": False}}
+    missing = await db.papers.count_documents(flt)
+    if missing == 0:
+        return
+    logger.info(f"[ADMIN2] materializing summary_keys for {missing} papers")
+    ops, done = [], 0
+    cursor = db.papers.find(flt, {"_id": 1, "summaries": 1}).batch_size(200)
+    async for p in cursor:
+        keys = list((p.get("summaries") or {}).keys())
+        ops.append(UpdateOne({"_id": p["_id"]}, {"$set": {"summary_keys": keys}}))
+        if len(ops) >= 500:
+            await db.papers.bulk_write(ops, ordered=False)
+            done += len(ops)
+            ops = []
+    if ops:
+        await db.papers.bulk_write(ops, ordered=False)
+        done += len(ops)
+    logger.info(f"[ADMIN2] summary_keys materialized for {done} papers")
+
+
 async def _backfill_summary_costs():
     """Recompute daily_stats `summaries` + `summary_cost` per day/category using
     ACTUAL per-summary tokens (papers.summary_tokens) where available, falling
@@ -380,6 +412,10 @@ async def _backfill_summary_costs():
     """
     from collections import defaultdict
     from pymongo import UpdateOne
+
+    # Ensure the lightweight key index exists so the count/untracked passes never
+    # touch the heavy `summaries` text again.
+    await _ensure_summary_keys()
 
     settings = await get_settings()
     cat_set = set(settings.get("active_categories", list(CATEGORIES.keys())))
@@ -437,13 +473,13 @@ async def _backfill_summary_costs():
 
     # 2b. Total summary counts per day×category×model (all keys, tracked or not).
     #     Untracked = total - tracked, priced at the model's tracked average.
+    #     Reads the lightweight `summary_keys` array (NOT the multi-KB summary
+    #     text) so the pipeline working set stays tiny — no Atlas OOM/timeout.
     async for doc in db.papers.aggregate([
-        {"$match": {"summaries": {"$exists": True, "$ne": {}}}},
+        {"$match": {"summary_keys": {"$exists": True, "$ne": []}}},
         {"$addFields": {"_day": day_expr("added_at"),
                         "_cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]}}},
-        {"$project": {"_day": 1, "_cat": 1,
-                      "keys": {"$map": {"input": {"$objectToArray": {"$ifNull": ["$summaries", {}]}},
-                                        "as": "s", "in": "$$s.k"}}}},
+        {"$project": {"_day": 1, "_cat": 1, "keys": "$summary_keys"}},
         {"$unwind": "$keys"},
         {"$match": {"_day": {"$ne": ""}}},
         {"$group": {"_id": {"day": "$_day", "cat": "$_cat", "mk": "$keys"}, "cnt": {"$sum": 1}}},
@@ -457,18 +493,16 @@ async def _backfill_summary_costs():
 
     # 2c. Untracked-summary cost: (total - tracked) per (day,cat) is hard to split
     #     by model here, so price untracked at a per-(day,cat) model-weighted avg.
-    #     Instead recompute untracked cost from the count pipeline grouped by model.
+    #     Untracked keys = summary_keys − keys(summary_tokens). Both are lightweight
+    #     (summary_tokens holds only token counts), so no summary TEXT is read.
     async for doc in db.papers.aggregate([
-        {"$match": {"summaries": {"$exists": True, "$ne": {}}}},
+        {"$match": {"summary_keys": {"$exists": True, "$ne": []}}},
         {"$addFields": {"_day": day_expr("added_at"),
                         "_cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
                         "_tk": {"$objectToArray": {"$ifNull": ["$summary_tokens", {}]}}}},
         {"$project": {"_day": 1, "_cat": 1,
-                      "tracked_keys": {"$map": {"input": "$_tk", "as": "t", "in": "$$t.k"}},
-                      "keys": {"$map": {"input": {"$objectToArray": {"$ifNull": ["$summaries", {}]}},
-                                        "as": "s", "in": "$$s.k"}}}},
-        {"$project": {"_day": 1, "_cat": 1,
-                      "untracked": {"$setDifference": ["$keys", "$tracked_keys"]}}},
+                      "untracked": {"$setDifference": ["$summary_keys",
+                          {"$map": {"input": "$_tk", "as": "t", "in": "$$t.k"}}]}}},
         {"$unwind": "$untracked"},
         {"$match": {"_day": {"$ne": ""}}},
         {"$group": {"_id": {"day": "$_day", "cat": "$_cat", "mk": "$untracked"}, "cnt": {"$sum": 1}}},

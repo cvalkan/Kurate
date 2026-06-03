@@ -1646,7 +1646,8 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                             update_fields[f"ai_ratings_by_model.{_model_short}"] = _model_ratings
                     await db.papers.update_one(
                         {"id": paper["id"]},
-                        {"$set": update_fields, "$unset": {f"summary_failures.{mk}": ""}},
+                        {"$set": update_fields, "$addToSet": {"summary_keys": mk},
+                         "$unset": {f"summary_failures.{mk}": ""}},
                     )
                     # Fire-and-forget incremental daily_stats update (admin2)
                     try:

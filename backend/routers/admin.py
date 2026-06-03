@@ -415,7 +415,7 @@ async def _run_single_paper_pipeline(paper_id: str, category: str):
                                 update_fields[f"ai_ratings_by_model.{model_short}"] = model_ratings
                         await db.papers.update_one(
                             {"id": paper_id},
-                            {"$set": update_fields}
+                            {"$set": update_fields, "$addToSet": {"summary_keys": mk}}
                         )
                         logger.info(f"[add-paper] Summary generated ({mk}) for '{paper['title'][:40]}'")
                 except Exception as e:

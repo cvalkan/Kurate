@@ -10,7 +10,15 @@ Build and maintain an AI paper-judging system using multiple LLM judges to rank 
 - **Production DB**: MongoDB Atlas (BSON Date types, 30s read timeout)
 - **Preview DB**: MongoDB localhost (string date types)
 
-## Latest Changes (Jun 2, 2026)
+## Latest Changes (Jun 3, 2026)
+
+### FIX: production backfill hang/drift — eliminate summary-TEXT scan (P0, DONE)
+- **Symptom**: Production daily_stats drifted/stale ("not showing the last weeks"). The backfill hung on Atlas (30s read timeout) and died, so the materialized view stopped updating.
+- **Root cause**: `_backfill_summary_costs()` ran `$objectToArray` over the full `papers.summaries` TEXT (~35KB/paper × 10.6k ≈ 370MB) **twice per run** (count pass 2b + untracked pass 2c). The huge text flowed through `$unwind`/`$group`, exploding the pipeline working set → Atlas OOM/timeout → backfill aborts. Preview (local Mongo, no timeout) always reconciled, hiding it. `summary_dates` could not substitute (61% of older papers have summaries but no dates entry).
+- **Fix (additive, no data deleted)**: (1) New lightweight `summary_keys` array field (just model-key strings) maintained at write-time via `$addToSet` in `admin.py` + `scheduler.py` summary writers. (2) `_ensure_summary_keys()` — idempotent, bounded streaming `find()` migration materializes `summary_keys` for existing papers (one-time text read, flat memory, no aggregation OOM); called at the top of `_backfill_summary_costs`. (3) Passes 2b/2c rewired to read the tiny `$summary_keys` array instead of `$objectToArray($summaries)` — the summary TEXT is never read by any backfill again (incl. the 12h self-heal).
+- **Verified (preview)**: old-vs-new per-model summary counts IDENTICAL (0 mismatch over full set); `_ensure_summary_keys` 7s/10.6k papers; `_backfill_summary_costs` 4.5s; summary_cost reconciles EXACTLY ($3258.29 == Σ model_summary_stats, 36,517 summaries); 16/16 pytest. **Live API `POST /api/admin2/backfill` → `backfill_status.reconciled:True`** (daily 275,497 == expected 275,497, 0 failed chunks). NOT yet on prod — user will redeploy + trigger once on Atlas to confirm green badge.
+
+
 
 ### FIX: production multi-pod backfill race + leader-only execution
 - **Discovery (on prod)**: After redeploy, a forced `POST /backfill` completed with `failed_chunks:0` (IXSCAN fix eliminated Atlas timeouts ✅) but the guard flagged `reconciled:False` (daily 422,838 vs expected 568,069). Cause: the per-process `_ts_backfill_running` guard can't stop a cross-POD race — `POST /backfill` (LB-routed to any pod) ran concurrently with the leader's periodic loop, issuing conflicting per-day `$set`s.
