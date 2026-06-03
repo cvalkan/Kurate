@@ -1461,8 +1461,6 @@ async def _backfill_daily_stats_chunk(date_from: str, date_to: str):
     # Helper: date extraction that works for both string and Date fields
     day_expr = lambda field: {"$substrCP": [{"$toString": {"$ifNull": [f"${field}", ""]}}, 0, 10]}
 
-    AVG_IN, AVG_OUT = 10375, 1788
-
     # Papers in this date range
     async for doc in db.papers.aggregate([
         {"$addFields": {"_day": day_expr("added_at"), "_day2": day_expr("published")}},
@@ -1502,38 +1500,13 @@ async def _backfill_daily_stats_chunk(date_from: str, date_to: str):
     except Exception as e:
         logger.warning(f"[TIMESERIES] Match chunk [{date_from}..{date_to}) failed: {e}")
 
-    # Summaries in this date range
-    try:
-        async for doc in db.papers.aggregate([
-            {"$match": {"summaries": {"$exists": True, "$ne": None}}},
-            {"$addFields": {"_day": day_expr("added_at")}},
-            {"$match": {"$expr": {"$and": [{"$gte": ["$_day", date_from]}, {"$lt": ["$_day", date_to]}]}}},
-            {"$project": {
-                "day": "$_day",
-                "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
-                "mk": {"$map": {
-                    "input": {"$objectToArray": {"$ifNull": ["$summaries", {}]}},
-                    "as": "s", "in": "$$s.k",
-                }},
-            }},
-            {"$match": {"day": {"$ne": ""}}},
-            {"$unwind": "$mk"},
-            {"$group": {"_id": {"day": "$day", "cat": "$cat", "mk": "$mk"}, "n": {"$sum": 1}}},
-        ]):
-            day, cat = doc["_id"]["day"], doc["_id"]["cat"]
-            if cat not in cat_set:
-                continue  # only active categories count toward the System total
-            mk = doc["_id"]["mk"]
-            n = doc["n"]
-            provider = mk.split(":")[0] if ":" in mk else mk
-            pricing_key = _SUMMARY_PRICING.get(provider)
-            if pricing_key:
-                cost = _price_match(AVG_IN, AVG_OUT, *pricing_key.split("/")) * n
-            else:
-                cost = _price_match(AVG_IN, AVG_OUT, "anthropic", "claude-opus-4-6") * n
-            _acc(day, cat, summaries=n, summary_cost=cost)
-    except Exception as e:
-        logger.warning(f"[TIMESERIES] Summary chunk [{date_from}..{date_to}) failed: {e}")
+    # NOTE: summaries are intentionally NOT computed here. The per-chunk summary
+    # aggregation used $objectToArray over the full `summaries` text (3–100KB per
+    # value) with a COLLSCAN and no allowDiskUse, repeated for EVERY chunk (~20×
+    # full text scans) — which hung/OOMed the rebuild on Atlas. Summary counts &
+    # costs are produced once, accurately, by `_backfill_summary_costs()` (single
+    # pass, allowDiskUse). This keeps the chunk loop a fast IXSCAN/COLLSCAN over
+    # matches+papers only.
 
     # Persist
     if new:

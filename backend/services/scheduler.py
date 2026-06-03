@@ -394,10 +394,10 @@ async def _admin2_stats_loop():
                 logger.info("[admin2] honoring queued manual rebuild request")
                 await self_heal()
                 last_full = last_fresh = now
-            elif now - last_full >= 12 * 3600:      # full self-heal ~every 12h
+            elif now - last_full >= 3600:          # full self-heal ~every 1h
                 await self_heal()
                 last_full = last_fresh = now
-            elif now - last_fresh >= 1800:          # incremental refresh ~every 30m
+            elif now - last_fresh >= 1800:          # registrations refresh ~every 30m
                 await ensure_fresh()
                 last_fresh = now
         except Exception as e:

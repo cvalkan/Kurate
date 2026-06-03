@@ -337,52 +337,6 @@ async def _run_backfill():
         await _release_backfill_lock()
 
 
-async def _run_incremental_backfill(days_back: int = 10):
-    """Cheap recent-days-only refresh of daily_stats.
-
-    Past days are immutable once their matches are recorded, so only RECENT
-    day-buckets can drift (from in-flight writes or a prior racey rebuild).
-    Re-running just the last `days_back` days keeps the frequent self-heal O(days)
-    instead of O(all-history), removing the recurring full-scan cost and shrinking
-    the window for cross-pod contention. Distributed-locked so it never races a
-    full rebuild. Does NOT touch all-time model_match_stats / accurate summary
-    costs — those stay current via $inc hooks + the periodic full self_heal.
-    """
-    if getattr(_admin, "_ts_backfill_running", False):
-        return
-    if not await _acquire_backfill_lock(ttl=300):
-        logger.info("[ADMIN2] incremental refresh skipped — lock held by another pod")
-        return
-    _admin._ts_backfill_running = True
-    try:
-        from datetime import date as _date, timedelta as _td, datetime as _dt, timezone as _tz
-        today = _dt.now(_tz.utc).date()
-        start = today - _td(days=days_back)
-        end = today + _td(days=1)
-        # Clear the recent day-buckets first so stale/racey values can't survive
-        # (a day that should now be zero, or was overwritten with a partial sum,
-        # gets fully recomputed from source). `_meta` docs have no `date` field
-        # and are untouched.
-        await db.daily_stats.delete_many(
-            {"date": {"$gte": start.isoformat(), "$lt": end.isoformat()}})
-        cur = start
-        while cur < end:
-            ce = min(cur + _td(days=7), end)
-            try:
-                await _admin._backfill_daily_stats_chunk(cur.isoformat(), ce.isoformat())
-            except Exception as e:
-                logger.warning(f"[ADMIN2] incremental chunk [{cur}..{ce}) failed: {e}")
-            cur = ce
-        await _backfill_registrations()
-        _cache_clear()
-        logger.info(f"[ADMIN2] incremental refresh complete (last {days_back}d)")
-    except Exception as e:
-        logger.warning(f"[ADMIN2] incremental backfill failed: {e}")
-    finally:
-        _admin._ts_backfill_running = False
-        await _release_backfill_lock()
-
-
 async def _sum_daily_total_matches() -> int:
     """Sum of `matches` across all daily_stats `_total` day-buckets (the
     materialized figure the cards/charts display)."""
@@ -394,12 +348,11 @@ async def _sum_daily_total_matches() -> int:
 
 
 async def ensure_fresh():
-    """Entry point for the frequent periodic scheduler task (leader only).
-
-    Cold start / empty views → full rebuild. Otherwise → cheap incremental
-    recent-days refresh (corrects any drift in recent buckets without an
-    all-history scan). The periodic `self_heal` still does an occasional full
-    re-sync to keep all-time model totals + accurate summary costs aligned.
+    """Frequent periodic task (leader only). Seeds the views on cold start with a
+    full rebuild; otherwise just refreshes registrations (cheap). Recent days are
+    kept current by write-time $inc hooks, and the periodic full `self_heal`
+    re-syncs everything (incl. model totals + accurate summary costs) and writes
+    the reconciliation status. No destructive recent-day deletes.
     """
     try:
         n_days = await db.daily_stats.count_documents({"category": "_total"})
@@ -407,7 +360,7 @@ async def ensure_fresh():
         if n_days < _SPARSE_THRESHOLD or n_sum == 0:
             await _run_backfill()  # one-time historical rebuild
         else:
-            await _run_incremental_backfill()  # recent-days only (+ registrations)
+            await _backfill_registrations()  # cheap; keep user chart current
         _cache_clear()
     except Exception as e:
         logger.warning(f"[ADMIN2] ensure_fresh failed: {e}")
