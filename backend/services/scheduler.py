@@ -751,6 +751,7 @@ async def _compare_loop_inner():
 
                 if unmet_cats:
                     _compare_loop_diag["last_cycle_unmet"] = list(unmet_cats)
+                    _compare_loop_diag["_prev_had_unmet"] = True
                     log_mem(f"Compare loop: {len(unmet_cats)} unmet categories: {unmet_cats}")
                     batch_size = min(max(settings.get("parallel_categories", 2), 1), 10)
                     all_failed = True  # Track if entire cycle produced 0 matches
@@ -802,8 +803,12 @@ async def _compare_loop_inner():
                 else:
                     _compare_loop_diag["last_cycle_results"] = {"_all_goals_met": True}
                     log_mem(f"Compare loop: all goals met for {len(active_cats)} categories")
-                    from core.memlog import log_event
-                    await log_event("convergence", detail=f"All goals met for {len(active_cats)} categories", count=len(active_cats))
+                    # Only log convergence on the TRANSITION into "all goals met"
+                    # (not every cycle — that was spamming ~1 event/min)
+                    if _compare_loop_diag.get("_prev_had_unmet", True):
+                        from core.memlog import log_event
+                        await log_event("convergence", detail=f"All goals met for {len(active_cats)} categories", count=len(active_cats))
+                    _compare_loop_diag["_prev_had_unmet"] = False
                     for cat in active_cats:
                         if _get_cat_status(cat).get("papers_count", 0) >= min_papers:
                             _get_cat_status(cat)["current_activity"] = "Goals met — idle"
