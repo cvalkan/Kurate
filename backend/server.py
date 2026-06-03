@@ -23,24 +23,10 @@ def _sync_log_shutdown(sig_name: str):
     uptime_s = _time.monotonic() - _server_start_time
     uptime_min = uptime_s / 60
     try:
-        from pymongo import MongoClient
-        from core.memlog import _pod_role
-        sync_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-        sc = MongoClient(sync_url, serverSelectionTimeoutMS=2000)
-        sc[os.environ.get("DB_NAME", "papersumo")].system_logs.insert_one({
-            "ts": datetime.now(timezone.utc),
-            "level": "event",
-            "event": "shutdown_signal",
-            "label": f"Received {sig_name}",
-            "signal": sig_name,
-            "uptime_seconds": round(uptime_s),
-            "uptime_minutes": round(uptime_min, 1),
-            "pod_id": _pod_id,
-            "pod_role": _pod_role,
-            "argv": sys.argv,
-            "pid": os.getpid(),
-        })
-        sc.close()
+        from core.memlog import log_event_nowait
+        log_event_nowait("shutdown_signal", detail=f"Received {sig_name}",
+                         signal=sig_name, uptime_seconds=round(uptime_s),
+                         uptime_minutes=round(uptime_min, 1), argv=sys.argv, pid=os.getpid())
     except Exception:
         pass
 
@@ -410,19 +396,9 @@ async def startup():
             logger.warning(f"[STARTUP] Re-execing without --reload: {clean_argv}")
             # Persist diagnostic to MongoDB before re-exec
             try:
-                from pymongo import MongoClient
-                sync_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-                sc = MongoClient(sync_url, serverSelectionTimeoutMS=2000)
-                sc[os.environ.get("DB_NAME", "papersumo")].system_logs.insert_one({
-                    "ts": datetime.now(timezone.utc),
-                    "level": "event",
-                    "event": "reload_reexec",
-                    "label": "Re-execing to remove --reload",
-                    "original_argv": sys.argv,
-                    "clean_argv": clean_argv,
-                    "pid": os.getpid(),
-                })
-                sc.close()
+                from core.memlog import log_event_nowait
+                log_event_nowait("reload_reexec", detail="Re-execing to remove --reload",
+                                 original_argv=sys.argv, clean_argv=clean_argv, pid=os.getpid())
             except Exception:
                 pass
             os.execv(sys.executable, [sys.executable] + clean_argv)
@@ -516,18 +492,9 @@ async def startup():
             sort=[("ts", -1)], projection={"_id": 0, "build_hash": 1},
         )
         _is_deploy = not _prev_hash or _prev_hash.get("build_hash") != _build_hash
-        from core.memlog import _pod_role
-        await db.system_logs.insert_one({
-            "ts": datetime.now(timezone.utc),
-            "level": "event",
-            "event": "server_started",
-            "label": "Deploy" if _is_deploy else "Restart",
-            "build_hash": _build_hash,
-            "is_deploy": _is_deploy,
-            "pod_id": _pod_id,
-            "pod_role": _pod_role,
-            "pid": os.getpid(),
-        })
+        from core.memlog import log_event, _pod_role
+        await log_event("server_started", detail="Deploy" if _is_deploy else "Restart",
+                        build_hash=_build_hash, is_deploy=_is_deploy, pid=os.getpid())
         logger.info(f"[STARTUP] {'DEPLOY (new code)' if _is_deploy else 'RESTART (same code)'} build={_build_hash} role={_pod_role}")
     except Exception as e:
         logger.warning(f"[STARTUP] Build fingerprint failed: {e}")
@@ -1799,17 +1766,10 @@ async def shutdown():
     logger.info(f"[SHUTDOWN] Server shutting down after {uptime_min:.1f}min uptime. Reason={_shutdown_reason} pod={_pod_id}")
     # Persist shutdown event for admin visibility
     try:
-        await db.system_logs.insert_one({
-            "ts": datetime.now(timezone.utc),
-            "level": "event",
-            "event": "server_shutdown",
-            "label": f"Graceful shutdown after {uptime_min:.1f}min",
-            "uptime_seconds": round(uptime_s),
-            "uptime_minutes": round(uptime_min, 1),
-            "reason": _shutdown_reason,
-            "pod_id": _pod_id,
-            "pid": os.getpid(),
-        })
+        from core.memlog import log_event
+        await log_event("server_shutdown", detail=f"Graceful shutdown after {uptime_min:.1f}min",
+                        uptime_seconds=round(uptime_s), uptime_minutes=round(uptime_min, 1),
+                        reason=_shutdown_reason, pid=os.getpid())
     except Exception:
         pass
     from core.config import client

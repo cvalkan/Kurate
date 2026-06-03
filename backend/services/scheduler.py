@@ -753,8 +753,9 @@ async def _compare_loop_inner():
                             logger.info(f"Repair queue: fixed {repaired} papers")
                         # Log queue size for monitoring
                         queue_size = await db.rankings_repair_queue.count_documents({})
-                        from core.memlog import log_event
-                        log_event("repair_queue", "repair_queue_size", {"size": queue_size, "repaired": repaired})
+                        from core.memlog import log_event_nowait
+                        log_event_nowait("repair_queue", detail=f"queue={queue_size}, repaired={repaired}",
+                                         size=queue_size, repaired=repaired)
                         await asyncio.sleep(2)
                     _compare_loop_diag["last_cycle_results"] = _cycle_results
                     if all_failed:
@@ -1306,7 +1307,8 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             pdfs=result['pdfs_downloaded'],
             summaries=result['summaries_generated'],
             rankings=result['rankings_inserted'],
-            errors=result.get("errors") or None)
+            errors=result.get("errors") or None,
+            success=not bool(result.get("errors")))
 
         if result["new_papers"] > 0 or result["summaries_generated"] > 0 or result["rankings_inserted"] > 0:
             from routers.leaderboard import notify_data_changed

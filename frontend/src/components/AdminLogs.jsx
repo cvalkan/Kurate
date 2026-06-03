@@ -44,6 +44,7 @@ const APIS = [
 
 const VIEWS = [
   { value: "logs", label: "Logs" },
+  { value: "arxiv", label: "arXiv Health" },
   { value: "health", label: "Paper Health" },
 ];
 
@@ -102,9 +103,9 @@ function normalizeRow(doc, source) {
       type: doc.event || "event",
       model: "",
       api: "",
-      success: true,
+      success: doc.success !== false,
       detail: `${doc.category ? doc.category + ": " : ""}${doc.detail || ""}${doc.count ? " (" + doc.count + ")" : ""}`,
-      isError: false,
+      isError: doc.success === false,
     };
   }
   if (source === "errors") {
@@ -331,6 +332,7 @@ export function AdminLogs() {
       {loading && <div className="text-center text-xs text-muted-foreground py-4">Loading...</div>}
       </>)}
 
+      {view === "arxiv" && <ArxivHealthTable />}
       {view === "health" && <PaperHealthTable />}
     </div>
   );
@@ -435,6 +437,93 @@ function PaperHealthTable() {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function fmtCooldown(s) {
+  if (!s || s <= 0) return "";
+  const m = Math.floor(s / 60), sec = s % 60;
+  return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+}
+
+function fmtAgo(ts) {
+  if (!ts) return "never";
+  try {
+    const diff = (Date.now() - new Date(ts.includes("Z") ? ts : ts + "Z").getTime()) / 1000;
+    if (diff < 60) return `${Math.round(diff)}s ago`;
+    if (diff < 3600) return `${Math.round(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.round(diff / 3600)}h ago`;
+    return `${Math.round(diff / 86400)}d ago`;
+  } catch { return ts; }
+}
+
+function ArxivHealthTable() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    axios.get(`${API}/api/admin/arxiv-health`, { headers: getAdminHeaders() })
+      .then(r => setData(r.data)).catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) return <div className="text-center text-xs text-muted-foreground py-8">Loading...</div>;
+  if (!data) return <div className="text-center text-xs text-muted-foreground py-8">Failed to load</div>;
+
+  const statusColor = (s) => s === "healthy" ? "green" : s === "cooling_down" ? "red" : "gray";
+
+  return (
+    <div className="space-y-3" data-testid="arxiv-health">
+      <div className="flex flex-wrap items-center gap-3 text-xs">
+        <span className="text-green-600" data-testid="arxiv-health-healthy-count">{data.healthy} healthy</span>
+        <span className="text-red-500" data-testid="arxiv-health-cooling-count">{data.cooling} cooling down</span>
+        {data.never > 0 && <span className="text-muted-foreground">{data.never} never fetched</span>}
+        <Button size="sm" variant="outline" onClick={load} className="h-8 text-xs gap-1 ml-auto" data-testid="arxiv-health-refresh">
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
+        </Button>
+      </div>
+      <div className="border rounded-lg overflow-x-auto" data-testid="arxiv-health-table">
+        <table className="w-full text-xs" style={{ minWidth: "720px" }}>
+          <thead>
+            <tr className="bg-secondary/50 text-muted-foreground">
+              <th className="px-3 py-2 text-left font-medium" style={{ width: "100px" }}>Status</th>
+              <th className="px-3 py-2 text-left font-medium" style={{ width: "90px" }}>Category</th>
+              <th className="px-3 py-2 text-left font-medium" style={{ width: "90px" }}>Last fetch</th>
+              <th className="px-3 py-2 text-left font-medium" style={{ width: "110px" }}>Cooldown</th>
+              <th className="px-3 py-2 text-center font-medium" style={{ width: "60px" }}>Fails</th>
+              <th className="px-3 py-2 text-left font-medium">Last error</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(data.categories || []).map((r, i) => (
+              <tr key={i} className={`border-t border-border/50 hover:bg-secondary/20 ${
+                r.status === "cooling_down" ? "bg-red-50/20" : ""
+              }`} data-testid={`arxiv-health-row-${r.category}`}>
+                <td className="px-3 py-1.5"><Badge color={statusColor(r.status)}>{r.status.replace("_", " ")}</Badge></td>
+                <td className="px-3 py-1.5 font-medium whitespace-nowrap">{r.category}</td>
+                <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">{fmtAgo(r.last_fetch_at)}</td>
+                <td className="px-3 py-1.5 whitespace-nowrap">
+                  {r.status === "cooling_down" ? <span className="text-red-600">{fmtCooldown(r.cooldown_seconds)} left</span> : <span className="text-muted-foreground">—</span>}
+                </td>
+                <td className="px-3 py-1.5 text-center">{r.backoff_count > 0 ? <span className="text-red-600 font-medium">{r.backoff_count}</span> : <span className="text-muted-foreground">0</span>}</td>
+                <td className="px-3 py-1.5">
+                  <div className="overflow-x-auto max-w-[420px] scrollbar-none" style={{ scrollbarWidth: "none" }}>
+                    <span className="whitespace-nowrap text-muted-foreground">
+                      {r.last_error ? `${fmtAgo(r.last_error_at)}: ${r.last_error}` : "—"}
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {(data.categories || []).length === 0 && (
+              <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">No active categories.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

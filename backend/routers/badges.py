@@ -17,23 +17,11 @@ router = APIRouter(prefix="/api/badge")
 
 def _track_badge_event(event_type: str, paper_id: str, category: str = "", request: Request = None):
     """Fire-and-forget: log badge view/share to system_logs."""
-    import asyncio
     ua = request.headers.get("user-agent", "") if request else ""
     # Skip bots and crawlers from view counts
     is_bot = any(b in ua.lower() for b in ("bot", "crawl", "spider", "facebook", "twitter", "telegram", "slack", "discord", "whatsapp"))
-    doc = {
-        "ts": datetime.now(timezone.utc),
-        "level": "event",
-        "event": event_type,
-        "paper_id": paper_id,
-        "category": category,
-        "is_bot": is_bot,
-    }
-    try:
-        loop = asyncio.get_running_loop()
-        loop.create_task(db.system_logs.insert_one(doc))
-    except Exception:
-        pass
+    from core.memlog import log_event_nowait
+    log_event_nowait(event_type, category=category, paper_id=paper_id, is_bot=is_bot)
 
 # Font installation deferred to background (was blocking module import for 10s+)
 _FONT_DIR = Path(__file__).parent.parent / "fonts"

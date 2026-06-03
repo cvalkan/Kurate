@@ -6,6 +6,7 @@ import os
 import gc
 import ctypes
 import time
+import asyncio
 import psutil
 import logging
 from datetime import datetime, timezone
@@ -64,15 +65,6 @@ def log_mem(label: str):
     _persist("mem", label, {"rss_mb": round(mb)})
 
 
-def log_event(level: str, label: str, data: dict = None):
-    """Log a structured event to stdout and MongoDB."""
-    msg = f"[{level.upper()}] {label}"
-    if data:
-        msg += f": {data}"
-    logger.info(msg)
-    _persist(level, label, data or {})
-
-
 _pod_id = None
 _pod_role = None  # "leader" or "follower"
 
@@ -129,20 +121,55 @@ async def ensure_ttl_index(db):
         pass
 
 
-async def log_event(event: str, detail: str = "", category: str = "", count: int = 0, **extra):
-    """Log a pipeline event (fetch, download, summary, archive, tournament) to system_logs.
-    These appear in the admin Logs tab alongside LLM usage."""
-    db = _get_db()
+def _event_doc(event: str, detail: str, category: str, count: int,
+               level: str, success: bool, extra: dict) -> dict:
+    """Build a single, consistent system_logs event document. The ONE shape used
+    by every event writer (fetch cycles, archives, slow queries, repair queue,
+    badge views, server lifecycle). `success=False` flags an event that failed
+    even if the surrounding cycle otherwise ran — so the UI never shows an errored
+    event as 'ok'."""
     doc = {
         "ts": datetime.now(timezone.utc),
-        "level": "event",
+        "level": level,
         "event": event,
         "detail": detail,
         "category": category,
         "count": count,
-        **extra,
+        "success": success,
+        "pod_id": _pod_id,
+        "pod_role": _pod_role,
     }
+    doc.update(extra)
+    return doc
+
+
+async def log_event(event: str, detail: str = "", category: str = "", count: int = 0,
+                    level: str = "event", success: bool = True, **extra):
+    """Canonical async event logger — writes one consistent doc to system_logs
+    (admin Logs tab). Use for any pipeline/system event."""
+    db = _get_db()
     try:
-        await db.system_logs.insert_one(doc)
+        await db.system_logs.insert_one(
+            _event_doc(event, detail, category, count, level, success, extra))
     except Exception:
         pass
+
+
+def log_event_nowait(event: str, detail: str = "", category: str = "", count: int = 0,
+                     level: str = "event", success: bool = True, **extra):
+    """Fire-and-forget event logger for sync contexts / hot paths (slow queries,
+    badge views, signal handlers, pre-startup). Schedules the insert on the
+    running loop; falls back to a short-lived sync client when there's no loop."""
+    doc = _event_doc(event, detail, category, count, level, success, extra)
+    db = _get_db()
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_async_persist(db, doc))
+    except RuntimeError:
+        try:
+            from pymongo import MongoClient
+            sc = MongoClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=2000)
+            sc[os.environ.get("DB_NAME", "papersumo")].system_logs.insert_one(doc)
+            sc.close()
+        except Exception:
+            pass

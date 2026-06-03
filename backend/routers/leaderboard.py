@@ -706,10 +706,10 @@ async def _db_category_leaderboard(category: str, period: str, limit: int, offse
         _elapsed = time.time() - _t0
         entries_n = len(result.get("leaderboard", []))
         if _elapsed > 0.2:
-            from core.memlog import log_event
-            log_event("slow_query", f"category_leaderboard({category}, {period})",
-                      {"elapsed_s": round(_elapsed, 3), "entries": entries_n,
-                       "search": bool(search), "cursor": bool(cursor)})
+            from core.memlog import log_event_nowait
+            log_event_nowait("slow_query", detail=f"category_leaderboard({category}, {period})",
+                             elapsed_s=round(_elapsed, 3), entries=entries_n,
+                             search=bool(search), cursor=bool(cursor))
         return result
     except Exception as e:
         logger.error(f"Leaderboard query failed for {category}: {e}")
@@ -838,10 +838,10 @@ async def _db_all_papers_leaderboard(period: str, limit: int, offset: int, searc
         _elapsed = time.time() - _t0
         entries_n = len(result.get("leaderboard", []))
         if _elapsed > 0.2:
-            from core.memlog import log_event
-            log_event("slow_query", f"all_papers_leaderboard({period})",
-                      {"elapsed_s": round(_elapsed, 3), "entries": entries_n,
-                       "search": bool(search), "cursor": bool(cursor)})
+            from core.memlog import log_event_nowait
+            log_event_nowait("slow_query", detail=f"all_papers_leaderboard({period})",
+                             elapsed_s=round(_elapsed, 3), entries=entries_n,
+                             search=bool(search), cursor=bool(cursor))
         return result
     except Exception as e:
         logger.error(f"All-papers leaderboard query failed: {e}")
@@ -935,11 +935,11 @@ async def _db_tag_leaderboard(
         _elapsed = time.time() - _t0
         entries_n = len(result.get("leaderboard", []))
         if _elapsed > 0.2:
-            from core.memlog import log_event
-            log_event("slow_query", f"tag_leaderboard({tag_list[:3]}, {period})",
-                      {"elapsed_s": round(_elapsed, 3), "entries": entries_n,
-                       "tags": tag_list[:5], "show_all": show_all,
-                       "search": bool(search), "cursor": bool(cursor)})
+            from core.memlog import log_event_nowait
+            log_event_nowait("slow_query", detail=f"tag_leaderboard({tag_list[:3]}, {period})",
+                             elapsed_s=round(_elapsed, 3), entries=entries_n,
+                             tags=tag_list[:5], show_all=show_all,
+                             search=bool(search), cursor=bool(cursor))
         return result
     except Exception as e:
         logger.error(f"Tag leaderboard query failed for {tag_list}: {e}")

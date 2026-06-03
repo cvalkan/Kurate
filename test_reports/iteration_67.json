@@ -1,0 +1,29 @@
+{
+  "summary": "Tested AdminLogs view consolidation + new 'arXiv Health' tab. Initial test failed because frontend serves a STATIC BUILD (no hot reload) and the build was stale (compiled 11:19, AdminLogs.jsx modified 14:19) so the new arXiv Health view was not deployed. Ran `yarn build` + `supervisorctl restart frontend`, after which all functionality verified: 3 view-switcher buttons (Logs / arXiv Health / Paper Health), arxiv-health table renders 21 rows with correct headers and data-testids, healthy/cooling counts populate (18 healthy / 0 cooling / 3 never), refresh button works. Logs view: 2000 entries; type=error filter -> 50/50 rows show FAIL (no 'errored-but-OK' inconsistency), status=failed filter -> 50/50 FAIL, fetch_cycle/convergence rows correctly show indigo 'event' badge. Tab switching across all three sub-views works with zero console errors / page errors. Found ONE minor data bug: 'Last fetch' column displays 'NaNd ago' for all healthy categories (fmtAgo fails to parse last_fetch_at; only 'never' rows render correctly).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ArxivHealthTable", "issue": "'Last fetch' column shows 'NaNd ago' for every healthy category — fmtAgo() can't parse last_fetch_at value (likely backend returns numeric epoch or non-ISO format; new Date(ts).getTime() yields NaN). Only categories with no fetch (status='never') render correctly.", "selector": "[data-testid=arxiv-health-table] tbody td:nth-child(3)", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix ArxivHealthTable last_fetch_at parsing: confirm backend GET /api/admin/arxiv-health returns last_fetch_at as an ISO string. If epoch seconds/ms, update fmtAgo to handle numbers (typeof ts === 'number'). Right now 18 of 21 rows show 'NaNd ago'.",
+    "IMPORTANT INFRA NOTE: frontend serves a static build via `npx serve -s build` (see /app/frontend/start.sh) — there is NO hot reload. Any frontend code change requires `cd /app/frontend && yarn build && sudo supervisorctl restart frontend` to take effect. The previous iteration's build (main.0aed5f77.js, 11:19) did not contain the new 'arXiv Health' code; rebuilt to main.7a5e8f69.js."
+  ],
+  "critical_code_review_comments": [
+    "AdminLogs.jsx line 136 useState comment '// \"logs\" | \"health\"' is now stale — should mention 'arxiv' too.",
+    "fmtAgo() in AdminLogs.jsx only handles string timestamps; should defensively handle numbers and invalid dates (return 'never' or '—' instead of 'NaNd ago').",
+    "AdminLogs.jsx file is 529 lines — within limit but borderline; consider extracting ArxivHealthTable / PaperHealthTable into separate files for clarity."
+  ],
+  "updated_files": ["/app/frontend/build/* (rebuilt via yarn build)"],
+  "success_rate": {"backend": "n/a (backend not tested per request)", "frontend": "95% (all required testids/flows pass; 1 minor display bug)"},
+  "test_credentials": "Admin password: papersumo2025 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Frontend is static-served (no HMR). After code changes, MUST rebuild: `cd /app/frontend && yarn build && sudo supervisorctl restart frontend`. Admin login flow: go to /admin, fill input[placeholder=Password] with 'papersumo2025', click in-page button 'Sign In' (exact, capital I — the header 'Sign in' button is a different end-user auth modal). After login navigate to dashboard tab 'Logs' to render AdminLogs (data-testid='admin-logs'). View switcher buttons: 'Logs', 'arXiv Health', 'Paper Health'.",
+  "rca of the issue": "Root cause of initial test failure: frontend serves /app/frontend/build static bundle via `npx serve` (start.sh). Build was generated BEFORE the AdminLogs.jsx changes (build mtime 11:19, source mtime 14:19), so the 'arXiv Health' view-switcher button was absent from the deployed JS. Verified via `grep -c 'arXiv Health' build/static/js/main.0aed5f77.js` -> 0. Fixed by running `yarn build` (produced main.7a5e8f69.js) and `supervisorctl restart frontend`. After rebuild, grep returns 1 and all UI testids render correctly."
+}
