@@ -1392,6 +1392,7 @@ _SUMMARY_PRICING = {
     "gemini": "gemini/gemini-3-pro-preview",
 }
 
+
 def _make_day(date: str, category: str) -> dict:
     return {"date": date, "category": category, **_EMPTY_DAY}
 
@@ -1432,6 +1433,8 @@ async def _backfill_daily_stats_chunk(date_from: str, date_to: str):
         if not day:
             return
         cat = doc["_id"].get("cat", "unknown")
+        if cat not in cat_set:
+            return  # only active categories count toward the System total (== Σ categories)
         prov = doc["_id"].get("provider", "unknown")
         model = doc["_id"].get("model", "unknown")
         inp, out, count = doc["inp"], doc["out"], doc["count"]
@@ -1518,6 +1521,8 @@ async def _backfill_daily_stats_chunk(date_from: str, date_to: str):
             {"$group": {"_id": {"day": "$day", "cat": "$cat", "mk": "$mk"}, "n": {"$sum": 1}}},
         ]):
             day, cat = doc["_id"]["day"], doc["_id"]["cat"]
+            if cat not in cat_set:
+                continue  # only active categories count toward the System total
             mk = doc["_id"]["mk"]
             n = doc["n"]
             provider = mk.split(":")[0] if ":" in mk else mk
@@ -1613,6 +1618,7 @@ def _build_series_from_daily_stats(total_by_date, cat_by_key, cats, model_totals
         ms["cost_total"] = round(ci + co, 4)
 
     total_summary_cost = sum(d.get("summary_cost", 0.0) for d in total_by_date.values())
+    total_match_cost = cum["cost"]["_"] - total_summary_cost
 
     return {
         "series": series,
@@ -1625,7 +1631,7 @@ def _build_series_from_daily_stats(total_by_date, cat_by_key, cats, model_totals
             "input_tokens": sum(s.get("input_tokens", 0) for s in model_totals.values()),
             "output_tokens": sum(s.get("output_tokens", 0) for s in model_totals.values()),
             "cost": round(cum["cost"]["_"], 4),
-            "match_cost": round(cum["cost"]["_"] - total_summary_cost, 4),
+            "match_cost": round(total_match_cost, 4),
             "summary_cost": round(total_summary_cost, 4),
         },
         "models": model_totals,

@@ -428,6 +428,9 @@ async def _backfill_summary_costs():
     from collections import defaultdict
     from pymongo import UpdateOne
 
+    settings = await get_settings()
+    cat_set = set(settings.get("active_categories", list(CATEGORIES.keys())))
+
     def day_expr(f):
         return {"$substrCP": [{"$toString": {"$ifNull": [f"${f}", ""]}}, 0, 10]}
 
@@ -465,6 +468,8 @@ async def _backfill_summary_costs():
                     "cnt": {"$sum": 1}}},
     ], allowDiskUse=True):
         day, cat, mk = doc["_id"]["day"], doc["_id"]["cat"], doc["_id"]["mk"]
+        if cat not in cat_set:
+            continue  # only active categories count toward the System total (tracked pass)
         pin, pout = _price_for_summary(mk)
         c = (doc["in"] / 1_000_000) * pin + (doc["out"] / 1_000_000) * pout
         cost_by[(day, cat)] += c
@@ -491,6 +496,8 @@ async def _backfill_summary_costs():
         {"$group": {"_id": {"day": "$_day", "cat": "$_cat", "mk": "$keys"}, "cnt": {"$sum": 1}}},
     ], allowDiskUse=True):
         day, cat, mk = doc["_id"]["day"], doc["_id"]["cat"], doc["_id"]["mk"]
+        if cat not in cat_set:
+            continue  # only active categories count toward the System total (count pass)
         n = doc["cnt"]
         cnt_by[(day, cat)] += n
         cnt_by[(day, "_total")] += n
@@ -514,6 +521,8 @@ async def _backfill_summary_costs():
         {"$group": {"_id": {"day": "$_day", "cat": "$_cat", "mk": "$untracked"}, "cnt": {"$sum": 1}}},
     ], allowDiskUse=True):
         day, cat, mk = doc["_id"]["day"], doc["_id"]["cat"], doc["_id"]["mk"]
+        if cat not in cat_set:
+            continue  # only active categories count toward the System total (untracked pass)
         pin, pout = _price_for_summary(mk)
         avg_in, avg_out = model_avg.get(mk, (AVG_IN, AVG_OUT))
         c = doc["cnt"] * ((avg_in / 1_000_000) * pin + (avg_out / 1_000_000) * pout)
