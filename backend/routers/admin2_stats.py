@@ -641,11 +641,22 @@ async def _seed_finalize(sp: dict):
     await db.daily_stats.update_one({"_meta": "seed_progress"},
                                     {"$set": {"status": "finalizing", "updated_at": now}})
 
-    # 1. _total per day = sum over all per-category buckets (small collection).
+    # 1. _total per day = sum over ACTIVE per-category buckets only.
+    #    Non-active category rows (from past $inc hooks) must NOT inflate the
+    #    total — the reconciliation counts matches for active categories only.
+    settings = await get_settings()
+    active = [c for c in settings.get("active_categories", list(CATEGORIES.keys())) if c and c.strip()]
+    # Clean stale rows from non-active categories so they don't accumulate
+    if active:
+        await db.daily_stats.delete_many({
+            "category": {"$nin": active + ["_total"]},
+            "_meta": {"$exists": False},
+            "date": {"$exists": True},
+        })
     await db.daily_stats.delete_many({"category": "_total"})
     tops = []
     async for doc in db.daily_stats.aggregate([
-        {"$match": {"date": {"$exists": True}, "category": {"$ne": "_total"}}},
+        {"$match": {"date": {"$exists": True}, "category": {"$in": active}}},
         {"$group": {"_id": "$date",
                     "matches": {"$sum": "$matches"}, "papers": {"$sum": "$papers"},
                     "input_tokens": {"$sum": "$input_tokens"}, "output_tokens": {"$sum": "$output_tokens"},
