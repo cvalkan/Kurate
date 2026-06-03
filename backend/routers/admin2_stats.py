@@ -243,6 +243,28 @@ async def record_summary_daily_stat(category: str, model_key: str, added_at=None
 #   • lets the write-time `$inc` hooks own TODAY (sealed past days are exact and
 #     race-free; only today carries the tiny in-flight <0.5% tolerance).
 
+_backfill_client = None
+
+
+def _backfill_db():
+    """Dedicated Mongo client for the heavy rebuild reads. Production's connection
+    string enforces a ~30s socket read timeout (fine for normal requests), but a
+    full-collection group aggregation over 100k+ matches can take longer than that
+    → `NetworkTimeout: read operation timed out`. This client uses a generous
+    socket timeout so the (still server-side, allowDiskUse) aggregation can finish.
+    Lazily created once; reuses the same MONGO_URL/DB_NAME."""
+    global _backfill_client
+    import os
+    if _backfill_client is None:
+        from motor.motor_asyncio import AsyncIOMotorClient
+        _backfill_client = AsyncIOMotorClient(
+            os.environ["MONGO_URL"],
+            socketTimeoutMS=600000, connectTimeoutMS=60000,
+            serverSelectionTimeoutMS=30000, maxPoolSize=4)
+    return _backfill_client[os.environ["DB_NAME"]]
+
+
+
 def _day_expr_safe(field: str) -> dict:
     """'YYYY-MM-DD' (UTC) from a field that may be a BSON Date, ISO string,
     missing, or unparseable — falling back to the ObjectId timestamp, then to the
@@ -281,7 +303,7 @@ async def _rebuild_match_buckets(active_set):
             "out": {"$sum": {"$ifNull": ["$tokens.output_est", {"$ifNull": ["$tokens.output", 0]}]}},
         }},
     ]
-    async for doc in db.matches.aggregate(pipeline, allowDiskUse=True, maxTimeMS=280000):
+    async for doc in _backfill_db().matches.aggregate(pipeline, allowDiskUse=True, maxTimeMS=280000):
         g = doc["_id"]
         cat = g["cat"]
         if cat not in active_set:
@@ -310,11 +332,11 @@ async def _rebuild_paper_buckets(active_set):
     per-day sum across ACTIVE categories."""
     from collections import defaultdict
     buckets = defaultdict(int)
-    async for doc in db.papers.aggregate([
+    async for doc in _backfill_db().papers.aggregate([
         {"$group": {"_id": {"day": _day_expr_safe("added_at"),
                             "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]}},
                     "n": {"$sum": 1}}},
-    ], allowDiskUse=True, maxTimeMS=120000):
+    ], allowDiskUse=True, maxTimeMS=280000):
         cat = doc["_id"]["cat"]
         if cat not in active_set:
             continue
@@ -366,7 +388,7 @@ async def _run_backfill():
             ops.append(UpdateOne({"date": day, "category": cat},
                 {"$set": {"papers": n}}, upsert=True))
         for i in range(0, len(ops), 500):
-            await db.daily_stats.bulk_write(ops[i:i + 500], ordered=False)
+            await _backfill_db().daily_stats.bulk_write(ops[i:i + 500], ordered=False)
 
         # 3. Per-model match totals (single source for the match-model panel).
         if models:
@@ -381,7 +403,7 @@ async def _run_backfill():
         # 4. Reconcile against GROUND TRUTH (count of completed active matches).
         #    Σ daily == count by construction; tolerate only today's in-flight
         #    $inc drift (<0.5%).
-        expected = await db.matches.count_documents(
+        expected = await _backfill_db().matches.count_documents(
             {"completed": True, "failed": {"$ne": True},
              "primary_category": {"$in": list(active_set)}})
         daily = await _sum_daily_total_matches()
