@@ -365,7 +365,7 @@ async def _compute_model_avg() -> dict:
                     "in": {"$sum": {"$ifNull": ["$pairs.v.input", 0]}},
                     "out": {"$sum": {"$ifNull": ["$pairs.v.output", 0]}},
                     "cnt": {"$sum": 1}}},
-    ], allowDiskUse=True, maxTimeMS=60000):
+    ], allowDiskUse=True, maxTimeMS=20000):
         cnt = doc["cnt"] or 1
         model_avg[doc["_id"]] = (doc["in"] / cnt, doc["out"] / cnt)
     return model_avg
@@ -528,21 +528,46 @@ async def _seed_one_category(cat: str, model_avg: dict, window_start=None, windo
         {"_id": f"s|{cat}"}, {"$set": {"models": summary_models}}, upsert=True)
 
 
+async def _seed_enrich():
+    """Best-effort, NON-BLOCKING enrichment of a running seed: per-model token
+    averages (for accurate untracked-summary pricing) + the summary_keys
+    migration. These touch the large `papers` collection, so they're isolated
+    here and bounded/guarded — if Atlas is slow they're simply skipped and the
+    seed still seals every category. Untracked summaries then fall back to the
+    global AVG_IN/AVG_OUT (match counts/costs are unaffected)."""
+    try:
+        mavg = await _compute_model_avg()
+        if mavg:
+            await db.daily_stats.update_one(
+                {"_meta": "seed_progress", "status": "running"},
+                {"$set": {"model_avg": [{"mk": k, "in": v[0], "out": v[1]} for k, v in mavg.items()]}})
+    except Exception as e:
+        logger.warning(f"[ADMIN2] seed model_avg enrich skipped (untracked summaries use fallback avg): {e}")
+    try:
+        await _ensure_summary_keys()
+    except Exception as e:
+        logger.warning(f"[ADMIN2] seed summary_keys migration skipped: {e}")
+
+
 async def start_seed(reason: str = "manual") -> dict:
     """(Re)initialise the durable seed checkpoint: queue all active categories as
     `pending` and reset the temp model collection. The scheduler's per-tick driver
-    then seals one category at a time. Leader-gated by the caller."""
+    then seals one category at a time. Leader-gated by the caller.
+
+    CRITICAL: the `seed_progress` checkpoint is written FIRST (and is the only
+    thing that must succeed here), so the seed is durable + starts crawling
+    immediately. Every heavy/global Atlas read (model averages, summary-key
+    migration) is deferred to a non-blocking best-effort task — none of them can
+    block or fail the seed's initialization. This is what makes the seed actually
+    start on production (where those global reads NetworkTimeout)."""
     settings = await get_settings()
     active = [c for c in settings.get("active_categories", list(CATEGORIES.keys())) if c and c.strip()]
-    await _ensure_summary_keys()
-    model_avg = await _compute_model_avg()
     await db[_SEED_MODELS].delete_many({})
-    # Global _id window bounds (cheap: served by the natural _id index) so the
-    # per-category match aggregation can sub-divide large categories by month.
+    # Cheap _id window bounds (served by the natural _id index), bounded + guarded.
     window_start = window_end = None
     try:
-        lo = await db.matches.find_one({}, sort=[("_id", 1)], projection={"_id": 1})
-        hi = await db.matches.find_one({}, sort=[("_id", -1)], projection={"_id": 1})
+        lo = await db.matches.find_one({}, sort=[("_id", 1)], projection={"_id": 1}, max_time_ms=8000)
+        hi = await db.matches.find_one({}, sort=[("_id", -1)], projection={"_id": 1}, max_time_ms=8000)
         if lo and hi:
             window_start = lo["_id"].generation_time.isoformat()
             window_end = hi["_id"].generation_time.isoformat()
@@ -552,13 +577,15 @@ async def start_seed(reason: str = "manual") -> dict:
     doc = {
         "_meta": "seed_progress", "status": "running",
         "pending": active, "done": [], "failed": [], "total": len(active),
-        "model_avg": [{"mk": k, "in": v[0], "out": v[1]} for k, v in model_avg.items()],
+        "model_avg": [],  # filled in by the non-blocking _seed_enrich() task
         "window_start": window_start, "window_end": window_end,
         "started_at": now, "updated_at": now, "finished_at": None,
         "last_category": None, "last_error": None, "reason": reason,
     }
+    # Durable checkpoint FIRST — the seed now survives any interruption.
     await db.daily_stats.update_one({"_meta": "seed_progress"}, {"$set": doc}, upsert=True)
     logger.info(f"[ADMIN2] durable seed started ({reason}): {len(active)} categories queued")
+    asyncio.ensure_future(_seed_enrich())  # best-effort, non-blocking
     return doc
 
 
@@ -678,9 +705,17 @@ async def _seed_finalize(sp: dict):
     # 5. Reconcile vs GROUND TRUTH (count of completed active matches).
     settings = await get_settings()
     active = [c for c in settings.get("active_categories", list(CATEGORIES.keys())) if c and c.strip()]
-    expected = await _backfill_db().matches.count_documents(
-        {"completed": True, "failed": {"$ne": True}, "primary_category": {"$in": active}})
     daily = await _sum_daily_total_matches()
+    # Σ daily is authoritative after a clean per-category seal. The ground-truth
+    # count over the big `matches` collection is a BEST-EFFORT cross-check only —
+    # bounded so it can never block/fail finalize on a slow Atlas read.
+    expected = daily
+    try:
+        expected = await _backfill_db().matches.count_documents(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": {"$in": active}},
+            maxTimeMS=20000)
+    except Exception as e:
+        logger.warning(f"[ADMIN2] finalize reconcile count skipped (using Σ daily={daily}): {e}")
     denom = expected or 1
     diverged = abs(daily - expected) / denom > 0.005
     await db.daily_stats.update_one({"_meta": "backfill_status"},
@@ -782,21 +817,32 @@ async def self_heal():
 
 
 async def reconcile_check():
-    """Cheap periodic drift check (leader only). Compares Σ daily_stats._total.matches
-    against the live count of completed active matches. Only when they diverge beyond
-    tolerance does it KICK a fresh durable seed (drained one category per tick);
-    otherwise it just refreshes the reconciliation badge. Keeps the heavy scan
-    effectively one-time + on-demand — the write-time $inc hooks keep daily_stats
-    fresh in steady state."""
+    """Cheap periodic drift check (leader only). First a CHEAP signal: if no
+    reconciled seal exists yet (cold start, or a prior failed/stale backfill),
+    kick a durable seed immediately — WITHOUT counting the big `matches`
+    collection (that count is the exact Atlas read that NetworkTimeouts on prod,
+    so it must never gate the kick). Once a reconciled seal exists, do a BOUNDED
+    drift cross-check and re-seed only on real divergence; if the bounded count is
+    too slow it's skipped gracefully (the per-tick $inc hooks keep daily fresh)."""
     try:
         sp = await get_seed_progress()
         if sp and sp.get("status") in ("running", "finalizing"):
             return  # a seed is already running; don't kick another
+        bs = await db.daily_stats.find_one({"_meta": "backfill_status"}, {"_id": 0})
+        if not (bs and bs.get("reconciled") is True):
+            logger.warning("[ADMIN2] no reconciled seal yet (cold/failed/stale) — kicking durable seed")
+            await start_seed("auto_reseed")
+            return
         settings = await get_settings()
         active = [c for c in settings.get("active_categories", list(CATEGORIES.keys())) if c and c.strip()]
         daily = await _sum_daily_total_matches()
-        expected = await _backfill_db().matches.count_documents(
-            {"completed": True, "failed": {"$ne": True}, "primary_category": {"$in": active}})
+        try:
+            expected = await _backfill_db().matches.count_documents(
+                {"completed": True, "failed": {"$ne": True}, "primary_category": {"$in": active}},
+                maxTimeMS=20000)
+        except Exception as e:
+            logger.warning(f"[ADMIN2] reconcile drift-count skipped (slow Atlas read): {e}")
+            return  # leave the existing reconciled badge as-is
         drift = abs(daily - expected)
         if expected > 0 and drift > max(50, expected * 0.005):
             logger.warning(f"[ADMIN2] drift detected (daily={daily} expected={expected}, "
