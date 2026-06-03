@@ -222,14 +222,137 @@ async def record_summary_daily_stat(category: str, model_key: str, added_at=None
 # Backfill (background only, never on read path)
 # ──────────────────────────────────────────────────────────────────────────
 
-async def _run_backfill():
-    """Full-range, cumulative rebuild of daily_stats + per-model match totals.
+# ── Hardened server-side rebuild (replaces the per-chunk $set crawl) ──────────
+# Root cause of the recurring production undercount (daily=422,838 vs the true
+# 567,649, silently, with failed_chunks=0): the old loop wrote each day with a
+# per-chunk `$set`, and a LATER chunk — e.g. a paper added today but PUBLISHED on
+# an old day — re-`$set` that old (day,_total) bucket, CLOBBERING the matches an
+# earlier chunk had written there. No index could ever fix an algorithm that
+# overwrites its own results. The hardened rebuild below:
+#   • does the heavy scan+group SERVER-SIDE (allowDiskUse), returning only the
+#     bounded (~days×cats×models) aggregated buckets — never streams raw matches
+#     app-side, never holds the collection in memory;
+#   • windows by ObjectId month-ranges (the default _id index; type-safe; a month
+#     boundary never splits a UTC day) and ACCUMULATES buckets app-side additively,
+#     then writes ONCE — so no per-chunk `$set` can overwrite another, and a
+#     window failure RAISES (never swallowed → never a silent drop);
+#   • buckets EVERY doc by a never-null date (created_at → else the ObjectId
+#     timestamp), so Σ daily == count by construction;
+#   • writes field-level `$set` (matches/tokens/cost only) so the paper and
+#     summary passes' fields are preserved (no cross-field clobber);
+#   • lets the write-time `$inc` hooks own TODAY (sealed past days are exact and
+#     race-free; only today carries the tiny in-flight <0.5% tolerance).
 
-    Reuses the legacy per-chunk function (correct per chunk) but loops the FULL
-    date range so per-model totals are cumulative (the legacy whole-run
-    accumulator had a resume bug that made the meta doc partial). Bounded by
-    7-day chunks using the created_at index — never an unbounded scan.
-    """
+from bson import ObjectId as _ObjectId
+
+
+def _day_expr_safe(field: str) -> dict:
+    """'YYYY-MM-DD' (UTC) from a field that may be a BSON Date, ISO string,
+    missing, or unparseable — falling back to the ObjectId generation time so
+    EVERY document buckets to exactly one day (guarantees Σ == count)."""
+    return {"$dateToString": {"format": "%Y-%m-%d", "date": {
+        "$convert": {"input": f"${field}", "to": "date",
+                     "onError": {"$toDate": "$_id"},
+                     "onNull": {"$toDate": "$_id"}}}}}
+
+
+def _month_windows(start_dt, end_dt):
+    """Yield [from, to) UTC month boundaries covering [start_dt, end_dt]. Month
+    boundaries never split a UTC day, so each window's day-buckets are complete
+    and additive accumulation across windows is exact."""
+    from datetime import datetime as _dt, timezone as _tz
+    cur = _dt(start_dt.year, start_dt.month, 1, tzinfo=_tz.utc)
+    last = _dt(end_dt.year, end_dt.month, 1, tzinfo=_tz.utc)
+    while cur <= last:
+        ny, nm = (cur.year + 1, 1) if cur.month == 12 else (cur.year, cur.month + 1)
+        nxt = _dt(ny, nm, 1, tzinfo=_tz.utc)
+        yield cur, nxt
+        cur = nxt
+
+
+async def _rebuild_match_buckets(active_set):
+    """Server-side, ObjectId-month-windowed aggregation of completed matches into
+    per-(day,category) totals + per-model totals. Returns (buckets, models).
+    buckets[(day,cat)] = {matches,input_tokens,output_tokens,cost}; the special
+    cat '_total' is the per-day sum across ACTIVE categories. Cost is computed
+    app-side with the SAME _price_match the live hook uses → exact parity."""
+    from collections import defaultdict
+    buckets = defaultdict(lambda: {"matches": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0})
+    models = defaultdict(lambda: {"matches": 0, "input_tokens": 0, "output_tokens": 0})
+
+    oldest = await db.matches.find_one({}, {"_id": 1}, sort=[("_id", 1)])
+    if not oldest:
+        return buckets, models
+    start_dt = oldest["_id"].generation_time
+    end_dt = datetime.now(timezone.utc)
+
+    group = {
+        "_id": {"day": _day_expr_safe("created_at"),
+                "cat": {"$ifNull": ["$primary_category", "unknown"]},
+                "prov": {"$ifNull": ["$model_used.provider", "unknown"]},
+                "model": {"$ifNull": ["$model_used.model", "unknown"]}},
+        "count": {"$sum": 1},
+        "inp": {"$sum": {"$ifNull": ["$tokens.input_est", {"$ifNull": ["$tokens.input", 0]}]}},
+        "out": {"$sum": {"$ifNull": ["$tokens.output_est", {"$ifNull": ["$tokens.output", 0]}]}},
+    }
+
+    for w_from, w_to in _month_windows(start_dt, end_dt):
+        pipeline = [
+            {"$match": {"completed": True, "failed": {"$ne": True},
+                        "_id": {"$gte": _ObjectId.from_datetime(w_from),
+                                "$lt": _ObjectId.from_datetime(w_to)}}},
+            {"$group": group},
+        ]
+        # A window failure RAISES (never swallowed) — nothing is written until all
+        # windows succeed, so a transient error can't commit a partial/undercount.
+        async for doc in db.matches.aggregate(pipeline, allowDiskUse=True, maxTimeMS=120000):
+            g = doc["_id"]
+            cat = g["cat"]
+            if cat not in active_set:
+                continue  # only active categories count toward the system total
+            day = g["day"]
+            cnt, inp, out = doc["count"], doc["inp"], doc["out"]
+            cost = _admin._price_match(inp, out, g["prov"], g["model"])
+            for k in (cat, "_total"):
+                b = buckets[(day, k)]
+                b["matches"] += cnt
+                b["input_tokens"] += inp
+                b["output_tokens"] += out
+                b["cost"] += cost
+            mk = f"{g['prov']}/{g['model']}"
+            if mk != "unknown/unknown":
+                mm = models[mk]
+                mm["matches"] += cnt
+                mm["input_tokens"] += inp
+                mm["output_tokens"] += out
+    return buckets, models
+
+
+async def _rebuild_paper_buckets(active_set):
+    """Server-side aggregation of papers into per-(day,category) counts, bucketed
+    by `added_at` (mirrors the record_paper_daily_stat $inc hook). '_total' is the
+    per-day sum across ACTIVE categories."""
+    from collections import defaultdict
+    buckets = defaultdict(int)
+    async for doc in db.papers.aggregate([
+        {"$group": {"_id": {"day": _day_expr_safe("added_at"),
+                            "cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]}},
+                    "n": {"$sum": 1}}},
+    ], allowDiskUse=True, maxTimeMS=120000):
+        cat = doc["_id"]["cat"]
+        if cat not in active_set:
+            continue
+        day, n = doc["_id"]["day"], doc["n"]
+        buckets[(day, cat)] += n
+        buckets[(day, "_total")] += n
+    return buckets
+
+
+async def _run_backfill():
+    """Full, exact rebuild of daily_stats (matches+papers) + per-model totals +
+    accurate summary costs + registrations. Server-side, ObjectId-windowed,
+    accumulate-then-write-once (see the design note above). Leader-only; the
+    lease lock prevents concurrent cross-pod rebuilds."""
     if getattr(_admin, "_ts_backfill_running", False):
         return
     if not await _acquire_backfill_lock():
@@ -237,103 +360,74 @@ async def _run_backfill():
         return
     _admin._ts_backfill_running = True
     try:
-        from datetime import date as _date, timedelta as _td, datetime as _dt, timezone as _tz
-        earliest = await db.papers.find_one(
-            {"added_at": {"$exists": True, "$ne": None}},
-            {"_id": 0, "added_at": 1}, sort=[("added_at", 1)],
-        )
-        if not earliest or not earliest.get("added_at"):
-            return
-        ea = earliest["added_at"]
-        start = ea.strftime("%Y-%m-%d") if hasattr(ea, "strftime") else str(ea)[:10]
-        today = _dt.now(_tz.utc).strftime("%Y-%m-%d")
-        cur = _date.fromisoformat(start)
-        end = _date.fromisoformat(today) + _td(days=1)
-
-        # Build the ordered list of [from, to) chunk ranges once so we can retry
-        # any that fail rather than silently dropping their matches (the failure
-        # mode behind the production undercount).
-        ranges = []
-        while cur < end:
-            ce = min(cur + _td(days=7), end)
-            ranges.append((cur.isoformat(), ce.isoformat()))
-            cur = ce
-
-        async def _process_ranges(rs):
-            """Run the given chunk ranges; return (accumulated models, failures)."""
-            models, failed = {}, []
-            for df, dtq in rs:
-                try:
-                    _, mt = await _admin._backfill_daily_stats_chunk(df, dtq)
-                    for mk, ms in mt.items():
-                        a = models.setdefault(mk, {"matches": 0, "input_tokens": 0, "output_tokens": 0})
-                        for f in ("matches", "input_tokens", "output_tokens"):
-                            a[f] += ms.get(f, 0)
-                except Exception as ce_err:
-                    logger.warning(f"[ADMIN2] backfill chunk [{df}..{dtq}) failed: {ce_err}")
-                    failed.append((df, dtq))
-            return models, failed
-
-        all_models, failed_ranges = await _process_ranges(ranges)
-        # One bounded retry of only the chunks that failed (e.g. transient Atlas
-        # timeout). Merge their model totals into the running accumulator.
-        if failed_ranges:
-            logger.warning(f"[ADMIN2] retrying {len(failed_ranges)} failed chunk(s)")
-            retry_models, failed_ranges = await _process_ranges(failed_ranges)
-            for mk, a in retry_models.items():
-                tgt = all_models.setdefault(mk, {"matches": 0, "input_tokens": 0, "output_tokens": 0})
-                for f in ("matches", "input_tokens", "output_tokens"):
-                    tgt[f] += a.get(f, 0)
-
         from pymongo import UpdateOne
-        if all_models:
-            await db.model_match_stats.delete_many({"model": {"$nin": list(all_models.keys())}})
+        settings = await get_settings()
+        active_set = set(c for c in settings.get("active_categories", list(CATEGORIES.keys())) if c and c.strip())
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+        # 1. Aggregate server-side (heavy work stays in Mongo; only the bounded
+        #    aggregated buckets come back).
+        match_buckets, models = await _rebuild_match_buckets(active_set)
+        paper_buckets = await _rebuild_paper_buckets(active_set)
+
+        # 2. Seal past days exactly; let the $inc hooks own TODAY (no write race).
+        #    On a cold rebuild (today not yet materialized) we DO seed today so the
+        #    fresh view is complete; on a warm rebuild we leave today to the hooks.
+        today_present = await db.daily_stats.count_documents({"date": today, "category": "_total"}) > 0
+        skip_today = today_present
+
+        ops = []
+        for (day, cat), v in match_buckets.items():
+            if skip_today and day == today:
+                continue
+            ops.append(UpdateOne({"date": day, "category": cat},
+                {"$set": {"matches": v["matches"], "input_tokens": v["input_tokens"],
+                          "output_tokens": v["output_tokens"], "cost": round(v["cost"], 6)}},
+                upsert=True))
+        for (day, cat), n in paper_buckets.items():
+            if skip_today and day == today:
+                continue
+            ops.append(UpdateOne({"date": day, "category": cat},
+                {"$set": {"papers": n}}, upsert=True))
+        for i in range(0, len(ops), 500):
+            await db.daily_stats.bulk_write(ops[i:i + 500], ordered=False)
+
+        # 3. Per-model match totals (single source for the match-model panel).
+        if models:
+            await db.model_match_stats.delete_many({"model": {"$nin": list(models.keys())}})
             await db.model_match_stats.bulk_write(
-                [UpdateOne({"model": mk}, {"$set": {"model": mk, **a}}, upsert=True)
-                 for mk, a in all_models.items()], ordered=False)
-            # Keep the legacy meta doc consistent too (benefits the old page).
+                [UpdateOne({"model": mk}, {"$set": {"model": mk, **v}}, upsert=True)
+                 for mk, v in models.items()], ordered=False)
             await db.daily_stats.update_one(
                 {"_meta": "model_stats"},
-                {"$set": {"_meta": "model_stats", "models": all_models}}, upsert=True)
+                {"$set": {"_meta": "model_stats", "models": dict(models)}}, upsert=True)
 
-        # ── Completeness guard (matches) ─────────────────────────────────────
-        # Committed BEFORE the summary/registration recompute so a failure in
-        # those (less critical) passes can never hide a fully-reconciled match
-        # rebuild — the badge reflects the authoritative match figure either way.
-        # The per-model accumulator (`all_models`) is built straight from the
-        # chunk results and is immune to the per-day `$set` overwrite, so its
-        # match sum is the authoritative "expected" total. Compare it against the
-        # materialized daily_stats `_total` sum: a meaningful gap means a chunk
-        # silently dropped data (the exact production failure mode).
-        expected_matches = sum(a.get("matches", 0) for a in all_models.values())
-        daily_matches = await _sum_daily_total_matches()
-        # Tolerate tiny drift from live $inc hooks firing during the run (today's
-        # in-flight matches). Flag only a material divergence (>0.5%).
-        denom = expected_matches or 1
-        diverged = bool(failed_ranges) or (abs(daily_matches - expected_matches) / denom > 0.005)
+        # 4. Reconcile against GROUND TRUTH (count of completed active matches).
+        #    Σ daily == count by construction; tolerate only today's in-flight
+        #    $inc drift (<0.5%).
+        expected = await db.matches.count_documents(
+            {"completed": True, "failed": {"$ne": True},
+             "primary_category": {"$in": list(active_set)}})
+        daily = await _sum_daily_total_matches()
+        denom = expected or 1
+        diverged = abs(daily - expected) / denom > 0.005
         status = {
             "_meta": "backfill_status",
             "ts": datetime.now(timezone.utc).isoformat(),
-            "expected_matches": expected_matches,
-            "daily_matches": daily_matches,
-            "failed_chunks": len(failed_ranges),
+            "expected_matches": expected,
+            "daily_matches": daily,
+            "failed_chunks": 0,
             "reconciled": not diverged,
         }
         await db.daily_stats.update_one(
             {"_meta": "backfill_status"}, {"$set": status}, upsert=True)
         if diverged:
-            logger.error(
-                f"[ADMIN2] backfill NOT reconciled: daily_total={daily_matches} "
-                f"expected={expected_matches} failed_chunks={len(failed_ranges)}")
+            logger.error(f"[ADMIN2] backfill NOT reconciled: daily={daily} expected={expected}")
         else:
-            logger.info(
-                f"[ADMIN2] backfill complete & reconciled: {len(all_models)} models, "
-                f"{daily_matches} matches")
+            logger.info(f"[ADMIN2] backfill reconciled: {daily} matches, {len(models)} models")
 
-        # Recompute summary counts + costs ACCURATELY (real tracked tokens where
-        # available) + registrations. These do NOT touch the match `_total`, so the
-        # guard above is order-independent; isolate their failure so it degrades
-        # only summary/registration freshness, never the committed match status.
+        # 5. Accurate summary costs + registrations (field-disjoint from matches/
+        #    papers → field-level $set never clobbers the match rebuild).
         try:
             await _backfill_summary_costs()
             await _backfill_registrations()

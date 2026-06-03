@@ -12,6 +12,19 @@ Build and maintain an AI paper-judging system using multiple LLM judges to rank 
 
 ## Latest Changes (Jun 3, 2026)
 
+### FIX (MAJOR): Hardened daily_stats rebuild — exact reconciliation at scale (Jun 3)
+- **Root cause of the chronic prod undercount (daily_stats stored 422,838 of 567,649 matches, silently, `failed_chunks:0`)**: the old `_run_backfill` looped 7-day chunks and wrote each day with a per-chunk `$set`; a paper added *now* but **published on an old day** caused a later chunk to re-`$set` that old `(day,_total)` bucket, **clobbering** matches an earlier chunk wrote there. No index could ever fix a self-overwriting algorithm — that's why every redeploy failed.
+- **Diagnosis (live prod, read-only via db-explorer aggregate)**: 579,682 completed matches, 0 null `created_at`; single-pass active-category count = **567,649**; old chunked `$set` stored only 422,838. New never-drop bucketing on prod data = **567,651** (==count) → proves the redesign reconciles.
+- **New hardened `_run_backfill` (`routers/admin2_stats.py`)**:
+  - Server-side aggregation (`allowDiskUse`), **ObjectId month-windowed** (default `_id` index, type-safe, never splits a UTC day) → only bounded aggregated buckets come app-side, never raw matches.
+  - **Accumulate-then-write-once** (app-side additive by `(day,cat)`) → no per-chunk `$set` can overwrite another; a window failure **raises** (never swallowed → no silent drops; nothing committed on partial failure).
+  - **Never-drop date** `_day_expr_safe`: `$convert(created_at, onError/onNull → $toDate($_id))` → every doc buckets to exactly one day → **Σ daily == count by construction**.
+  - **Field-level `$set`** (matches/tokens/cost only) preserves papers/summaries/summary_cost (no cross-field clobber).
+  - **Seals past days; `$inc` hooks own TODAY** (race-free; only today carries the <0.5% in-flight tolerance). Cost computed app-side with the SAME `_price_match` → exact parity.
+  - Reconcile vs ground-truth `count_documents(completed, active)`; badge reads `backfill_status` (O(1)).
+- **Verified**: preview reconciles exactly (275,497==275,497, diff=0); prod bucketing captures 567,651/567,649; end-to-end `POST /api/admin2/backfill` → `reconciled:true`. **3 regression pytests pass** (`tests/test_admin2_rebuild_hardened.py`): exact reconciliation, republished-old-paper does-not-clobber, null/string/Date created_at all counted.
+- **Expected on prod after deploy+backfill**: headline match count jumps 422,838 → ~567,651 (a *correction*), badge green. **NOTE**: `_backfill_daily_stats_chunk` (admin.py) is now dead code (left in place; safe future cleanup).
+
 ### FEATURE: Logging consolidation + arXiv Health indicator (Jun 3)
 - **Logging cleanup** (user request — make consistent/simple, remove duplicates):
   - Removed the DEAD duplicate `log_event` in `core/memlog.py` (a sync `log_event(level,label,data)` was shadowed by the async `log_event(event,detail,...)`). Two callers (`leaderboard.py` slow_query x3, `scheduler.py` repair_queue) used the old signature → "coroutine never awaited" → never logged. Now fixed.
