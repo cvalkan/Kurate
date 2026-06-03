@@ -3034,6 +3034,18 @@ async def ensure_indexes():
 
 
 
+@router.post("/archive/dedupe", dependencies=[Depends(verify_admin)])
+async def dedupe_archives():
+    """Remove duplicate leaderboard snapshots (same category/period_type/year/week/
+    month), keeping the most complete copy, and (re)enforce the unique index that
+    prevents recurrence. Safe and idempotent — returns how many were removed."""
+    from routers.leaderboard import ensure_archive_integrity
+    before = await db.leaderboard_archives.count_documents({})
+    await ensure_archive_integrity()
+    after = await db.leaderboard_archives.count_documents({})
+    return {"status": "ok", "removed": before - after, "remaining": after}
+
+
 @router.delete("/archive/week/{year}/{week}", dependencies=[Depends(verify_admin)])
 async def delete_weekly_archive(year: int, week: int, force: bool = False):
     """Delete all weekly archive snapshots for a specific ISO week.

@@ -293,20 +293,15 @@ async def _run_backfill():
                 {"_meta": "model_stats"},
                 {"$set": {"_meta": "model_stats", "models": all_models}}, upsert=True)
 
-        # Recompute summary counts + costs ACCURATELY (real tracked tokens where
-        # available). Overwrites the chunk's fixed-average estimate so the cost
-        # timeseries and the per-model summary panel reconcile on real data.
-        await _backfill_summary_costs()
-        await _backfill_registrations()
-
-        # ── Completeness guard ───────────────────────────────────────────────
+        # ── Completeness guard (matches) ─────────────────────────────────────
+        # Committed BEFORE the summary/registration recompute so a failure in
+        # those (less critical) passes can never hide a fully-reconciled match
+        # rebuild — the badge reflects the authoritative match figure either way.
         # The per-model accumulator (`all_models`) is built straight from the
         # chunk results and is immune to the per-day `$set` overwrite, so its
         # match sum is the authoritative "expected" total. Compare it against the
         # materialized daily_stats `_total` sum: a meaningful gap means a chunk
-        # silently dropped data (the exact production failure mode). Surface it
-        # immediately via an ERROR log + a status doc instead of letting it hide
-        # until the next ~12h self-heal.
+        # silently dropped data (the exact production failure mode).
         expected_matches = sum(a.get("matches", 0) for a in all_models.values())
         daily_matches = await _sum_daily_total_matches()
         # Tolerate tiny drift from live $inc hooks firing during the run (today's
@@ -331,6 +326,16 @@ async def _run_backfill():
             logger.info(
                 f"[ADMIN2] backfill complete & reconciled: {len(all_models)} models, "
                 f"{daily_matches} matches")
+
+        # Recompute summary counts + costs ACCURATELY (real tracked tokens where
+        # available) + registrations. These do NOT touch the match `_total`, so the
+        # guard above is order-independent; isolate their failure so it degrades
+        # only summary/registration freshness, never the committed match status.
+        try:
+            await _backfill_summary_costs()
+            await _backfill_registrations()
+        except Exception as e:
+            logger.error(f"[ADMIN2] summary/registration recompute failed (match rebuild OK): {e}")
         _cache_clear()
     except Exception as e:
         logger.error(f"[ADMIN2] backfill failed: {e}")
