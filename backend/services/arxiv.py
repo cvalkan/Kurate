@@ -113,10 +113,7 @@ async def fetch_arxiv_papers(
         for attempt in range(max_retries):
             await _throttle()  # P1: pace every request (incl. retries) to >=1 req/3s
             try:
-                async with httpx.AsyncClient(
-                    headers={"User-Agent": "kurate.org/1.0 (+https://kurate.org; mailto:admin@kurate.org)"},
-                    timeout=45.0,
-                ) as http_client:
+                async with httpx.AsyncClient(timeout=45.0) as http_client:
                     response = await http_client.get(base_url, params=params)
                     response.raise_for_status()
                 papers_batch = _parse_arxiv_response(response.text)

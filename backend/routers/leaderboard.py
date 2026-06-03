@@ -707,7 +707,7 @@ async def _db_category_leaderboard(category: str, period: str, limit: int, offse
         entries_n = len(result.get("leaderboard", []))
         if _elapsed > 0.2:
             from core.memlog import log_event_nowait
-            log_event_nowait("slow_query", detail=f"category_leaderboard({category}, {period})",
+            log_event_nowait("leaderboard_slow_response", detail=f"category_leaderboard({category}, {period}) took {round(_elapsed, 3)}s",
                              elapsed_s=round(_elapsed, 3), entries=entries_n,
                              search=bool(search), cursor=bool(cursor))
         return result
@@ -839,7 +839,7 @@ async def _db_all_papers_leaderboard(period: str, limit: int, offset: int, searc
         entries_n = len(result.get("leaderboard", []))
         if _elapsed > 0.2:
             from core.memlog import log_event_nowait
-            log_event_nowait("slow_query", detail=f"all_papers_leaderboard({period})",
+            log_event_nowait("leaderboard_slow_response", detail=f"all_papers_leaderboard({period}) took {round(_elapsed, 3)}s",
                              elapsed_s=round(_elapsed, 3), entries=entries_n,
                              search=bool(search), cursor=bool(cursor))
         return result
@@ -936,7 +936,7 @@ async def _db_tag_leaderboard(
         entries_n = len(result.get("leaderboard", []))
         if _elapsed > 0.2:
             from core.memlog import log_event_nowait
-            log_event_nowait("slow_query", detail=f"tag_leaderboard({tag_list[:3]}, {period})",
+            log_event_nowait("leaderboard_slow_response", detail=f"tag_leaderboard({tag_list[:3]}, {period}) took {round(_elapsed, 3)}s",
                              elapsed_s=round(_elapsed, 3), entries=entries_n,
                              tags=tag_list[:5], show_all=show_all,
                              search=bool(search), cursor=bool(cursor))
