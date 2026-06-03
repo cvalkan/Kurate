@@ -276,6 +276,22 @@ read that times out on Atlas. It is intermittent (10/181) because it only trips
 when Atlas latency is high, but it's a real, independent bug — and it's why some
 "arXiv" failures are actually database failures.
 
+**Why it only surfaced recently (not "there all along"):**
+- The `existing_bases` global scan + `arxiv_id_base`/`is_latest_version` fields
+  were introduced **2026-04-18 → 05-05** by the version-aware revision refactor
+  (git: `-S "existing_bases"`/`"is_latest_version"`). Before that, dedup used only
+  the category-scoped scan at line 1146. So it's ~7 weeks old, not original.
+- The filter is **non-selective — it matches ~49% of `papers`** (5,231/10,674 on
+  preview) and streams those docs into a dict every cycle/category. Time scales
+  with collection size: preview (~10k) finishes <20s; prod (100k+) crosses the
+  30s Atlas ceiling. The code didn't change — the DATA grew past the cliff.
+- Intermittency (10/181) = it sits right on the 30s boundary, tipping over only
+  under concurrent Atlas load — including from the failed stats backfills hammering
+  the SAME cluster in the same window. The two issues fed each other.
+- There IS an `arxiv_id_base_1` index, but it can't help a query matching half the
+  collection. Binding the query to `$in` on the ≤2000 just-fetched bases makes it
+  selective → uses that index → constant-time regardless of collection size.
+
 ### 3.4 FIXES
 
 **For Cause A (arXiv 429) — PROPOSED, awaiting user (contact email):**
