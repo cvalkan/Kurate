@@ -1218,37 +1218,17 @@ async def _prewarm_summary_bias_caches():
 
 
 async def _startup_dedup_archives():
-    """Remove duplicate archive snapshots caused by multi-pod race conditions.
-    Keeps the first (oldest) document for each (category, period_type, scoring_method, year, week, month) combo."""
-    flag = await db.settings.find_one({"key": "dedup_archives_v1"}, {"_id": 0})
-    if flag and flag.get("done"):
-        return
+    """Remove duplicate archive snapshots (multi-pod race) and enforce the unique
+    index that prevents recurrence.
 
-    pipeline = [
-        {"$group": {
-            "_id": {"category": "$category", "period_type": "$period_type", "scoring_method": "$scoring_method",
-                    "year": "$year", "week": "$week", "month": "$month"},
-            "count": {"$sum": 1},
-            "ids": {"$push": "$_id"},
-        }},
-        {"$match": {"count": {"$gt": 1}}},
-    ]
-    removed = 0
-    async for group in db.leaderboard_archives.aggregate(pipeline):
-        # Keep the first, delete the rest
-        ids_to_delete = group["ids"][1:]
-        if ids_to_delete:
-            await db.leaderboard_archives.delete_many({"_id": {"$in": ids_to_delete}})
-            removed += len(ids_to_delete)
-
-    if removed:
-        logger.info(f"Archive dedup: removed {removed} duplicate snapshots")
-
-    await db.settings.update_one(
-        {"key": "dedup_archives_v1"},
-        {"$set": {"key": "dedup_archives_v1", "done": True, "removed": removed}},
-        upsert=True,
-    )
+    Delegates to the SINGLE dedup implementation in routers.leaderboard
+    (`ensure_archive_integrity`) so there is exactly one code path. Unlike the
+    previous one-time `dedup_archives_v1`-flag-gated version (which could not catch
+    duplicates created AFTER it ran), this runs on every startup: the unique index
+    makes it a no-op once clean and guarantees the index exists after any deploy.
+    """
+    from routers.leaderboard import ensure_archive_integrity
+    await ensure_archive_integrity()
 
 
 async def _startup_dedup():
