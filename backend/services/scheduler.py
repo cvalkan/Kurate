@@ -453,10 +453,19 @@ async def _fetch_loop():
 
 
 async def _fetch_loop_inner():
+    """Round-robin fetch: process ONE category per tick, then sleep for a
+    configurable delay (settings `fetch_delay_minutes`, default 8). This
+    spreads arXiv requests evenly over hours instead of bursting through
+    all 45+ categories back-to-back, which triggers 429 rate-limiting.
+
+    With 45 categories and 8-min delay: full cycle ≈ 6h, matching the
+    default `fetch_interval_hours`. Adjustable by admin at runtime.
+    """
     from core.memlog import log_mem
 
+    _rr_idx = 0  # round-robin pointer into sorted category list
+
     while _scheduler_running:
-        next_due_seconds = float("inf")
         try:
             settings = await get_settings()
 
@@ -466,10 +475,26 @@ async def _fetch_loop_inner():
                 continue
 
             interval_hours = settings.get("fetch_interval_hours", 6)
+            delay_minutes = settings.get("fetch_delay_minutes", 8)
             now = datetime.now(timezone.utc)
 
-            fetch_cats = set(c for c in settings.get("active_categories", list(CATEGORIES.keys())) if c and c.strip())
-            for cat in fetch_cats:
+            fetch_cats = sorted(set(
+                c for c in settings.get("active_categories", list(CATEGORIES.keys()))
+                if c and c.strip()
+            ))
+
+            if not fetch_cats:
+                await asyncio.sleep(60)
+                continue
+
+            # Clamp round-robin index to current list size
+            _rr_idx = _rr_idx % len(fetch_cats)
+
+            # Scan from _rr_idx to find the NEXT due category (one full lap max)
+            fetched_one = False
+            for offset in range(len(fetch_cats)):
+                idx = (_rr_idx + offset) % len(fetch_cats)
+                cat = fetch_cats[idx]
                 cat_status = _get_cat_status(cat)
 
                 # Check per-tournament fetch_paused flag
@@ -478,7 +503,11 @@ async def _fetch_loop_inner():
                 if t_doc and t_doc.get("fetch_paused"):
                     continue
 
-                last_fetch_key = f"last_fetch_at_{cat.replace('.', '_')}"
+                ckey = cat.replace('.', '_')
+                last_fetch_key = f"last_fetch_at_{ckey}"
+                backoff_key = f"fetch_backoff_until_{ckey}"
+                count_key = f"fetch_backoff_count_{ckey}"
+
                 last_fetch = settings.get(last_fetch_key)
                 if not last_fetch or not isinstance(last_fetch, str):
                     parts = cat.split(".")
@@ -487,23 +516,13 @@ async def _fetch_loop_inner():
                         if isinstance(nested, dict):
                             last_fetch = nested.get(parts[1])
 
-                # P0 — per-category failure backoff (DB-persisted so it survives
-                # restarts/deploys). After a failed/429 fetch we delay this
-                # category's NEXT automatic attempt exponentially, instead of
-                # retrying every loop pass (which hammers arXiv and sustains the
-                # rate-limiting). Manual/force fetches bypass this — they don't
-                # run through this loop; a successful fetch clears it (below + in
-                # run_fetch_cycle).
-                ckey = cat.replace('.', '_')
-                backoff_key = f"fetch_backoff_until_{ckey}"
-                count_key = f"fetch_backoff_count_{ckey}"
+                # Per-category failure backoff (DB-persisted)
                 backoff_until = settings.get(backoff_key)
                 if isinstance(backoff_until, str):
                     try:
                         bu = datetime.fromisoformat(backoff_until)
                         if now < bu:
-                            next_due_seconds = min(next_due_seconds, (bu - now).total_seconds())
-                            continue  # still cooling down from a prior failure
+                            continue  # still cooling down
                     except Exception:
                         pass
 
@@ -512,51 +531,56 @@ async def _fetch_loop_inner():
                     should_fetch = True
                 elif now >= datetime.fromisoformat(last_fetch) + timedelta(hours=interval_hours):
                     should_fetch = True
-                else:
-                    secs_until = (datetime.fromisoformat(last_fetch) + timedelta(hours=interval_hours) - now).total_seconds()
-                    next_due_seconds = min(next_due_seconds, secs_until)
 
-                if should_fetch:
-                    result = await run_fetch_cycle(category=cat)
-                    # Only advance last_fetch_at if the fetch actually succeeded
-                    # (not rate-limited or errored). Otherwise we'd skip papers permanently.
-                    fetch_failed = bool(result.get("errors"))
-                    if not fetch_failed:
-                        now_iso = datetime.now(timezone.utc).isoformat()
-                        await db.settings.update_one(
-                            {"key": "global"},
-                            {"$set": {last_fetch_key: now_iso}},
-                            upsert=True,
-                        )
-                        cat_status["last_fetch_at"] = now_iso
-                        # backoff (if any) is cleared inside run_fetch_cycle on success
-                    else:
-                        # Failure → exponential backoff: 15m, 30m, 1h, 2h, cap 4h.
-                        cnt = int(settings.get(count_key) or 0) + 1
-                        backoff_min = min(240, 15 * (2 ** (cnt - 1)))
-                        bu_iso = (datetime.now(timezone.utc) + timedelta(minutes=backoff_min)).isoformat()
-                        await db.settings.update_one(
-                            {"key": "global"},
-                            {"$set": {backoff_key: bu_iso, count_key: cnt}},
-                            upsert=True,
-                        )
-                        next_due_seconds = min(next_due_seconds, backoff_min * 60)
-                        logger.warning(f"[{cat}] fetch failed (#{cnt}) — backing off {backoff_min}m "
-                                       f"(until {bu_iso}); errors: {result.get('errors')}")
-                    cat_status["next_fetch_at"] = (datetime.now(timezone.utc) + timedelta(hours=interval_hours)).isoformat()
-                    # Cooldown between categories to avoid arXiv rate limiting (429)
-                    await asyncio.sleep(5)
-                    from core.memlog import force_gc
-                    force_gc()
-                    # Re-read settings in case pause was toggled during fetch
-                    settings = await get_settings()
+                if not should_fetch:
+                    continue
+
+                # --- Fetch this ONE category, then break ---
+                log_mem(f"Round-robin fetch: {cat} (idx={idx}/{len(fetch_cats)})")
+                result = await run_fetch_cycle(category=cat)
+
+                fetch_failed = bool(result.get("errors"))
+                if not fetch_failed:
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    await db.settings.update_one(
+                        {"key": "global"},
+                        {"$set": {last_fetch_key: now_iso}},
+                        upsert=True,
+                    )
+                    cat_status["last_fetch_at"] = now_iso
+                else:
+                    # Failure → exponential backoff: 15m, 30m, 1h, 2h, cap 4h.
+                    cnt = int(settings.get(count_key) or 0) + 1
+                    backoff_min = min(240, 15 * (2 ** (cnt - 1)))
+                    bu_iso = (datetime.now(timezone.utc) + timedelta(minutes=backoff_min)).isoformat()
+                    await db.settings.update_one(
+                        {"key": "global"},
+                        {"$set": {backoff_key: bu_iso, count_key: cnt}},
+                        upsert=True,
+                    )
+                    logger.warning(f"[{cat}] fetch failed (#{cnt}) — backing off {backoff_min}m "
+                                   f"(until {bu_iso}); errors: {result.get('errors')}")
+
+                cat_status["next_fetch_at"] = (datetime.now(timezone.utc) + timedelta(hours=interval_hours)).isoformat()
+
+                from core.memlog import force_gc
+                force_gc()
+
+                # Advance round-robin past this category
+                _rr_idx = (idx + 1) % len(fetch_cats)
+                fetched_one = True
+                break  # ONE category per tick
+
+            if not fetched_one:
+                # No category was due — advance pointer anyway so we don't
+                # re-check the same starting point every tick
+                _rr_idx = (_rr_idx + 1) % len(fetch_cats)
 
         except Exception as e:
             logger.error(f"Fetch loop error: {e}")
 
-        # Sleep until next fetch is due (minimum 60s to avoid busy-loop on errors)
-        sleep_time = max(60, min(next_due_seconds, interval_hours * 3600)) if next_due_seconds != float("inf") else interval_hours * 3600
-        await asyncio.sleep(sleep_time)
+        # Sleep for the configurable delay (default 8 min)
+        await asyncio.sleep(delay_minutes * 60)
 
 
 async def _compare_loop():

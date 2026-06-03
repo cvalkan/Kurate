@@ -91,7 +91,9 @@ async def fetch_arxiv_papers(
     batch_size = max(max_results * 3, 150)
     # In catch-up mode: allow more pages to collect everything since last fetch.
     # Safety cap at 2000 primary papers to prevent runaway fetches.
-    max_pages = 20 if catch_up else 5
+    # max_pages kept low (5) to avoid sustained arXiv request bursts —
+    # the round-robin fetch loop will revisit categories that need more.
+    max_pages = 5 if catch_up else 3
     hard_cap = 2000 if catch_up else max_results
 
     for page in range(max_pages):

@@ -104,6 +104,7 @@ class SettingsUpdate(BaseModel):
     max_pairs_per_round: Optional[int] = None
     summary_batch_size: Optional[int] = None
     summary_parallel: Optional[int] = None
+    fetch_delay_minutes: Optional[int] = None
 
 
 class PromptUpdate(BaseModel):
