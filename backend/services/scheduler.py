@@ -377,7 +377,7 @@ async def _admin2_stats_loop():
     the heavy full/incremental refresh on a 12h / 30min schedule.
     """
     from routers.admin2_stats import (
-        ensure_fresh, self_heal, ensure_indexes, consume_backfill_request,
+        ensure_fresh, self_heal, reconcile_check, ensure_indexes, consume_backfill_request,
     )
     import time as _t
     await asyncio.sleep(60)  # let startup settle
@@ -394,8 +394,8 @@ async def _admin2_stats_loop():
                 logger.info("[admin2] honoring queued manual rebuild request")
                 await self_heal()
                 last_full = last_fresh = now
-            elif now - last_full >= 3600:          # full self-heal ~every 1h
-                await self_heal()
+            elif now - last_full >= 3600:          # cheap drift check ~every 1h (full rebuild only on drift)
+                await reconcile_check()
                 last_full = last_fresh = now
             elif now - last_fresh >= 1800:          # registrations refresh ~every 30m
                 await ensure_fresh()

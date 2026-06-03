@@ -486,6 +486,38 @@ async def self_heal():
     _cache_clear()
 
 
+async def reconcile_check():
+    """Cheap periodic drift check (leader only). Compares Σ daily_stats._total.matches
+    against the live count of completed active matches. Only when they diverge beyond
+    tolerance does it kick the (expensive) full rebuild; otherwise it just refreshes
+    the reconciliation status so the badge stays current. This keeps the heavy
+    full-collection scan effectively one-time + on-demand instead of hourly — the
+    write-time $inc hooks already keep daily_stats fresh in steady state."""
+    try:
+        settings = await get_settings()
+        active = [c for c in settings.get("active_categories", list(CATEGORIES.keys())) if c and c.strip()]
+        daily = await _sum_daily_total_matches()
+        expected = await _backfill_db().matches.count_documents(
+            {"completed": True, "failed": {"$ne": True}, "primary_category": {"$in": active}})
+        drift = abs(daily - expected)
+        if expected > 0 and drift > max(50, expected * 0.005):
+            logger.warning(f"[ADMIN2] drift detected (daily={daily} expected={expected}, "
+                           f"drift={drift}) — running full rebuild")
+            await _run_backfill()
+        else:
+            await db.daily_stats.update_one(
+                {"_meta": "backfill_status"},
+                {"$set": {"_meta": "backfill_status",
+                          "ts": datetime.now(timezone.utc).isoformat(),
+                          "expected_matches": expected, "daily_matches": daily,
+                          "failed_chunks": 0, "reconciled": True},
+                 "$unset": {"error": ""}}, upsert=True)
+            _cache_clear()
+            logger.info(f"[ADMIN2] reconcile check OK (daily={daily} expected={expected})")
+    except Exception as e:
+        logger.warning(f"[ADMIN2] reconcile_check failed: {e}")
+
+
 async def _ensure_summary_keys():
     """Idempotent migration: materialize a lightweight `summary_keys` array (just
     the model-key strings) on papers that have `summaries` but no `summary_keys`
