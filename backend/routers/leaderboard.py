@@ -388,11 +388,64 @@ async def _bg_memory_heartbeat():
 
 
 
+async def ensure_archive_integrity():
+    """Self-healing guard for `leaderboard_archives` (runs on the leader at startup).
+
+    1. De-dupes snapshots sharing the same period key
+       (category, period_type, year, week, month) — duplicates that a rolling
+       redeploy or a brief two-leader window can create through the racy
+       check-then-insert in `create_archive_snapshot` (two runs both pass the
+       pre-check, both insert). Keeps the most complete copy (most papers,
+       tie-break newest created_at) and deletes the rest.
+    2. Enforces a UNIQUE index on that period key so a duplicate can NEVER be
+       inserted again — `create_archive_snapshot` already catches the resulting
+       E11000 and skips. Idempotent: safe to run on every startup.
+    """
+    removed = 0
+    pipeline = [
+        {"$group": {
+            "_id": {"category": "$category", "period_type": "$period_type",
+                    "year": "$year", "week": "$week", "month": "$month"},
+            "ids": {"$push": {"id": "$_id", "created_at": "$created_at",
+                              "papers": "$paper_count"}},
+            "n": {"$sum": 1}}},
+        {"$match": {"n": {"$gt": 1}}},
+    ]
+    async for grp in db.leaderboard_archives.aggregate(pipeline):
+        copies = grp["ids"]
+        # Keep the most complete (most papers), tie-break on newest created_at.
+        copies.sort(key=lambda x: ((x.get("papers") or 0), str(x.get("created_at") or "")),
+                    reverse=True)
+        loser_ids = [c["id"] for c in copies[1:]]
+        if loser_ids:
+            res = await db.leaderboard_archives.delete_many({"_id": {"$in": loser_ids}})
+            removed += res.deleted_count
+            logger.warning(f"[ARCHIVE] removed {res.deleted_count} duplicate snapshot(s) for {grp['_id']}")
+    if removed:
+        logger.warning(f"[ARCHIVE] de-dupe complete: {removed} duplicate snapshot(s) removed")
+
+    # Enforce uniqueness so duplicates can never recur.
+    try:
+        await db.leaderboard_archives.create_index(
+            [("category", 1), ("period_type", 1), ("year", 1), ("week", 1), ("month", 1)],
+            unique=True, name="archive_period_unique")
+    except Exception as e:
+        logger.error(f"[ARCHIVE] failed to create unique period index (duplicates remain?): {e}")
+
+
+
 async def _bg_archive_loop():
     """Background loop that checks and creates archive snapshots daily at 00:00 UTC.
     On startup, runs with catch_up=True to fill any gaps from missed Monday windows."""
     from core.memlog import log_mem
     await asyncio.sleep(30)  # Wait for cache to warm
+
+    # Self-heal FIRST: remove any duplicate snapshots and enforce the unique index
+    # before any new snapshot is created this run (prevents + repairs week dupes).
+    try:
+        await ensure_archive_integrity()
+    except Exception as e:
+        logger.warning(f"Archive integrity check failed: {e}")
 
     # First iteration: catch-up mode — create current week/month if missing
     try:

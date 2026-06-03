@@ -12,6 +12,12 @@ Build and maintain an AI paper-judging system using multiple LLM judges to rank 
 
 ## Latest Changes (Jun 3, 2026)
 
+### FIX: duplicate weekly archive snapshots — unique index + self-heal (Jun 3)
+- **Symptom**: duplicate "Week N" leaderboard archives reappeared (recurring).
+- **Root cause**: `create_archive_snapshot` used a racy check-then-insert (pre-check `find_one` then `insert_one`) with NO unique index. On a rolling redeploy / brief two-leader window, two pods both run `run_archive_snapshots(catch_up=True)` for the SAME previous week → both pass the pre-check → both insert → duplicate. The existing E11000 try/except was dead code (no unique index to trigger it).
+- **Fix**: new `ensure_archive_integrity()` (leaderboard.py) runs on the leader at `_bg_archive_loop` startup, BEFORE any new snapshot: (1) de-dupes by period key (category, period_type, year, week, month) keeping the most complete copy (most papers, tie-break newest), (2) creates a UNIQUE index `archive_period_unique` so duplicates can NEVER be inserted again (the E11000 catch now actually fires). Idempotent → self-heals prod on redeploy.
+- **Verified (preview)**: unique index created & rejects duplicate inserts; 0 dup groups; regression test `tests/test_archive_dedup.py` (de-dupe keeps most-complete + index blocks re-insert); 17/17 pytest. Removes the existing prod dupes automatically on next redeploy.
+
 ### FIX: production backfill hang — papers chunk COLLSCAN (P0, the ACTUAL blocker)
 - **Why the summary_keys fix alone didn't reconcile prod**: After redeploy, prod `daily_stats` stayed frozen (live total_matches stuck at 355,683; `backfill_status` ts frozen at Jun-2) → the leader's backfill was hanging mid-run, never reaching the summary cost pass. Diagnosed via the public API (no prod log access): a frozen materialized view means `_run_backfill` dies inside the chunk loop, BEFORE `_backfill_summary_costs`.
 - **Root cause**: `_backfill_daily_stats_chunk` (admin.py) filtered PAPERS on a *computed* `_day`/`_day2` via `$expr` → COLLSCAN that re-FETCHED every paper's full doc (incl. the 3–100KB summaries TEXT) on EVERY one of ~100 chunks ≈ **~57GB of disk reads on Atlas** → hang/timeout. (PRD note 41c, now fatal at 16.5k-paper prod scale.)
