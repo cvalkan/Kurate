@@ -1288,12 +1288,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             # not buried in backend logs. last_fetch_at stays put so we retry.
             logger.error(f"[{category}] Step 1 FAILED: {err_msg}")
             result["errors"].append(err_msg)
-            try:
-                from core.memlog import log_event as _log_fetch_event
-                await _log_fetch_event("fetch_failed", category=category,
-                                       detail=err_msg, reason=reason)
-            except Exception:
-                pass
+            result["_failure_reason"] = reason
             # Continue to steps 2-4 even if fetch fails
 
         cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category})
@@ -1350,7 +1345,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
 
         cat_status["current_activity"] = "Idle"
 
-        # Log pipeline event for admin Logs tab
+        # Log pipeline event for admin Logs tab (single event per cycle — no separate fetch_failed)
         from core.memlog import log_event
         await log_event("fetch_cycle", category=category,
             detail=f"{category}: new={result['new_papers']}, pdfs={result['pdfs_downloaded']}, summaries={result['summaries_generated']}, rankings={result['rankings_inserted']}"
@@ -1359,6 +1354,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             pdfs=result['pdfs_downloaded'],
             summaries=result['summaries_generated'],
             rankings=result['rankings_inserted'],
+            reason=result.get("_failure_reason", ""),
             errors=result.get("errors") or None,
             success=not bool(result.get("errors")))
 
