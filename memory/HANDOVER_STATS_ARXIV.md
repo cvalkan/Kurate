@@ -294,26 +294,15 @@ when Atlas latency is high, but it's a real, independent bug — and it's why so
 
 ### 3.4 FIXES
 
-**For Cause A (arXiv 429) — PROPOSED, awaiting user (contact email):**
-1. Set a descriptive `User-Agent`: `kurate.org/1.0 (+https://kurate.org; mailto:<contact>)`.
-2. Reuse a single shared `httpx.AsyncClient(headers=..., timeout=45)`; bump
-   timeout 30→45s to cut HTTP ReadTimeouts.
+**For Cause A (arXiv 429) — ✅ IMPLEMENTED (Jun 3):**
+1. Set descriptive `User-Agent: kurate.org/1.0 (+https://kurate.org; mailto:admin@kurate.org)` on all `httpx.AsyncClient` calls in `arxiv.py`.
+2. Bumped timeout 30→45s to cut HTTP ReadTimeouts.
 
-**For Cause B (Atlas timeout in fetch) — NEW, recommended:**
-1. Replace the global `existing_bases` scan (scheduler.py:1129) with a BOUNDED,
-   INDEXED query keyed by the just-fetched papers: collect the bases of
-   `raw_papers` (≤50, or ≤2000 on catch-up) and query
-   `db.papers.find({"arxiv_id_base": {"$in": fetched_bases}, "is_latest_version": {"$ne": False}}, {...}, max_time_ms=20000)`.
-   Requires an index on `arxiv_id_base` (verify it exists). Same treatment for the
-   `existing_ids`/`existing_hashes` scan at line 1146 — query by the fetched ids
-   only, and NEVER use `{}` for chemrxiv (scope it).
-2. Add `max_time_ms` to these reads so a slow Atlas read fails fast & cleanly.
-3. **Fix the mislabeling** at scheduler.py:1241 — detect Mongo timeouts
-   (`"mongodb.net" in err_str or "read operation timed out" in err_str`) and label
-   `reason="db_timeout"` (distinct from `rate_limit`/`fetch_error`) so the admin
-   Logs tab and `arxiv-health` stop attributing DB failures to arXiv.
-- After both fixes, expect: `rate_limit` failures drop sharply (UA), `db_timeout`
-  failures disappear (bounded query), and `math.OC`/`math.PR` finally ingest.
+**For Cause B (Atlas timeout in fetch) — ✅ IMPLEMENTED (Jun 3):**
+1. Replaced the global `existing_bases` scan (scheduler.py) with a BOUNDED `$in` query keyed by bases extracted from just-fetched `raw_papers`. Added `max_time_ms=20000`.
+2. Fixed chemrxiv `{}` unbounded scan → now always category-scoped (`{"categories.0": category}`). Added `max_time_ms=20000`.
+3. **Fixed mislabeling** in the exception handler — MongoDB timeouts now classified as `reason="db_timeout"` (distinct from `rate_limit`/`fetch_error`).
+- Expected after deploy: `rate_limit` failures drop sharply (UA), `db_timeout` failures disappear (bounded query), and `math.OC`/`math.PR` finally ingest.
 
 ---
 

@@ -1126,27 +1126,35 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             # LATEST one, since that's the one we compare against.
             existing_bases = {}  # base → {arxiv_id, current_version, id}
             if id_field == "arxiv_id":
-                async for doc in db.papers.find(
-                    {
-                        "arxiv_id_base": {"$exists": True},
-                        # Legacy papers (pre-revision-system) don't have this
-                        # field — treat them as latest. Post-refactor papers
-                        # will have it explicitly set.
-                        "is_latest_version": {"$ne": False},
-                    },
-                    {"_id": 0, id_field: 1, "arxiv_id_base": 1, "current_version": 1, "id": 1}
-                ):
-                    if doc.get("arxiv_id_base"):
-                        existing_bases[doc["arxiv_id_base"]] = {
-                            "arxiv_id": doc.get(id_field),
-                            "current_version": doc.get("current_version", 1),
-                            "id": doc["id"],
-                        }
-            # Per-category dedup hashes + id set (faster for normal dedup path)
+                # BOUNDED dedup: extract bases from just-fetched papers, then
+                # query ONLY those via $in (uses arxiv_id_base_1 index).
+                # Never scan the whole papers collection — that times out on
+                # Atlas (100k+ docs, 30s egress limit).
+                fetched_bases = set()
+                for rp in raw_papers:
+                    if rp.get("arxiv_id"):
+                        base, _ = strip_arxiv_version(rp["arxiv_id"])
+                        fetched_bases.add(base)
+                if fetched_bases:
+                    async for doc in db.papers.find(
+                        {
+                            "arxiv_id_base": {"$in": list(fetched_bases)},
+                            "is_latest_version": {"$ne": False},
+                        },
+                        {"_id": 0, id_field: 1, "arxiv_id_base": 1, "current_version": 1, "id": 1}
+                    ).max_time_ms(20000):
+                        if doc.get("arxiv_id_base"):
+                            existing_bases[doc["arxiv_id_base"]] = {
+                                "arxiv_id": doc.get(id_field),
+                                "current_version": doc.get("current_version", 1),
+                                "id": doc["id"],
+                            }
+            # Per-category dedup hashes + id set (always category-scoped, never
+            # unbounded — the old chemrxiv {} query scanned everything)
             async for doc in db.papers.find(
-                {"categories.0": category} if not category.startswith("chemrxiv.") else {},
+                {"categories.0": category},
                 {"_id": 0, id_field: 1, "dedup_hash": 1}
-            ):
+            ).max_time_ms(20000):
                 if doc.get(id_field):
                     existing_ids.add(doc[id_field])
                 if doc.get("dedup_hash"):
@@ -1239,7 +1247,12 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         except Exception as e:
             err_str = str(e) or type(e).__name__
             is_rate = "429" in err_str or "rate" in err_str.lower()
-            reason = "rate_limit" if is_rate else "fetch_error"
+            is_db_timeout = ("mongodb.net" in err_str or
+                             "read operation timed out" in err_str.lower() or
+                             "networktimeout" in err_str.lower())
+            reason = ("rate_limit" if is_rate
+                      else "db_timeout" if is_db_timeout
+                      else "fetch_error")
             err_msg = f"ArXiv/source fetch failed ({reason}): {err_str[:200]}"
             # ERROR (not WARNING) + a system_logs event so the failure — and
             # whether it's an arXiv rate limit — is visible in the admin Logs tab,

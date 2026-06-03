@@ -12,6 +12,15 @@ Build and maintain an AI paper-judging system using multiple LLM judges to rank 
 
 ## Latest Changes (Jun 3, 2026)
 
+### FIX (P0): arXiv 429 Rate Limits & Atlas Dedup Timeouts in Fetch Pipeline (Jun 3)
+- **Root causes**: (1) `arxiv.py` used no `User-Agent` header → arXiv 429-blocks datacenter IPs (64% of fetch failures). (2) `scheduler.py` ran an unbounded global `papers` collection scan for dedup on every fetch cycle → Atlas 30s timeout (5.5% of failures mislabeled as arXiv errors).
+- **Fixes implemented**:
+  - `arxiv.py`: Added `User-Agent: kurate.org/1.0` + bumped timeout 30→45s
+  - `scheduler.py`: Replaced unbounded `existing_bases` scan with bounded `$in` query (extract bases from just-fetched papers → index-backed, constant-time). Fixed chemrxiv `{}` scan → always category-scoped. Added `max_time_ms=20000` safety net.
+  - `scheduler.py`: MongoDB timeouts now classified as `reason="db_timeout"` (was generic `fetch_error`)
+- **Verified**: 40/40 pytest pass, backend healthy, arXiv health endpoint working
+- **🔴 Requires prod redeploy** to take effect
+
 ### FIX (MAJOR): Durable Drip Seed — resumable/checkpointed/observable daily_stats backfill (Jun 3)
 - **Root cause of every prior prod failure (INDEPENDENT of chunk size)**: the backfill was ONE long background job holding all progress in memory, so any interruption (Atlas ~30s read timeout, pod restart, deploy rollover, cancelled task) lost everything and froze the status. Smaller chunks never helped because all chunks ran inside a single invocation with no durable progress.
 - **New architecture (`routers/admin2_stats.py` + `services/scheduler.py`)** — fully REPLACES the old all-at-once `_run_backfill`:
