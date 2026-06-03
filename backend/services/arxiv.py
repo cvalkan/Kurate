@@ -1,4 +1,6 @@
 import re
+import time
+import random
 import httpx
 import asyncio
 import xml.etree.ElementTree as ET
@@ -15,6 +17,50 @@ def strip_arxiv_version(arxiv_id: str) -> Tuple[str, int]:
     if m:
         return m.group(1), int(m.group(2))
     return arxiv_id, 1
+
+
+# ── Global arXiv request throttle (P1) ──────────────────────────────────────
+# arXiv recommends no more than ~1 request / 3s and IP-blocks bursts. This gate
+# guarantees >= _MIN_INTERVAL between ANY two arXiv requests in this process,
+# across all categories/pages/callers. asyncio.Lock is FIFO-fair, so user-facing
+# calls (category estimate/availability) aren't starved by a long background
+# harvest — they just wait for the next slot. Fetching is leader-only, so a
+# per-process gate is sufficient. NOTE: only the short spacing sleep is held
+# under the lock; 429 retry/back-off sleeps happen OUTSIDE it (see below) so a
+# long Retry-After never freezes the whole pipeline.
+_MIN_INTERVAL = 3.0      # seconds between any two arXiv requests
+_BASE_BACKOFF = 5.0      # base for exponential 429/5xx back-off
+_MAX_BACKOFF = 90.0      # cap for a single back-off wait
+_throttle_lock = asyncio.Lock()
+_last_request_ts = 0.0
+
+
+async def _throttle():
+    """Block until at least _MIN_INTERVAL has elapsed since the last arXiv request."""
+    global _last_request_ts
+    async with _throttle_lock:
+        wait = _MIN_INTERVAL - (time.monotonic() - _last_request_ts)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        _last_request_ts = time.monotonic()
+
+
+def _parse_retry_after(response) -> Optional[float]:
+    """Return the server-requested cool-down in seconds from a Retry-After header
+    (numeric-seconds or HTTP-date form), or None if absent/unparseable."""
+    val = response.headers.get("Retry-After")
+    if not val:
+        return None
+    try:
+        return max(0.0, float(val))
+    except (TypeError, ValueError):
+        try:
+            from email.utils import parsedate_to_datetime
+            from datetime import datetime as _dt
+            dt = parsedate_to_datetime(val)
+            return max(0.0, (dt - _dt.now(dt.tzinfo)).total_seconds())
+        except Exception:
+            return None
 
 
 async def fetch_arxiv_papers(
@@ -65,6 +111,7 @@ async def fetch_arxiv_papers(
         papers_batch = None
 
         for attempt in range(max_retries):
+            await _throttle()  # P1: pace every request (incl. retries) to >=1 req/3s
             try:
                 async with httpx.AsyncClient() as http_client:
                     response = await http_client.get(base_url, params=params, timeout=30.0)
@@ -74,10 +121,21 @@ async def fetch_arxiv_papers(
             except httpx.HTTPStatusError as e:
                 last_error = e
                 if e.response.status_code == 429 or e.response.status_code >= 500:
-                    wait_time = (attempt + 1) * 5
+                    # P2: exponential back-off w/ jitter, honoring Retry-After.
+                    # Sleep happens OUTSIDE the throttle lock so a long cool-down
+                    # never blocks other (e.g. user-facing) arXiv calls.
+                    retry_after = _parse_retry_after(e.response)
+                    backoff = retry_after if retry_after is not None \
+                        else min(_MAX_BACKOFF, _BASE_BACKOFF * (2 ** attempt))
+                    backoff += random.uniform(0, 1.0)
                     kind = "rate-limited (429)" if e.response.status_code == 429 else f"server error {e.response.status_code}"
-                    logger.warning(f"[{category}] ArXiv {kind}, waiting {wait_time}s (attempt {attempt+1}/{max_retries})")
-                    await asyncio.sleep(wait_time)
+                    suffix = " (Retry-After)" if retry_after is not None else ""
+                    logger.warning(f"[{category}] ArXiv {kind}, backing off {backoff:.1f}s{suffix} "
+                                   f"(attempt {attempt+1}/{max_retries})")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(backoff)
+                    else:
+                        raise
                 else:
                     raise
             except Exception as e:
@@ -109,7 +167,7 @@ async def fetch_arxiv_papers(
 
         start += batch_size
         logger.info(f"ArXiv pagination: page {page+1}, collected {len(collected)} primary {category} papers so far")
-        await asyncio.sleep(3)  # Rate limit between pages
+        # (request pacing is handled by the global _throttle() before every request)
 
     # Deduplicate by arxiv_id (in case of overlap)
     seen = set()

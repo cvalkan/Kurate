@@ -477,6 +477,26 @@ async def _fetch_loop_inner():
                         if isinstance(nested, dict):
                             last_fetch = nested.get(parts[1])
 
+                # P0 — per-category failure backoff (DB-persisted so it survives
+                # restarts/deploys). After a failed/429 fetch we delay this
+                # category's NEXT automatic attempt exponentially, instead of
+                # retrying every loop pass (which hammers arXiv and sustains the
+                # rate-limiting). Manual/force fetches bypass this — they don't
+                # run through this loop; a successful fetch clears it (below + in
+                # run_fetch_cycle).
+                ckey = cat.replace('.', '_')
+                backoff_key = f"fetch_backoff_until_{ckey}"
+                count_key = f"fetch_backoff_count_{ckey}"
+                backoff_until = settings.get(backoff_key)
+                if isinstance(backoff_until, str):
+                    try:
+                        bu = datetime.fromisoformat(backoff_until)
+                        if now < bu:
+                            next_due_seconds = min(next_due_seconds, (bu - now).total_seconds())
+                            continue  # still cooling down from a prior failure
+                    except Exception:
+                        pass
+
                 should_fetch = False
                 if not last_fetch:
                     should_fetch = True
@@ -499,9 +519,20 @@ async def _fetch_loop_inner():
                             upsert=True,
                         )
                         cat_status["last_fetch_at"] = now_iso
+                        # backoff (if any) is cleared inside run_fetch_cycle on success
                     else:
-                        logger.warning(f"[{cat}] fetch errored — last_fetch_at NOT advanced, "
-                                       f"will retry next cycle: {result.get('errors')}")
+                        # Failure → exponential backoff: 15m, 30m, 1h, 2h, cap 4h.
+                        cnt = int(settings.get(count_key) or 0) + 1
+                        backoff_min = min(240, 15 * (2 ** (cnt - 1)))
+                        bu_iso = (datetime.now(timezone.utc) + timedelta(minutes=backoff_min)).isoformat()
+                        await db.settings.update_one(
+                            {"key": "global"},
+                            {"$set": {backoff_key: bu_iso, count_key: cnt}},
+                            upsert=True,
+                        )
+                        next_due_seconds = min(next_due_seconds, backoff_min * 60)
+                        logger.warning(f"[{cat}] fetch failed (#{cnt}) — backing off {backoff_min}m "
+                                       f"(until {bu_iso}); errors: {result.get('errors')}")
                     cat_status["next_fetch_at"] = (datetime.now(timezone.utc) + timedelta(hours=interval_hours)).isoformat()
                     # Cooldown between categories to avoid arXiv rate limiting (429)
                     await asyncio.sleep(5)
@@ -1291,6 +1322,15 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             result["error"] = "; ".join(result["errors"])
         else:
             result["status"] = "ok"
+            # P0: a fully-successful fetch clears any rate-limit backoff penalty
+            # (covers the scheduler loop AND manual/force fetches).
+            _ck = category.replace('.', '_')
+            try:
+                await db.settings.update_one(
+                    {"key": "global"},
+                    {"$unset": {f"fetch_backoff_until_{_ck}": "", f"fetch_backoff_count_{_ck}": ""}})
+            except Exception:
+                pass
         return result
 
     except Exception as e:
