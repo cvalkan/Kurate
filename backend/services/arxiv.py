@@ -75,7 +75,8 @@ async def fetch_arxiv_papers(
                 last_error = e
                 if e.response.status_code == 429 or e.response.status_code >= 500:
                     wait_time = (attempt + 1) * 5
-                    logger.warning(f"ArXiv error {e.response.status_code}, waiting {wait_time}s (attempt {attempt+1}/{max_retries})")
+                    kind = "rate-limited (429)" if e.response.status_code == 429 else f"server error {e.response.status_code}"
+                    logger.warning(f"[{category}] ArXiv {kind}, waiting {wait_time}s (attempt {attempt+1}/{max_retries})")
                     await asyncio.sleep(wait_time)
                 else:
                     raise
@@ -88,6 +89,8 @@ async def fetch_arxiv_papers(
 
         if papers_batch is None:
             if last_error:
+                logger.error(f"[{category}] ArXiv fetch exhausted {max_retries} retries: "
+                             f"{type(last_error).__name__}: {str(last_error)[:140]}")
                 raise last_error
             break
 

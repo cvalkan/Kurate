@@ -499,6 +499,9 @@ async def _fetch_loop_inner():
                             upsert=True,
                         )
                         cat_status["last_fetch_at"] = now_iso
+                    else:
+                        logger.warning(f"[{cat}] fetch errored — last_fetch_at NOT advanced, "
+                                       f"will retry next cycle: {result.get('errors')}")
                     cat_status["next_fetch_at"] = (datetime.now(timezone.utc) + timedelta(hours=interval_hours)).isoformat()
                     # Cooldown between categories to avoid arXiv rate limiting (429)
                     await asyncio.sleep(5)
@@ -1192,9 +1195,21 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             result["revisions"] = revisions_detected
             logger.info(f"[{category}] Step 1 done: {new_count} new papers, {revisions_detected} revisions")
         except Exception as e:
-            err_msg = f"ArXiv/source fetch failed: {str(e)[:200]}"
-            logger.warning(f"[{category}] Step 1 FAILED: {err_msg}")
+            err_str = str(e) or type(e).__name__
+            is_rate = "429" in err_str or "rate" in err_str.lower()
+            reason = "rate_limit" if is_rate else "fetch_error"
+            err_msg = f"ArXiv/source fetch failed ({reason}): {err_str[:200]}"
+            # ERROR (not WARNING) + a system_logs event so the failure — and
+            # whether it's an arXiv rate limit — is visible in the admin Logs tab,
+            # not buried in backend logs. last_fetch_at stays put so we retry.
+            logger.error(f"[{category}] Step 1 FAILED: {err_msg}")
             result["errors"].append(err_msg)
+            try:
+                from core.memlog import log_event as _log_fetch_event
+                await _log_fetch_event("fetch_failed", category=category,
+                                       detail=err_msg, reason=reason)
+            except Exception:
+                pass
             # Continue to steps 2-4 even if fetch fails
 
         cat_status["papers_count"] = await db.papers.count_documents({"categories.0": category})
@@ -1254,11 +1269,13 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         # Log pipeline event for admin Logs tab
         from core.memlog import log_event
         await log_event("fetch_cycle", category=category,
-            detail=f"{category}: new={result['new_papers']}, pdfs={result['pdfs_downloaded']}, summaries={result['summaries_generated']}, rankings={result['rankings_inserted']}",
+            detail=f"{category}: new={result['new_papers']}, pdfs={result['pdfs_downloaded']}, summaries={result['summaries_generated']}, rankings={result['rankings_inserted']}"
+                   + (f" | ERRORS: {'; '.join(result['errors'])[:200]}" if result.get("errors") else ""),
             count=result['new_papers'],
             pdfs=result['pdfs_downloaded'],
             summaries=result['summaries_generated'],
-            rankings=result['rankings_inserted'])
+            rankings=result['rankings_inserted'],
+            errors=result.get("errors") or None)
 
         if result["new_papers"] > 0 or result["summaries_generated"] > 0 or result["rankings_inserted"] > 0:
             from routers.leaderboard import notify_data_changed
