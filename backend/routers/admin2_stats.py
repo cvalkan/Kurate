@@ -22,6 +22,7 @@ import uuid
 
 from core.config import db, logger, CATEGORIES
 from core.auth import verify_admin, get_settings
+from core.dates import mongo_day_expr, safe_day
 import routers.admin as _admin
 
 router = APIRouter(prefix="/api/admin2")
@@ -120,9 +121,7 @@ async def ensure_indexes():
 
 def _safe_day(raw) -> Optional[str]:
     """Extract YYYY-MM-DD from a value that may be a BSON Date or a string."""
-    if raw is None:
-        return None
-    return raw.strftime("%Y-%m-%d") if hasattr(raw, "strftime") else str(raw)[:10]
+    return safe_day(raw)
 
 
 def _price_for_summary(model_key: str):
@@ -427,8 +426,7 @@ async def _backfill_summary_costs():
     settings = await get_settings()
     cat_set = set(settings.get("active_categories", list(CATEGORIES.keys())))
 
-    def day_expr(f):
-        return {"$substrCP": [{"$toString": {"$ifNull": [f"${f}", ""]}}, 0, 10]}
+    day_expr = mongo_day_expr
 
     # 1. Per-model tracked averages (for pricing untracked summaries accurately).
     model_avg = {}  # mk -> (avg_in, avg_out)
@@ -447,7 +445,6 @@ async def _backfill_summary_costs():
 
     cost_by = defaultdict(float)   # (day, cat) -> summary_cost
     cnt_by = defaultdict(int)      # (day, cat) -> summaries count
-    tracked_cnt = defaultdict(int)  # (day, cat) -> tracked summaries count
     by_model = defaultdict(lambda: {"summaries": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0})
 
     # 2a. Tracked tokens per day×category×model → exact cost.
@@ -470,63 +467,51 @@ async def _backfill_summary_costs():
         c = (doc["in"] / 1_000_000) * pin + (doc["out"] / 1_000_000) * pout
         cost_by[(day, cat)] += c
         cost_by[(day, "_total")] += c
-        tracked_cnt[(day, cat)] += doc["cnt"]
-        tracked_cnt[(day, "_total")] += doc["cnt"]
         m = by_model[mk]
         m["summaries"] += doc["cnt"]
         m["input_tokens"] += doc["in"]
         m["output_tokens"] += doc["out"]
         m["cost"] += c
 
-    # 2b. Total summary counts per day×category×model (all keys, tracked or not).
-    #     Untracked = total - tracked, priced at the model's tracked average.
-    #     Reads the lightweight `summary_keys` array (NOT the multi-KB summary
-    #     text) so the pipeline working set stays tiny — no Atlas OOM/timeout.
-    async for doc in db.papers.aggregate([
-        {"$match": {"summary_keys": {"$exists": True, "$ne": []}}},
-        {"$addFields": {"_day": day_expr("added_at"),
-                        "_cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]}}},
-        {"$project": {"_day": 1, "_cat": 1, "keys": "$summary_keys"}},
-        {"$unwind": "$keys"},
-        {"$match": {"_day": {"$ne": ""}}},
-        {"$group": {"_id": {"day": "$_day", "cat": "$_cat", "mk": "$keys"}, "cnt": {"$sum": 1}}},
-    ], allowDiskUse=True):
-        day, cat, mk = doc["_id"]["day"], doc["_id"]["cat"], doc["_id"]["mk"]
-        if cat not in cat_set:
-            continue  # only active categories count toward the System total (count pass)
-        n = doc["cnt"]
-        cnt_by[(day, cat)] += n
-        cnt_by[(day, "_total")] += n
-
-    # 2c. Untracked-summary cost: (total - tracked) per (day,cat) is hard to split
-    #     by model here, so price untracked at a per-(day,cat) model-weighted avg.
-    #     Untracked keys = summary_keys − keys(summary_tokens). Both are lightweight
-    #     (summary_tokens holds only token counts), so no summary TEXT is read.
+    # 2b. Counts per day×category×model with a `tracked` flag, in ONE pass over the
+    #     lightweight `summary_keys` array (no summary TEXT). `tracked` = the key is
+    #     present in summary_tokens. From this single scan we derive BOTH:
+    #       • total summaries count per (day,cat)  → daily_stats.summaries
+    #       • untracked count per (day,cat,model)  → priced at the model average
+    #     (replaces the old separate "total counts" + "untracked = total − tracked"
+    #     scans; tracked cost itself still comes from 2a's real token sums.)
     async for doc in db.papers.aggregate([
         {"$match": {"summary_keys": {"$exists": True, "$ne": []}}},
         {"$addFields": {"_day": day_expr("added_at"),
                         "_cat": {"$ifNull": [{"$arrayElemAt": ["$categories", 0]}, "unknown"]},
-                        "_tk": {"$objectToArray": {"$ifNull": ["$summary_tokens", {}]}}}},
+                        "_tkkeys": {"$map": {"input": {"$objectToArray": {"$ifNull": ["$summary_tokens", {}]}},
+                                             "as": "t", "in": "$$t.k"}}}},
         {"$project": {"_day": 1, "_cat": 1,
-                      "untracked": {"$setDifference": ["$summary_keys",
-                          {"$map": {"input": "$_tk", "as": "t", "in": "$$t.k"}}]}}},
-        {"$unwind": "$untracked"},
+                      "pairs": {"$map": {"input": "$summary_keys", "as": "k",
+                                         "in": {"mk": "$$k", "tr": {"$in": ["$$k", "$_tkkeys"]}}}}}},
+        {"$unwind": "$pairs"},
         {"$match": {"_day": {"$ne": ""}}},
-        {"$group": {"_id": {"day": "$_day", "cat": "$_cat", "mk": "$untracked"}, "cnt": {"$sum": 1}}},
+        {"$group": {"_id": {"day": "$_day", "cat": "$_cat", "mk": "$pairs.mk", "tr": "$pairs.tr"},
+                    "cnt": {"$sum": 1}}},
     ], allowDiskUse=True):
-        day, cat, mk = doc["_id"]["day"], doc["_id"]["cat"], doc["_id"]["mk"]
+        day, cat, mk, tr = (doc["_id"]["day"], doc["_id"]["cat"],
+                            doc["_id"]["mk"], doc["_id"]["tr"])
         if cat not in cat_set:
-            continue  # only active categories count toward the System total (untracked pass)
-        pin, pout = _price_for_summary(mk)
-        avg_in, avg_out = model_avg.get(mk, (AVG_IN, AVG_OUT))
-        c = doc["cnt"] * ((avg_in / 1_000_000) * pin + (avg_out / 1_000_000) * pout)
-        cost_by[(day, cat)] += c
-        cost_by[(day, "_total")] += c
-        m = by_model[mk]
-        m["summaries"] += doc["cnt"]
-        m["input_tokens"] += int(avg_in * doc["cnt"])
-        m["output_tokens"] += int(avg_out * doc["cnt"])
-        m["cost"] += c
+            continue  # only active categories count toward the System total
+        n = doc["cnt"]
+        cnt_by[(day, cat)] += n
+        cnt_by[(day, "_total")] += n
+        if not tr:  # untracked summary → price at the model's tracked average
+            pin, pout = _price_for_summary(mk)
+            avg_in, avg_out = model_avg.get(mk, (AVG_IN, AVG_OUT))
+            c = n * ((avg_in / 1_000_000) * pin + (avg_out / 1_000_000) * pout)
+            cost_by[(day, cat)] += c
+            cost_by[(day, "_total")] += c
+            m = by_model[mk]
+            m["summaries"] += n
+            m["input_tokens"] += int(avg_in * n)
+            m["output_tokens"] += int(avg_out * n)
+            m["cost"] += c
 
     # 3. Persist accurate summaries count + summary_cost per (day, category).
     keys = set(cost_by) | set(cnt_by)

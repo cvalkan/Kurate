@@ -13,6 +13,7 @@ import time as _time
 import secrets as _secrets
 from core.config import db, logger, DEFAULT_SETTINGS, DEFAULT_EVALUATION_PROMPT, CATEGORIES
 from core.auth import verify_admin, get_settings
+from core.dates import mongo_day_expr
 from services.scheduler import run_fetch_cycle, run_comparison_round, _get_cat_status, wake_scheduler
 from services.arxiv import fetch_arxiv_papers
 import routers.leaderboard as _lb_mod
@@ -1459,7 +1460,7 @@ async def _backfill_daily_stats_chunk(date_from: str, date_to: str):
     }
 
     # Helper: date extraction that works for both string and Date fields
-    day_expr = lambda field: {"$substrCP": [{"$toString": {"$ifNull": [f"${field}", ""]}}, 0, 10]}
+    day_expr = mongo_day_expr
 
     # Shared date-range bounds (string bound for preview, UTC-datetime bound for
     # production BSON Date) so both the papers and matches scans are IXSCANs.
