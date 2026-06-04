@@ -1,4 +1,5 @@
 import re
+import os
 import time
 import random
 import httpx
@@ -6,6 +7,11 @@ import asyncio
 import xml.etree.ElementTree as ET
 from typing import List, Optional, Tuple
 from core.config import logger
+
+# Proxy for arXiv requests (IPRoyal rotating residential)
+_ARXIV_PROXY = os.environ.get("ARXIV_PROXY_URL") or None
+if _ARXIV_PROXY:
+    logger.info(f"[arXiv] Using proxy: {_ARXIV_PROXY.split('@')[-1] if '@' in _ARXIV_PROXY else 'configured'}")
 
 
 def strip_arxiv_version(arxiv_id: str) -> Tuple[str, int]:
@@ -115,7 +121,10 @@ async def fetch_arxiv_papers(
         for attempt in range(max_retries):
             await _throttle()  # P1: pace every request (incl. retries) to >=1 req/3s
             try:
-                async with httpx.AsyncClient(timeout=45.0) as http_client:
+                async with httpx.AsyncClient(
+                    timeout=60.0 if _ARXIV_PROXY else 45.0,
+                    proxy=_ARXIV_PROXY,
+                ) as http_client:
                     response = await http_client.get(base_url, params=params)
                     response.raise_for_status()
                 papers_batch = _parse_arxiv_response(response.text)
