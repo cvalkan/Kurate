@@ -1,21 +1,10 @@
-"""Tests for the arXiv rate-limit hardening: global throttle (P1), exponential
-back-off + Retry-After (P2)."""
+"""Tests for arXiv fetch: throttle spacing, proxy-aware retry on 429."""
 import asyncio
 import time
 import pytest
 import httpx
 
 import services.arxiv as ax
-
-
-def test_parse_retry_after_numeric():
-    r = httpx.Response(429, headers={"Retry-After": "42"})
-    assert ax._parse_retry_after(r) == 42.0
-
-
-def test_parse_retry_after_missing():
-    r = httpx.Response(429)
-    assert ax._parse_retry_after(r) is None
 
 
 def test_throttle_enforces_spacing(monkeypatch):
@@ -36,19 +25,14 @@ def test_throttle_enforces_spacing(monkeypatch):
     assert all(g >= 0.24 for g in gaps), f"throttle gaps too small: {gaps}"
 
 
-def test_fetch_fails_fast_on_429(monkeypatch):
-    """429 should fail immediately (no retries) — the global backoff in the
-    scheduler handles pausing all fetching."""
+def test_fetch_retries_on_429_with_proxy(monkeypatch):
+    """With rotating proxies, 429 should be retried (new IP each attempt)."""
     monkeypatch.setattr(ax, "_MIN_INTERVAL", 0.0)
+    monkeypatch.setattr(ax, "_ARXIV_PROXY", "http://test:test@proxy:1234")
     ax._last_request_ts = 0.0
-    sleeps = []
-
-    async def fake_sleep(s):
-        sleeps.append(s)
-
-    monkeypatch.setattr(ax.asyncio, "sleep", fake_sleep)
 
     calls = {"n": 0}
+    empty_feed = '<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"></feed>'
 
     class _Resp:
         def __init__(self, code, text="", headers=None):
@@ -66,19 +50,57 @@ def test_fetch_fails_fast_on_429(monkeypatch):
 
         async def get(self, *a, **k):
             calls["n"] += 1
-            return _Resp(429, headers={"Retry-After": "7"})
+            if calls["n"] <= 2:
+                return _Resp(429)
+            return _Resp(200, text=empty_feed)
 
     monkeypatch.setattr(ax.httpx, "AsyncClient", lambda *a, **k: _Client())
+    _real_sleep = asyncio.sleep
+    async def _nosleep(s): pass
+    monkeypatch.setattr(ax.asyncio, "sleep", _nosleep)
 
     async def run():
-        return await ax.fetch_arxiv_papers(category="math.PR", max_results=10)
+        return await ax.fetch_arxiv_papers(category="cs.RO", max_results=10)
+
+    out = asyncio.get_event_loop().run_until_complete(run())
+    assert calls["n"] == 3, f"should retry 429 with proxy (got {calls['n']} calls)"
+    assert out == []
+
+
+def test_fetch_exhausts_retries_on_persistent_429(monkeypatch):
+    """After max_retries consecutive 429s, raise the error."""
+    monkeypatch.setattr(ax, "_MIN_INTERVAL", 0.0)
+    monkeypatch.setattr(ax, "_ARXIV_PROXY", None)
+    ax._last_request_ts = 0.0
+
+    calls = {"n": 0}
+
+    class _Resp:
+        def __init__(self, code):
+            self.status_code = code
+            self.text = ""
+            self.headers = {}
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise httpx.HTTPStatusError("err", request=httpx.Request("GET", "http://x"), response=self)
+
+    class _Client:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+
+        async def get(self, *a, **k):
+            calls["n"] += 1
+            return _Resp(429)
+
+    monkeypatch.setattr(ax.httpx, "AsyncClient", lambda *a, **k: _Client())
+    _real_sleep = asyncio.sleep
+    async def _nosleep(s): pass
+    monkeypatch.setattr(ax.asyncio, "sleep", _nosleep)
+
+    async def run():
+        return await ax.fetch_arxiv_papers(category="cs.RO", max_results=10)
 
     with pytest.raises(httpx.HTTPStatusError):
         asyncio.get_event_loop().run_until_complete(run())
-    assert calls["n"] == 1, "should NOT retry on 429 — fail fast for global backoff"
-
-
-def test_backoff_minutes_schedule():
-    """P0 schedule: 15, 30, 60, 120, capped at 240."""
-    sched = [min(240, 15 * (2 ** (n - 1))) for n in range(1, 7)]
-    assert sched == [15, 30, 60, 120, 240, 240]
+    assert calls["n"] == 3, f"should exhaust 3 retries (got {calls['n']})"

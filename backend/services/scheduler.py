@@ -446,10 +446,11 @@ async def _fetch_loop():
     try:
         settings = await get_settings()
         stale_keys = {k: "" for k in settings
-                      if k.startswith("fetch_backoff_until_") or k.startswith("fetch_backoff_count_")}
+                      if k.startswith("fetch_backoff_until_") or k.startswith("fetch_backoff_count_")
+                      or k.startswith("fetch_global_backoff")}
         if stale_keys:
             await db.settings.update_one({"key": "global"}, {"$unset": stale_keys})
-            logger.info(f"[fetch] Cleaned up {len(stale_keys)} stale per-category backoff keys")
+            logger.info(f"[fetch] Cleaned up {len(stale_keys)} stale backoff keys")
     except Exception as e:
         logger.warning(f"[fetch] Stale backoff cleanup failed: {e}")
 
@@ -467,12 +468,11 @@ async def _fetch_loop_inner():
     """Round-robin fetch: process ONE category per tick, then sleep for a
     configurable delay (settings `fetch_delay_minutes`, default 8). This
     spreads arXiv requests evenly over hours instead of bursting through
-    all 45+ categories back-to-back, which triggers 429 rate-limiting.
+    all 45+ categories back-to-back.
 
-    GLOBAL backoff: arXiv rate-limits by IP, not by category. When ANY fetch
-    gets 429'd, ALL fetching pauses (15→30→60→120→240 min, DB-persisted).
-    A single success resets the backoff to zero. This prevents one unlucky
-    category from being punished while others keep hammering the same IP.
+    With rotating proxies (ARXIV_PROXY_URL), each request gets a fresh IP,
+    so IP-based rate limiting is irrelevant. Retries with new IPs are handled
+    in arxiv.py. No global backoff needed — just log failures and move on.
     """
     from core.memlog import log_mem
 
@@ -490,18 +490,6 @@ async def _fetch_loop_inner():
             interval_hours = settings.get("fetch_interval_hours", 6)
             delay_minutes = settings.get("fetch_delay_minutes", 8)
             now = datetime.now(timezone.utc)
-
-            # GLOBAL backoff: if a recent fetch got 429'd, pause ALL fetching
-            global_backoff_until = settings.get("fetch_global_backoff_until")
-            if isinstance(global_backoff_until, str):
-                try:
-                    gbu = datetime.fromisoformat(global_backoff_until)
-                    if now < gbu:
-                        wait = min((gbu - now).total_seconds(), 300)
-                        await asyncio.sleep(wait)
-                        continue
-                except Exception:
-                    pass
 
             fetch_cats = sorted(set(
                 c for c in settings.get("active_categories", list(CATEGORIES.keys()))
@@ -557,40 +545,15 @@ async def _fetch_loop_inner():
                     now_iso = datetime.now(timezone.utc).isoformat()
                     await db.settings.update_one(
                         {"key": "global"},
-                        {"$set": {last_fetch_key: now_iso},
-                         # Success → clear global backoff
-                         "$unset": {"fetch_global_backoff_until": "",
-                                    "fetch_global_backoff_count": ""}},
+                        {"$set": {last_fetch_key: now_iso}},
                         upsert=True,
                     )
                     cat_status["last_fetch_at"] = now_iso
                 else:
-                    # Global backoff — tiered by consecutive 429s:
-                    #   1 consecutive: short block (just hit budget) → 15 min
-                    #   2-3 consecutive: budget depleted → 30 min
-                    #   4+ consecutive: sustained block → 60 min (capped)
-                    # Non-rate-limit errors (ReadTimeout, DB) → always 15 min
+                    # With rotating proxies, failures are transient (bad proxy IP).
+                    # Just log and move to the next category — no backoff needed.
                     fail_reason = result.get("_failure_reason", "")
-                    is_rate_limit = fail_reason == "rate_limit"
-                    cnt = int(settings.get("fetch_global_backoff_count") or 0) + 1
-                    if not is_rate_limit:
-                        backoff_min = 15
-                    elif cnt <= 1:
-                        backoff_min = 15   # short block
-                    elif cnt <= 3:
-                        backoff_min = 30   # budget depleted
-                    else:
-                        backoff_min = 60   # sustained block (capped — trying once/hr is harmless)
-                    bu_iso = (datetime.now(timezone.utc) + timedelta(minutes=backoff_min)).isoformat()
-                    await db.settings.update_one(
-                        {"key": "global"},
-                        {"$set": {"fetch_global_backoff_until": bu_iso,
-                                  "fetch_global_backoff_count": cnt}},
-                        upsert=True,
-                    )
-                    block_type = "short" if cnt <= 1 else ("medium" if cnt <= 3 else "sustained")
-                    logger.warning(f"[{cat}] fetch failed — {block_type} block, pause {backoff_min}m "
-                                   f"(consecutive={cnt}, reason={fail_reason})")
+                    logger.warning(f"[{cat}] fetch failed (reason={fail_reason}) — moving to next category")
 
                 cat_status["next_fetch_at"] = (datetime.now(timezone.utc) + timedelta(hours=interval_hours)).isoformat()
 
@@ -1403,14 +1366,6 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             result["error"] = "; ".join(result["errors"])
         else:
             result["status"] = "ok"
-            # Success clears the global backoff (covers scheduler loop AND manual fetches)
-            try:
-                await db.settings.update_one(
-                    {"key": "global"},
-                    {"$unset": {"fetch_global_backoff_until": "",
-                                "fetch_global_backoff_count": ""}})
-            except Exception:
-                pass
         return result
 
     except Exception as e:

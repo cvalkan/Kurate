@@ -2689,25 +2689,12 @@ async def get_system_logs(
 
 @router.get("/arxiv-health", dependencies=[Depends(verify_admin)])
 async def arxiv_health():
-    """arXiv ingestion health per active category + global backoff state.
-    arXiv rate-limits by IP, so backoff is GLOBAL (not per-category)."""
+    """arXiv ingestion health per active category. With rotating proxies,
+    no backoff is needed — each request gets a fresh IP."""
     settings = await get_settings()
     active = [c for c in (settings.get("active_categories") or list(CATEGORIES.keys())) if c and c.strip()]
     now = datetime.now(timezone.utc)
-
-    # Global backoff state
-    global_backoff_until = settings.get("fetch_global_backoff_until")
-    global_backoff_count = int(settings.get("fetch_global_backoff_count") or 0)
-    global_cooling = False
-    global_cooldown_seconds = 0
-    if isinstance(global_backoff_until, str):
-        try:
-            gbu = datetime.fromisoformat(global_backoff_until)
-            if now < gbu:
-                global_cooling = True
-                global_cooldown_seconds = round((gbu - now).total_seconds())
-        except Exception:
-            pass
+    from services.arxiv import _ARXIV_PROXY
 
     rows = []
     for cat in sorted(active):
@@ -2716,7 +2703,7 @@ async def arxiv_health():
         if not isinstance(last_fetch, str):
             last_fetch = None
         last_fail = await db.system_logs.find_one(
-            {"event": {"$in": ["fetch_failed", "fetch_cycle"]}, "category": cat, "success": False},
+            {"event": "fetch_cycle", "category": cat, "success": False},
             sort=[("ts", -1)], projection={"_id": 0, "ts": 1, "detail": 1, "reason": 1})
         status = "never" if not last_fetch else "healthy"
         lf_ts = last_fail.get("ts") if last_fail else None
@@ -2730,12 +2717,7 @@ async def arxiv_health():
         })
     return {
         "now": now.isoformat(),
-        "global_backoff": {
-            "active": global_cooling,
-            "until": global_backoff_until if global_cooling else None,
-            "cooldown_seconds": global_cooldown_seconds,
-            "attempt": global_backoff_count,
-        },
+        "proxy_active": bool(_ARXIV_PROXY),
         "categories": rows,
         "healthy": sum(1 for r in rows if r["status"] == "healthy"),
         "never": sum(1 for r in rows if r["status"] == "never"),

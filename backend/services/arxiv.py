@@ -25,18 +25,9 @@ def strip_arxiv_version(arxiv_id: str) -> Tuple[str, int]:
     return arxiv_id, 1
 
 
-# ── Global arXiv request throttle (P1) ──────────────────────────────────────
-# arXiv recommends no more than ~1 request / 3s and IP-blocks bursts. This gate
-# guarantees >= _MIN_INTERVAL between ANY two arXiv requests in this process,
-# across all categories/pages/callers. asyncio.Lock is FIFO-fair, so user-facing
-# calls (category estimate/availability) aren't starved by a long background
-# harvest — they just wait for the next slot. Fetching is leader-only, so a
-# per-process gate is sufficient. NOTE: only the short spacing sleep is held
-# under the lock; 429 retry/back-off sleeps happen OUTSIDE it (see below) so a
-# long Retry-After never freezes the whole pipeline.
-_MIN_INTERVAL = 3.0      # seconds between any two arXiv requests
-_BASE_BACKOFF = 5.0      # base for exponential 429/5xx back-off
-_MAX_BACKOFF = 90.0      # cap for a single back-off wait
+# ── Global arXiv request throttle ──────────────────────────────────────
+# 3s minimum between requests — polite regardless of proxy/IP rotation.
+_MIN_INTERVAL = 3.0
 _throttle_lock = asyncio.Lock()
 _last_request_ts = 0.0
 
@@ -50,23 +41,6 @@ async def _throttle():
             await asyncio.sleep(wait)
         _last_request_ts = time.monotonic()
 
-
-def _parse_retry_after(response) -> Optional[float]:
-    """Return the server-requested cool-down in seconds from a Retry-After header
-    (numeric-seconds or HTTP-date form), or None if absent/unparseable."""
-    val = response.headers.get("Retry-After")
-    if not val:
-        return None
-    try:
-        return max(0.0, float(val))
-    except (TypeError, ValueError):
-        try:
-            from email.utils import parsedate_to_datetime
-            from datetime import datetime as _dt
-            dt = parsedate_to_datetime(val)
-            return max(0.0, (dt - _dt.now(dt.tzinfo)).total_seconds())
-        except Exception:
-            return None
 
 
 async def fetch_arxiv_papers(
@@ -119,8 +93,9 @@ async def fetch_arxiv_papers(
         papers_batch = None
 
         for attempt in range(max_retries):
-            await _throttle()  # P1: pace every request (incl. retries) to >=1 req/3s
+            await _throttle()
             try:
+                # Each new AsyncClient gets a fresh proxy connection = fresh IP
                 async with httpx.AsyncClient(
                     timeout=60.0 if _ARXIV_PROXY else 45.0,
                     proxy=_ARXIV_PROXY,
@@ -129,31 +104,20 @@ async def fetch_arxiv_papers(
                     response.raise_for_status()
                 papers_batch = _parse_arxiv_response(response.text)
                 break
-            except httpx.HTTPStatusError as e:
+            except (httpx.HTTPStatusError, httpx.ReadTimeout, httpx.ConnectTimeout,
+                    httpx.ProxyError, Exception) as e:
                 last_error = e
-                if e.response.status_code == 429:
-                    # 429 = IP rate-limited. Do NOT retry — retrying just makes
-                    # it worse. Fail fast and let the global backoff in the
-                    # scheduler pause ALL fetching until arXiv cools down.
-                    logger.warning(f"[{category}] ArXiv rate-limited (429) — failing fast "
-                                   f"(global backoff will pause all fetching)")
-                    raise
-                elif e.response.status_code >= 500:
-                    # Server error — worth retrying (transient)
-                    backoff = min(_MAX_BACKOFF, _BASE_BACKOFF * (2 ** attempt))
-                    backoff += random.uniform(0, 1.0)
-                    logger.warning(f"[{category}] ArXiv server error {e.response.status_code}, "
-                                   f"retrying in {backoff:.1f}s (attempt {attempt+1}/{max_retries})")
-                    if attempt < max_retries - 1:
-                        await asyncio.sleep(backoff)
-                    else:
-                        raise
-                else:
-                    raise
-            except Exception as e:
-                last_error = e
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(2)
+                status = getattr(getattr(e, 'response', None), 'status_code', None)
+                is_retryable = (
+                    status in (429, 500, 502, 503, 504)
+                    or isinstance(e, (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.ProxyError))
+                )
+                if is_retryable and attempt < max_retries - 1:
+                    wait = 3 + random.uniform(0, 2.0)
+                    kind = f"HTTP {status}" if status else type(e).__name__
+                    logger.warning(f"[{category}] ArXiv {kind}, retry {attempt+1}/{max_retries} "
+                                   f"in {wait:.0f}s" + (" (new proxy IP)" if _ARXIV_PROXY else ""))
+                    await asyncio.sleep(wait)
                 else:
                     raise
 
