@@ -1,0 +1,172 @@
+{
+  "theme": "LIGHT",
+  "archetype": "Swiss & High-Contrast (Academic/Editorial Variant)",
+  "design_philosophy": "Academic, clean, stylish, serious research platform. Pure white backgrounds with hairline borders, tabular data layouts, generous whitespace, and zero decorative fluff (no gradients, glows, or unnecessary shadows). It must feel like an interactive peer-reviewed journal.",
+  "fonts": {
+    "headings": {
+      "family": "EB Garamond",
+      "google_fonts_url": "https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap",
+      "css_class": "font-serif",
+      "usage": "Used for all major headings (H1-H3), metric numbers, and the main logo/brand mark to establish academic authority."
+    },
+    "body": {
+      "family": "IBM Plex Sans",
+      "google_fonts_url": "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&display=swap",
+      "css_class": "font-sans",
+      "usage": "Used for all UI elements, data tables, labels, body text, and navigation to ensure high legibility and a technical, data-driven feel."
+    }
+  },
+  "color_palette": {
+    "backgrounds": {
+      "primary": "#FFFFFF",
+      "secondary": "#FAFBFC",
+      "tertiary": "#F1F5F9"
+    },
+    "text": {
+      "primary": "#0F172A",
+      "secondary": "#475569",
+      "muted": "#94A3B8"
+    },
+    "borders": {
+      "primary": "#E2E8F0",
+      "subtle": "#F1F5F9",
+      "focus": "#2563EB"
+    },
+    "brand": {
+      "primary": "#2563EB",
+      "primary_hover": "#1D4ED8",
+      "primary_subtle": "#EFF6FF"
+    },
+    "category_accents": {
+      "ai": {"bg": "#EEF2FF", "text": "#4338CA", "border": "#C7D2FE"},
+      "cs": {"bg": "#EFF6FF", "text": "#1D4ED8", "border": "#BFDBFE"},
+      "robotics": {"bg": "#F0FDFA", "text": "#0F766E", "border": "#99F6E4"},
+      "quantum": {"bg": "#ECFEFF", "text": "#0E7490", "border": "#A5F3FC"},
+      "math": {"bg": "#F0FDF4", "text": "#15803D", "border": "#BBF7D0"},
+      "biology": {"bg": "#FFF1F2", "text": "#BE123C", "border": "#FECDD3"},
+      "econ": {"bg": "#FFFBEB", "text": "#B45309", "border": "#FDE68A"},
+      "security": {"bg": "#F8FAFC", "text": "#334155", "border": "#E2E8F0"}
+    }
+  },
+  "spacing_scale": {
+    "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "section_gap": "py-24",
+    "element_gap": "gap-6",
+    "card_padding": "p-6 sm:p-8"
+  },
+  "typography_scale": {
+    "h1": "text-4xl sm:text-5xl lg:text-5xl font-serif font-semibold tracking-tight text-slate-900",
+    "h2": "text-2xl sm:text-3xl font-serif font-medium text-slate-900",
+    "h3": "text-xl font-serif font-medium text-slate-900",
+    "body": "text-base font-sans text-slate-600 leading-relaxed",
+    "small_label": "text-xs font-sans font-medium uppercase tracking-[0.05em] text-slate-500",
+    "metric": "text-3xl sm:text-4xl font-serif font-medium text-slate-900"
+  },
+  "component_patterns": {
+    "top_nav": {
+      "layout": "Sticky top, h-16, flex items-center justify-between",
+      "style": "bg-white border-b border-slate-200",
+      "brand": "font-serif text-2xl font-bold tracking-tight text-slate-900",
+      "links": "text-sm font-sans font-medium text-slate-600 hover:text-blue-600 transition-colors",
+      "button": "bg-blue-600 hover:bg-blue-700 text-white rounded-sm px-4 py-2 text-sm font-medium transition-colors"
+    },
+    "hero_app_panel": {
+      "layout": "Grid cols-1 lg:grid-cols-12 gap-8 lg:gap-12 mt-8",
+      "left_col": "col-span-1 lg:col-span-5 flex flex-col justify-center",
+      "right_col": "col-span-1 lg:col-span-7",
+      "style": "bg-white",
+      "description": "The left side holds the H1, subtitle, and the complex search/filter card. The right side holds the live leaderboard."
+    },
+    "search_filter_card": {
+      "style": "border border-slate-200 bg-white p-6 rounded-sm shadow-sm",
+      "inputs": "Use customized Shadcn UI elements (Input, Select, Dropdown). Force rounded-sm, border-slate-200, focus:ring-1 focus:ring-blue-600 focus:border-blue-600",
+      "layout": "Stack search bar on top, followed by 2x2 grid for the 4 dropdowns (Category, Year, Time Period, Ranking Type), then chips, then buttons."
+    },
+    "leaderboard_table_card": {
+      "style": "border border-slate-200 bg-white rounded-sm overflow-hidden",
+      "header": "bg-slate-50 border-b border-slate-200 px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider text-left",
+      "row": "border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors",
+      "cell": "px-6 py-4 whitespace-nowrap text-sm text-slate-900 font-sans"
+    },
+    "category_chip": {
+      "style": "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border",
+      "behavior": "Map category names to the color_palette.category_accents dictionary for bg, text, and border."
+    },
+    "metric_tile": {
+      "style": "flex flex-col border-r border-slate-200 last:border-0 px-6 py-4",
+      "number": "typography_scale.metric",
+      "label": "typography_scale.small_label mt-1"
+    },
+    "category_card": {
+      "style": "border border-slate-200 bg-white p-6 rounded-sm hover:border-slate-300 transition-colors flex flex-col gap-2",
+      "title": "font-sans font-semibold text-slate-900 text-lg",
+      "count": "text-sm text-slate-500"
+    },
+    "signal_card": {
+      "style": "border border-slate-200 bg-white p-6 rounded-sm",
+      "icon_wrapper": "h-10 w-10 rounded-sm bg-blue-50 text-blue-600 flex items-center justify-center mb-4",
+      "title": "font-sans font-semibold text-slate-900 text-lg mb-2",
+      "description": "text-sm text-slate-600"
+    },
+    "faq_accordion": {
+      "style": "border-t border-slate-200",
+      "item": "border-b border-slate-200 py-4",
+      "trigger": "font-serif text-lg text-slate-900 font-medium hover:text-blue-600 transition-colors w-full text-left flex justify-between items-center"
+    },
+    "footer": {
+      "style": "bg-slate-900 text-slate-300 py-16 border-t border-slate-800",
+      "headings": "text-white font-sans font-semibold text-sm tracking-wider uppercase mb-4",
+      "links": "text-sm hover:text-white transition-colors"
+    },
+    "buttons": {
+      "primary": "inline-flex items-center justify-center rounded-sm bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2",
+      "secondary": "inline-flex items-center justify-center rounded-sm border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+    }
+  },
+  "motion": {
+    "philosophy": "Strictly functional and minimal. No bouncy animations.",
+    "hover": "Subtle border color changes, text color changes, or minimal background tinting. Occasional very subtle transform (-translate-y-[1px]) on cards.",
+    "transitions": "transition-all duration-200 ease-in-out"
+  },
+  "media": {
+    "icons_library": "phosphor-icons (preferred) or lucide-react. Use light or regular weight for a precise, technical look.",
+    "image_urls": [
+      {
+        "url": "https://images.unsplash.com/photo-1580894732444-8ecded7900cd?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODB8MHwxfHNlYXJjaHwyfHxyZXNlYXJjaGVyJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzgwNTU2Nzk2fDA&ixlib=rb-4.1.0&q=85",
+        "category": "persona_researcher",
+        "description": "Smiling female researcher at a whiteboard. Use in 'Who Kurate Is For' section for researchers/supervisors."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODB8MHwxfHNlYXJjaHwxfHxyZXNlYXJjaGVyJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzgwNTU2Nzk2fDA&ixlib=rb-4.1.0&q=85",
+        "category": "persona_postgrad",
+        "description": "Male researcher portrait. Use in 'Who Kurate Is For' section for postgrads."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1627556704302-624286467c65?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHwzfHx1bml2ZXJzaXR5JTIwYnVpbGRpbmd8ZW58MHx8fHwxNzgwNTU2Nzk2fDA&ixlib=rb-4.1.0&q=85",
+        "category": "persona_institution",
+        "description": "Academic hat/graduation. Use in 'Who Kurate Is For' for institutions."
+      },
+      {
+        "url": "https://images.pexels.com/photos/7507821/pexels-photo-7507821.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "persona_lab",
+        "description": "University architecture. Use in 'Who Kurate Is For' for labs or institutions."
+      },
+      {
+        "url": "https://images.pexels.com/photos/9768442/pexels-photo-9768442.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "persona_communicator",
+        "description": "Scientist at microscope. Use in 'Who Kurate Is For' for science communicators."
+      }
+    ],
+    "usage_rules": "Images should only be used in the 'Who Kurate Is For' persona cards or as highly subtle grayscale elements. The primary UI (hero, dashboard, rankings) MUST remain text and data-driven without imagery."
+  },
+  "instructions_to_main_agent": [
+    "Load both EB Garamond and IBM Plex Sans from Google Fonts via CDN or standard imports in index.css.",
+    "Do NOT use 'Inter', 'Roboto', or 'Open Sans'. Set IBM Plex Sans as the default sans family.",
+    "All backgrounds in the primary app area must be white (#FFFFFF), with hairline borders (#E2E8F0). Do not use filled light-blue panels.",
+    "Construct the 13 panels exactly as outlined in the problem statement.",
+    "Use Shadcn UI for dropdowns, inputs, and the FAQ accordion, but customize them to remove heavy shadows and large border radii. Use 'rounded-sm' (2px or 4px) maximum.",
+    "For the Top Ranked leaderboard, ensure it looks like a clean tabular dataset (like a scientific publication's supplementary table). Include rank, title, authors, category, score, and an action button.",
+    "Implement 'data-testid' attributes on ALL interactive elements (buttons, links, inputs, dropdowns) using kebab-case role-based naming (e.g., data-testid='explore-rankings-button').",
+    "Ensure hover states meet accessibility standards, usually by darkening text or adjusting border colors, rather than relying on subtle grays that fail contrast checks."
+  ]
+}
