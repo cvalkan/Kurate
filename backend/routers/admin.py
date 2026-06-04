@@ -2689,51 +2689,55 @@ async def get_system_logs(
 
 @router.get("/arxiv-health", dependencies=[Depends(verify_admin)])
 async def arxiv_health():
-    """arXiv ingestion health per active category: last successful fetch, current
-    backoff/cooldown state (from settings), and the most recent fetch failure
-    (from system_logs). Surfaces the P0 rate-limit backoff so admins can see at a
-    glance whether ingestion is healthy or cooling down."""
+    """arXiv ingestion health per active category + global backoff state.
+    arXiv rate-limits by IP, so backoff is GLOBAL (not per-category)."""
     settings = await get_settings()
     active = [c for c in (settings.get("active_categories") or list(CATEGORIES.keys())) if c and c.strip()]
     now = datetime.now(timezone.utc)
+
+    # Global backoff state
+    global_backoff_until = settings.get("fetch_global_backoff_until")
+    global_backoff_count = int(settings.get("fetch_global_backoff_count") or 0)
+    global_cooling = False
+    global_cooldown_seconds = 0
+    if isinstance(global_backoff_until, str):
+        try:
+            gbu = datetime.fromisoformat(global_backoff_until)
+            if now < gbu:
+                global_cooling = True
+                global_cooldown_seconds = round((gbu - now).total_seconds())
+        except Exception:
+            pass
+
     rows = []
     for cat in sorted(active):
         ck = cat.replace(".", "_")
         last_fetch = settings.get(f"last_fetch_at_{ck}")
         if not isinstance(last_fetch, str):
             last_fetch = None
-        backoff_until = settings.get(f"fetch_backoff_until_{ck}")
-        backoff_count = int(settings.get(f"fetch_backoff_count_{ck}") or 0)
-        cooling, cooldown_seconds = False, 0
-        if isinstance(backoff_until, str):
-            try:
-                bu = datetime.fromisoformat(backoff_until)
-                if now < bu:
-                    cooling = True
-                    cooldown_seconds = round((bu - now).total_seconds())
-            except Exception:
-                pass
         last_fail = await db.system_logs.find_one(
-            {"event": "fetch_failed", "category": cat},
+            {"event": {"$in": ["fetch_failed", "fetch_cycle"]}, "category": cat, "success": False},
             sort=[("ts", -1)], projection={"_id": 0, "ts": 1, "detail": 1, "reason": 1})
-        status = "cooling_down" if cooling else ("never" if not last_fetch else "healthy")
+        status = "never" if not last_fetch else "healthy"
         lf_ts = last_fail.get("ts") if last_fail else None
         rows.append({
             "category": cat,
             "status": status,
             "last_fetch_at": last_fetch,
-            "cooldown_seconds": cooldown_seconds,
-            "backoff_until": backoff_until if cooling else None,
-            "backoff_count": backoff_count,
             "last_error": last_fail.get("detail") if last_fail else None,
             "last_error_reason": last_fail.get("reason") if last_fail else None,
             "last_error_at": lf_ts.isoformat() if hasattr(lf_ts, "isoformat") else lf_ts,
         })
     return {
         "now": now.isoformat(),
+        "global_backoff": {
+            "active": global_cooling,
+            "until": global_backoff_until if global_cooling else None,
+            "cooldown_seconds": global_cooldown_seconds,
+            "attempt": global_backoff_count,
+        },
         "categories": rows,
         "healthy": sum(1 for r in rows if r["status"] == "healthy"),
-        "cooling": sum(1 for r in rows if r["status"] == "cooling_down"),
         "never": sum(1 for r in rows if r["status"] == "never"),
     }
 
