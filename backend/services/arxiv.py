@@ -43,6 +43,20 @@ async def _throttle():
 
 
 
+def _proxy_with_session() -> str:
+    """Return the proxy URL with a random session ID in the password,
+    forcing IPRoyal to assign a different IP for each request.
+    Format: http://USER:PASS_session-XXXXXXXX_lifetime-1m@HOST:PORT"""
+    if not _ARXIV_PROXY:
+        return None
+    from urllib.parse import urlparse, urlunparse
+    p = urlparse(_ARXIV_PROXY)
+    session_id = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=8))
+    session_pass = f"{p.password}_session-{session_id}_lifetime-1m"
+    new_netloc = f"{p.username}:{session_pass}@{p.hostname}:{p.port}"
+    return urlunparse(p._replace(netloc=new_netloc))
+
+
 async def fetch_arxiv_papers(
     category: str = "cs.RO",
     max_results: int = 50,
@@ -96,9 +110,10 @@ async def fetch_arxiv_papers(
             await _throttle()
             try:
                 # Each new AsyncClient gets a fresh proxy connection = fresh IP
+                # Each attempt gets a fresh proxy session = fresh IP
                 async with httpx.AsyncClient(
                     timeout=60.0 if _ARXIV_PROXY else 45.0,
-                    proxy=_ARXIV_PROXY,
+                    proxy=_proxy_with_session(),
                 ) as http_client:
                     response = await http_client.get(base_url, params=params)
                     response.raise_for_status()
