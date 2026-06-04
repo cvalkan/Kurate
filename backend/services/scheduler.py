@@ -565,15 +565,22 @@ async def _fetch_loop_inner():
                     )
                     cat_status["last_fetch_at"] = now_iso
                 else:
-                    # Any failure → global backoff: 15m, 30m, 1h, 2h, cap 4h.
-                    # arXiv rate-limits by IP, not category — pause everything.
+                    # Global backoff — tiered by consecutive 429s:
+                    #   1 consecutive: short block (just hit budget) → 15 min
+                    #   2-3 consecutive: budget depleted → 30 min
+                    #   4+ consecutive: sustained block → 60 min (capped)
+                    # Non-rate-limit errors (ReadTimeout, DB) → always 15 min
                     fail_reason = result.get("_failure_reason", "")
                     is_rate_limit = fail_reason == "rate_limit"
                     cnt = int(settings.get("fetch_global_backoff_count") or 0) + 1
-                    backoff_min = min(240, 15 * (2 ** (cnt - 1)))
-                    # Rate limits get the full backoff; other errors get a shorter pause
                     if not is_rate_limit:
-                        backoff_min = min(backoff_min, 30)
+                        backoff_min = 15
+                    elif cnt <= 1:
+                        backoff_min = 15   # short block
+                    elif cnt <= 3:
+                        backoff_min = 30   # budget depleted
+                    else:
+                        backoff_min = 60   # sustained block (capped — trying once/hr is harmless)
                     bu_iso = (datetime.now(timezone.utc) + timedelta(minutes=backoff_min)).isoformat()
                     await db.settings.update_one(
                         {"key": "global"},
@@ -581,8 +588,9 @@ async def _fetch_loop_inner():
                                   "fetch_global_backoff_count": cnt}},
                         upsert=True,
                     )
-                    logger.warning(f"[{cat}] fetch failed — GLOBAL backoff {backoff_min}m "
-                                   f"(attempt #{cnt}, reason={fail_reason})")
+                    block_type = "short" if cnt <= 1 else ("medium" if cnt <= 3 else "sustained")
+                    logger.warning(f"[{cat}] fetch failed — {block_type} block, pause {backoff_min}m "
+                                   f"(consecutive={cnt}, reason={fail_reason})")
 
                 cat_status["next_fetch_at"] = (datetime.now(timezone.utc) + timedelta(hours=interval_hours)).isoformat()
 
