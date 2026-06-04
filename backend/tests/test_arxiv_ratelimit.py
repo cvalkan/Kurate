@@ -36,9 +36,9 @@ def test_throttle_enforces_spacing(monkeypatch):
     assert all(g >= 0.24 for g in gaps), f"throttle gaps too small: {gaps}"
 
 
-def test_fetch_honors_retry_after_then_succeeds(monkeypatch):
-    """A 429 with Retry-After backs off for ~that long (not the linear default),
-    then the retry succeeds — and the back-off sleep is the requested value."""
+def test_fetch_fails_fast_on_429(monkeypatch):
+    """429 should fail immediately (no retries) — the global backoff in the
+    scheduler handles pausing all fetching."""
     monkeypatch.setattr(ax, "_MIN_INTERVAL", 0.0)
     ax._last_request_ts = 0.0
     sleeps = []
@@ -49,7 +49,6 @@ def test_fetch_honors_retry_after_then_succeeds(monkeypatch):
     monkeypatch.setattr(ax.asyncio, "sleep", fake_sleep)
 
     calls = {"n": 0}
-    empty_feed = '<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"></feed>'
 
     class _Resp:
         def __init__(self, code, text="", headers=None):
@@ -67,19 +66,16 @@ def test_fetch_honors_retry_after_then_succeeds(monkeypatch):
 
         async def get(self, *a, **k):
             calls["n"] += 1
-            if calls["n"] == 1:
-                return _Resp(429, headers={"Retry-After": "7"})
-            return _Resp(200, text=empty_feed)
+            return _Resp(429, headers={"Retry-After": "7"})
 
     monkeypatch.setattr(ax.httpx, "AsyncClient", lambda *a, **k: _Client())
 
     async def run():
         return await ax.fetch_arxiv_papers(category="math.PR", max_results=10)
 
-    out = asyncio.get_event_loop().run_until_complete(run())
-    assert calls["n"] == 2, "should retry once after the 429"
-    assert any(6.9 <= s <= 8.1 for s in sleeps), f"expected ~7s Retry-After back-off, got {sleeps}"
-    assert out == []  # empty feed -> no papers
+    with pytest.raises(httpx.HTTPStatusError):
+        asyncio.get_event_loop().run_until_complete(run())
+    assert calls["n"] == 1, "should NOT retry on 429 — fail fast for global backoff"
 
 
 def test_backoff_minutes_schedule():

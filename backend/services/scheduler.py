@@ -442,6 +442,17 @@ async def _fetch_loop():
     from core.memlog import log_mem
     await asyncio.sleep(8)  # Let compare loop start first
 
+    # One-time cleanup: remove stale per-category backoff keys (replaced by global backoff)
+    try:
+        settings = await get_settings()
+        stale_keys = {k: "" for k in settings
+                      if k.startswith("fetch_backoff_until_") or k.startswith("fetch_backoff_count_")}
+        if stale_keys:
+            await db.settings.update_one({"key": "global"}, {"$unset": stale_keys})
+            logger.info(f"[fetch] Cleaned up {len(stale_keys)} stale per-category backoff keys")
+    except Exception as e:
+        logger.warning(f"[fetch] Stale backoff cleanup failed: {e}")
+
     while _scheduler_running:
         try:
             await _fetch_loop_inner()

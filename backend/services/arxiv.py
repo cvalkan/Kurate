@@ -122,18 +122,19 @@ async def fetch_arxiv_papers(
                 break
             except httpx.HTTPStatusError as e:
                 last_error = e
-                if e.response.status_code == 429 or e.response.status_code >= 500:
-                    # P2: exponential back-off w/ jitter, honoring Retry-After.
-                    # Sleep happens OUTSIDE the throttle lock so a long cool-down
-                    # never blocks other (e.g. user-facing) arXiv calls.
-                    retry_after = _parse_retry_after(e.response)
-                    backoff = retry_after if retry_after is not None \
-                        else min(_MAX_BACKOFF, _BASE_BACKOFF * (2 ** attempt))
+                if e.response.status_code == 429:
+                    # 429 = IP rate-limited. Do NOT retry — retrying just makes
+                    # it worse. Fail fast and let the global backoff in the
+                    # scheduler pause ALL fetching until arXiv cools down.
+                    logger.warning(f"[{category}] ArXiv rate-limited (429) — failing fast "
+                                   f"(global backoff will pause all fetching)")
+                    raise
+                elif e.response.status_code >= 500:
+                    # Server error — worth retrying (transient)
+                    backoff = min(_MAX_BACKOFF, _BASE_BACKOFF * (2 ** attempt))
                     backoff += random.uniform(0, 1.0)
-                    kind = "rate-limited (429)" if e.response.status_code == 429 else f"server error {e.response.status_code}"
-                    suffix = " (Retry-After)" if retry_after is not None else ""
-                    logger.warning(f"[{category}] ArXiv {kind}, backing off {backoff:.1f}s{suffix} "
-                                   f"(attempt {attempt+1}/{max_retries})")
+                    logger.warning(f"[{category}] ArXiv server error {e.response.status_code}, "
+                                   f"retrying in {backoff:.1f}s (attempt {attempt+1}/{max_retries})")
                     if attempt < max_retries - 1:
                         await asyncio.sleep(backoff)
                     else:
