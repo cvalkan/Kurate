@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Linkedin, Twitter, BookOpen, FlaskConical } from "lucide-react";
+import { Linkedin, Twitter, BookOpen } from "lucide-react";
 
 const NAV = [
   { to: "#rankings", label: "Rankings" },
@@ -18,15 +18,13 @@ export default function TopNav() {
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 group" data-testid="brand-link">
-            <span className="flex h-7 w-7 items-center justify-center rounded-sm border border-slate-200 bg-white">
-              <FlaskConical className="h-4 w-4 text-blue-600" strokeWidth={1.5} />
-            </span>
-            <span className="font-serif text-2xl font-semibold tracking-tight text-slate-900">
-              Kurate
-              <span className="text-blue-600">.</span>
-              <span className="text-slate-500 text-base font-normal">org</span>
-            </span>
+          <Link to="/" className="flex items-center group" data-testid="brand-link" aria-label="Kurate.org home">
+            <img
+              src="/kurate-logo.png"
+              alt="Kurate.org"
+              className="h-7 w-auto"
+              draggable={false}
+            />
           </Link>
 
           <nav className="hidden lg:flex items-center gap-7" aria-label="Primary">
