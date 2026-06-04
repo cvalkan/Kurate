@@ -1416,6 +1416,7 @@ async def _download_pending_pdfs(category: str = None, force: bool = False):
     cat_status = _get_cat_status(category) if category else None
 
     downloaded = 0
+    failed_reasons = {}  # reason → count
     for i, paper in enumerate(papers_needing_pdf):
         if cat_status:
             cat_status["current_activity"] = f"Downloading PDF {i+1}/{len(papers_needing_pdf)}: {paper['title'][:40]}..."
@@ -1426,6 +1427,7 @@ async def _download_pending_pdfs(category: str = None, force: bool = False):
             await db.papers.update_one({"id": paper["id"]}, {"$set": {"pdf_link": pdf_link}})
         if not pdf_link:
             logger.warning(f"[{category}] No pdf_link and no arxiv_id for {paper['id'][:8]} — skipping")
+            failed_reasons["no_link"] = failed_reasons.get("no_link", 0) + 1
             continue
         try:
             full_text = await download_and_extract_pdf(pdf_link, doi=paper.get("doi"))
@@ -1443,6 +1445,7 @@ async def _download_pending_pdfs(category: str = None, force: bool = False):
                               "pdf_fail_reason": "extraction_empty",
                               "pdf_failed_at": datetime.now(timezone.utc).isoformat()}},
                 )
+                failed_reasons["extraction_empty"] = failed_reasons.get("extraction_empty", 0) + 1
         except Exception as e:
             err_str = str(e)[:200]
             reason = "timeout" if "timeout" in err_str.lower() else \
@@ -1457,7 +1460,23 @@ async def _download_pending_pdfs(category: str = None, force: bool = False):
                           "pdf_fail_reason": reason,
                           "pdf_failed_at": datetime.now(timezone.utc).isoformat()}},
             )
+            failed_reasons[reason] = failed_reasons.get(reason, 0) + 1
         await asyncio.sleep(1)
+
+    # Log PDF download batch to system_logs
+    total_failed = sum(failed_reasons.values())
+    if len(papers_needing_pdf) > 0:
+        try:
+            from core.memlog import log_event
+            fail_detail = ", ".join(f"{r}={c}" for r, c in failed_reasons.items()) if failed_reasons else ""
+            await log_event("pdf_download", category=category,
+                            detail=f"{category}: ok={downloaded}, failed={total_failed}"
+                                   + (f" ({fail_detail})" if fail_detail else ""),
+                            count=downloaded, failed=total_failed,
+                            success=total_failed == 0)
+        except Exception:
+            pass
+
     return downloaded
 
 
