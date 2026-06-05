@@ -1,24 +1,35 @@
 """Migration: Fix papers ingested with wrong OAI-PMH dates.
 
-Two populations:
-1. OLD papers (created before 2025) that should never have been ingested
-   → These are metadata-only updates (category reclassification, etc.)
-   → Action: DELETE from papers + rankings + matches
+The first OAI-PMH deployment (Jun 4-5, 2026) used `published = updated`
+(revision/modification date) instead of `published = created` (original
+submission date). This caused two problems:
 
-2. RECENT papers with wrong published date (OAI-PMH used 'updated' instead of 'created')
-   → Action: Fix published date using the arxiv_id prefix (YYMM → created month)
-   → Then batch-verify against OAI-PMH for exact created dates
+1. Old papers (e.g., from 2017) that arXiv reclassified appeared as new
+   papers with a June 2026 publication date. These should be removed.
+
+2. Recent papers got the wrong published date (e.g., a Jan 2026 paper
+   showing as Jun 2026). These need their date corrected.
+
+HOW IT WORKS:
+  1. Find affected papers: short date format (YYYY-MM-DD) + no version suffix
+     in arxiv_id — this fingerprint only matches OAI-PMH-ingested papers
+  2. Compare arxiv_id prefix (YYMM) with published date to detect mismatches
+  3. For old papers (pre-2025): delete (with safety check for matches)
+  4. For wrong dates: fix via REST API lookup (exact) or YYMM prefix (approx)
+
+SAFETY:
+  - Only touches papers with the OAI-PMH fingerprint (short date + no version)
+  - REST API papers (full ISO date or versioned ID) are NEVER touched
+  - Old papers with completed matches are SKIPPED (flagged for manual review)
+  - DRY_RUN mode previews all changes before applying
 
 Usage:
-  DRY_RUN=1 python -m scripts.fix_oai_dates   # Preview what would change
-  python -m scripts.fix_oai_dates              # Apply fixes
-
-Run from /app/backend directory.
+  DRY_RUN=1 python -m scripts.fix_oai_dates   # Preview
+  python -m scripts.fix_oai_dates              # Apply
 """
 import asyncio
 import os
 import re
-import sys
 
 os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
 os.environ.setdefault("DB_NAME", "test_database")
@@ -27,182 +38,133 @@ os.environ.setdefault("ADMIN_PASSWORD", "papersumo2025")
 DRY_RUN = os.environ.get("DRY_RUN", "0") == "1"
 
 
+def _arxiv_id_to_year_month(arxiv_id: str):
+    """Extract (year, month) from arxiv_id prefix. '2601.18175' → (2026, 1)."""
+    m = re.match(r'^(\d{2})(\d{2})\.', arxiv_id)
+    if not m:
+        return None, None
+    yy, mm = int(m.group(1)), int(m.group(2))
+    return (2000 + yy if yy < 50 else 1900 + yy), mm
+
+
+def _month_diff(y1, m1, y2, m2):
+    """Absolute month difference between two (year, month) pairs."""
+    return abs((y1 * 12 + m1) - (y2 * 12 + m2))
+
+
+async def _fix_published_date(db, paper, exact_date):
+    """Update published date in both papers and rankings collections."""
+    await db.papers.update_one({"id": paper["id"]}, {"$set": {"published": exact_date}})
+    await db.rankings.update_one({"paper_id": paper["id"]}, {"$set": {"published": exact_date}})
+
+
 async def main():
-    from core.config import db, logger
+    from core.config import db
 
     print(f"{'DRY RUN' if DRY_RUN else 'LIVE RUN'} — Fix OAI-PMH date issues")
     print("=" * 60)
 
-    # Step 1: Find all OAI-PMH papers (short published date, no version suffix)
+    # ── Step 1: Find OAI-PMH papers ──────────────────────────────────
+    # Fingerprint: short date (≤10 chars) + no version suffix in arxiv_id
     oai_papers = []
     async for doc in db.papers.find(
         {"arxiv_id": {"$exists": True}},
-        {"_id": 0, "id": 1, "arxiv_id": 1, "published": 1, "added_at": 1,
-         "title": 1, "categories": 1, "current_version": 1},
+        {"_id": 0, "id": 1, "arxiv_id": 1, "published": 1, "title": 1},
     ):
         pub = str(doc.get("published", ""))
         arxiv_id = doc.get("arxiv_id", "")
-
-        # OAI papers: short date (YYYY-MM-DD, ≤10 chars) AND no version suffix
-        is_oai = len(pub) <= 10 and pub and "v" not in arxiv_id
-        if is_oai:
+        if len(pub) <= 10 and pub and "v" not in arxiv_id:
             oai_papers.append(doc)
 
-    print(f"Found {len(oai_papers)} OAI-PMH papers (short date, no version suffix)")
+    print(f"Found {len(oai_papers)} OAI-PMH papers")
 
-    # Step 2: Classify each paper
-    to_delete = []   # Old papers that shouldn't be in DB
-    to_fix = []      # Recent papers with wrong date
-    ok = []          # Papers with correct dates
+    # ── Step 2: Classify ─────────────────────────────────────────────
+    to_delete = []
+    to_fix = []
+    ok = []
 
     for doc in oai_papers:
         arxiv_id = doc["arxiv_id"]
         pub = doc["published"]
-
-        # Extract year/month from arxiv_id prefix (YYMM.NNNNN)
-        prefix_match = re.match(r'^(\d{2})(\d{2})\.', arxiv_id)
-        if not prefix_match:
+        arxiv_year, arxiv_month = _arxiv_id_to_year_month(arxiv_id)
+        if not arxiv_year:
             continue
 
-        yy, mm = int(prefix_match.group(1)), int(prefix_match.group(2))
-        arxiv_year = 2000 + yy if yy < 50 else 1900 + yy
-        arxiv_month = mm
-
-        # Parse published date
         pub_year = int(pub[:4]) if len(pub) >= 4 else 0
         pub_month = int(pub[5:7]) if len(pub) >= 7 else 0
 
         if arxiv_year < 2025:
-            # Paper created before 2025 — shouldn't be in a 2026 dataset
-            to_delete.append({
-                **doc,
-                "reason": f"old_paper (created ~{arxiv_year}-{arxiv_month:02d})",
-            })
-        elif arxiv_year != pub_year or abs(arxiv_month - pub_month) > 1:
-            # Published date doesn't match creation month (off by >1 month)
-            correct_date = f"{arxiv_year}-{arxiv_month:02d}-01"
-            to_fix.append({
-                **doc,
-                "correct_date_approx": correct_date,
-                "reason": f"wrong_date (pub={pub}, should be ~{arxiv_year}-{arxiv_month:02d})",
-            })
+            to_delete.append({**doc, "reason": f"old ({arxiv_year}-{arxiv_month:02d})"})
+        elif _month_diff(arxiv_year, arxiv_month, pub_year, pub_month) > 1:
+            approx = f"{arxiv_year}-{arxiv_month:02d}-01"
+            to_fix.append({**doc, "approx_date": approx})
         else:
             ok.append(doc)
 
-    print(f"\nClassification:")
-    print(f"  OK (correct dates):     {len(ok)}")
-    print(f"  WRONG DATE (fixable):   {len(to_fix)}")
-    print(f"  OLD PAPER (to delete):  {len(to_delete)}")
+    print(f"  OK: {len(ok)}  |  Wrong date: {len(to_fix)}  |  Old (delete): {len(to_delete)}")
 
-    # Step 3: Show what would be deleted
+    # ── Step 3: Preview ──────────────────────────────────────────────
     if to_delete:
-        print(f"\n--- Papers to DELETE ({len(to_delete)}) ---")
-        for p in to_delete[:20]:
-            print(f"  {p['arxiv_id']:20s} pub={p['published']:12s} | {p['reason']} | {p.get('title', '')[:50]}")
-        if len(to_delete) > 20:
-            print(f"  ... and {len(to_delete) - 20} more")
+        print(f"\nWill DELETE ({len(to_delete)}):")
+        for p in to_delete[:15]:
+            print(f"  {p['arxiv_id']:16s} pub={p['published']:12s} {p['reason']:20s} {p.get('title','')[:45]}")
+        if len(to_delete) > 15:
+            print(f"  ... +{len(to_delete)-15} more")
 
-    # Step 4: Show what would be fixed
     if to_fix:
-        print(f"\n--- Papers to FIX date ({len(to_fix)}) ---")
-        for p in to_fix[:20]:
-            print(f"  {p['arxiv_id']:20s} pub={p['published']:12s} → ~{p['correct_date_approx']} | {p.get('title', '')[:50]}")
-        if len(to_fix) > 20:
-            print(f"  ... and {len(to_fix) - 20} more")
-
-    # Step 5: For papers to fix, get exact created date from REST API
-    # (OAI-PMH's <created> is unreliable — can refer to current version, not original)
-    if to_fix and not DRY_RUN:
-        print(f"\nFetching exact published dates from REST API...")
-        import httpx
-        fixed_count = 0
-        failed_lookups = 0
-        for p in to_fix:
-            try:
-                await asyncio.sleep(3)  # Respect arXiv rate limit
-                async with httpx.AsyncClient(timeout=30) as client:
-                    resp = await client.get(
-                        "https://export.arxiv.org/api/query",
-                        params={"id_list": p["arxiv_id"], "max_results": "1"},
-                    )
-                    if resp.status_code == 200 and "<published>" in resp.text:
-                        pub_match = re.search(r"<published>(.*?)</published>", resp.text)
-                        if pub_match:
-                            exact_date = pub_match.group(1)
-                            await db.papers.update_one(
-                                {"id": p["id"]},
-                                {"$set": {"published": exact_date}},
-                            )
-                            # Also fix denormalized published in rankings
-                            await db.rankings.update_one(
-                                {"paper_id": p["id"]},
-                                {"$set": {"published": exact_date}},
-                            )
-                            fixed_count += 1
-                            if fixed_count <= 10:
-                                print(f"  Fixed {p['arxiv_id']}: {p['published']} → {exact_date}")
-                            continue
-                # REST API failed — fall back to arxiv_id prefix approximation
-                failed_lookups += 1
-                approx = p["correct_date_approx"]
-                await db.papers.update_one(
-                    {"id": p["id"]},
-                    {"$set": {"published": approx}},
-                )
-                await db.rankings.update_one(
-                    {"paper_id": p["id"]},
-                    {"$set": {"published": approx}},
-                )
-                if failed_lookups <= 5:
-                    print(f"  Approx {p['arxiv_id']}: {p['published']} → ~{approx} (API unavailable)")
-            except Exception as e:
-                failed_lookups += 1
-                # Fall back to approximation
-                approx = p["correct_date_approx"]
-                await db.papers.update_one(
-                    {"id": p["id"]},
-                    {"$set": {"published": approx}},
-                )
-                await db.rankings.update_one(
-                    {"paper_id": p["id"]},
-                    {"$set": {"published": approx}},
-                )
-                if failed_lookups <= 5:
-                    print(f"  Approx {p['arxiv_id']}: → ~{approx} (error: {str(e)[:40]})")
-        print(f"Fixed {fixed_count}/{len(to_fix)} exact, {failed_lookups} approximate")
-
-    # Step 6: Delete old papers (with safety check — skip if they have matches)
-    if to_delete and not DRY_RUN:
-        print(f"\nDeleting {len(to_delete)} old papers (with match safety check)...")
-        deleted_papers = 0
-        deleted_rankings = 0
-        deleted_matches = 0
-        skipped_with_matches = 0
-        for p in to_delete:
-            pid = p["id"]
-            # Safety: check if paper has any completed matches
-            match_count = await db.matches.count_documents({
-                "$or": [{"paper1_id": pid}, {"paper2_id": pid}],
-                "completed": True,
-            })
-            if match_count > 0:
-                skipped_with_matches += 1
-                print(f"  SKIPPED {p['arxiv_id']} — has {match_count} matches (not safe to delete)")
-                continue
-            # No matches — safe to delete
-            r = await db.papers.delete_one({"id": pid})
-            deleted_papers += r.deleted_count
-            r = await db.rankings.delete_one({"paper_id": pid})
-            deleted_rankings += r.deleted_count
-
-        print(f"Deleted: {deleted_papers} papers, {deleted_rankings} rankings")
-        if skipped_with_matches:
-            print(f"SKIPPED: {skipped_with_matches} papers with matches (manual review needed)")
+        print(f"\nWill FIX date ({len(to_fix)}):")
+        for p in to_fix[:15]:
+            print(f"  {p['arxiv_id']:16s} {p['published']:12s} → REST API or ~{p['approx_date']}")
+        if len(to_fix) > 15:
+            print(f"  ... +{len(to_fix)-15} more")
 
     if DRY_RUN:
-        print(f"\nDRY RUN complete. Set DRY_RUN=0 to apply changes.")
-    else:
-        print(f"\nMigration complete.")
+        print(f"\nDRY RUN complete.")
+        return
+
+    # ── Step 4: Fix dates (REST API for exact, YYMM prefix for fallback) ─
+    if to_fix:
+        import httpx
+        print(f"\nFixing {len(to_fix)} dates...")
+        exact, approx_count = 0, 0
+        for p in to_fix:
+            try:
+                await asyncio.sleep(3)
+                async with httpx.AsyncClient(timeout=30) as client:
+                    resp = await client.get("https://export.arxiv.org/api/query",
+                                            params={"id_list": p["arxiv_id"], "max_results": "1"})
+                    pub_match = re.search(r"<published>(.*?)</published>", resp.text) if resp.status_code == 200 else None
+                    if pub_match:
+                        await _fix_published_date(db, p, pub_match.group(1))
+                        exact += 1
+                        if exact <= 10:
+                            print(f"  {p['arxiv_id']}: {p['published']} → {pub_match.group(1)}")
+                        continue
+            except Exception:
+                pass
+            # Fallback: use YYMM approximation
+            await _fix_published_date(db, p, p["approx_date"])
+            approx_count += 1
+        print(f"  Done: {exact} exact, {approx_count} approximate")
+
+    # ── Step 5: Delete old papers ────────────────────────────────────
+    if to_delete:
+        print(f"\nDeleting {len(to_delete)} old papers...")
+        deleted, skipped = 0, 0
+        for p in to_delete:
+            has_matches = await db.matches.count_documents(
+                {"$or": [{"paper1_id": p["id"]}, {"paper2_id": p["id"]}], "completed": True}
+            )
+            if has_matches > 0:
+                skipped += 1
+                print(f"  SKIP {p['arxiv_id']} — {has_matches} matches (manual review)")
+                continue
+            await db.papers.delete_one({"id": p["id"]})
+            await db.rankings.delete_one({"paper_id": p["id"]})
+            deleted += 1
+        print(f"  Deleted: {deleted}, Skipped (has matches): {skipped}")
+
+    print("\nDone.")
 
 
 if __name__ == "__main__":
