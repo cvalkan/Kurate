@@ -141,7 +141,7 @@ def _classify_paper(rp, existing_bases, date_from, lookup_result=None):
             return "revision"
         elif rp.get("updated") and rp.get("created") and rp["updated"] != rp["created"]:
             if lookup_result:
-                _, actual_version = lookup_result
+                actual_version = lookup_result["version"]
                 if actual_version > existing["current_version"]:
                     return "revision"
                 return "metadata_only"
@@ -181,7 +181,7 @@ def test_classify_revision_via_oai_with_lookup():
     """OAI-PMH shows updated≠created, API lookup confirms new version."""
     rp = {"arxiv_id": "2601.18175", "created": "2026-01-26", "updated": "2026-06-02"}
     existing = {"2601.18175": {"current_version": 1, "id": "abc"}}
-    lookup = ("2601.18175v2", 2)
+    lookup = {"full_id": "2601.18175v2", "version": 2, "published": "2026-01-26T05:54:39Z"}
     assert _classify_paper(rp, existing, "2026-06-04", lookup_result=lookup) == "revision"
 
 
@@ -189,7 +189,7 @@ def test_classify_metadata_only_via_oai_with_lookup():
     """OAI-PMH shows updated≠created, but API lookup says same version — metadata only."""
     rp = {"arxiv_id": "1711.10561", "created": "2017-11-28", "updated": "2026-06-04"}
     existing = {"1711.10561": {"current_version": 1, "id": "abc"}}
-    lookup = ("1711.10561v1", 1)
+    lookup = {"full_id": "1711.10561v1", "version": 1, "published": "2017-11-28T21:21:59Z"}
     assert _classify_paper(rp, existing, "2026-06-04", lookup_result=lookup) == "metadata_only"
 
 
@@ -197,20 +197,20 @@ def test_classify_metadata_only_via_oai_with_lookup():
 
 @pytest.mark.skipif(not os.environ.get("RUN_LIVE_TESTS"), reason="Set RUN_LIVE_TESTS=1 for live API tests")
 def test_lookup_version_live():
-    """Live test against arXiv API — verifies version extraction."""
+    """Live test against arXiv API — verifies version + published extraction."""
     async def run():
         # Paper with v2
         result = await lookup_arxiv_version("2601.18175")
         assert result is not None
-        full_id, version = result
-        assert version == 2
-        assert full_id == "2601.18175v2"
+        assert result["version"] == 2
+        assert result["full_id"] == "2601.18175v2"
+        assert result["published"].startswith("2026-01-26")  # Original v1 date
 
         # Paper with only v1
         result = await lookup_arxiv_version("1711.10561")
         assert result is not None
-        _, version = result
-        assert version == 1
+        assert result["version"] == 1
+        assert result["published"].startswith("2017-11-28")
 
     asyncio.get_event_loop().run_until_complete(run())
 

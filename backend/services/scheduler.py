@@ -1205,19 +1205,23 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                         elif rp.get("updated") and rp.get("created") and rp["updated"] != rp["created"]:
                             # OAI-PMH path: paper was modified (updated != created) but
                             # no version suffix. Do a targeted REST API lookup to get the
-                            # actual version number — only way to tell real revision from
-                            # metadata-only update. Direct call, no proxy needed.
+                            # actual version number and correct published date.
                             try:
-                                result = await lookup_arxiv_version(base)
-                                if result:
-                                    _, actual_version = result
+                                lookup = await lookup_arxiv_version(base)
+                                if lookup:
+                                    actual_version = lookup["version"]
                                     if actual_version > existing["current_version"]:
+                                        # Use REST API published date (original v1 date),
+                                        # not OAI created (which is the revision date)
+                                        if lookup.get("published"):
+                                            rp["published"] = lookup["published"]
+                                        rp["arxiv_id"] = lookup["full_id"]  # versioned ID
                                         rev_result = await _handle_revision(
                                             existing["id"], rp, actual_version, settings
                                         )
                                         if rev_result == "revised":
                                             revisions_detected += 1
-                                            logger.info(f"[{category}] Revision v{actual_version} for {base} (OAI→API lookup): tournament reset")
+                                            logger.info(f"[{category}] Revision v{actual_version} for {base} (OAI+API): tournament reset")
                                         elif rev_result == "updated":
                                             revisions_detected += 1
                                             logger.info(f"[{category}] Revision v{actual_version} for {base}: content updated")

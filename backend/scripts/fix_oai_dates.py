@@ -171,27 +171,33 @@ async def main():
                     print(f"  Approx {p['arxiv_id']}: → ~{approx} (error: {str(e)[:40]})")
         print(f"Fixed {fixed_count}/{len(to_fix)} exact, {failed_lookups} approximate")
 
-    # Step 6: Delete old papers
+    # Step 6: Delete old papers (with safety check — skip if they have matches)
     if to_delete and not DRY_RUN:
-        print(f"\nDeleting {len(to_delete)} old papers...")
+        print(f"\nDeleting {len(to_delete)} old papers (with match safety check)...")
         deleted_papers = 0
         deleted_rankings = 0
         deleted_matches = 0
+        skipped_with_matches = 0
         for p in to_delete:
             pid = p["id"]
-            # Delete paper
+            # Safety: check if paper has any completed matches
+            match_count = await db.matches.count_documents({
+                "$or": [{"paper1_id": pid}, {"paper2_id": pid}],
+                "completed": True,
+            })
+            if match_count > 0:
+                skipped_with_matches += 1
+                print(f"  SKIPPED {p['arxiv_id']} — has {match_count} matches (not safe to delete)")
+                continue
+            # No matches — safe to delete
             r = await db.papers.delete_one({"id": pid})
             deleted_papers += r.deleted_count
-            # Delete ranking
             r = await db.rankings.delete_one({"paper_id": pid})
             deleted_rankings += r.deleted_count
-            # Delete matches involving this paper
-            r = await db.matches.delete_many({
-                "$or": [{"paper1_id": pid}, {"paper2_id": pid}],
-            })
-            deleted_matches += r.deleted_count
 
-        print(f"Deleted: {deleted_papers} papers, {deleted_rankings} rankings, {deleted_matches} matches")
+        print(f"Deleted: {deleted_papers} papers, {deleted_rankings} rankings")
+        if skipped_with_matches:
+            print(f"SKIPPED: {skipped_with_matches} papers with matches (manual review needed)")
 
     if DRY_RUN:
         print(f"\nDRY RUN complete. Set DRY_RUN=0 to apply changes.")

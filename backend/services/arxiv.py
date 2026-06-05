@@ -64,10 +64,11 @@ def _proxy_with_session() -> str:
     return urlunparse(p._replace(netloc=new_netloc))
 
 
-async def lookup_arxiv_version(arxiv_id_base: str) -> Optional[Tuple[str, int]]:
+async def lookup_arxiv_version(arxiv_id_base: str) -> Optional[dict]:
     """Look up the latest version of a paper via the REST API.
-    Returns (versioned_arxiv_id, version_number) or None on failure.
-    Used for revision detection — OAI-PMH doesn't provide version numbers."""
+    Returns {full_id, version, published} or None on failure.
+    Used for revision detection — OAI-PMH doesn't provide version numbers,
+    and its 'created' field is unreliable for revised papers."""
     await _throttle()
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -76,13 +77,17 @@ async def lookup_arxiv_version(arxiv_id_base: str) -> Optional[Tuple[str, int]]:
                 params={"id_list": arxiv_id_base, "max_results": "1"},
             )
             resp.raise_for_status()
-            # Parse the versioned ID from the Atom response
             import re
-            match = re.search(r'<id>http://arxiv\.org/abs/(.+?)</id>', resp.text)
-            if match:
-                full_id = match.group(1)
+            id_match = re.search(r'<id>http://arxiv\.org/abs/(.+?)</id>', resp.text)
+            pub_match = re.search(r'<published>(.*?)</published>', resp.text)
+            if id_match:
+                full_id = id_match.group(1)
                 base, version = strip_arxiv_version(full_id)
-                return full_id, version
+                return {
+                    "full_id": full_id,
+                    "version": version,
+                    "published": pub_match.group(1) if pub_match else None,
+                }
     except Exception as e:
         logger.warning(f"[arXiv] Version lookup failed for {arxiv_id_base}: {e}")
     return None
