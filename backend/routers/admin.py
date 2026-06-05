@@ -2784,7 +2784,26 @@ async def fix_oai_dates(dry_run: bool = True):
         last_id = batch[-1]["_id"]
 
     if dry_run:
+        # Compute year distribution from arxiv_id prefix
+        from collections import Counter
+        year_dist = Counter()
+        wrong_date = 0
+        correct_date = 0
+        for p in affected:
+            m = _re.match(r'^(\d{2})(\d{2})\.', p["arxiv_id"])
+            if m:
+                yr = 2000 + int(m.group(1)) if int(m.group(1)) < 50 else 1900 + int(m.group(1))
+                mm = int(m.group(2))
+                year_dist[yr] += 1
+                pub_yr = int(p["published"][:4])
+                pub_mm = int(p["published"][5:7])
+                if abs((pub_yr * 12 + pub_mm) - (yr * 12 + mm)) > 1:
+                    wrong_date += 1
+                else:
+                    correct_date += 1
         return {"dry_run": True, "affected": len(affected),
+                "wrong_date": wrong_date, "correct_date_format_only": correct_date,
+                "year_distribution": dict(sorted(year_dist.items())),
                 "sample": [{"arxiv_id": p["arxiv_id"], "published": p["published"],
                             "title": p.get("title", "")[:60]} for p in affected[:20]]}
 
