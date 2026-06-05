@@ -2687,6 +2687,28 @@ async def get_system_logs(
     return {"logs": logs, "count": len(logs)}
 
 
+
+@router.get("/arxiv-api-check", dependencies=[Depends(verify_admin)])
+async def arxiv_api_check():
+    """Test if the arXiv REST API is reachable from this server (not rate-limited)."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(
+                "https://export.arxiv.org/api/query",
+                params={"search_query": "cat:cs.RO", "max_results": "1"},
+            )
+            has_entry = "<entry>" in resp.text
+            return {
+                "status": "ok" if resp.status_code == 200 and has_entry else "blocked",
+                "http_code": resp.status_code,
+                "has_results": has_entry,
+                "response_time_ms": round(resp.elapsed.total_seconds() * 1000),
+            }
+    except Exception as e:
+        return {"status": "error", "error": f"{type(e).__name__}: {str(e)[:100]}"}
+
+
 @router.get("/arxiv-health", dependencies=[Depends(verify_admin)])
 async def arxiv_health():
     """arXiv ingestion health per active category."""
@@ -2733,7 +2755,7 @@ async def fix_oai_dates(dry_run: bool = True):
     async for doc in db.papers.find(
         {"arxiv_id": {"$exists": True, "$not": {"$regex": r"v\d+$"}}},
         {"_id": 0, "id": 1, "arxiv_id": 1, "published": 1, "title": 1},
-    ):
+    ).max_time_ms(25000):
         pub = str(doc.get("published", ""))
         if len(pub) <= 10 and pub:
             affected.append(doc)
@@ -2769,7 +2791,7 @@ async def fix_oai_dates(dry_run: bool = True):
     async for paper in db.papers.find(
         {"arxiv_id": {"$exists": True, "$not": {"$regex": r"v\d+$"}}},
         {"_id": 0, "id": 1, "published": 1},
-    ):
+    ).max_time_ms(25000):
         pub = str(paper.get("published", ""))
         if len(pub) <= 10 or not pub:
             continue
