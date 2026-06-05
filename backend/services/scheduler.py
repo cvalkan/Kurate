@@ -1188,45 +1188,32 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                     existing = existing_bases.get(base)
 
                     if existing:
-                        # Paper base is already in DB. Check for revision.
-                        rp_updated = rp.get("updated", "")
-                        rp_created = rp.get("created", "")
-                        is_oai_revision = (rp_updated and rp_created
-                                           and rp_updated != rp_created
-                                           and version <= existing["current_version"])
-
                         if version > existing["current_version"]:
-                            # REST API path: explicit version bump
-                            new_version = version
-                        elif is_oai_revision:
-                            # OAI-PMH path: no version suffix, but updated != created
-                            # → paper was revised. Use current_version + 1.
-                            new_version = existing["current_version"] + 1
-                        else:
-                            # Same version, no update — skip
-                            continue
-
-                        try:
-                            rev_result = await _handle_revision(
-                                existing["id"], rp, new_version, settings
-                            )
-                            if rev_result == "revised":
-                                revisions_detected += 1
-                                logger.info(f"[{category}] Revision v{new_version} for {base}: tournament reset")
-                            elif rev_result == "updated":
-                                revisions_detected += 1
-                                logger.info(f"[{category}] Revision v{new_version} for {base}: content updated, tournament kept")
-                        except Exception as e:
-                            logger.warning(f"[{category}] Revision handling failed for {base}: {e}")
+                            # REST API path: explicit version bump (versioned arxiv_id)
+                            try:
+                                rev_result = await _handle_revision(
+                                    existing["id"], rp, version, settings
+                                )
+                                if rev_result == "revised":
+                                    revisions_detected += 1
+                                    logger.info(f"[{category}] Revision v{version} for {base}: tournament reset")
+                                elif rev_result == "updated":
+                                    revisions_detected += 1
+                                    logger.info(f"[{category}] Revision v{version} for {base}: content updated, tournament kept")
+                            except Exception as e:
+                                logger.warning(f"[{category}] Revision handling failed for {base}: {e}")
+                        # OAI-PMH returns base IDs without version numbers.
+                        # We can't distinguish real revisions (v1→v2) from metadata-only
+                        # updates (category reclassification, etc.) — so we skip all of them.
+                        # Revision detection still works via the REST API fallback path.
                         continue
 
                     else:
-                        # Paper base NOT in DB. Check if it's genuinely new or an old
-                        # paper we've never tracked (OAI-PMH returns both).
+                        # Paper base NOT in DB. Only add if genuinely new (created recently).
+                        # OAI-PMH returns old papers with recent metadata updates too —
+                        # skip those (e.g., a 2017 paper reclassified in 2026).
                         rp_created = rp.get("created", "")
                         if date_from and rp_created and rp_created < date_from:
-                            # Old paper (created before our window) that just got revised.
-                            # We never tracked it → skip.
                             continue
 
                 if dedup_value in existing_ids:
