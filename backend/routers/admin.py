@@ -2589,7 +2589,7 @@ async def get_system_logs(
 ):
     """Query persisted system logs (memory tracking, events). Stored 7 days.
     
-    Returns all non-mem logs raw (repair_queue, slow_response, events — low volume).
+    Returns all non-mem logs raw (repair_queue, fetch_cycle, events — low volume).
     For mem logs: downsamples to 1 point per minute (max RSS per bucket) to keep
     chart resolution high without sending 100K+ entries to the browser.
     Filters: level=mem|event, label=substring, event=badge_share_view|badge_image_render|...
@@ -2604,7 +2604,7 @@ async def get_system_logs(
     if event:
         query["event"] = {"$in": event.split(",")} if "," in event else event
 
-    # Fetch non-mem logs raw (low volume: repair_queue, slow_response, events)
+    # Fetch non-mem logs raw (low volume: repair_queue, fetch_cycle, events)
     non_mem_query = {**query, "level": {"$ne": "mem"}} if not level else query
     non_mem_logs = []
     if not level or level != "mem":

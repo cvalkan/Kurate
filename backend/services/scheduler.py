@@ -1284,9 +1284,12 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         # --- STEP 2: Download PDFs for papers missing full_text ---
         cat_status["current_activity"] = "Downloading PDFs..."
         try:
-            pdfs = await _download_pending_pdfs(category=category, force=force)
-            result["pdfs_downloaded"] = pdfs or 0
-            logger.info(f"[{category}] Step 2 done: {pdfs or 0} PDFs downloaded")
+            pdfs_result = await _download_pending_pdfs(category=category, force=force)
+            pdfs, pdf_failures = pdfs_result if isinstance(pdfs_result, tuple) else (pdfs_result or 0, {})
+            result["pdfs_downloaded"] = pdfs
+            result["pdf_failures"] = pdf_failures
+            logger.info(f"[{category}] Step 2 done: {pdfs} PDFs downloaded"
+                        + (f" ({sum(pdf_failures.values())} failed)" if pdf_failures else ""))
         except Exception as e:
             err_msg = f"PDF download failed: {str(e)[:200]}"
             logger.warning(f"[{category}] Step 2 FAILED: {err_msg}")
@@ -1333,15 +1336,22 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
 
         cat_status["current_activity"] = "Idle"
 
-        # Log pipeline event for admin Logs tab (single event per cycle — no separate fetch_failed)
+        # Log pipeline event for admin Logs tab (single event per cycle)
         from core.memlog import log_event
+        pdf_fail = result.get("pdf_failures", {})
+        pdf_fail_str = ", ".join(f"{r}={c}" for r, c in pdf_fail.items()) if pdf_fail else ""
+        detail_parts = [f"{category}: new={result['new_papers']}, pdfs={result['pdfs_downloaded']}, summaries={result['summaries_generated']}, rankings={result['rankings_inserted']}"]
+        if pdf_fail_str:
+            detail_parts.append(f"pdf_failed: {pdf_fail_str}")
+        if result.get("errors"):
+            detail_parts.append(f"ERRORS: {'; '.join(result['errors'])[:200]}")
         await log_event("fetch_cycle", category=category,
-            detail=f"{category}: new={result['new_papers']}, pdfs={result['pdfs_downloaded']}, summaries={result['summaries_generated']}, rankings={result['rankings_inserted']}"
-                   + (f" | ERRORS: {'; '.join(result['errors'])[:200]}" if result.get("errors") else ""),
+            detail=" | ".join(detail_parts),
             count=result['new_papers'],
             pdfs=result['pdfs_downloaded'],
             summaries=result['summaries_generated'],
             rankings=result['rankings_inserted'],
+            pdf_failed=sum(pdf_fail.values()) if pdf_fail else 0,
             reason=result.get("_failure_reason", ""),
             errors=result.get("errors") or None,
             success=not bool(result.get("errors")))
@@ -1457,21 +1467,7 @@ async def _download_pending_pdfs(category: str = None, force: bool = False):
             failed_reasons[reason] = failed_reasons.get(reason, 0) + 1
         await asyncio.sleep(1)
 
-    # Log PDF download batch to system_logs
-    total_failed = sum(failed_reasons.values())
-    if len(papers_needing_pdf) > 0:
-        try:
-            from core.memlog import log_event
-            fail_detail = ", ".join(f"{r}={c}" for r, c in failed_reasons.items()) if failed_reasons else ""
-            await log_event("pdf_download", category=category,
-                            detail=f"{category}: ok={downloaded}, failed={total_failed}"
-                                   + (f" ({fail_detail})" if fail_detail else ""),
-                            count=downloaded, failed=total_failed,
-                            success=total_failed == 0)
-        except Exception:
-            pass
-
-    return downloaded
+    return downloaded, failed_reasons
 
 
 
@@ -1762,17 +1758,6 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
                             _scat, mk, paper.get("added_at"), result.get("tokens")))
                     except Exception:
                         pass
-                    # Track successful summary generation
-                    from services.llm import track_llm_usage
-                    tokens = result.get("tokens", {})
-                    await track_llm_usage(
-                        model_info.get("provider", ""), model_info.get("model", ""),
-                        context="summary", success=True,
-                        input_tokens=tokens.get("input", 0),
-                        output_tokens=tokens.get("output", 0),
-                        thinking_tokens=tokens.get("thinking", 0),
-                        paper_title=f"{category}: {paper.get('title', '')[:60]}",
-                    )
                     generated += 1
                     _sync_progress()
                     if cat_status and generated % 5 == 0:
