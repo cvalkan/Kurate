@@ -471,7 +471,7 @@ async def _fetch_loop_inner():
     """
     from core.memlog import log_mem
 
-    _rr_idx = 28  # Start from math.PR on fresh deploy
+    _rr_idx = 0
 
     while _scheduler_running:
         try:
