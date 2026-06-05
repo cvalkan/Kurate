@@ -1085,9 +1085,10 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             pub = newest_paper["published"]
             date_from = pub.strftime("%Y-%m-%d") if hasattr(pub, "strftime") else str(pub)[:10]
         else:
-            # New category — only fetch papers from TODAY onward. No backlog.
-            date_from = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            logger.info(f"[{category}] New category — starting from today ({date_from}), no backlog")
+            # New category — lookback configurable (default 0 = today only)
+            lookback_days = int(settings.get("new_category_lookback_days", 0))
+            date_from = (datetime.now(timezone.utc) - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+            logger.info(f"[{category}] New category — lookback {lookback_days}d, from {date_from}")
 
         # --- STEP 1: Fetch new papers from source ---
         cat_status["current_activity"] = "Fetching new papers from source..."

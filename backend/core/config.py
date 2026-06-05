@@ -159,4 +159,5 @@ DEFAULT_SETTINGS = {
     "ranking_method": "reg_wr",
     "revision_diff_threshold": 0.95,
     "max_initial_backlog": 200,
+    "new_category_lookback_days": 0,
 }

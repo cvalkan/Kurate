@@ -81,6 +81,7 @@ class SettingsUpdate(BaseModel):
     fetch_interval_hours: Optional[int] = None
     max_papers_per_fetch: Optional[int] = None
     max_initial_backlog: Optional[int] = None
+    new_category_lookback_days: Optional[int] = None
     parallel_agents: Optional[int] = None
     parallel_categories: Optional[int] = None
     ranking_method: Optional[str] = None  # reg_wr, trueskill
