@@ -1186,23 +1186,48 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                 if id_field == "arxiv_id" and rp.get("arxiv_id"):
                     base, version = strip_arxiv_version(rp["arxiv_id"])
                     existing = existing_bases.get(base)
+
                     if existing:
+                        # Paper base is already in DB. Check for revision.
+                        rp_updated = rp.get("updated", "")
+                        rp_created = rp.get("created", "")
+                        is_oai_revision = (rp_updated and rp_created
+                                           and rp_updated != rp_created
+                                           and version <= existing["current_version"])
+
                         if version > existing["current_version"]:
-                            # New version detected — queue revision
-                            try:
-                                rev_result = await _handle_revision(
-                                    existing["id"], rp, version, settings
-                                )
-                                if rev_result == "revised":
-                                    revisions_detected += 1
-                                    logger.info(f"[{category}] Revision v{version} for {base}: tournament reset")
-                                elif rev_result == "updated":
-                                    revisions_detected += 1
-                                    logger.info(f"[{category}] Revision v{version} for {base}: content updated, tournament kept")
-                            except Exception as e:
-                                logger.warning(f"[{category}] Revision handling failed for {base}: {e}")
-                        # Either way, skip normal insertion (paper already exists)
+                            # REST API path: explicit version bump
+                            new_version = version
+                        elif is_oai_revision:
+                            # OAI-PMH path: no version suffix, but updated != created
+                            # → paper was revised. Use current_version + 1.
+                            new_version = existing["current_version"] + 1
+                        else:
+                            # Same version, no update — skip
+                            continue
+
+                        try:
+                            rev_result = await _handle_revision(
+                                existing["id"], rp, new_version, settings
+                            )
+                            if rev_result == "revised":
+                                revisions_detected += 1
+                                logger.info(f"[{category}] Revision v{new_version} for {base}: tournament reset")
+                            elif rev_result == "updated":
+                                revisions_detected += 1
+                                logger.info(f"[{category}] Revision v{new_version} for {base}: content updated, tournament kept")
+                        except Exception as e:
+                            logger.warning(f"[{category}] Revision handling failed for {base}: {e}")
                         continue
+
+                    else:
+                        # Paper base NOT in DB. Check if it's genuinely new or an old
+                        # paper we've never tracked (OAI-PMH returns both).
+                        rp_created = rp.get("created", "")
+                        if date_from and rp_created and rp_created < date_from:
+                            # Old paper (created before our window) that just got revised.
+                            # We never tracked it → skip.
+                            continue
 
                 if dedup_value in existing_ids:
                     continue

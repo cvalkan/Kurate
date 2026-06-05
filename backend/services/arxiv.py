@@ -130,6 +130,12 @@ async def fetch_arxiv_papers(
     else:
         filtered = [p for p in all_papers if category in (p.get("categories") or [])]
 
+    # Do NOT filter by created date here — the scheduler needs both new papers
+    # AND revisions of existing papers. Classification happens in run_fetch_cycle:
+    #   - New paper: created >= date_from AND not in DB
+    #   - Revision: base in DB AND updated is newer
+    #   - Skip: created < date_from AND not in DB (old paper we never tracked)
+
     # Deduplicate by arxiv_id
     seen = set()
     unique = []
@@ -250,7 +256,7 @@ def _parse_oai_arxiv_response(xml_text: str) -> Tuple[List[dict], Optional[str]]
                 authors.append(name)
 
         categories = categories_str.split() if categories_str else []
-        published = updated or created  # Use updated date as "published" for versioned papers
+        published = created  # Use CREATION date, not update date — revisions are handled by the dedup system
 
         # Build versioned arxiv_id if needed
         full_arxiv_id = arxiv_id  # OAI returns base IDs without version
@@ -262,6 +268,8 @@ def _parse_oai_arxiv_response(xml_text: str) -> Tuple[List[dict], Optional[str]]
             "abstract": abstract.strip().replace("\n", " ")[:2000],
             "categories": categories,
             "published": published,
+            "created": created,
+            "updated": updated,
             "link": f"https://arxiv.org/abs/{full_arxiv_id}",
             "pdf_link": f"https://arxiv.org/pdf/{full_arxiv_id}",
         })
