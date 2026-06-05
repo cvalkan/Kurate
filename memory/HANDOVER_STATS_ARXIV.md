@@ -22,7 +22,7 @@ There are TWO environments:
 
 | | Preview (dev) | Production (deployed) |
 |---|---|---|
-| URL | `https://analytics-fix-32.preview.emergentagent.com` (this is `REACT_APP_BACKEND_URL`) | `https://kurate.org` |
+| URL | `https://oai-paper-repair.preview.emergentagent.com` (this is `REACT_APP_BACKEND_URL`) | `https://kurate.org` |
 | Access | full shell + filesystem + can edit/restart | **public HTTP API only — NO shell, NO logs, NO filesystem** |
 | Mongo | local/preview Mongo | **MongoDB Atlas** (separate DB) |
 | Deploy | hot-reload (backend) / `yarn build`+restart (frontend, STATIC serve) | user redeploys manually |

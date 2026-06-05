@@ -1,101 +1,141 @@
 {
   "2601.18175": {
     "rest_api_published": "2026-01-26T05:54:39Z",
+    "rest_api_updated": "2026-06-02T19:09:34Z",
+    "current_version": "v2",
     "published_in_db": "2026-06-04",
     "title": "Success Conditioning as Policy Improvement: The Optimization Problem Solved by Imitating Success"
   },
   "2601.23229": {
     "rest_api_published": "2026-01-30T17:57:07Z",
+    "rest_api_updated": "2026-06-02T12:28:36Z",
+    "current_version": "v2",
     "published_in_db": "2026-06-03",
     "title": "Strongly Polynomial Time Complexity of Policy Iteration for $L_\\infty$ Robust MDPs"
   },
   "2601.09923": {
     "rest_api_published": "2026-01-14T23:06:35Z",
+    "rest_api_updated": "2026-06-04T15:38:02Z",
+    "current_version": "v3",
     "published_in_db": "2026-06-05",
     "title": "CaMeLs Can Use Computers Too: System-level Security for Computer Use Agents"
   },
   "2601.13735": {
     "rest_api_published": "2026-01-20T08:46:33Z",
+    "rest_api_updated": "2026-06-03T09:26:48Z",
+    "current_version": "v2",
     "published_in_db": "2026-06-04",
     "title": "Reasoning or Fluency? Dissecting Probabilistic Confidence in Best-of-N Selection"
   },
   "2601.18383": {
     "rest_api_published": "2026-01-26T11:31:40Z",
+    "rest_api_updated": "2026-06-04T11:15:25Z",
+    "current_version": "v2",
     "published_in_db": "2026-06-05",
     "title": "Dynamic Thinking-Token Selection for Efficient Reasoning in Large Reasoning Models"
   },
   "2601.22900": {
     "rest_api_published": "2026-01-30T12:19:54Z",
+    "rest_api_updated": "2026-05-30T11:40:38Z",
+    "current_version": "v2",
     "published_in_db": "2026-06-02",
     "title": "MulFeRL: Enhancing Reinforcement Learning with Verbal Feedback in a Multi-turn Loop"
   },
   "2601.21288": {
     "rest_api_published": "2026-01-29T05:41:24Z",
+    "rest_api_updated": "2026-06-04T16:17:48Z",
+    "current_version": "v2",
     "published_in_db": "2026-06-05",
     "title": "Drive-KD: Multi-Teacher Distillation for VLMs in Autonomous Driving"
   },
   "2601.02880": {
     "rest_api_published": "2026-01-06T10:05:30Z",
+    "rest_api_updated": "2026-06-04T06:00:54Z",
+    "current_version": "v2",
     "published_in_db": "2026-06-05",
     "title": "ReTreVal: Reasoning Tree with Validation and Cross-Problem Memory for Large Language Models"
   },
   "2601.19568": {
     "rest_api_published": "2026-01-27T12:59:31Z",
+    "rest_api_updated": "2026-06-04T03:38:25Z",
+    "current_version": "v2",
     "published_in_db": "2026-06-05",
     "title": "Learning Adaptive Parallel Execution for Efficient Code Localization"
   },
   "2601.08173": {
     "rest_api_published": "2026-01-13T03:09:18Z",
+    "rest_api_updated": "2026-06-02T11:13:10Z",
+    "current_version": "v2",
     "published_in_db": "2026-06-03",
     "title": "The Agent's First Day: Benchmarking Learning, Exploration, and Scheduling in the Workplace Scenarios"
   },
   "2601.09869": {
     "rest_api_published": "2026-01-14T21:03:11Z",
+    "rest_api_updated": "2026-06-02T09:26:34Z",
+    "current_version": "v2",
     "published_in_db": "2026-06-03",
     "title": "A Scoping Review of the Ethical Perspectives on Anthropomorphising Large Language Model-Based Conver"
   },
   "2601.21016": {
     "rest_api_published": "2026-01-28T20:17:31Z",
+    "rest_api_updated": "2026-06-01T06:49:02Z",
+    "current_version": "v2",
     "published_in_db": "2026-06-02",
     "title": "Unplugging a Seemingly Sentient Machine Is the Rational Choice -- A Metaphysical Perspective"
   },
   "2601.15158": {
     "rest_api_published": "2026-01-21T16:36:19Z",
+    "rest_api_updated": "2026-06-03T13:13:08Z",
+    "current_version": "v4",
     "published_in_db": "2026-06-04",
     "title": "Outcome-Based RL Provably Leads Transformers to Reason, but Only With the Right Data"
   },
   "2601.19449": {
     "rest_api_published": "2026-01-27T10:36:31Z",
+    "rest_api_updated": "2026-06-03T09:24:25Z",
+    "current_version": "v2",
     "published_in_db": "2026-06-04",
     "title": "Fixed Aggregation Features Can Rival GNNs"
   },
   "2601.21461": {
     "rest_api_published": "2026-01-29T09:37:31Z",
+    "rest_api_updated": "2026-06-03T06:06:27Z",
+    "current_version": "v3",
     "published_in_db": "2026-06-04",
     "title": "L$^3$: Large Lookup Layers"
   },
   "2601.21683": {
     "rest_api_published": "2026-01-29T13:15:57Z",
+    "rest_api_updated": "2026-06-02T15:12:59Z",
+    "current_version": "v2",
     "published_in_db": "2026-06-03",
     "title": "Can Local Learning Match Self-Supervised Backpropagation?"
   },
   "2601.22450": {
     "rest_api_published": "2026-01-30T01:36:00Z",
+    "rest_api_updated": "2026-06-02T21:39:29Z",
+    "current_version": "v2",
     "published_in_db": "2026-06-04",
     "title": "Tuning the Implicit Regularizer of Masked Diffusion Language Models: Enhancing Generalization via In"
   },
   "2601.22601": {
     "rest_api_published": "2026-01-30T05:50:35Z",
+    "rest_api_updated": "2026-06-03T13:13:49Z",
+    "current_version": "v3",
     "published_in_db": "2026-06-04",
     "title": "\\textsc{Lethe}: Principled Dual-Stream Update for Persistent Knowledge Erasure in Federated Unlearni"
   },
   "2601.23169": {
     "rest_api_published": "2026-01-30T16:53:01Z",
+    "rest_api_updated": "2026-06-02T13:42:55Z",
+    "current_version": "v2",
     "published_in_db": "2026-06-03",
     "title": "Names Don't Matter: Symbol-Invariant Transformer for Open-Vocabulary Learning"
   },
   "2601.22443": {
     "rest_api_published": "2026-01-30T01:25:54Z",
+    "rest_api_updated": "2026-06-02T16:16:48Z",
+    "current_version": "v2",
     "published_in_db": "2026-06-03",
     "title": "Weak Diffusion Priors Can Still Achieve Strong Inverse-Problem Performance"
   }
