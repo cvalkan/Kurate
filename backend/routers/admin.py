@@ -2688,12 +2688,10 @@ async def get_system_logs(
 
 @router.get("/arxiv-health", dependencies=[Depends(verify_admin)])
 async def arxiv_health():
-    """arXiv ingestion health per active category. With rotating proxies,
-    no backoff is needed — each request gets a fresh IP."""
+    """arXiv ingestion health per active category."""
     settings = await get_settings()
     active = [c for c in (settings.get("active_categories") or list(CATEGORIES.keys())) if c and c.strip()]
     now = datetime.now(timezone.utc)
-    from services.arxiv import _ARXIV_PROXY
 
     rows = []
     for cat in sorted(active):
@@ -2716,7 +2714,6 @@ async def arxiv_health():
         })
     return {
         "now": now.isoformat(),
-        "proxy_active": bool(_ARXIV_PROXY),
         "categories": rows,
         "healthy": sum(1 for r in rows if r["status"] == "healthy"),
         "never": sum(1 for r in rows if r["status"] == "never"),
