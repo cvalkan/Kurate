@@ -114,7 +114,7 @@ async def main():
     if to_fix:
         print(f"\nWill FIX date ({len(to_fix)}):")
         for p in to_fix[:15]:
-            print(f"  {p['arxiv_id']:16s} {p['published']:12s} → REST API or ~{p['approx_date']}")
+            print(f"  {p['arxiv_id']:16s} {p['published']:12s} → will lookup via REST API")
         if len(to_fix) > 15:
             print(f"  ... +{len(to_fix)-15} more")
 
@@ -122,11 +122,11 @@ async def main():
         print(f"\nDRY RUN complete.")
         return
 
-    # ── Step 4: Fix dates (REST API for exact, YYMM prefix for fallback) ─
+    # ── Step 4: Fix dates (REST API for exact, skip if unavailable) ────
     if to_fix:
         import httpx
         print(f"\nFixing {len(to_fix)} dates...")
-        exact, approx_count = 0, 0
+        fixed, skipped_api = 0, 0
         for p in to_fix:
             try:
                 await asyncio.sleep(3)
@@ -136,16 +136,17 @@ async def main():
                     pub_match = re.search(r"<published>(.*?)</published>", resp.text) if resp.status_code == 200 else None
                     if pub_match:
                         await _fix_published_date(db, p, pub_match.group(1))
-                        exact += 1
-                        if exact <= 10:
+                        fixed += 1
+                        if fixed <= 10:
                             print(f"  {p['arxiv_id']}: {p['published']} → {pub_match.group(1)}")
                         continue
             except Exception:
                 pass
-            # Fallback: use YYMM approximation
-            await _fix_published_date(db, p, p["approx_date"])
-            approx_count += 1
-        print(f"  Done: {exact} exact, {approx_count} approximate")
+            # API unavailable — skip, re-run the script later
+            skipped_api += 1
+        print(f"  Fixed: {fixed}, Skipped (API unavailable): {skipped_api}")
+        if skipped_api:
+            print(f"  Re-run script later to fix the {skipped_api} remaining")
 
     # ── Step 5: Delete old papers ────────────────────────────────────
     if to_delete:
