@@ -8,7 +8,6 @@ With ~7 top-level sets covering all 45 categories, this replaces 45 individual
 API calls with ~7 OAI-PMH harvests — and OAI-PMH doesn't trip rate limits.
 """
 import re
-import os
 import time
 import random
 import httpx
@@ -16,12 +15,6 @@ import asyncio
 import xml.etree.ElementTree as ET
 from typing import List, Optional, Tuple, Dict
 from core.config import logger
-
-
-# Proxy for arXiv requests (IPRoyal rotating residential)
-_ARXIV_PROXY = os.environ.get("ARXIV_PROXY_URL") or None
-if _ARXIV_PROXY:
-    logger.info(f"[arXiv] Using proxy: {_ARXIV_PROXY.split('@')[-1] if '@' in _ARXIV_PROXY else 'configured'}")
 
 
 def strip_arxiv_version(arxiv_id: str) -> Tuple[str, int]:
@@ -50,18 +43,6 @@ async def _throttle():
             await asyncio.sleep(wait)
         _last_request_ts = time.monotonic()
 
-
-def _proxy_with_session() -> str:
-    """Return the proxy URL with a random session ID in the password,
-    forcing IPRoyal to assign a different IP for each request."""
-    if not _ARXIV_PROXY:
-        return None
-    from urllib.parse import urlparse, urlunparse
-    p = urlparse(_ARXIV_PROXY)
-    session_id = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=8))
-    session_pass = f"{p.password}_session-{session_id}_lifetime-1m"
-    new_netloc = f"{p.username}:{session_pass}@{p.hostname}:{p.port}"
-    return urlunparse(p._replace(netloc=new_netloc))
 
 
 async def lookup_arxiv_version(arxiv_id_base: str) -> Optional[dict]:
