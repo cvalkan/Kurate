@@ -466,6 +466,7 @@ function fmtAgo(ts) {
 function ArxivHealthTable() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [apiCheck, setApiCheck] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -475,17 +476,33 @@ function ArxivHealthTable() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  const checkApi = () => {
+    setApiCheck("checking...");
+    axios.get(`${API}/api/admin/arxiv-api-check`, { headers: getAdminHeaders() })
+      .then(r => setApiCheck(r.data))
+      .catch(() => setApiCheck({ status: "error", error: "request failed" }));
+  };
+
   if (loading) return <div className="text-center text-xs text-muted-foreground py-8">Loading...</div>;
   if (!data) return <div className="text-center text-xs text-muted-foreground py-8">Failed to load</div>;
 
-  const statusColor = (s) => s === "healthy" ? "green" : s === "cooling_down" ? "red" : "gray";
+  const statusColor = (s) => s === "healthy" ? "green" : s === "error" ? "red" : "gray";
 
   return (
     <div className="space-y-3" data-testid="arxiv-health">
       <div className="flex flex-wrap items-center gap-3 text-xs">
         <span className="text-green-600" data-testid="arxiv-health-healthy-count">{data.healthy} healthy</span>
-        <span className="text-red-500" data-testid="arxiv-health-cooling-count">{data.cooling} cooling down</span>
+        {data.error > 0 && <span className="text-red-500">{data.error} error</span>}
         {data.never > 0 && <span className="text-muted-foreground">{data.never} never fetched</span>}
+        <Button size="sm" variant="outline" onClick={checkApi} className="h-8 text-xs gap-1" data-testid="arxiv-api-check-btn">
+          API Check
+        </Button>
+        {apiCheck && apiCheck !== "checking..." && (
+          <span className={apiCheck.status === "ok" ? "text-green-600" : "text-red-500"}>
+            {apiCheck.status === "ok" ? `✓ OK (${apiCheck.response_time_ms}ms)` : `✗ ${apiCheck.status}: ${apiCheck.error || apiCheck.http_code}`}
+          </span>
+        )}
+        {apiCheck === "checking..." && <span className="text-muted-foreground">checking...</span>}
         <Button size="sm" variant="outline" onClick={load} className="h-8 text-xs gap-1 ml-auto" data-testid="arxiv-health-refresh">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
         </Button>
