@@ -340,7 +340,7 @@ export default function AdminPage() {
           <div className="border-t border-border pt-6 space-y-4">
             <h3 className="text-sm font-medium">System Parameters</h3>
             {[
-              { key: "fetch_interval_hours", label: "Fetch Interval (hours)", dflt: 6, help: "How often each category is re-checked for new papers via OAI-PMH. Categories are processed round-robin with ~10s between each. Safe range: 1-168. Default: 6.", min: 1, max: 168 },
+              { key: "fetch_interval_hours", label: "Fetch Interval (hours)", dflt: 24, help: "How often each category is checked for new papers. arXiv publishes once daily (~20:00 UTC), so 24h is the natural cycle. Lower values just re-check without finding new papers. Safe range: 1-168. Default: 24.", min: 1, max: 168 },
               { key: "max_papers_per_fetch", label: "Max Papers Per Cycle", dflt: 50, help: "Max new papers to process (PDF + summary) per category per cycle. Limits pipeline time for high-volume categories. Safe range: 10-2000. Default: 50.", min: 10, max: 2000 },
               { key: "new_category_lookback_days", label: "New Category Lookback (days)", dflt: 0, help: "When a new category is added, how many days back to fetch papers. 0 = only from today onward (no backlog). 7 = fetch the last week of papers. Default: 0.", min: 0, max: 90 },
               { key: "min_papers_for_tournament", label: "Min Papers for Tournament", dflt: 8, help: "Minimum papers needed before a category starts matching. Safe range: 2-50. Default: 8.", min: 2, max: 50 },

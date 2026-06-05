@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 from typing import List, Dict
 from core.config import db, logger, CATEGORIES
 from core.auth import get_settings
-from services.arxiv import fetch_arxiv_papers, strip_arxiv_version, lookup_arxiv_version
+from services.arxiv import fetch_arxiv_papers, strip_arxiv_version
 from services.llm import download_and_extract_pdf, compare_papers, generate_precomparison_impact_summary
 
 
@@ -1173,45 +1173,19 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                     existing = existing_bases.get(base)
 
                     if existing:
-                        # Paper base is already in DB. Determine if it's a revision.
-                        actual_version = None
-
+                        # Paper already in DB. Check for revision (REST API gives versioned IDs).
                         if version > existing["current_version"]:
-                            # Source has versioned ID (REST API) — use directly
-                            actual_version = version
-                        elif rp.get("updated") and rp.get("created") and rp["updated"] != rp["created"]:
-                            # Source has base ID only (OAI-PMH) but paper was modified.
-                            # REST API lookup to get actual version + correct published date.
-                            try:
-                                lookup = await lookup_arxiv_version(base)
-                                if lookup and lookup["version"] > existing["current_version"]:
-                                    actual_version = lookup["version"]
-                                    rp["arxiv_id"] = lookup["full_id"]
-                                    if lookup.get("published"):
-                                        rp["published"] = lookup["published"]
-                            except Exception as e:
-                                logger.warning(f"[{category}] Version lookup failed for {base}: {e}")
-
-                        if actual_version:
                             try:
                                 rev_result = await _handle_revision(
-                                    existing["id"], rp, actual_version, settings
+                                    existing["id"], rp, version, settings
                                 )
                                 if rev_result in ("revised", "updated"):
                                     revisions_detected += 1
-                                    logger.info(f"[{category}] Revision v{actual_version} for {base}: {rev_result}")
+                                    logger.info(f"[{category}] Revision v{version} for {base}: {rev_result}")
                             except Exception as e:
                                 logger.warning(f"[{category}] Revision handling failed for {base}: {e}")
-                        # Skip normal insertion — paper base already in DB
+                        # Skip normal insertion — paper already in DB
                         continue
-
-                    else:
-                        # Paper base NOT in DB. Only add if genuinely new (created recently).
-                        # OAI-PMH returns old papers with recent metadata updates too —
-                        # skip those (e.g., a 2017 paper reclassified in 2026).
-                        rp_created = rp.get("created", "")
-                        if date_from and rp_created and rp_created < date_from:
-                            continue
 
                 if dedup_value in existing_ids:
                     continue
