@@ -2760,16 +2760,28 @@ async def fix_oai_dates(dry_run: bool = True):
     """Fix published dates on papers ingested via OAI-PMH with wrong dates.
     Pass ?dry_run=false to apply fixes."""
     import re as _re
+    from bson import ObjectId
+
+    # Paginated scan using _id cursor (each page is fast, uses _id index)
     affected = []
-    # Target directly: papers with YYYY-MM-DD published format (exactly 10 chars)
-    # This is the OAI-PMH fingerprint — much faster than scanning all 32k papers
-    async for doc in db.papers.find(
-        {"published": {"$regex": r"^\d{4}-\d{2}-\d{2}$"}},
-        {"_id": 0, "id": 1, "arxiv_id": 1, "published": 1, "title": 1},
-    ).max_time_ms(25000):
-        arxiv_id = str(doc.get("arxiv_id", ""))
-        if arxiv_id and not _re.search(r"v\d+$", arxiv_id):
-            affected.append(doc)
+    last_id = None
+    while True:
+        query = {}
+        if last_id:
+            query["_id"] = {"$gt": last_id}
+        batch = await db.papers.find(
+            query,
+            {"_id": 1, "id": 1, "arxiv_id": 1, "published": 1, "title": 1},
+        ).sort("_id", 1).limit(500).to_list(500)
+        if not batch:
+            break
+        for doc in batch:
+            pub = str(doc.get("published", ""))
+            arxiv_id = str(doc.get("arxiv_id", ""))
+            if len(pub) <= 10 and pub and arxiv_id and not _re.search(r"v\d+$", arxiv_id):
+                affected.append({"id": doc["id"], "arxiv_id": arxiv_id,
+                                 "published": pub, "title": doc.get("title", "")})
+        last_id = batch[-1]["_id"]
 
     if dry_run:
         return {"dry_run": True, "affected": len(affected),
@@ -2799,21 +2811,27 @@ async def fix_oai_dates(dry_run: bool = True):
 
     # Repair any paper/ranking mismatches (only OAI papers already fixed)
     repaired = 0
-    # Find OAI papers that now have full ISO dates (fixed) — check their rankings
-    async for paper in db.papers.find(
-        {"published": {"$regex": r"^\d{4}-\d{2}-\d{2}T"}},
-        {"_id": 0, "id": 1, "arxiv_id": 1, "published": 1},
-    ).max_time_ms(25000):
-        arxiv_id = str(paper.get("arxiv_id", ""))
-        if _re.search(r"v\d+$", arxiv_id):
-            continue  # REST API paper, skip
-        pub = str(paper.get("published", ""))
-        if len(pub) <= 10 or not pub:
-            continue
-        ranking = await db.rankings.find_one({"paper_id": paper["id"]}, {"_id": 0, "published": 1})
-        if ranking and str(ranking.get("published", "")) != pub:
-            await db.rankings.update_one({"paper_id": paper["id"]}, {"$set": {"published": pub}})
-            repaired += 1
+    last_id2 = None
+    while True:
+        query2 = {}
+        if last_id2:
+            query2["_id"] = {"$gt": last_id2}
+        batch2 = await db.papers.find(
+            query2, {"_id": 1, "id": 1, "arxiv_id": 1, "published": 1},
+        ).sort("_id", 1).limit(500).to_list(500)
+        if not batch2:
+            break
+        for paper in batch2:
+            arxiv_id = str(paper.get("arxiv_id", ""))
+            pub = str(paper.get("published", ""))
+            # Only check OAI papers that have been fixed (full ISO date + no version)
+            if _re.search(r"v\d+$", arxiv_id) or len(pub) <= 10 or not pub:
+                continue
+            ranking = await db.rankings.find_one({"paper_id": paper["id"]}, {"_id": 0, "published": 1})
+            if ranking and str(ranking.get("published", "")) != pub:
+                await db.rankings.update_one({"paper_id": paper["id"]}, {"$set": {"published": pub}})
+                repaired += 1
+        last_id2 = batch2[-1]["_id"]
 
     return {"fixed": fixed, "skipped": skipped, "repaired": repaired,
             "message": f"Re-run to fix the {skipped} skipped papers" if skipped else "All done"}
