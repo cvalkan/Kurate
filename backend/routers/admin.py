@@ -2761,15 +2761,14 @@ async def fix_oai_dates(dry_run: bool = True):
     Pass ?dry_run=false to apply fixes."""
     import re as _re
     affected = []
-    # Simple query with small projection — filter in Python (avoids regex on Atlas)
+    # Target directly: papers with YYYY-MM-DD published format (exactly 10 chars)
+    # This is the OAI-PMH fingerprint — much faster than scanning all 32k papers
     async for doc in db.papers.find(
-        {"arxiv_id": {"$exists": True}},
+        {"published": {"$regex": r"^\d{4}-\d{2}-\d{2}$"}},
         {"_id": 0, "id": 1, "arxiv_id": 1, "published": 1, "title": 1},
-    ).batch_size(500).max_time_ms(25000):
-        pub = str(doc.get("published", ""))
+    ).max_time_ms(25000):
         arxiv_id = str(doc.get("arxiv_id", ""))
-        # OAI-PMH fingerprint: short date (≤10 chars) + no version suffix
-        if len(pub) <= 10 and pub and not _re.search(r"v\d+$", arxiv_id):
+        if arxiv_id and not _re.search(r"v\d+$", arxiv_id):
             affected.append(doc)
 
     if dry_run:
@@ -2800,15 +2799,14 @@ async def fix_oai_dates(dry_run: bool = True):
 
     # Repair any paper/ranking mismatches (only OAI papers already fixed)
     repaired = 0
+    # Find OAI papers that now have full ISO dates (fixed) — check their rankings
     async for paper in db.papers.find(
-        {"arxiv_id": {"$exists": True}},
+        {"published": {"$regex": r"^\d{4}-\d{2}-\d{2}T"}},
         {"_id": 0, "id": 1, "arxiv_id": 1, "published": 1},
-    ).batch_size(500).max_time_ms(25000):
+    ).max_time_ms(25000):
         arxiv_id = str(paper.get("arxiv_id", ""))
-        pub = str(paper.get("published", ""))
-        # Only check OAI papers that have been fixed (full ISO date + no version)
-        if _re.search(r"v\d+$", arxiv_id) or len(pub) <= 10 or not pub:
-            continue
+        if _re.search(r"v\d+$", arxiv_id):
+            continue  # REST API paper, skip
         pub = str(paper.get("published", ""))
         if len(pub) <= 10 or not pub:
             continue
