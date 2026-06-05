@@ -1,135 +1,285 @@
-"""Migration: Fix published dates on papers ingested via OAI-PMH.
+"""Migration: Fix OAI-PMH papers — repair 2026 dates + remove pre-2026 ghosts.
 
-The first OAI-PMH deployment (Jun 4-5, 2026) used `published = updated`
-(modification date) instead of `published = created` (original submission).
-This script fixes the published date for all affected papers using the
-authoritative REST API. Papers that can't be fixed (API unavailable) are
-skipped — re-run the script later to catch them.
+Phase 1 (REPAIR): Update the 1,083 papers from 2026 that have wrong dates/versions.
+  - Uses /app/oai_dates_results.jsonl as the source of truth.
+  - Updates papers.published, rankings.published with the correct REST API date.
+  - Sets arxiv_id to versioned form (e.g. 2601.18175 -> 2601.18175v2),
+    arxiv_id_base, current_version, is_latest_version on papers + rankings.
 
-HOW IT WORKS:
-  1. Find affected papers: short date format (YYYY-MM-DD) + no version suffix
-  2. For each: call REST API to get the correct original published date
-  3. Update both papers.published and rankings.published
-  4. Final pass: fix any rankings where paper was fixed but ranking was missed
+Phase 2 (REMOVE): Delete the 1,956 pre-2026 OAI papers that should never have been ingested.
+  - Deletes paper docs, rankings, matches (where paper1_id or paper2_id is a ghost),
+    and cleans up reading_lists, bookmarks, author_emails, x_handle_discoveries,
+    tweet_drafts, rankings_repair_queue references.
+  - Does NOT recalculate TrueSkill ratings for opponents (would require full replay;
+    impact is small). A daily_stats rebuild is needed after Phase 2.
 
 SAFETY:
-  - Only touches papers matching the OAI-PMH fingerprint
-  - REST API papers are never touched
-  - If the REST API is unavailable for a paper, it's skipped (not approximated)
-  - Idempotent: already-fixed papers won't match the fingerprint on re-run
+  - Dry-run by default (?dry_run=true) — shows counts, does not mutate.
+  - Phase 1 and Phase 2 can be run independently (?phase=1 or ?phase=2).
+  - Idempotent: already-fixed papers are detected and skipped.
+  - Batched deletes (500 at a time) to stay within Atlas 30s timeout.
+  - Full audit log returned in the response.
 
-Usage:
-  DRY_RUN=1 python -m scripts.fix_oai_dates   # Preview
-  python -m scripts.fix_oai_dates              # Apply
+Usage (via admin API):
+  POST /api/admin/fix-oai-dates?dry_run=true           # preview both phases
+  POST /api/admin/fix-oai-dates?dry_run=false&phase=1   # apply Phase 1 only
+  POST /api/admin/fix-oai-dates?dry_run=false&phase=2   # apply Phase 2 only
+  POST /api/admin/fix-oai-dates?dry_run=false           # apply both phases
 """
 import asyncio
-import os
+import json
+import logging
 import re
+from collections import Counter
+from pathlib import Path
 
-os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
-os.environ.setdefault("DB_NAME", "test_database")
-os.environ.setdefault("ADMIN_PASSWORD", "papersumo2025")
+from core.config import db
 
-DRY_RUN = os.environ.get("DRY_RUN", "0") == "1"
+logger = logging.getLogger("oai_migration")
+
+JSONL_PATH = Path("/app/oai_dates_results.jsonl")
+OAI_JSON_PATH = Path("/app/oai_papers.json")
+
+# Collections that can reference a paper_id
+_CLEANUP_COLLECTIONS = [
+    ("bookmarks", "paper_id"),
+    ("author_emails", "paper_id"),
+    ("x_handle_discoveries", "paper_id"),
+    ("tweet_drafts", "paper_id"),
+    ("rankings_repair_queue", "paper_id"),
+]
 
 
-async def main():
-    from core.config import db
+def _load_date_corrections() -> dict:
+    """Load the 1,083 correct dates from oai_dates_results.jsonl.
+    Returns {arxiv_id: {rest_api_published, current_version, ...}}"""
+    if not JSONL_PATH.exists():
+        return {}
+    corrections = {}
+    for line in JSONL_PATH.read_text().splitlines():
+        if not line.strip():
+            continue
+        r = json.loads(line)
+        if r.get("rest_api_published"):
+            corrections[r["arxiv_id"]] = r
+    return corrections
 
-    print(f"{'DRY RUN' if DRY_RUN else 'LIVE RUN'} — Fix OAI-PMH published dates")
-    print("=" * 60)
 
-    # ── Step 1: Find OAI-PMH papers ──────────────────────────────────
-    # Fingerprint: short date (≤10 chars) + no version suffix in arxiv_id
-    # REST API papers have full ISO dates and/or versioned IDs — excluded.
-    affected = []
-    async for doc in db.papers.find(
-        {"arxiv_id": {"$exists": True}},
-        {"_id": 0, "id": 1, "arxiv_id": 1, "published": 1, "title": 1},
-    ):
-        pub = str(doc.get("published", ""))
-        arxiv_id = doc.get("arxiv_id", "")
-        if len(pub) <= 10 and pub and "v" not in arxiv_id:
-            affected.append(doc)
+def _load_older_paper_ids() -> set:
+    """Load paper_ids for pre-2026 OAI papers from oai_papers.json."""
+    if not OAI_JSON_PATH.exists():
+        return set()
+    with open(OAI_JSON_PATH) as f:
+        data = json.load(f)
+    return {
+        p["paper_id"]
+        for p in data.get("papers", [])
+        if p.get("actual_year", 9999) < 2026
+    }
 
-    print(f"Found {len(affected)} papers with OAI-PMH date fingerprint")
 
-    if not affected:
-        print("Nothing to fix.")
-        return
+async def _phase1_repair(dry_run: bool) -> dict:
+    """Fix dates and versions for the 1,083 papers with 2026 actual dates."""
+    corrections = _load_date_corrections()
+    if not corrections:
+        return {"phase": 1, "error": "oai_dates_results.jsonl not found or empty"}
 
-    # ── Step 2: Preview ──────────────────────────────────────────────
-    print(f"\nSample (first 15):")
-    for p in affected[:15]:
-        print(f"  {p['arxiv_id']:16s} pub={p['published']:12s} {p.get('title','')[:50]}")
-    if len(affected) > 15:
-        print(f"  ... +{len(affected)-15} more")
+    # Map arxiv_id -> paper in DB (paginated scan)
+    to_fix = []
+    already_ok = 0
+    last_id = None
 
-    if DRY_RUN:
-        print(f"\nDRY RUN complete. {len(affected)} papers would be fixed.")
-        return
+    while True:
+        query = {"arxiv_id": {"$in": list(corrections.keys())}}
+        if last_id:
+            query["_id"] = {"$gt": last_id}
+        batch = await db.papers.find(
+            query,
+            {"_id": 1, "id": 1, "arxiv_id": 1, "published": 1,
+             "arxiv_id_base": 1, "current_version": 1, "title": 1},
+        ).sort("_id", 1).limit(500).to_list(500)
+        if not batch:
+            break
+        for doc in batch:
+            aid = doc["arxiv_id"]
+            corr = corrections.get(aid)
+            if not corr:
+                continue
+            pub = str(doc.get("published", ""))
+            # Already fixed? (published is a full ISO timestamp)
+            if len(pub) > 10 and pub.startswith("20") and "T" in pub:
+                already_ok += 1
+                continue
+            to_fix.append({
+                "paper_id": doc["id"],
+                "arxiv_id": aid,
+                "old_published": pub,
+                "new_published": corr["rest_api_published"],
+                "new_version": corr.get("current_version"),  # e.g. "v2"
+                "title": doc.get("title", "")[:60],
+            })
+        last_id = batch[-1]["_id"]
 
-    # ── Step 3: Fix each paper via REST API ──────────────────────────
-    import httpx
-    print(f"\nFixing {len(affected)} papers via REST API (3s between calls)...")
-    fixed, skipped = 0, 0
-    for p in affected:
-        try:
-            await asyncio.sleep(3)
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.get(
-                    "https://export.arxiv.org/api/query",
-                    params={"id_list": p["arxiv_id"], "max_results": "1"},
-                )
-                if resp.status_code == 200:
-                    pub_match = re.search(r"<published>(.*?)</published>", resp.text)
-                    if pub_match:
-                        exact_date = pub_match.group(1)
-                        await db.papers.update_one(
-                            {"id": p["id"]},
-                            {"$set": {"published": exact_date}},
-                        )
-                        await db.rankings.update_one(
-                            {"paper_id": p["id"]},
-                            {"$set": {"published": exact_date}},
-                        )
-                        fixed += 1
-                        if fixed <= 20:
-                            print(f"  [{fixed}] {p['arxiv_id']}: {p['published']} → {exact_date}")
-                        elif fixed % 100 == 0:
-                            print(f"  ... {fixed}/{len(affected)} fixed")
-                        continue
-        except Exception:
-            pass
-        skipped += 1
+    if dry_run:
+        version_dist = Counter(p["new_version"] for p in to_fix)
+        return {
+            "phase": 1, "dry_run": True,
+            "papers_to_fix": len(to_fix),
+            "already_fixed": already_ok,
+            "corrections_loaded": len(corrections),
+            "version_distribution": dict(sorted(version_dist.items())),
+            "sample": to_fix[:15],
+        }
 
-    print(f"\nDone: {fixed} fixed, {skipped} skipped (API unavailable)")
-    if skipped:
-        print(f"Re-run the script later to fix the remaining {skipped}.")
+    # Apply fixes in batches
+    fixed_papers = 0
+    fixed_rankings = 0
+    for p in to_fix:
+        paper_update = {"published": p["new_published"]}
+        ranking_update = {"published": p["new_published"]}
 
-    # ── Step 4: Repair rankings where paper was fixed but ranking wasn't ─
-    # Only checks OAI papers (no version suffix) with full ISO dates (already fixed).
-    print(f"\nChecking for paper/ranking date mismatches...")
-    repaired = 0
-    async for paper in db.papers.find(
-        {"arxiv_id": {"$exists": True, "$not": {"$regex": "v\\d+$"}}},
-        {"_id": 0, "id": 1, "published": 1},
-    ):
-        pub = str(paper.get("published", ""))
-        if len(pub) <= 10 or not pub:
-            continue  # Not yet fixed
-        ranking = await db.rankings.find_one(
-            {"paper_id": paper["id"]},
-            {"_id": 0, "published": 1},
+        # Add versioning fields if we have a version
+        ver_str = p.get("new_version")  # e.g. "v2"
+        if ver_str:
+            ver_num = int(ver_str.lstrip("v"))
+            versioned_id = f"{p['arxiv_id']}{ver_str}"
+            paper_update["arxiv_id"] = versioned_id
+            paper_update["arxiv_id_base"] = p["arxiv_id"]
+            paper_update["current_version"] = ver_num
+            paper_update["is_latest_version"] = True
+            ranking_update["arxiv_id"] = versioned_id
+
+        result = await db.papers.update_one(
+            {"id": p["paper_id"]}, {"$set": paper_update}
         )
-        if ranking and str(ranking.get("published", "")) != pub:
-            await db.rankings.update_one(
-                {"paper_id": paper["id"]},
-                {"$set": {"published": pub}},
-            )
-            repaired += 1
-    print(f"  Repaired {repaired} ranking date mismatches")
+        if result.modified_count:
+            fixed_papers += 1
+
+        result2 = await db.rankings.update_one(
+            {"paper_id": p["paper_id"]}, {"$set": ranking_update}
+        )
+        if result2.modified_count:
+            fixed_rankings += 1
+
+    return {
+        "phase": 1, "dry_run": False,
+        "fixed_papers": fixed_papers,
+        "fixed_rankings": fixed_rankings,
+        "already_fixed": already_ok,
+        "total_attempted": len(to_fix),
+    }
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+async def _phase2_remove(dry_run: bool) -> dict:
+    """Remove pre-2026 OAI ghost papers and all their matches/references."""
+    ghost_ids = _load_older_paper_ids()
+    if not ghost_ids:
+        return {"phase": 2, "error": "oai_papers.json not found or no older papers"}
+
+    # Verify how many actually exist in DB
+    existing_count = await db.papers.count_documents(
+        {"id": {"$in": list(ghost_ids)}}
+    )
+    existing_rankings = await db.rankings.count_documents(
+        {"paper_id": {"$in": list(ghost_ids)}}
+    )
+
+    # Count matches to delete (paper1_id OR paper2_id is a ghost)
+    ghost_list = list(ghost_ids)
+    match_count = await db.matches.count_documents({
+        "$or": [
+            {"paper1_id": {"$in": ghost_list}},
+            {"paper2_id": {"$in": ghost_list}},
+        ]
+    })
+
+    # Count reading_list references
+    reading_list_refs = await db.reading_lists.count_documents(
+        {"paper_ids": {"$in": ghost_list}}
+    )
+
+    # Count other collection refs
+    other_counts = {}
+    for coll_name, field in _CLEANUP_COLLECTIONS:
+        coll = db[coll_name]
+        cnt = await coll.count_documents({field: {"$in": ghost_list}})
+        if cnt > 0:
+            other_counts[coll_name] = cnt
+
+    if dry_run:
+        # Category distribution of ghosts
+        cat_dist = Counter()
+        with open(OAI_JSON_PATH) as f:
+            data = json.load(f)
+        for p in data["papers"]:
+            if p.get("actual_year", 9999) < 2026:
+                cat_dist[p["category"]] += 1
+
+        return {
+            "phase": 2, "dry_run": True,
+            "ghost_paper_ids": len(ghost_ids),
+            "papers_in_db": existing_count,
+            "rankings_in_db": existing_rankings,
+            "matches_to_delete": match_count,
+            "reading_lists_affected": reading_list_refs,
+            "other_collections": other_counts,
+            "category_distribution": dict(sorted(cat_dist.items())),
+        }
+
+    # ── Execute deletions in batches ──
+    log = {}
+
+    # 2a. Delete matches (batched by ghost_id chunks to avoid timeout)
+    deleted_matches = 0
+    for i in range(0, len(ghost_list), 200):
+        chunk = ghost_list[i : i + 200]
+        result = await db.matches.delete_many({
+            "$or": [
+                {"paper1_id": {"$in": chunk}},
+                {"paper2_id": {"$in": chunk}},
+            ]
+        })
+        deleted_matches += result.deleted_count
+    log["deleted_matches"] = deleted_matches
+
+    # 2b. Delete rankings
+    result = await db.rankings.delete_many({"paper_id": {"$in": ghost_list}})
+    log["deleted_rankings"] = result.deleted_count
+
+    # 2c. Delete paper documents (batched)
+    deleted_papers = 0
+    for i in range(0, len(ghost_list), 500):
+        chunk = ghost_list[i : i + 500]
+        result = await db.papers.delete_many({"id": {"$in": chunk}})
+        deleted_papers += result.deleted_count
+    log["deleted_papers"] = deleted_papers
+
+    # 2d. Clean reading_lists (pull ghost IDs from paper_ids arrays)
+    if reading_list_refs > 0:
+        result = await db.reading_lists.update_many(
+            {"paper_ids": {"$in": ghost_list}},
+            {"$pullAll": {"paper_ids": ghost_list}},
+        )
+        log["reading_lists_updated"] = result.modified_count
+
+    # 2e. Clean other collections
+    for coll_name, field in _CLEANUP_COLLECTIONS:
+        coll = db[coll_name]
+        result = await coll.delete_many({field: {"$in": ghost_list}})
+        if result.deleted_count > 0:
+            log[f"deleted_{coll_name}"] = result.deleted_count
+
+    log["note"] = "Run POST /api/admin2/backfill to rebuild daily_stats after this migration"
+
+    return {"phase": 2, "dry_run": False, **log}
+
+
+async def run_migration(dry_run: bool = True, phase: int = 0) -> dict:
+    """Run the OAI-PMH migration.
+    phase=0: both phases, phase=1: repair only, phase=2: remove only."""
+    results = {}
+    if phase in (0, 1):
+        results["phase1_repair"] = await _phase1_repair(dry_run)
+    if phase in (0, 2):
+        results["phase2_remove"] = await _phase2_remove(dry_run)
+    return results

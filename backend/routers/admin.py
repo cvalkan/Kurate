@@ -2756,104 +2756,11 @@ async def arxiv_health():
 
 
 @router.post("/fix-oai-dates", dependencies=[Depends(verify_admin)])
-async def fix_oai_dates(dry_run: bool = True):
-    """Fix published dates on papers ingested via OAI-PMH with wrong dates.
-    Pass ?dry_run=false to apply fixes."""
-    import re as _re
-    from bson import ObjectId
-
-    # Paginated scan using _id cursor (each page is fast, uses _id index)
-    affected = []
-    last_id = None
-    while True:
-        query = {}
-        if last_id:
-            query["_id"] = {"$gt": last_id}
-        batch = await db.papers.find(
-            query,
-            {"_id": 1, "id": 1, "arxiv_id": 1, "published": 1, "title": 1},
-        ).sort("_id", 1).limit(500).to_list(500)
-        if not batch:
-            break
-        for doc in batch:
-            pub = str(doc.get("published", ""))
-            arxiv_id = str(doc.get("arxiv_id", ""))
-            if len(pub) <= 10 and pub and arxiv_id and not _re.search(r"v\d+$", arxiv_id):
-                affected.append({"id": doc["id"], "arxiv_id": arxiv_id,
-                                 "published": pub, "title": doc.get("title", "")})
-        last_id = batch[-1]["_id"]
-
-    if dry_run:
-        # Compute year distribution from arxiv_id prefix
-        from collections import Counter
-        year_dist = Counter()
-        wrong_date = 0
-        correct_date = 0
-        for p in affected:
-            m = _re.match(r'^(\d{2})(\d{2})\.', p["arxiv_id"])
-            if m:
-                yr = 2000 + int(m.group(1)) if int(m.group(1)) < 50 else 1900 + int(m.group(1))
-                mm = int(m.group(2))
-                year_dist[yr] += 1
-                pub_yr = int(p["published"][:4])
-                pub_mm = int(p["published"][5:7])
-                if abs((pub_yr * 12 + pub_mm) - (yr * 12 + mm)) > 1:
-                    wrong_date += 1
-                else:
-                    correct_date += 1
-        return {"dry_run": True, "affected": len(affected),
-                "wrong_date": wrong_date, "correct_date_format_only": correct_date,
-                "year_distribution": dict(sorted(year_dist.items())),
-                "sample": [{"arxiv_id": p["arxiv_id"], "published": p["published"],
-                            "title": p.get("title", "")[:60]} for p in affected[:20]]}
-
-    # Fix each paper via REST API
-    import httpx
-    fixed, skipped = 0, 0
-    for p in affected:
-        try:
-            await asyncio.sleep(3)
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.get("https://export.arxiv.org/api/query",
-                                        params={"id_list": p["arxiv_id"], "max_results": "1"})
-                if resp.status_code == 200:
-                    pub_match = _re.search(r"<published>(.*?)</published>", resp.text)
-                    if pub_match:
-                        exact_date = pub_match.group(1)
-                        await db.papers.update_one({"id": p["id"]}, {"$set": {"published": exact_date}})
-                        await db.rankings.update_one({"paper_id": p["id"]}, {"$set": {"published": exact_date}})
-                        fixed += 1
-                        continue
-        except Exception:
-            pass
-        skipped += 1
-
-    # Repair any paper/ranking mismatches (only OAI papers already fixed)
-    repaired = 0
-    last_id2 = None
-    while True:
-        query2 = {}
-        if last_id2:
-            query2["_id"] = {"$gt": last_id2}
-        batch2 = await db.papers.find(
-            query2, {"_id": 1, "id": 1, "arxiv_id": 1, "published": 1},
-        ).sort("_id", 1).limit(500).to_list(500)
-        if not batch2:
-            break
-        for paper in batch2:
-            arxiv_id = str(paper.get("arxiv_id", ""))
-            pub = str(paper.get("published", ""))
-            # Only check OAI papers that have been fixed (full ISO date + no version)
-            if _re.search(r"v\d+$", arxiv_id) or len(pub) <= 10 or not pub:
-                continue
-            ranking = await db.rankings.find_one({"paper_id": paper["id"]}, {"_id": 0, "published": 1})
-            if ranking and str(ranking.get("published", "")) != pub:
-                await db.rankings.update_one({"paper_id": paper["id"]}, {"$set": {"published": pub}})
-                repaired += 1
-        last_id2 = batch2[-1]["_id"]
-
-    return {"fixed": fixed, "skipped": skipped, "repaired": repaired,
-            "message": f"Re-run to fix the {skipped} skipped papers" if skipped else "All done"}
+async def fix_oai_dates(dry_run: bool = True, phase: int = 0):
+    """OAI-PMH migration: repair 2026 dates (phase=1) + remove pre-2026 ghosts (phase=2).
+    phase=0 runs both. Pass ?dry_run=false to apply."""
+    from scripts.fix_oai_dates import run_migration
+    return await run_migration(dry_run=dry_run, phase=phase)
 
 
 @router.post("/dedup-papers", dependencies=[Depends(verify_admin)])
