@@ -2751,13 +2751,15 @@ async def fix_oai_dates(dry_run: bool = True):
     Pass ?dry_run=false to apply fixes."""
     import re as _re
     affected = []
-    # Find papers with OAI-PMH fingerprint: short date + no version suffix
+    # Simple query with small projection — filter in Python (avoids regex on Atlas)
     async for doc in db.papers.find(
-        {"arxiv_id": {"$exists": True, "$not": {"$regex": r"v\d+$"}}},
+        {"arxiv_id": {"$exists": True}},
         {"_id": 0, "id": 1, "arxiv_id": 1, "published": 1, "title": 1},
-    ).max_time_ms(25000):
+    ).batch_size(500).max_time_ms(25000):
         pub = str(doc.get("published", ""))
-        if len(pub) <= 10 and pub:
+        arxiv_id = str(doc.get("arxiv_id", ""))
+        # OAI-PMH fingerprint: short date (≤10 chars) + no version suffix
+        if len(pub) <= 10 and pub and not _re.search(r"v\d+$", arxiv_id):
             affected.append(doc)
 
     if dry_run:
@@ -2789,9 +2791,14 @@ async def fix_oai_dates(dry_run: bool = True):
     # Repair any paper/ranking mismatches (only OAI papers already fixed)
     repaired = 0
     async for paper in db.papers.find(
-        {"arxiv_id": {"$exists": True, "$not": {"$regex": r"v\d+$"}}},
-        {"_id": 0, "id": 1, "published": 1},
-    ).max_time_ms(25000):
+        {"arxiv_id": {"$exists": True}},
+        {"_id": 0, "id": 1, "arxiv_id": 1, "published": 1},
+    ).batch_size(500).max_time_ms(25000):
+        arxiv_id = str(paper.get("arxiv_id", ""))
+        pub = str(paper.get("published", ""))
+        # Only check OAI papers that have been fixed (full ISO date + no version)
+        if _re.search(r"v\d+$", arxiv_id) or len(pub) <= 10 or not pub:
+            continue
         pub = str(paper.get("published", ""))
         if len(pub) <= 10 or not pub:
             continue
