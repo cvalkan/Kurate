@@ -1163,10 +1163,14 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                 if doc.get("dedup_hash"):
                     existing_hashes.add(doc["dedup_hash"])
 
-            # Sort oldest-first so the per-cycle cap defers NEWEST papers
-            # (which will appear in the next harvest), not oldest (which might
-            # fall outside the next OAI-PMH date window).
-            raw_papers.sort(key=lambda p: p.get("created") or p.get("published") or "")
+            # Sort order depends on context:
+            # - New category: newest-first → get the 50 most recent, skip old backlog
+            # - Existing category: oldest-first → catch up chronologically, deferred
+            #   papers (newest) stay in the next OAI-PMH window
+            if is_new_category:
+                raw_papers.sort(key=lambda p: p.get("created") or p.get("published") or "", reverse=True)
+            else:
+                raw_papers.sort(key=lambda p: p.get("created") or p.get("published") or "")
 
             for rp in raw_papers:
                 dedup_value = rp.get(id_field) or rp.get("doi") or rp.get("arxiv_id")
