@@ -2728,8 +2728,9 @@ async def fix_oai_dates(dry_run: bool = True):
     Pass ?dry_run=false to apply fixes."""
     import re as _re
     affected = []
+    # Only scan papers added after OAI-PMH deployment (Jun 4, 2026)
     async for doc in db.papers.find(
-        {"arxiv_id": {"$exists": True}},
+        {"arxiv_id": {"$exists": True}, "added_at": {"$gte": "2026-06-04"}},
         {"_id": 0, "id": 1, "arxiv_id": 1, "published": 1, "title": 1},
     ):
         pub = str(doc.get("published", ""))
@@ -2763,10 +2764,11 @@ async def fix_oai_dates(dry_run: bool = True):
             pass
         skipped += 1
 
-    # Repair any paper/ranking mismatches
+    # Repair any paper/ranking mismatches (only OAI papers)
     repaired = 0
     async for paper in db.papers.find(
-        {"arxiv_id": {"$exists": True, "$not": {"$regex": r"v\d+$"}}},
+        {"arxiv_id": {"$exists": True, "$not": {"$regex": r"v\d+$"}},
+         "added_at": {"$gte": "2026-06-04"}},
         {"_id": 0, "id": 1, "published": 1},
     ):
         pub = str(paper.get("published", ""))
