@@ -2729,14 +2729,13 @@ async def fix_oai_dates(dry_run: bool = True):
     Pass ?dry_run=false to apply fixes."""
     import re as _re
     affected = []
-    # Only scan papers added after OAI-PMH deployment (Jun 4, 2026)
+    # Find papers with OAI-PMH fingerprint: short date + no version suffix
     async for doc in db.papers.find(
-        {"arxiv_id": {"$exists": True}, "added_at": {"$gte": "2026-06-04"}},
+        {"arxiv_id": {"$exists": True, "$not": {"$regex": r"v\d+$"}}},
         {"_id": 0, "id": 1, "arxiv_id": 1, "published": 1, "title": 1},
     ):
         pub = str(doc.get("published", ""))
-        arxiv_id = doc.get("arxiv_id", "")
-        if len(pub) <= 10 and pub and "v" not in arxiv_id:
+        if len(pub) <= 10 and pub:
             affected.append(doc)
 
     if dry_run:
@@ -2765,11 +2764,10 @@ async def fix_oai_dates(dry_run: bool = True):
             pass
         skipped += 1
 
-    # Repair any paper/ranking mismatches (only OAI papers)
+    # Repair any paper/ranking mismatches (only OAI papers already fixed)
     repaired = 0
     async for paper in db.papers.find(
-        {"arxiv_id": {"$exists": True, "$not": {"$regex": r"v\d+$"}},
-         "added_at": {"$gte": "2026-06-04"}},
+        {"arxiv_id": {"$exists": True, "$not": {"$regex": r"v\d+$"}}},
         {"_id": 0, "id": 1, "published": 1},
     ):
         pub = str(paper.get("published", ""))
