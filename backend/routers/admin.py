@@ -2725,7 +2725,16 @@ async def arxiv_health():
         last_fail = await db.system_logs.find_one(
             {"event": "fetch_cycle", "category": cat, "success": False},
             sort=[("ts", -1)], projection={"_id": 0, "ts": 1, "detail": 1, "reason": 1})
-        status = "never" if not last_fetch else "healthy"
+        last_success = await db.system_logs.find_one(
+            {"event": "fetch_cycle", "category": cat, "success": True},
+            sort=[("ts", -1)], projection={"_id": 0, "ts": 1})
+        # Status: compare last success vs last failure
+        if not last_fetch:
+            status = "never"
+        elif last_fail and (not last_success or last_fail.get("ts", "") > last_success.get("ts", "")):
+            status = "error"
+        else:
+            status = "healthy"
         lf_ts = last_fail.get("ts") if last_fail else None
         rows.append({
             "category": cat,
@@ -2739,6 +2748,7 @@ async def arxiv_health():
         "now": now.isoformat(),
         "categories": rows,
         "healthy": sum(1 for r in rows if r["status"] == "healthy"),
+        "error": sum(1 for r in rows if r["status"] == "error"),
         "never": sum(1 for r in rows if r["status"] == "never"),
     }
 
