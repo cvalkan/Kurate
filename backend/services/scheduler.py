@@ -1073,27 +1073,21 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
     try:
         settings = await get_settings()
         max_papers = settings.get("max_papers_per_fetch", 50)
-        max_initial_backlog = settings.get("max_initial_backlog", 200)
 
         # Determine date_from: use the publication date of our NEWEST paper in this category.
-        # This is robust regardless of arXiv delays, our downtime, or rate limiting —
-        # we always fetch everything published after what we already have.
         from datetime import datetime, timedelta, timezone
         newest_paper = await db.papers.find_one(
             {"categories.0": category, "published": {"$exists": True, "$ne": None}},
             {"_id": 0, "published": 1},
             sort=[("published", -1)],
         )
-        is_new_category = False
         if newest_paper and newest_paper.get("published"):
             pub = newest_paper["published"]
             date_from = pub.strftime("%Y-%m-%d") if hasattr(pub, "strftime") else str(pub)[:10]
         else:
-            # No papers in this category yet — use 30-day lookback, capped by max_initial_backlog
-            date_from = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
-            max_papers = min(max_papers, max_initial_backlog)
-            is_new_category = True
-            logger.info(f"[{category}] New category — initial backlog capped at {max_papers} papers (setting: {max_initial_backlog})")
+            # New category — only fetch papers from TODAY onward. No backlog.
+            date_from = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            logger.info(f"[{category}] New category — starting from today ({date_from}), no backlog")
 
         # --- STEP 1: Fetch new papers from source ---
         cat_status["current_activity"] = "Fetching new papers from source..."
@@ -1163,14 +1157,9 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                 if doc.get("dedup_hash"):
                     existing_hashes.add(doc["dedup_hash"])
 
-            # Sort order depends on context:
-            # - New category: newest-first → get the 50 most recent, skip old backlog
-            # - Existing category: oldest-first → catch up chronologically, deferred
-            #   papers (newest) stay in the next OAI-PMH window
-            if is_new_category:
-                raw_papers.sort(key=lambda p: p.get("created") or p.get("published") or "", reverse=True)
-            else:
-                raw_papers.sort(key=lambda p: p.get("created") or p.get("published") or "")
+            # Sort oldest-first so the per-cycle cap defers the newest papers
+            # (which stay in the next OAI-PMH window) rather than the oldest.
+            raw_papers.sort(key=lambda p: p.get("created") or p.get("published") or "")
 
             for rp in raw_papers:
                 dedup_value = rp.get(id_field) or rp.get("doi") or rp.get("arxiv_id")
