@@ -174,8 +174,10 @@ async def fetch_arxiv_papers(
             seen.add(p["arxiv_id"])
             unique.append(p)
 
-    hard_cap = max_results
-    return unique[:hard_cap]
+    # Don't cap here — the scheduler needs the FULL list to detect revisions
+    # of tracked papers. The scheduler applies its own per-cycle processing cap
+    # (max_papers_per_fetch) to limit PDF downloads and summaries.
+    return unique
 
 
 # ── OAI-PMH harvester ─────────────────────────────────────────────────
@@ -205,11 +207,9 @@ async def _oai_harvest(oai_set: str, date_from: Optional[str] = None) -> List[di
             if date_from:
                 params["from"] = date_from
 
-        # OAI-PMH request with retry — NO proxy needed (OAI-PMH is designed
-        # for bulk harvesting and doesn't rate-limit like the REST API)
+        # OAI-PMH request with retry — no throttle needed (designed for bulk harvesting)
         xml_text = None
         for attempt in range(3):
-            await _throttle()
             try:
                 async with httpx.AsyncClient(
                     timeout=60.0,

@@ -1235,6 +1235,9 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                 content_hash = hashlib.sha256(f"{title_norm}|{first_author}".encode()).hexdigest()[:16]
                 if content_hash in existing_hashes:
                     continue
+                # Cap new paper insertions per cycle (revisions are uncapped)
+                if new_count >= max_papers:
+                    continue
                 paper_doc = {
                     "id": str(uuid.uuid4()),
                     "title": rp["title"],
