@@ -2,10 +2,8 @@
 
 OAI-PMH (export.arxiv.org/oai2) is the intended protocol for bulk harvesting.
 One harvest per top-level set (cs, math, physics, ...) returns ALL subcategories
-at once. Results are cached per-set so subsequent categories reuse the same data.
-
-With ~7 top-level sets covering all 45 categories, this replaces 45 individual
-API calls with ~7 OAI-PMH harvests — and OAI-PMH doesn't trip rate limits.
+at once. The fetch loop harvests once per set, then processes all categories
+in that set — no caching needed.
 """
 import re
 import time
@@ -74,28 +72,46 @@ async def lookup_arxiv_version(arxiv_id_base: str) -> Optional[dict]:
     return None
 
 
-# ── OAI-PMH set-level cache ───────────────────────────────────────────
-# Key: (oai_set, date_from) → list of ALL papers from that set since date_from.
-# Populated on first category request, reused by subsequent categories in the
-# same set. Cleared after 2 hours or when date_from changes.
-_oai_cache: Dict[str, dict] = {}  # {oai_set: {"date_from": str, "papers": [...], "ts": float}}
-_OAI_CACHE_TTL = 7200  # 2 hours
-
-
 def _category_to_oai_set(category: str) -> str:
     """Map an arXiv category to its OAI-PMH set name.
     cs.LG → 'cs', hep-th → 'physics:hep-th', quant-ph → 'physics:quant-ph'"""
     if "." in category:
         prefix = category.split(".")[0]
-        # Top-level archives that have their own OAI set
         if prefix in ("cs", "math", "stat", "econ", "eess"):
             return prefix
         if prefix in ("q-bio", "q-fin"):
             return prefix
-        # Physics sub-archives: astro-ph, cond-mat, nlin, physics → physics:prefix
         return f"physics:{prefix}"
-    # Standalone physics categories: hep-th, gr-qc, quant-ph, math-ph, etc.
     return f"physics:{category}"
+
+
+def group_categories_by_set(categories: List[str]) -> Dict[str, List[str]]:
+    """Group categories by their OAI-PMH set. Used by the fetch loop."""
+    sets = {}
+    for cat in categories:
+        s = _category_to_oai_set(cat)
+        sets.setdefault(s, []).append(cat)
+    return sets
+
+
+def filter_papers_for_category(
+    all_papers: List[dict],
+    category: str,
+    primary_only: bool = True,
+) -> List[dict]:
+    """Filter a pre-harvested paper list for a specific category."""
+    if primary_only:
+        filtered = [p for p in all_papers if p.get("categories") and p["categories"][0] == category]
+    else:
+        filtered = [p for p in all_papers if category in (p.get("categories") or [])]
+    # Deduplicate
+    seen = set()
+    unique = []
+    for p in filtered:
+        if p["arxiv_id"] not in seen:
+            seen.add(p["arxiv_id"])
+            unique.append(p)
+    return unique
 
 
 async def fetch_arxiv_papers(
@@ -104,65 +120,25 @@ async def fetch_arxiv_papers(
     primary_only: bool = True,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    _pre_harvested: Optional[List[dict]] = None,
 ) -> List[dict]:
-    """Fetch papers from arXiv via OAI-PMH (primary) with REST API fallback.
+    """Fetch papers for a category.
 
-    Uses set-level caching: the first category in a set (e.g., cs.LG) triggers
-    a full OAI-PMH harvest for the entire set (cs). Subsequent categories
-    (cs.AI, cs.RO, ...) reuse the cached data — zero additional requests.
+    If _pre_harvested is provided (from the set-level fetch loop), filters it
+    locally — no network call needed. Otherwise falls back to a direct harvest
+    or REST API call (used for manual/force fetches from the admin UI).
     """
+    if _pre_harvested is not None:
+        return filter_papers_for_category(_pre_harvested, category, primary_only)
+
+    # Direct call (manual fetch from admin UI) — harvest the set
     oai_set = _category_to_oai_set(category)
-
-    # Check cache — accept any cached harvest whose date_from is <= requested.
-    # A wider harvest (older date_from) always includes all papers from a narrower one.
-    cached = _oai_cache.get(oai_set)
-    if (cached
-            and cached.get("date_from", "9999") <= (date_from or "")
-            and time.monotonic() - cached.get("ts", 0) < _OAI_CACHE_TTL):
-        all_papers = cached["papers"]
-        logger.info(f"[{category}] OAI-PMH cache hit for set={oai_set} ({len(all_papers)} total)")
-    else:
-        # Cache miss — harvest. Use the OLDER of cached date_from and requested,
-        # so subsequent categories with different dates get cache hits.
-        harvest_from = date_from
-        if cached and date_from and cached.get("date_from"):
-            harvest_from = min(date_from, cached["date_from"])
-        try:
-            all_papers = await _oai_harvest(oai_set, date_from=harvest_from)
-            _oai_cache[oai_set] = {
-                "date_from": harvest_from or "",
-                "papers": all_papers,
-                "ts": time.monotonic(),
-            }
-            logger.info(f"[{category}] OAI-PMH harvested set={oai_set} from={harvest_from}: {len(all_papers)} papers")
-        except Exception as e:
-            logger.warning(f"[{category}] OAI-PMH failed ({e}), falling back to REST API")
-            return await _fetch_arxiv_api(category, max_results, primary_only, date_from, date_to)
-
-    # Filter for this specific category
-    if primary_only:
-        filtered = [p for p in all_papers if p.get("categories") and p["categories"][0] == category]
-    else:
-        filtered = [p for p in all_papers if category in (p.get("categories") or [])]
-
-    # Do NOT filter by created date here — the scheduler needs both new papers
-    # AND revisions of existing papers. Classification happens in run_fetch_cycle:
-    #   - New paper: created >= date_from AND not in DB
-    #   - Revision: base in DB AND updated is newer
-    #   - Skip: created < date_from AND not in DB (old paper we never tracked)
-
-    # Deduplicate by arxiv_id
-    seen = set()
-    unique = []
-    for p in filtered:
-        if p["arxiv_id"] not in seen:
-            seen.add(p["arxiv_id"])
-            unique.append(p)
-
-    # Don't cap here — the scheduler needs the FULL list to detect revisions
-    # of tracked papers. The scheduler applies its own per-cycle processing cap
-    # (max_papers_per_fetch) to limit PDF downloads and summaries.
-    return unique
+    try:
+        all_papers = await oai_harvest(oai_set, date_from=date_from)
+        return filter_papers_for_category(all_papers, category, primary_only)
+    except Exception as e:
+        logger.warning(f"[{category}] OAI-PMH failed ({e}), falling back to REST API")
+        return await _fetch_arxiv_api(category, max_results, primary_only, date_from, date_to)
 
 
 # ── OAI-PMH harvester ─────────────────────────────────────────────────
@@ -172,7 +148,7 @@ _OAI_NS = "http://www.openarchives.org/OAI/2.0/"
 _ARXIV_NS = "http://arxiv.org/OAI/arXiv/"
 
 
-async def _oai_harvest(oai_set: str, date_from: Optional[str] = None) -> List[dict]:
+async def oai_harvest(oai_set: str, date_from: Optional[str] = None) -> List[dict]:
     """Harvest all records from an OAI-PMH set since date_from.
     Follows resumption tokens for complete pagination."""
     collected = []

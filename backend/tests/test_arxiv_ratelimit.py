@@ -29,7 +29,7 @@ def test_fetch_retries_429_via_rest_api_fallback(monkeypatch):
     """When OAI-PMH fails, REST API fallback retries on 429."""
     monkeypatch.setattr(ax, "_MIN_INTERVAL", 0.0)
     ax._last_request_ts = 0.0
-    ax._oai_cache.clear()
+    pass  # no cache to clear
 
     calls = {"n": 0}
     empty_feed = '<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"></feed>'
@@ -71,7 +71,7 @@ def test_fetch_exhausts_all_retries(monkeypatch):
     """After OAI-PMH + REST API all fail, should raise or return empty."""
     monkeypatch.setattr(ax, "_MIN_INTERVAL", 0.0)
     ax._last_request_ts = 0.0
-    ax._oai_cache.clear()
+    pass  # no cache to clear
 
     calls = {"n": 0}
 
