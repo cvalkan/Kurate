@@ -122,15 +122,19 @@ async def fetch_arxiv_papers(
         all_papers = cached["papers"]
         logger.info(f"[{category}] OAI-PMH cache hit for set={oai_set} ({len(all_papers)} total)")
     else:
-        # Harvest the full set via OAI-PMH
+        # Cache miss — harvest. Use the OLDER of cached date_from and requested,
+        # so subsequent categories with different dates get cache hits.
+        harvest_from = date_from
+        if cached and date_from and cached.get("date_from"):
+            harvest_from = min(date_from, cached["date_from"])
         try:
-            all_papers = await _oai_harvest(oai_set, date_from=date_from)
+            all_papers = await _oai_harvest(oai_set, date_from=harvest_from)
             _oai_cache[oai_set] = {
-                "date_from": date_from or "",
+                "date_from": harvest_from or "",
                 "papers": all_papers,
                 "ts": time.monotonic(),
             }
-            logger.info(f"[{category}] OAI-PMH harvested set={oai_set}: {len(all_papers)} papers")
+            logger.info(f"[{category}] OAI-PMH harvested set={oai_set} from={harvest_from}: {len(all_papers)} papers")
         except Exception as e:
             logger.warning(f"[{category}] OAI-PMH failed ({e}), falling back to REST API")
             return await _fetch_arxiv_api(category, max_results, primary_only, date_from, date_to)
