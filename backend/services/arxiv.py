@@ -2,8 +2,7 @@
 
 OAI-PMH (export.arxiv.org/oai2) is the intended protocol for bulk harvesting.
 One harvest per top-level set (cs, math, physics, ...) returns ALL subcategories
-at once. The fetch loop harvests once per set, then processes all categories
-in that set — no caching needed.
+at once. Results are cached per-set so subsequent categories reuse the same data.
 """
 import re
 import time
@@ -42,12 +41,10 @@ async def _throttle():
         _last_request_ts = time.monotonic()
 
 
-
 async def lookup_arxiv_version(arxiv_id_base: str) -> Optional[dict]:
     """Look up the latest version of a paper via the REST API.
     Returns {full_id, version, published} or None on failure.
-    Used for revision detection — OAI-PMH doesn't provide version numbers,
-    and its 'created' field is unreliable for revised papers."""
+    Used for revision detection — OAI-PMH doesn't provide version numbers."""
     await _throttle()
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -56,7 +53,6 @@ async def lookup_arxiv_version(arxiv_id_base: str) -> Optional[dict]:
                 params={"id_list": arxiv_id_base, "max_results": "1"},
             )
             resp.raise_for_status()
-            import re
             id_match = re.search(r'<id>http://arxiv\.org/abs/(.+?)</id>', resp.text)
             pub_match = re.search(r'<published>(.*?)</published>', resp.text)
             if id_match:
@@ -72,9 +68,13 @@ async def lookup_arxiv_version(arxiv_id_base: str) -> Optional[dict]:
     return None
 
 
+# ── OAI-PMH set-level cache ───────────────────────────────────────────
+_oai_cache: Dict[str, dict] = {}
+_OAI_CACHE_TTL = 7200  # 2 hours
+
+
 def _category_to_oai_set(category: str) -> str:
-    """Map an arXiv category to its OAI-PMH set name.
-    cs.LG → 'cs', hep-th → 'physics:hep-th', quant-ph → 'physics:quant-ph'"""
+    """Map an arXiv category to its OAI-PMH set name."""
     if "." in category:
         prefix = category.split(".")[0]
         if prefix in ("cs", "math", "stat", "econ", "eess"):
@@ -85,60 +85,56 @@ def _category_to_oai_set(category: str) -> str:
     return f"physics:{category}"
 
 
-def group_categories_by_set(categories: List[str]) -> Dict[str, List[str]]:
-    """Group categories by their OAI-PMH set. Used by the fetch loop."""
-    sets = {}
-    for cat in categories:
-        s = _category_to_oai_set(cat)
-        sets.setdefault(s, []).append(cat)
-    return sets
-
-
-def filter_papers_for_category(
-    all_papers: List[dict],
-    category: str,
-    primary_only: bool = True,
-) -> List[dict]:
-    """Filter a pre-harvested paper list for a specific category."""
-    if primary_only:
-        filtered = [p for p in all_papers if p.get("categories") and p["categories"][0] == category]
-    else:
-        filtered = [p for p in all_papers if category in (p.get("categories") or [])]
-    # Deduplicate
-    seen = set()
-    unique = []
-    for p in filtered:
-        if p["arxiv_id"] not in seen:
-            seen.add(p["arxiv_id"])
-            unique.append(p)
-    return unique
-
-
 async def fetch_arxiv_papers(
     category: str = "cs.RO",
     max_results: int = 50,
     primary_only: bool = True,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
-    _pre_harvested: Optional[List[dict]] = None,
 ) -> List[dict]:
-    """Fetch papers for a category.
-
-    If _pre_harvested is provided (from the set-level fetch loop), filters it
-    locally — no network call needed. Otherwise falls back to a direct harvest
-    or REST API call (used for manual/force fetches from the admin UI).
-    """
-    if _pre_harvested is not None:
-        return filter_papers_for_category(_pre_harvested, category, primary_only)
-
-    # Direct call (manual fetch from admin UI) — harvest the set
+    """Fetch papers via OAI-PMH (primary) with REST API fallback.
+    Uses set-level caching so subsequent categories in the same set are instant."""
     oai_set = _category_to_oai_set(category)
-    try:
-        all_papers = await oai_harvest(oai_set, date_from=date_from)
-        return filter_papers_for_category(all_papers, category, primary_only)
-    except Exception as e:
-        logger.warning(f"[{category}] OAI-PMH failed ({e}), falling back to REST API")
-        return await _fetch_arxiv_api(category, max_results, primary_only, date_from, date_to)
+
+    # Check cache — accept any cached harvest whose date_from covers the request
+    cached = _oai_cache.get(oai_set)
+    if (cached
+            and cached.get("date_from", "9999") <= (date_from or "")
+            and time.monotonic() - cached.get("ts", 0) < _OAI_CACHE_TTL):
+        all_papers = cached["papers"]
+        logger.info(f"[{category}] OAI-PMH cache hit for set={oai_set} ({len(all_papers)} total)")
+    else:
+        # Harvest. Use the older of cached/requested date_from for wider coverage.
+        harvest_from = date_from
+        if cached and date_from and cached.get("date_from"):
+            harvest_from = min(date_from, cached["date_from"])
+        try:
+            all_papers = await _oai_harvest(oai_set, date_from=harvest_from)
+            _oai_cache[oai_set] = {
+                "date_from": harvest_from or "",
+                "papers": all_papers,
+                "ts": time.monotonic(),
+            }
+            logger.info(f"[{category}] OAI-PMH harvested set={oai_set} from={harvest_from}: {len(all_papers)} papers")
+        except Exception as e:
+            logger.warning(f"[{category}] OAI-PMH failed ({e}), falling back to REST API")
+            return await _fetch_arxiv_api(category, max_results, primary_only, date_from, date_to)
+
+    # Filter for this specific category
+    if primary_only:
+        filtered = [p for p in all_papers if p.get("categories") and p["categories"][0] == category]
+    else:
+        filtered = [p for p in all_papers if category in (p.get("categories") or [])]
+
+    # Deduplicate by arxiv_id
+    seen = set()
+    unique = []
+    for p in filtered:
+        if p["arxiv_id"] not in seen:
+            seen.add(p["arxiv_id"])
+            unique.append(p)
+
+    return unique
 
 
 # ── OAI-PMH harvester ─────────────────────────────────────────────────
@@ -148,34 +144,25 @@ _OAI_NS = "http://www.openarchives.org/OAI/2.0/"
 _ARXIV_NS = "http://arxiv.org/OAI/arXiv/"
 
 
-async def oai_harvest(oai_set: str, date_from: Optional[str] = None) -> List[dict]:
-    """Harvest all records from an OAI-PMH set since date_from.
-    Follows resumption tokens for complete pagination."""
+async def _oai_harvest(oai_set: str, date_from: Optional[str] = None) -> List[dict]:
+    """Harvest all records from an OAI-PMH set since date_from."""
     collected = []
     resumption_token = None
     page = 0
-    max_pages = 30  # Safety limit
+    max_pages = 30
 
     while page < max_pages:
         if resumption_token:
             params = {"verb": "ListRecords", "resumptionToken": resumption_token}
         else:
-            params = {
-                "verb": "ListRecords",
-                "metadataPrefix": "arXiv",
-                "set": oai_set,
-            }
+            params = {"verb": "ListRecords", "metadataPrefix": "arXiv", "set": oai_set}
             if date_from:
                 params["from"] = date_from
 
-        # OAI-PMH request with retry — no throttle needed (designed for bulk harvesting)
         xml_text = None
         for attempt in range(3):
             try:
-                async with httpx.AsyncClient(
-                    timeout=60.0,
-                    follow_redirects=True,
-                ) as client:
+                async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
                     resp = await client.get(_OAI_BASE, params=params)
                     resp.raise_for_status()
                     xml_text = resp.text
@@ -196,20 +183,18 @@ async def oai_harvest(oai_set: str, date_from: Optional[str] = None) -> List[dic
         resumption_token = token
 
         if not token:
-            break  # No more pages
+            break
 
         page += 1
-        await asyncio.sleep(1)  # Brief pause between pages
+        await asyncio.sleep(1)
 
     return collected
 
 
 def _parse_oai_arxiv_response(xml_text: str) -> Tuple[List[dict], Optional[str]]:
-    """Parse OAI-PMH ListRecords response with arXiv metadata prefix.
-    Returns (papers_list, resumption_token_or_None)."""
+    """Parse OAI-PMH ListRecords response with arXiv metadata prefix."""
     root = ET.fromstring(xml_text)
 
-    # Check for OAI error
     error = root.find(f".//{{{_OAI_NS}}}error")
     if error is not None:
         code = error.get("code", "unknown")
@@ -237,7 +222,6 @@ def _parse_oai_arxiv_response(xml_text: str) -> Tuple[List[dict], Optional[str]]
         created = _oai_text(metadata, "created") or ""
         updated = _oai_text(metadata, "updated") or ""
 
-        # Authors — structured in arXiv OAI format
         authors = []
         for author_el in metadata.findall(f".//{{{_ARXIV_NS}}}author"):
             keyname = author_el.findtext(f"{{{_ARXIV_NS}}}keyname", "").strip()
@@ -247,13 +231,10 @@ def _parse_oai_arxiv_response(xml_text: str) -> Tuple[List[dict], Optional[str]]
                 authors.append(name)
 
         categories = categories_str.split() if categories_str else []
-        published = created  # Use CREATION date, not update date — revisions are handled by the dedup system
-
-        # Build versioned arxiv_id if needed
-        full_arxiv_id = arxiv_id  # OAI returns base IDs without version
+        published = created  # Use CREATION date, not update date
 
         papers.append({
-            "arxiv_id": full_arxiv_id,
+            "arxiv_id": arxiv_id,
             "title": title.strip().replace("\n", " "),
             "authors": authors[:8],
             "abstract": abstract.strip().replace("\n", " ")[:2000],
@@ -261,11 +242,10 @@ def _parse_oai_arxiv_response(xml_text: str) -> Tuple[List[dict], Optional[str]]
             "published": published,
             "created": created,
             "updated": updated,
-            "link": f"https://arxiv.org/abs/{full_arxiv_id}",
-            "pdf_link": f"https://arxiv.org/pdf/{full_arxiv_id}",
+            "link": f"https://arxiv.org/abs/{arxiv_id}",
+            "pdf_link": f"https://arxiv.org/pdf/{arxiv_id}",
         })
 
-    # Get resumption token
     token_el = root.find(f".//{{{_OAI_NS}}}resumptionToken")
     token = token_el.text.strip() if token_el is not None and token_el.text else None
 
@@ -273,7 +253,6 @@ def _parse_oai_arxiv_response(xml_text: str) -> Tuple[List[dict], Optional[str]]
 
 
 def _oai_text(parent, tag: str) -> Optional[str]:
-    """Get text from an arXiv-namespaced element."""
     el = parent.find(f"{{{_ARXIV_NS}}}{tag}")
     return el.text.strip() if el is not None and el.text else None
 
@@ -287,8 +266,7 @@ async def _fetch_arxiv_api(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
 ) -> List[dict]:
-    """Fallback: fetch via the arXiv REST API (export.arxiv.org/api/query).
-    Used when OAI-PMH is unavailable."""
+    """Fallback: fetch via the arXiv REST API."""
     base_url = "https://export.arxiv.org/api/query"
     query_parts = [f"cat:{category}"]
 
@@ -310,11 +288,8 @@ async def _fetch_arxiv_api(
             break
 
         params = {
-            "search_query": query,
-            "start": start,
-            "max_results": batch_size,
-            "sortBy": "submittedDate",
-            "sortOrder": "descending",
+            "search_query": query, "start": start,
+            "max_results": batch_size, "sortBy": "submittedDate", "sortOrder": "descending",
         }
 
         max_retries = 3
@@ -329,19 +304,12 @@ async def _fetch_arxiv_api(
                     response.raise_for_status()
                 papers_batch = _parse_api_response(response.text)
                 break
-            except (httpx.HTTPStatusError, httpx.ReadTimeout, httpx.ConnectTimeout,
-                    httpx.ProxyError, Exception) as e:
+            except (httpx.HTTPStatusError, httpx.ReadTimeout, httpx.ConnectTimeout, Exception) as e:
                 last_error = e
                 status = getattr(getattr(e, 'response', None), 'status_code', None)
-                is_retryable = (
-                    status in (429, 500, 502, 503, 504)
-                    or isinstance(e, (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.ProxyError))
-                )
+                is_retryable = status in (429, 500, 502, 503, 504) or isinstance(e, (httpx.ReadTimeout, httpx.ConnectTimeout))
                 if is_retryable and attempt < max_retries - 1:
-                    wait = 3 + random.uniform(0, 2.0)
-                    kind = f"HTTP {status}" if status else type(e).__name__
-                    logger.warning(f"[{category}] ArXiv API {kind}, retry {attempt+1}/{max_retries}")
-                    await asyncio.sleep(wait)
+                    await asyncio.sleep(3 + random.uniform(0, 2.0))
                 else:
                     raise
 
@@ -354,16 +322,13 @@ async def _fetch_arxiv_api(
             break
 
         if primary_only:
-            primary_papers = [p for p in papers_batch if p["categories"] and p["categories"][0] == category]
-            collected.extend(primary_papers)
+            collected.extend([p for p in papers_batch if p["categories"] and p["categories"][0] == category])
         else:
             collected.extend(papers_batch)
 
         if len(papers_batch) < batch_size:
             break
-
         start += batch_size
-        logger.info(f"ArXiv API pagination: page {page+1}, collected {len(collected)} primary {category} papers")
 
     seen = set()
     unique = []
@@ -371,14 +336,13 @@ async def _fetch_arxiv_api(
         if p["arxiv_id"] not in seen:
             seen.add(p["arxiv_id"])
             unique.append(p)
-
     return unique[:hard_cap]
 
 
 def _parse_api_response(xml_text: str) -> List[dict]:
     """Parse arXiv REST API Atom response."""
     root = ET.fromstring(xml_text)
-    ns = {"atom": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom"}
+    ns = {"atom": "http://www.w3.org/2005/Atom"}
 
     papers = []
     for entry in root.findall("atom:entry", ns):
@@ -387,28 +351,18 @@ def _parse_api_response(xml_text: str) -> List[dict]:
         abstract = entry.find("atom:summary", ns).text.strip().replace("\n", " ")
         published = entry.find("atom:published", ns).text
 
-        authors = [
-            a.find("atom:name", ns).text
-            for a in entry.findall("atom:author", ns)
-        ]
-
+        authors = [a.find("atom:name", ns).text for a in entry.findall("atom:author", ns)]
         categories = [c.get("term") for c in entry.findall("atom:category", ns)]
 
-        link = entry.find("atom:id", ns).text
         pdf_link = None
         for l in entry.findall("atom:link", ns):
             if l.get("title") == "pdf":
                 pdf_link = l.get("href")
 
         papers.append({
-            "arxiv_id": arxiv_id,
-            "title": title,
-            "authors": authors[:8],
-            "abstract": abstract[:2000],
-            "categories": categories,
-            "published": published,
-            "link": link,
+            "arxiv_id": arxiv_id, "title": title, "authors": authors[:8],
+            "abstract": abstract[:2000], "categories": categories,
+            "published": published, "link": entry.find("atom:id", ns).text,
             "pdf_link": pdf_link,
         })
-
     return papers

@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 from typing import List, Dict
 from core.config import db, logger, CATEGORIES
 from core.auth import get_settings
-from services.arxiv import fetch_arxiv_papers, strip_arxiv_version, lookup_arxiv_version, group_categories_by_set, oai_harvest, filter_papers_for_category
+from services.arxiv import fetch_arxiv_papers, strip_arxiv_version, lookup_arxiv_version
 from services.llm import download_and_extract_pdf, compare_papers, generate_precomparison_impact_summary
 
 
@@ -465,17 +465,13 @@ async def _fetch_loop():
 
 
 async def _fetch_loop_inner():
-    """Fetch loop: process categories by OAI-PMH set.
-
-    Instead of round-robin per category (which required caching), this loop:
-    1. Groups active categories by their OAI-PMH set
-    2. For each set: harvests ONCE via OAI-PMH
-    3. For each category in that set: runs the fetch cycle with pre-harvested data
-
-    One harvest per set → all categories in that set processed immediately.
-    No cache needed. ~7 sets × 5 min harvest = ~35 min for all 45 categories.
+    """Round-robin fetch: process ONE category per tick with OAI-PMH + cache.
+    Each category takes 5-10 min (harvest or cache hit + processing).
+    Full cycle ~4-6 hours for 45 categories.
     """
     from core.memlog import log_mem
+
+    _rr_idx = 0
 
     while _scheduler_running:
         try:
@@ -487,128 +483,78 @@ async def _fetch_loop_inner():
 
             interval_hours = settings.get("fetch_interval_hours", 6)
             now = datetime.now(timezone.utc)
-            max_papers = settings.get("max_papers_per_fetch", 50)
 
-            # Get active arXiv categories (exclude chemrxiv/iacr — separate fetchers)
-            all_cats = sorted(set(
+            fetch_cats = sorted(set(
                 c for c in settings.get("active_categories", list(CATEGORIES.keys()))
                 if c and c.strip()
             ))
-            arxiv_cats = [c for c in all_cats if not c.startswith("chemrxiv.") and not c.startswith("iacr.")]
-            other_cats = [c for c in all_cats if c.startswith("chemrxiv.") or c.startswith("iacr.")]
 
-            # Process arXiv categories by set
-            sets = group_categories_by_set(arxiv_cats)
-            processed_any = False
+            if not fetch_cats:
+                await asyncio.sleep(60)
+                continue
 
-            for oai_set, cats_in_set in sets.items():
-                # Find which categories in this set are due for fetching
-                due_cats = []
-                for cat in cats_in_set:
-                    tid = f"cat={cat}|mode=standard"
-                    t_doc = await db.tournaments.find_one({"tournament_id": tid}, {"_id": 0, "fetch_paused": 1})
-                    if t_doc and t_doc.get("fetch_paused"):
-                        continue
+            _rr_idx = _rr_idx % len(fetch_cats)
 
-                    ckey = cat.replace('.', '_')
-                    last_fetch_key = f"last_fetch_at_{ckey}"
-                    last_fetch = settings.get(last_fetch_key)
-                    if not last_fetch or not isinstance(last_fetch, str):
-                        parts = cat.split(".")
-                        if len(parts) == 2:
-                            nested = settings.get(f"last_fetch_at_{parts[0]}")
-                            if isinstance(nested, dict):
-                                last_fetch = nested.get(parts[1])
+            fetched_one = False
+            for offset in range(len(fetch_cats)):
+                idx = (_rr_idx + offset) % len(fetch_cats)
+                cat = fetch_cats[idx]
+                cat_status = _get_cat_status(cat)
 
-                    if not last_fetch:
-                        due_cats.append(cat)
-                    elif now >= datetime.fromisoformat(last_fetch) + timedelta(hours=interval_hours):
-                        due_cats.append(cat)
+                tid = f"cat={cat}|mode=standard"
+                t_doc = await db.tournaments.find_one({"tournament_id": tid}, {"_id": 0, "fetch_paused": 1})
+                if t_doc and t_doc.get("fetch_paused"):
+                    continue
 
-                if not due_cats:
-                    continue  # Nothing due in this set
-
-                # Harvest the set ONCE — find the oldest date_from needed
-                oldest_date = None
-                for cat in due_cats:
-                    newest_paper = await db.papers.find_one(
-                        {"categories.0": cat, "published": {"$exists": True, "$ne": None}},
-                        {"_id": 0, "published": 1},
-                        sort=[("published", -1)],
-                    )
-                    if newest_paper and newest_paper.get("published"):
-                        pub = newest_paper["published"]
-                        d = pub.strftime("%Y-%m-%d") if hasattr(pub, "strftime") else str(pub)[:10]
-                        if oldest_date is None or d < oldest_date:
-                            oldest_date = d
-                    else:
-                        # New category — 30 day lookback
-                        d = (now - timedelta(days=30)).strftime("%Y-%m-%d")
-                        if oldest_date is None or d < oldest_date:
-                            oldest_date = d
-
-                # Do the harvest
-                log_mem(f"Harvesting set={oai_set} from={oldest_date} for {len(due_cats)} categories")
-                try:
-                    all_papers = await oai_harvest(oai_set, date_from=oldest_date)
-                    logger.info(f"[OAI-PMH] set={oai_set} from={oldest_date}: {len(all_papers)} papers for {due_cats}")
-                except Exception as e:
-                    logger.warning(f"[OAI-PMH] set={oai_set} harvest failed: {e}")
-                    all_papers = None  # Will fall back per-category
-
-                # Process each category with the pre-harvested data
-                for cat in due_cats:
-                    if not _scheduler_running:
-                        return
-                    result = await run_fetch_cycle(
-                        category=cat,
-                        _pre_harvested_papers=all_papers,
-                    )
-                    ckey = cat.replace('.', '_')
-                    last_fetch_key = f"last_fetch_at_{ckey}"
-                    if not result.get("errors"):
-                        await db.settings.update_one(
-                            {"key": "global"},
-                            {"$set": {last_fetch_key: datetime.now(timezone.utc).isoformat()}},
-                            upsert=True,
-                        )
-                        _get_cat_status(cat)["last_fetch_at"] = datetime.now(timezone.utc).isoformat()
-                    else:
-                        logger.warning(f"[{cat}] fetch failed — {result.get('_failure_reason', 'unknown')}")
-
-                    _get_cat_status(cat)["next_fetch_at"] = (now + timedelta(hours=interval_hours)).isoformat()
-                    from core.memlog import force_gc
-                    force_gc()
-                    await asyncio.sleep(5)  # Brief pause between categories
-                    processed_any = True
-
-            # Process non-arXiv categories (chemrxiv, iacr) individually
-            for cat in other_cats:
-                if not _scheduler_running:
-                    return
                 ckey = cat.replace('.', '_')
                 last_fetch_key = f"last_fetch_at_{ckey}"
                 last_fetch = settings.get(last_fetch_key)
-                if last_fetch and isinstance(last_fetch, str):
-                    if now < datetime.fromisoformat(last_fetch) + timedelta(hours=interval_hours):
-                        continue
+                if not last_fetch or not isinstance(last_fetch, str):
+                    parts = cat.split(".")
+                    if len(parts) == 2:
+                        nested = settings.get(f"last_fetch_at_{parts[0]}")
+                        if isinstance(nested, dict):
+                            last_fetch = nested.get(parts[1])
 
+                should_fetch = False
+                if not last_fetch:
+                    should_fetch = True
+                elif now >= datetime.fromisoformat(last_fetch) + timedelta(hours=interval_hours):
+                    should_fetch = True
+
+                if not should_fetch:
+                    continue
+
+                log_mem(f"Round-robin fetch: {cat} (idx={idx}/{len(fetch_cats)})")
                 result = await run_fetch_cycle(category=cat)
+
                 if not result.get("errors"):
+                    now_iso = datetime.now(timezone.utc).isoformat()
                     await db.settings.update_one(
                         {"key": "global"},
-                        {"$set": {last_fetch_key: datetime.now(timezone.utc).isoformat()}},
+                        {"$set": {last_fetch_key: now_iso}},
                         upsert=True,
                     )
-                await asyncio.sleep(5)
-                processed_any = True
+                    cat_status["last_fetch_at"] = now_iso
+                else:
+                    fail_reason = result.get("_failure_reason", "")
+                    logger.warning(f"[{cat}] fetch failed (reason={fail_reason})")
 
-            if not processed_any:
-                await asyncio.sleep(60)  # Nothing due — check again in 1 min
+                cat_status["next_fetch_at"] = (now + timedelta(hours=interval_hours)).isoformat()
+                from core.memlog import force_gc
+                force_gc()
+
+                _rr_idx = (idx + 1) % len(fetch_cats)
+                fetched_one = True
+                break
+
+            if not fetched_one:
+                _rr_idx = (_rr_idx + 1) % len(fetch_cats)
 
         except Exception as e:
             logger.error(f"Fetch loop error: {e}")
-            await asyncio.sleep(60)
+
+        await asyncio.sleep(10)
 
 
 async def _compare_loop():
@@ -1109,7 +1055,7 @@ async def _handle_revision(paper_id: str, new_arxiv_data: dict, new_version: int
 
 
 
-async def run_fetch_cycle(category: str = "cs.RO", force: bool = False, _pre_harvested_papers=None):
+async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
     from core.memlog import log_mem
     if not category or not category.strip():
         logger.warning("run_fetch_cycle called with empty category, skipping")
@@ -1169,7 +1115,6 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False, _pre_har
             else:
                 raw_papers = await fetch_arxiv_papers(
                     category=category, max_results=max_papers, date_from=date_from,
-                    _pre_harvested=_pre_harvested_papers,
                 )
                 logger.info(f"[{category}] Step 1: {len(raw_papers)} papers from arXiv (date_from={date_from})")
                 id_field = "arxiv_id"
