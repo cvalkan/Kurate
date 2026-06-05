@@ -2721,6 +2721,66 @@ async def arxiv_health():
 
 
 
+
+@router.post("/fix-oai-dates", dependencies=[Depends(verify_admin)])
+async def fix_oai_dates(dry_run: bool = True):
+    """Fix published dates on papers ingested via OAI-PMH with wrong dates.
+    Pass ?dry_run=false to apply fixes."""
+    import re as _re
+    affected = []
+    async for doc in db.papers.find(
+        {"arxiv_id": {"$exists": True}},
+        {"_id": 0, "id": 1, "arxiv_id": 1, "published": 1, "title": 1},
+    ):
+        pub = str(doc.get("published", ""))
+        arxiv_id = doc.get("arxiv_id", "")
+        if len(pub) <= 10 and pub and "v" not in arxiv_id:
+            affected.append(doc)
+
+    if dry_run:
+        return {"dry_run": True, "affected": len(affected),
+                "sample": [{"arxiv_id": p["arxiv_id"], "published": p["published"],
+                            "title": p.get("title", "")[:60]} for p in affected[:20]]}
+
+    # Fix each paper via REST API
+    import httpx
+    fixed, skipped = 0, 0
+    for p in affected:
+        try:
+            await asyncio.sleep(3)
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.get("https://export.arxiv.org/api/query",
+                                        params={"id_list": p["arxiv_id"], "max_results": "1"})
+                if resp.status_code == 200:
+                    pub_match = _re.search(r"<published>(.*?)</published>", resp.text)
+                    if pub_match:
+                        exact_date = pub_match.group(1)
+                        await db.papers.update_one({"id": p["id"]}, {"$set": {"published": exact_date}})
+                        await db.rankings.update_one({"paper_id": p["id"]}, {"$set": {"published": exact_date}})
+                        fixed += 1
+                        continue
+        except Exception:
+            pass
+        skipped += 1
+
+    # Repair any paper/ranking mismatches
+    repaired = 0
+    async for paper in db.papers.find(
+        {"arxiv_id": {"$exists": True, "$not": {"$regex": r"v\d+$"}}},
+        {"_id": 0, "id": 1, "published": 1},
+    ):
+        pub = str(paper.get("published", ""))
+        if len(pub) <= 10 or not pub:
+            continue
+        ranking = await db.rankings.find_one({"paper_id": paper["id"]}, {"_id": 0, "published": 1})
+        if ranking and str(ranking.get("published", "")) != pub:
+            await db.rankings.update_one({"paper_id": paper["id"]}, {"$set": {"published": pub}})
+            repaired += 1
+
+    return {"fixed": fixed, "skipped": skipped, "repaired": repaired,
+            "message": f"Re-run to fix the {skipped} skipped papers" if skipped else "All done"}
+
+
 @router.post("/dedup-papers", dependencies=[Depends(verify_admin)])
 async def deduplicate_papers():
     """Find and merge duplicate papers (same title + first author).
