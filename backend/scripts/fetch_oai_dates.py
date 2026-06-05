@@ -1,7 +1,9 @@
 """
 Fetch correct REST API publication dates for OAI-PMH papers.
 
-Resumable: saves progress to a separate JSON after each successful fetch.
+Writes results DIRECTLY into /app/oai_papers.json (in-place update).
+Resumable: papers that already have 'rest_api_published' are skipped.
+
 Usage:
   python fetch_oai_dates.py              # fetch ALL remaining
   python fetch_oai_dates.py --limit 20   # fetch first 20 remaining
@@ -9,6 +11,7 @@ Usage:
 
 import argparse
 import json
+import re
 import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -16,21 +19,13 @@ from pathlib import Path
 import httpx
 
 OAI_JSON = Path("/app/oai_papers.json")
-PROGRESS_JSON = Path("/app/oai_dates_progress.json")
 ARXIV_API = "https://export.arxiv.org/api/query"
 SLEEP_SEC = 3
 
 
-def load_progress() -> dict:
-    if PROGRESS_JSON.exists():
-        with open(PROGRESS_JSON) as f:
-            return json.load(f)
-    return {}
-
-
-def save_progress(progress: dict):
-    with open(PROGRESS_JSON, "w") as f:
-        json.dump(progress, f, indent=2)
+def save_json(data: dict):
+    with open(OAI_JSON, "w") as f:
+        json.dump(data, f, indent=2)
 
 
 def fetch_paper_info(arxiv_id: str, client: httpx.Client) -> dict:
@@ -47,10 +42,8 @@ def fetch_paper_info(arxiv_id: str, client: httpx.Client) -> dict:
     upd_el = entry.find("a:updated", ns)
     id_el = entry.find("a:id", ns)
 
-    # Version from <id> e.g. "http://arxiv.org/abs/2601.18175v2" -> "v2"
     version = None
     if id_el is not None and id_el.text:
-        import re
         m = re.search(r"(v\d+)$", id_el.text.strip())
         if m:
             version = m.group(1)
@@ -70,47 +63,50 @@ def main():
     with open(OAI_JSON) as f:
         data = json.load(f)
 
-    papers_2026 = [p for p in data["papers"] if p.get("actual_year") == 2026]
-    progress = load_progress()
+    # Build index: position of each 2026 paper in the papers list
+    remaining = []
+    already_done = 0
+    for idx, p in enumerate(data["papers"]):
+        if p.get("actual_year") != 2026:
+            continue
+        if p.get("rest_api_published"):
+            already_done += 1
+            continue
+        remaining.append(idx)
 
-    remaining = [p for p in papers_2026 if p["arxiv_id"] not in progress]
     if args.limit > 0:
         remaining = remaining[: args.limit]
 
     total = len(remaining)
-    already = len(progress)
-    print(f"Already fetched: {already} | Remaining this run: {total}")
+    print(f"Already fetched: {already_done} | Remaining this run: {total}")
 
     with httpx.Client() as client:
-        for i, paper in enumerate(remaining, 1):
+        for i, idx in enumerate(remaining, 1):
+            paper = data["papers"][idx]
             aid = paper["arxiv_id"]
             try:
                 info = fetch_paper_info(aid, client)
-                progress[aid] = {
-                    **info,
-                    "published_in_db": paper["published_in_db"],
-                    "title": paper["title"],
-                }
+                data["papers"][idx]["rest_api_published"] = info["rest_api_published"]
+                data["papers"][idx]["rest_api_updated"] = info["rest_api_updated"]
+                data["papers"][idx]["current_version"] = info["current_version"]
                 status = f"{info['rest_api_published'] or 'NOT_FOUND'}  {info['current_version'] or '?'}"
             except Exception as e:
-                progress[aid] = {
-                    "rest_api_published": None,
-                    "rest_api_updated": None,
-                    "current_version": None,
-                    "error": str(e),
-                    "published_in_db": paper["published_in_db"],
-                    "title": paper["title"],
-                }
+                data["papers"][idx]["rest_api_published"] = None
+                data["papers"][idx]["rest_api_updated"] = None
+                data["papers"][idx]["current_version"] = None
+                data["papers"][idx]["fetch_error"] = str(e)
                 status = f"ERROR: {e}"
 
             print(f"[{i}/{total}] {aid} -> {status}")
-            save_progress(progress)
+
+            # Persist after EVERY fetch — survives interruptions
+            save_json(data)
 
             if i < total:
                 time.sleep(SLEEP_SEC)
 
-    print(f"\nDone. Total in progress file: {len(progress)}")
-    print(f"Saved to {PROGRESS_JSON}")
+    print(f"\nDone. {already_done + len(remaining)} of 1083 papers now have REST API dates.")
+    print(f"Results saved in-place to {OAI_JSON}")
 
 
 if __name__ == "__main__":
