@@ -465,14 +465,9 @@ async def _fetch_loop():
 
 
 async def _fetch_loop_inner():
-    """Round-robin fetch: process ONE category per tick, then sleep for a
-    configurable delay (settings `fetch_delay_minutes`, default 8). This
-    spreads arXiv requests evenly over hours instead of bursting through
-    all 45+ categories back-to-back.
-
-    With rotating proxies (ARXIV_PROXY_URL), each request gets a fresh IP,
-    so IP-based rate limiting is irrelevant. Retries with new IPs are handled
-    in arxiv.py. No global backoff needed — just log failures and move on.
+    """Round-robin fetch: process ONE category per tick. With OAI-PMH + set-level
+    caching, most categories are instant cache hits. The real bottleneck is
+    per-category processing (PDF downloads + summaries), not arXiv requests.
     """
     from core.memlog import log_mem
 
@@ -488,7 +483,6 @@ async def _fetch_loop_inner():
                 continue
 
             interval_hours = settings.get("fetch_interval_hours", 6)
-            delay_minutes = settings.get("fetch_delay_minutes", 8)
             now = datetime.now(timezone.utc)
 
             fetch_cats = sorted(set(
@@ -573,8 +567,8 @@ async def _fetch_loop_inner():
         except Exception as e:
             logger.error(f"Fetch loop error: {e}")
 
-        # Sleep for the configurable delay (default 8 min)
-        await asyncio.sleep(delay_minutes * 60)
+        # Brief pause between categories (GC + DB breathing room)
+        await asyncio.sleep(10)
 
 
 async def _compare_loop():

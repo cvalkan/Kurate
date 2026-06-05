@@ -135,7 +135,6 @@ DEFAULT_SETTINGS = {
     "admin_password": os.environ["ADMIN_PASSWORD"],
     "active_categories": list(CATEGORIES.keys()),
     "fetch_interval_hours": 6,
-    "fetch_delay_minutes": 8,
     "max_papers_per_fetch": 50,
     "parallel_agents": 20,
     "top_k_focus": 10,

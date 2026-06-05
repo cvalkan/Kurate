@@ -138,7 +138,7 @@ async def fetch_arxiv_papers(
             seen.add(p["arxiv_id"])
             unique.append(p)
 
-    hard_cap = 2000 if date_from else max_results
+    hard_cap = max_results
     return unique[:hard_cap]
 
 
