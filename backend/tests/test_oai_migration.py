@@ -341,3 +341,107 @@ async def test_full_migration(db, seed_jsonl, seed_oai_json, monkeypatch):
     assert result["phase2_remove"]["deleted_matches"] == 1
     assert await db.papers.count_documents({}) == 2
     assert await db.matches.count_documents({}) == 1
+
+
+
+@pytest.mark.asyncio
+async def test_phase3_dry_run(db, seed_oai_json, monkeypatch):
+    """Phase 3 dry run should report affected categories and match counts."""
+    await db.rankings.insert_one(
+        _make_ranking("p-2026-a", "cs.AI", "2601.00001v2", "2026-01-15T10:00:00Z")
+    )
+    await db.matches.insert_one(
+        _make_match("p-2026-a", "p-2026-a", "cs.AI")
+    )
+
+    import scripts.fix_oai_dates as migration
+    migration.OAI_JSON_PATH.write_text(json.dumps(seed_oai_json))
+    monkeypatch.setattr(migration, "db", db)
+
+    result = await migration._phase3_recompute(dry_run=True)
+    assert result["dry_run"] is True
+    assert result["affected_categories"] == 1  # cs.AI from the ghost
+    assert "cs.AI" in result["matches_per_category"]
+
+
+@pytest.mark.asyncio
+async def test_phase3_recomputes_trueskill(db, seed_oai_json, monkeypatch):
+    """Phase 3 should recompute TrueSkill and win/loss from remaining matches."""
+    # Two papers, one match: p-a beats p-b
+    await db.rankings.insert_many([
+        {**_make_ranking("p-2026-a", "cs.AI", "2601.00001v2", "2026-01-15"),
+         "wins": 99, "losses": 99, "comparisons": 99,  # deliberately wrong
+         "ts_mu": 0.0, "ts_sigma": 0.0, "ts_score": 0},
+        {**_make_ranking("p-2026-b", "cs.AI", "2601.00002v3", "2026-01-20"),
+         "wins": 99, "losses": 99, "comparisons": 99,
+         "ts_mu": 0.0, "ts_sigma": 0.0, "ts_score": 0},
+    ])
+    await db.matches.insert_one({
+        "id": str(uuid.uuid4()),
+        "paper1_id": "p-2026-a", "paper2_id": "p-2026-b",
+        "primary_category": "cs.AI",
+        "completed": True, "failed": False,
+        "winner_id": "p-2026-a",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "model_used": {"provider": "openai", "model": "gpt-5.2"},
+    })
+
+    import scripts.fix_oai_dates as migration
+    migration.OAI_JSON_PATH.write_text(json.dumps(seed_oai_json))
+    monkeypatch.setattr(migration, "db", db)
+
+    result = await migration._phase3_recompute(dry_run=False)
+    assert result["categories_processed"] == 1
+    assert result["rankings_updated"] == 2
+
+    # Check corrected rankings
+    ra = await db.rankings.find_one({"paper_id": "p-2026-a"})
+    assert ra["wins"] == 1
+    assert ra["losses"] == 0
+    assert ra["comparisons"] == 1
+    assert ra["unique_opponents"] == 1
+    assert ra["ts_mu"] > 25.0  # winner gets higher mu
+    assert ra["ts_score"] > 1200  # above base
+
+    rb = await db.rankings.find_one({"paper_id": "p-2026-b"})
+    assert rb["wins"] == 0
+    assert rb["losses"] == 1
+    assert rb["comparisons"] == 1
+    assert rb["ts_mu"] < 25.0  # loser gets lower mu
+    assert rb["ts_score"] < 1200  # below base
+
+    # Model stats recomputed
+    assert "openai/gpt-5_2" in ra["model_stats"]
+    assert ra["model_stats"]["openai/gpt-5_2"]["wins"] == 1
+    assert ra["model_stats"]["openai/gpt-5_2"]["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_phase3_idempotent(db, seed_oai_json, monkeypatch):
+    """Running Phase 3 twice produces the same result."""
+    await db.rankings.insert_one(
+        _make_ranking("p-2026-a", "cs.AI", "2601.00001v2", "2026-01-15")
+    )
+    await db.matches.insert_one({
+        "id": str(uuid.uuid4()),
+        "paper1_id": "p-2026-a", "paper2_id": "p-2026-a",
+        "primary_category": "cs.AI",
+        "completed": True, "failed": False,
+        "winner_id": "p-2026-a",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    import scripts.fix_oai_dates as migration
+    migration.OAI_JSON_PATH.write_text(json.dumps(seed_oai_json))
+    monkeypatch.setattr(migration, "db", db)
+
+    r1 = await migration._phase3_recompute(dry_run=False)
+    ra1 = await db.rankings.find_one({"paper_id": "p-2026-a"})
+
+    r2 = await migration._phase3_recompute(dry_run=False)
+    ra2 = await db.rankings.find_one({"paper_id": "p-2026-a"})
+
+    # Identical results
+    assert ra1["ts_mu"] == ra2["ts_mu"]
+    assert ra1["ts_sigma"] == ra2["ts_sigma"]
+    assert ra1["wins"] == ra2["wins"]

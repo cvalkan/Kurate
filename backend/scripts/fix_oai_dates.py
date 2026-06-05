@@ -1,4 +1,4 @@
-"""Migration: Fix OAI-PMH papers — repair 2026 dates + remove pre-2026 ghosts.
+"""Migration: Fix OAI-PMH papers — repair dates, remove ghosts, recompute rankings.
 
 Phase 1 (REPAIR): Update the 1,083 papers from 2026 that have wrong dates/versions.
   - Uses /app/oai_dates_results.jsonl as the source of truth.
@@ -10,21 +10,26 @@ Phase 2 (REMOVE): Delete the 1,956 pre-2026 OAI papers that should never have be
   - Deletes paper docs, rankings, matches (where paper1_id or paper2_id is a ghost),
     and cleans up reading_lists, bookmarks, author_emails, x_handle_discoveries,
     tweet_drafts, rankings_repair_queue references.
-  - Does NOT recalculate TrueSkill ratings for opponents (would require full replay;
-    impact is small). A daily_stats rebuild is needed after Phase 2.
+
+Phase 3 (RECOMPUTE): Replay TrueSkill from scratch for every category that had ghost papers.
+  - Loads all remaining matches per category, replays TrueSkill from fresh ratings.
+  - Rewrites wins, losses, comparisons, win_rate, unique_opponents, ts_mu, ts_sigma,
+    ts_score, model_stats on every affected ranking. Fully clean slate.
+  - Must run AFTER Phase 2.
 
 SAFETY:
   - Dry-run by default (?dry_run=true) — shows counts, does not mutate.
-  - Phase 1 and Phase 2 can be run independently (?phase=1 or ?phase=2).
+  - Phases can be run independently (?phase=1, ?phase=2, ?phase=3).
   - Idempotent: already-fixed papers are detected and skipped.
   - Batched deletes (500 at a time) to stay within Atlas 30s timeout.
   - Full audit log returned in the response.
 
 Usage (via admin API):
-  POST /api/admin/fix-oai-dates?dry_run=true           # preview both phases
-  POST /api/admin/fix-oai-dates?dry_run=false&phase=1   # apply Phase 1 only
-  POST /api/admin/fix-oai-dates?dry_run=false&phase=2   # apply Phase 2 only
-  POST /api/admin/fix-oai-dates?dry_run=false           # apply both phases
+  POST /api/admin/fix-oai-dates?dry_run=true             # preview all phases
+  POST /api/admin/fix-oai-dates?dry_run=false&phase=1     # apply Phase 1 only
+  POST /api/admin/fix-oai-dates?dry_run=false&phase=2     # apply Phase 2 only
+  POST /api/admin/fix-oai-dates?dry_run=false&phase=3     # apply Phase 3 only
+  POST /api/admin/fix-oai-dates?dry_run=false             # apply all phases
 """
 import asyncio
 import json
@@ -274,12 +279,170 @@ async def _phase2_remove(dry_run: bool) -> dict:
     return {"phase": 2, "dry_run": False, **log}
 
 
+def _affected_categories() -> set:
+    """Categories that had ghost papers — need TrueSkill recomputation."""
+    if not OAI_JSON_PATH.exists():
+        return set()
+    with open(OAI_JSON_PATH) as f:
+        data = json.load(f)
+    return {
+        p["category"]
+        for p in data.get("papers", [])
+        if p.get("actual_year", 9999) < 2026
+    }
+
+
+async def _phase3_recompute(dry_run: bool) -> dict:
+    """Recompute TrueSkill + win/loss/model_stats from remaining matches
+    for every category that had ghost papers.
+
+    Must run AFTER Phase 2 so the ghost matches are already deleted.
+    Loads matches + rankings per category, replays TrueSkill, and writes
+    the corrected ratings back. Idempotent.
+    """
+    import trueskill
+
+    affected_cats = _affected_categories()
+    if not affected_cats:
+        return {"phase": 3, "error": "No affected categories found"}
+
+    if dry_run:
+        cat_match_counts = {}
+        for cat in sorted(affected_cats):
+            cnt = await db.matches.count_documents({
+                "primary_category": cat,
+                "completed": True, "failed": {"$ne": True},
+                "revision_superseded": {"$ne": True},
+            })
+            cat_match_counts[cat] = cnt
+        ranking_count = await db.rankings.count_documents(
+            {"category": {"$in": list(affected_cats)}}
+        )
+        return {
+            "phase": 3, "dry_run": True,
+            "affected_categories": len(affected_cats),
+            "total_rankings_to_update": ranking_count,
+            "matches_per_category": cat_match_counts,
+        }
+
+    TS_SCALE = 10.0
+    SCORE_BASE = 1200
+    env = trueskill.TrueSkill(draw_probability=0.0)
+    log = {"categories_processed": 0, "rankings_updated": 0, "categories": {}}
+
+    for cat in sorted(affected_cats):
+        # Load all completed matches for this category
+        matches = await db.matches.find(
+            {
+                "primary_category": cat,
+                "completed": True,
+                "failed": {"$ne": True},
+                "revision_superseded": {"$ne": True},
+            },
+            {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1,
+             "model_used": 1},
+        ).to_list(200_000)
+
+        # Load all rankings for this category (to get paper_ids)
+        rankings = await db.rankings.find(
+            {"category": cat},
+            {"_id": 0, "paper_id": 1},
+        ).to_list(50_000)
+        paper_ids = {r["paper_id"] for r in rankings}
+
+        if not paper_ids:
+            continue
+
+        # --- Replay TrueSkill from scratch ---
+        ratings = {pid: env.create_rating() for pid in paper_ids}
+        stats = {pid: {"wins": 0, "losses": 0, "comparisons": 0,
+                        "unique_opponents": set(), "model_stats": {}}
+                 for pid in paper_ids}
+
+        for m in matches:
+            p1, p2 = m.get("paper1_id"), m.get("paper2_id")
+            winner = m.get("winner_id")
+            if not winner or p1 not in paper_ids or p2 not in paper_ids:
+                continue
+            loser = p2 if winner == p1 else p1
+
+            # Counts
+            stats[winner]["wins"] += 1
+            stats[winner]["comparisons"] += 1
+            stats[winner]["unique_opponents"].add(loser)
+            stats[loser]["losses"] += 1
+            stats[loser]["comparisons"] += 1
+            stats[loser]["unique_opponents"].add(winner)
+
+            # Per-model stats
+            mu = m.get("model_used")
+            if mu and isinstance(mu, dict):
+                mk = f"{mu.get('provider', 'unknown')}/{mu.get('model', 'unknown')}"
+                mk = mk.replace(".", "_")
+                for pid, is_w in [(winner, True), (loser, False)]:
+                    ms = stats[pid]["model_stats"]
+                    if mk not in ms:
+                        ms[mk] = {"total": 0, "wins": 0}
+                    ms[mk]["total"] += 1
+                    if is_w:
+                        ms[mk]["wins"] += 1
+
+            # TrueSkill update
+            r1, r2 = ratings[p1], ratings[p2]
+            if winner == p1:
+                (nr1,), (nr2,) = env.rate([(r1,), (r2,)], ranks=[0, 1])
+            else:
+                (nr1,), (nr2,) = env.rate([(r1,), (r2,)], ranks=[1, 0])
+            ratings[p1] = nr1
+            ratings[p2] = nr2
+
+        # --- Write corrected ratings back ---
+        updated = 0
+        for pid in paper_ids:
+            r = ratings[pid]
+            s = stats[pid]
+            comps = s["comparisons"]
+            wr = round(s["wins"] / comps * 100, 1) if comps else 0.0
+            ts_score = round((r.mu - 3 * r.sigma) * TS_SCALE + SCORE_BASE)
+
+            update_doc = {
+                "wins": s["wins"],
+                "losses": s["losses"],
+                "comparisons": comps,
+                "unique_opponents": len(s["unique_opponents"]),
+                "win_rate": wr,
+                "ts_mu": r.mu,
+                "ts_sigma": r.sigma,
+                "ts_score": ts_score,
+                "score": ts_score,
+                "model_stats": s["model_stats"],
+            }
+            result = await db.rankings.update_one(
+                {"paper_id": pid, "category": cat},
+                {"$set": update_doc},
+            )
+            if result.modified_count:
+                updated += 1
+
+        log["categories_processed"] += 1
+        log["rankings_updated"] += updated
+        log["categories"][cat] = {
+            "matches": len(matches),
+            "rankings": len(paper_ids),
+            "updated": updated,
+        }
+
+    return {"phase": 3, "dry_run": False, **log}
+
+
 async def run_migration(dry_run: bool = True, phase: int = 0) -> dict:
     """Run the OAI-PMH migration.
-    phase=0: both phases, phase=1: repair only, phase=2: remove only."""
+    phase=0: all three phases, phase=1/2/3: individual phase."""
     results = {}
     if phase in (0, 1):
         results["phase1_repair"] = await _phase1_repair(dry_run)
     if phase in (0, 2):
         results["phase2_remove"] = await _phase2_remove(dry_run)
+    if phase in (0, 3):
+        results["phase3_recompute"] = await _phase3_recompute(dry_run)
     return results
