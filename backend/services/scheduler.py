@@ -1188,46 +1188,36 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
                     existing = existing_bases.get(base)
 
                     if existing:
+                        # Paper base is already in DB. Determine if it's a revision.
+                        actual_version = None
+
                         if version > existing["current_version"]:
-                            # REST API path: explicit version bump (versioned arxiv_id)
-                            try:
-                                rev_result = await _handle_revision(
-                                    existing["id"], rp, version, settings
-                                )
-                                if rev_result == "revised":
-                                    revisions_detected += 1
-                                    logger.info(f"[{category}] Revision v{version} for {base}: tournament reset")
-                                elif rev_result == "updated":
-                                    revisions_detected += 1
-                                    logger.info(f"[{category}] Revision v{version} for {base}: content updated, tournament kept")
-                            except Exception as e:
-                                logger.warning(f"[{category}] Revision handling failed for {base}: {e}")
+                            # Source has versioned ID (REST API) — use directly
+                            actual_version = version
                         elif rp.get("updated") and rp.get("created") and rp["updated"] != rp["created"]:
-                            # OAI-PMH path: paper was modified (updated != created) but
-                            # no version suffix. Do a targeted REST API lookup to get the
-                            # actual version number and correct published date.
+                            # Source has base ID only (OAI-PMH) but paper was modified.
+                            # REST API lookup to get actual version + correct published date.
                             try:
                                 lookup = await lookup_arxiv_version(base)
-                                if lookup:
+                                if lookup and lookup["version"] > existing["current_version"]:
                                     actual_version = lookup["version"]
-                                    if actual_version > existing["current_version"]:
-                                        # Use REST API published date (original v1 date),
-                                        # not OAI created (which is the revision date)
-                                        if lookup.get("published"):
-                                            rp["published"] = lookup["published"]
-                                        rp["arxiv_id"] = lookup["full_id"]  # versioned ID
-                                        rev_result = await _handle_revision(
-                                            existing["id"], rp, actual_version, settings
-                                        )
-                                        if rev_result == "revised":
-                                            revisions_detected += 1
-                                            logger.info(f"[{category}] Revision v{actual_version} for {base} (OAI+API): tournament reset")
-                                        elif rev_result == "updated":
-                                            revisions_detected += 1
-                                            logger.info(f"[{category}] Revision v{actual_version} for {base}: content updated")
+                                    rp["arxiv_id"] = lookup["full_id"]
+                                    if lookup.get("published"):
+                                        rp["published"] = lookup["published"]
                             except Exception as e:
-                                logger.warning(f"[{category}] OAI revision lookup failed for {base}: {e}")
-                        # Either way, skip normal insertion (paper already in DB)
+                                logger.warning(f"[{category}] Version lookup failed for {base}: {e}")
+
+                        if actual_version:
+                            try:
+                                rev_result = await _handle_revision(
+                                    existing["id"], rp, actual_version, settings
+                                )
+                                if rev_result in ("revised", "updated"):
+                                    revisions_detected += 1
+                                    logger.info(f"[{category}] Revision v{actual_version} for {base}: {rev_result}")
+                            except Exception as e:
+                                logger.warning(f"[{category}] Revision handling failed for {base}: {e}")
+                        # Skip normal insertion — paper base already in DB
                         continue
 
                     else:
