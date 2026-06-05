@@ -3,6 +3,7 @@
   "total_oai_papers": 3039,
   "wrong_date_count": 2310,
   "correct_format_only": 729,
+  "rest_api_fetch_progress": "20 / 1083",
   "year_distribution": {
     "2007": 1,
     "2008": 7,
