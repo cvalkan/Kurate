@@ -181,33 +181,44 @@ async def _phase2_remove(dry_run: bool) -> dict:
     if not ghost_ids:
         return {"phase": 2, "error": "oai_papers.json not found or no older papers"}
 
-    # Verify how many actually exist in DB
-    existing_count = await db.papers.count_documents(
-        {"id": {"$in": list(ghost_ids)}}
-    )
-    existing_rankings = await db.rankings.count_documents(
-        {"paper_id": {"$in": list(ghost_ids)}}
-    )
+    # Verify how many actually exist in DB (batched)
+    existing_count = 0
+    for i in range(0, len(list(ghost_ids)), 500):
+        chunk = list(ghost_ids)[i : i + 500]
+        existing_count += await db.papers.count_documents({"id": {"$in": chunk}})
+    existing_rankings = 0
+    for i in range(0, len(list(ghost_ids)), 500):
+        chunk = list(ghost_ids)[i : i + 500]
+        existing_rankings += await db.rankings.count_documents({"paper_id": {"$in": chunk}})
 
-    # Count matches to delete (paper1_id OR paper2_id is a ghost)
+    # Count matches to delete (batched to avoid Atlas timeout on large $in)
     ghost_list = list(ghost_ids)
-    match_count = await db.matches.count_documents({
-        "$or": [
-            {"paper1_id": {"$in": ghost_list}},
-            {"paper2_id": {"$in": ghost_list}},
-        ]
-    })
+    match_count = 0
+    for i in range(0, len(ghost_list), 200):
+        chunk = ghost_list[i : i + 200]
+        match_count += await db.matches.count_documents({
+            "$or": [
+                {"paper1_id": {"$in": chunk}},
+                {"paper2_id": {"$in": chunk}},
+            ]
+        })
 
-    # Count reading_list references
-    reading_list_refs = await db.reading_lists.count_documents(
-        {"paper_ids": {"$in": ghost_list}}
-    )
+    # Count reading_list references (batched)
+    reading_list_refs = 0
+    for i in range(0, len(ghost_list), 500):
+        chunk = ghost_list[i : i + 500]
+        reading_list_refs += await db.reading_lists.count_documents(
+            {"paper_ids": {"$in": chunk}}
+        )
 
-    # Count other collection refs
+    # Count other collection refs (batched)
     other_counts = {}
     for coll_name, field in _CLEANUP_COLLECTIONS:
         coll = db[coll_name]
-        cnt = await coll.count_documents({field: {"$in": ghost_list}})
+        cnt = 0
+        for i in range(0, len(ghost_list), 500):
+            chunk = ghost_list[i : i + 500]
+            cnt += await coll.count_documents({field: {"$in": chunk}})
         if cnt > 0:
             other_counts[coll_name] = cnt
 
@@ -247,9 +258,13 @@ async def _phase2_remove(dry_run: bool) -> dict:
         deleted_matches += result.deleted_count
     log["deleted_matches"] = deleted_matches
 
-    # 2b. Delete rankings
-    result = await db.rankings.delete_many({"paper_id": {"$in": ghost_list}})
-    log["deleted_rankings"] = result.deleted_count
+    # 2b. Delete rankings (batched)
+    deleted_rankings = 0
+    for i in range(0, len(ghost_list), 500):
+        chunk = ghost_list[i : i + 500]
+        result = await db.rankings.delete_many({"paper_id": {"$in": chunk}})
+        deleted_rankings += result.deleted_count
+    log["deleted_rankings"] = deleted_rankings
 
     # 2c. Delete paper documents (batched)
     deleted_papers = 0
