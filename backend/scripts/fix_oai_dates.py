@@ -10,6 +10,7 @@ HOW IT WORKS:
   1. Find affected papers: short date format (YYYY-MM-DD) + no version suffix
   2. For each: call REST API to get the correct original published date
   3. Update both papers.published and rankings.published
+  4. Final pass: fix any rankings where paper was fixed but ranking was missed
 
 SAFETY:
   - Only touches papers matching the OAI-PMH fingerprint
@@ -72,7 +73,7 @@ async def main():
     import httpx
     print(f"\nFixing {len(affected)} papers via REST API (3s between calls)...")
     fixed, skipped = 0, 0
-    for i, p in enumerate(affected):
+    for p in affected:
         try:
             await asyncio.sleep(3)
             async with httpx.AsyncClient(timeout=30) as client:
@@ -105,6 +106,29 @@ async def main():
     print(f"\nDone: {fixed} fixed, {skipped} skipped (API unavailable)")
     if skipped:
         print(f"Re-run the script later to fix the remaining {skipped}.")
+
+    # ── Step 4: Repair rankings where paper was fixed but ranking wasn't ─
+    # Only checks OAI papers (no version suffix) with full ISO dates (already fixed).
+    print(f"\nChecking for paper/ranking date mismatches...")
+    repaired = 0
+    async for paper in db.papers.find(
+        {"arxiv_id": {"$exists": True, "$not": {"$regex": "v\\d+$"}}},
+        {"_id": 0, "id": 1, "published": 1},
+    ):
+        pub = str(paper.get("published", ""))
+        if len(pub) <= 10 or not pub:
+            continue  # Not yet fixed
+        ranking = await db.rankings.find_one(
+            {"paper_id": paper["id"]},
+            {"_id": 0, "published": 1},
+        )
+        if ranking and str(ranking.get("published", "")) != pub:
+            await db.rankings.update_one(
+                {"paper_id": paper["id"]},
+                {"$set": {"published": pub}},
+            )
+            repaired += 1
+    print(f"  Repaired {repaired} ranking date mismatches")
 
 
 if __name__ == "__main__":
