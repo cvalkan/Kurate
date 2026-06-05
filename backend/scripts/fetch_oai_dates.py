@@ -1,8 +1,8 @@
 """
 Fetch correct REST API publication dates for OAI-PMH papers.
 
-Writes results DIRECTLY into /app/oai_papers.json (in-place update).
-Resumable: papers that already have 'rest_api_published' are skipped.
+Writes results to /app/oai_dates_results.jsonl (one JSON line per paper).
+Resumable: papers already in the JSONL are skipped on re-run.
 
 Usage:
   python fetch_oai_dates.py              # fetch ALL remaining
@@ -19,17 +19,28 @@ from pathlib import Path
 import httpx
 
 OAI_JSON = Path("/app/oai_papers.json")
+RESULTS_JSONL = Path("/app/oai_dates_results.jsonl")
 ARXIV_API = "https://export.arxiv.org/api/query"
 SLEEP_SEC = 3
 
 
-def save_json(data: dict):
-    with open(OAI_JSON, "w") as f:
-        json.dump(data, f, indent=2)
+def load_done_ids() -> set:
+    """Read already-fetched arxiv_ids from the JSONL."""
+    done = set()
+    if RESULTS_JSONL.exists():
+        for line in RESULTS_JSONL.read_text().splitlines():
+            if line.strip():
+                done.add(json.loads(line)["arxiv_id"])
+    return done
+
+
+def append_result(record: dict):
+    """Append one JSON line and flush immediately."""
+    with open(RESULTS_JSONL, "a") as f:
+        f.write(json.dumps(record) + "\n")
 
 
 def fetch_paper_info(arxiv_id: str, client: httpx.Client) -> dict:
-    """Query arXiv REST API for a single paper's published date + version."""
     resp = client.get(ARXIV_API, params={"id_list": arxiv_id, "max_results": 1}, timeout=30)
     resp.raise_for_status()
     root = ET.fromstring(resp.text)
@@ -63,50 +74,54 @@ def main():
     with open(OAI_JSON) as f:
         data = json.load(f)
 
-    # Build index: position of each 2026 paper in the papers list
-    remaining = []
-    already_done = 0
-    for idx, p in enumerate(data["papers"]):
-        if p.get("actual_year") != 2026:
-            continue
-        if p.get("rest_api_published"):
-            already_done += 1
-            continue
-        remaining.append(idx)
+    papers_2026 = [p for p in data["papers"] if p.get("actual_year") == 2026]
+    done_ids = load_done_ids()
 
+    remaining = [p for p in papers_2026 if p["arxiv_id"] not in done_ids]
     if args.limit > 0:
         remaining = remaining[: args.limit]
 
     total = len(remaining)
-    print(f"Already fetched: {already_done} | Remaining this run: {total}")
+    print(f"Already fetched: {len(done_ids)} | Remaining this run: {total}")
 
     with httpx.Client() as client:
-        for i, idx in enumerate(remaining, 1):
-            paper = data["papers"][idx]
+        for i, paper in enumerate(remaining, 1):
             aid = paper["arxiv_id"]
             try:
                 info = fetch_paper_info(aid, client)
-                data["papers"][idx]["rest_api_published"] = info["rest_api_published"]
-                data["papers"][idx]["rest_api_updated"] = info["rest_api_updated"]
-                data["papers"][idx]["current_version"] = info["current_version"]
+                record = {
+                    "arxiv_id": aid,
+                    "paper_id": paper["paper_id"],
+                    "category": paper["category"],
+                    "published_in_db": paper["published_in_db"],
+                    "rest_api_published": info["rest_api_published"],
+                    "rest_api_updated": info["rest_api_updated"],
+                    "current_version": info["current_version"],
+                    "title": paper["title"],
+                }
                 status = f"{info['rest_api_published'] or 'NOT_FOUND'}  {info['current_version'] or '?'}"
             except Exception as e:
-                data["papers"][idx]["rest_api_published"] = None
-                data["papers"][idx]["rest_api_updated"] = None
-                data["papers"][idx]["current_version"] = None
-                data["papers"][idx]["fetch_error"] = str(e)
+                record = {
+                    "arxiv_id": aid,
+                    "paper_id": paper["paper_id"],
+                    "category": paper["category"],
+                    "published_in_db": paper["published_in_db"],
+                    "rest_api_published": None,
+                    "rest_api_updated": None,
+                    "current_version": None,
+                    "error": str(e),
+                    "title": paper["title"],
+                }
                 status = f"ERROR: {e}"
 
+            append_result(record)
             print(f"[{i}/{total}] {aid} -> {status}")
-
-            # Persist after EVERY fetch — survives interruptions
-            save_json(data)
 
             if i < total:
                 time.sleep(SLEEP_SEC)
 
-    print(f"\nDone. {already_done + len(remaining)} of 1083 papers now have REST API dates.")
-    print(f"Results saved in-place to {OAI_JSON}")
+    final_count = len(load_done_ids())
+    print(f"\nDone. {final_count} / 1083 total in {RESULTS_JSONL}")
 
 
 if __name__ == "__main__":
