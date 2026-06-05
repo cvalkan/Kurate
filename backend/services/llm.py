@@ -1028,7 +1028,8 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
             if raw_response.choices and getattr(raw_response.choices[0], "finish_reason", None) == "refusal":
                 await _log_llm_error(provider, model, "Model refused to assess this paper",
                                      context="generate_summary_REFUSED", paper_title=paper.get('title', ''))
-                await track_llm_usage(provider, model, context="summary_refused", success=False, paper_title=paper.get('title', ''))
+                await track_llm_usage(provider, model, context="summary_refused", success=False,
+                                      paper_title=f"{paper.get('categories', [''])[0]}: {paper.get('title', '')}")
                 raise RuntimeError(f"REFUSED: {provider}/{model} declined to summarize '{paper.get('title', '')[:60]}'")
 
             response_text = raw_response.choices[0].message.content if raw_response.choices else ""
@@ -1052,7 +1053,8 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
                         tokens["thinking"] = getattr(details, "reasoning_tokens", 0) or 0
 
                 _PROXY_FAIL_COUNTS[provider] = 0  # Reset circuit breaker on proxy success
-                await track_llm_usage(provider, model, context="summary", success=True, paper_title=paper.get('title', ''),
+                await track_llm_usage(provider, model, context="summary", success=True,
+                                      paper_title=f"{paper.get('categories', [''])[0]}: {paper.get('title', '')}",
                                       input_tokens=tokens.get("input", 0),
                                       output_tokens=tokens.get("output", 0),
                                       thinking_tokens=tokens.get("thinking", 0),
@@ -1069,7 +1071,8 @@ async def generate_precomparison_impact_summary(paper: dict, model_override: dic
         except Exception as e:
             err_str = str(e).lower()
             await _log_llm_error(provider, model, e, context="generate_summary", paper_title=paper.get('title', ''))
-            await track_llm_usage(provider, model, context="summary", success=False, paper_title=paper.get('title', ''),
+            await track_llm_usage(provider, model, context="summary", success=False,
+                                  paper_title=f"{paper.get('categories', [''])[0]}: {paper.get('title', '')}",
                                   input_tokens=len(content) // 4 if content else 0)
             is_budget = any(kw in err_str for kw in ("budget", "balance", "insufficient", "credit", "quota"))
             is_token_limit = any(kw in err_str for kw in _TOKEN_LIMIT_KEYWORDS)
