@@ -132,10 +132,11 @@ async def fetch_arxiv_papers(
     """
     oai_set = _category_to_oai_set(category)
 
-    # Check cache
+    # Check cache — accept any cached harvest whose date_from is <= requested.
+    # A wider harvest (older date_from) always includes all papers from a narrower one.
     cached = _oai_cache.get(oai_set)
     if (cached
-            and cached.get("date_from") == (date_from or "")
+            and cached.get("date_from", "9999") <= (date_from or "")
             and time.monotonic() - cached.get("ts", 0) < _OAI_CACHE_TTL):
         all_papers = cached["papers"]
         logger.info(f"[{category}] OAI-PMH cache hit for set={oai_set} ({len(all_papers)} total)")
