@@ -142,7 +142,6 @@ async def select_replay_pairs(max_pairs: int = 200) -> dict:
     matches = await collect_all(db.matches.find(
         {
             "completed": True, "failed": {"$ne": True},
-            "mode": {"$exists": False},
             "$or": [
                 {"paper1_id": {"$in": list(rec_ids)}},
                 {"paper2_id": {"$in": list(rec_ids)}},

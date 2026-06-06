@@ -410,7 +410,7 @@ async def _compute_live_analysis_impl(category: Optional[str] = None):
                             pass
 
         # Compute agreements using a lightweight match scan (only 3 fields per doc)
-        match_q = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}}
+        match_q = {"completed": True, "failed": {"$ne": True}}
         if category:
             match_q["primary_category"] = category
         pw_pair_winners = {}
@@ -932,7 +932,7 @@ async def compute_openskill_cache(category: Optional[str] = None):
     all_matches = []
 
     for cat in cats:
-        cat_q = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False},
+        cat_q = {"completed": True, "failed": {"$ne": True},
                  "primary_category": cat}
         async for m in db.matches.find(cat_q, {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1, "model_used": 1}):
             all_matches.append(m)
@@ -1580,8 +1580,7 @@ async def _compute_score_pairwise_coherence(category=None):
 
     # 2. Load completed matches
     match_query = {
-        "completed": True, "failed": {"$ne": True},
-        "mode": {"$exists": False}, "winner_id": {"$exists": True},
+        "completed": True, "failed": {"$ne": True}, "winner_id": {"$exists": True},
     }
     if category:
         match_query["primary_category"] = category

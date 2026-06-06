@@ -178,19 +178,6 @@ def _get_cat_status(category: str) -> dict:
     return _category_status[category]
 
 
-async def _collect_cursor_docs(cursor, batch_size: int = 500):
-    """Collect all documents from a Motor cursor without imposing a hard cap."""
-    docs = []
-    while True:
-        batch = await cursor.to_list(length=batch_size)
-        if not batch:
-            break
-        docs.extend(batch)
-        if len(batch) < batch_size:
-            break
-        await asyncio.sleep(0)
-    return docs
-
 
 def get_scheduler_status(category: str = None) -> dict:
     """Get scheduler status for a specific category or global summary."""
@@ -251,7 +238,7 @@ async def init_tournament_registry():
         tid = f"cat={cat_id}|mode=standard"
         paper_count = await db.papers.count_documents({"categories.0": cat_id})
         match_count = await db.matches.count_documents(
-            {"completed": True, "failed": {"$ne": True}, "primary_category": cat_id, "mode": {"$exists": False}, "revision_superseded": {"$ne": True}}
+            {"completed": True, "failed": {"$ne": True}, "primary_category": cat_id, "revision_superseded": {"$ne": True}}
         )
         await db.tournaments.update_one(
             {"tournament_id": tid},
@@ -910,16 +897,14 @@ async def _check_goals_met_impl(category: str = "cs.RO") -> bool:
         top_k_set = set(top_k_list)
         matched_pairs = set()
         async for m in db.matches.find(
-            {"completed": True, "failed": {"$ne": True}, "primary_category": category,
-             "mode": {"$exists": False}, "revision_superseded": {"$ne": True},
+            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "revision_superseded": {"$ne": True},
              "paper1_id": {"$in": top_k_list}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1},
         ):
             if m["paper2_id"] in top_k_set:
                 matched_pairs.add(tuple(sorted([m["paper1_id"], m["paper2_id"]])))
         async for m in db.matches.find(
-            {"completed": True, "failed": {"$ne": True}, "primary_category": category,
-             "mode": {"$exists": False}, "revision_superseded": {"$ne": True},
+            {"completed": True, "failed": {"$ne": True}, "primary_category": category, "revision_superseded": {"$ne": True},
              "paper2_id": {"$in": top_k_list}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1},
         ):
@@ -2157,7 +2142,7 @@ async def _recompute_convergence_bg(category: str):
         # Check if enough new matches to justify recompute
         current_count = await db.matches.count_documents({
             "completed": True, "failed": {"$ne": True},
-            "primary_category": category, "mode": {"$exists": False},
+            "primary_category": category,
             "revision_superseded": {"$ne": True},
         })
         last_count = _convergence_last_recomputed.get(category, 0)
@@ -2196,7 +2181,7 @@ async def _get_compared_opponents(paper_id: str, category: str, candidates: list
     already = set()
     async for m in db.matches.find(
         {"primary_category": category, "dedup_pair": {"$in": pair_keys},
-         "completed": True, "failed": {"$ne": True}, "mode": {"$exists": False},
+         "completed": True, "failed": {"$ne": True},
          "revision_superseded": {"$ne": True}},
         {"_id": 0, "paper1_id": 1, "paper2_id": 1},
     ):
@@ -2226,7 +2211,7 @@ async def _select_pairs(
     # --- Load ALL existing dedup_pairs for this category once (replaces N per-paper queries) ---
     existing_pairs = set()
     async for m in db.matches.find(
-        {"primary_category": category, "completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}},
+        {"primary_category": category, "completed": True, "failed": {"$ne": True}},
         {"_id": 0, "dedup_pair": 1},
     ):
         if m.get("dedup_pair"):

@@ -33,13 +33,13 @@ async def _seed_match_counters():
     """One-time seed from DB. Called at startup."""
     global _incr_seeded
     async for doc in db.matches.aggregate([
-        {"$match": {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}, "revision_superseded": {"$ne": True}}},
+        {"$match": {"completed": True, "failed": {"$ne": True}, "revision_superseded": {"$ne": True}}},
         {"$group": {"_id": "$primary_category", "count": {"$sum": 1}}},
     ]):
         _incr_match_counts[doc["_id"]] = doc["count"]
 
     async for doc in db.matches.aggregate([
-        {"$match": {"failed": True, "mode": {"$exists": False}}},
+        {"$match": {"failed": True}},
         {"$group": {"_id": "$primary_category", "count": {"$sum": 1}}},
     ]):
         _incr_failed_counts[doc["_id"]] = doc["count"]
@@ -68,7 +68,7 @@ async def _get_match_count(category: str = None) -> int:
     cached = _match_count_cache.get(key)
     if cached and (time.time() - cached["ts"]) < _MATCH_COUNT_TTL:
         return cached["count"]
-    q = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}, "revision_superseded": {"$ne": True}}
+    q = {"completed": True, "failed": {"$ne": True}, "revision_superseded": {"$ne": True}}
     if category:
         q["primary_category"] = category
     count = await db.matches.count_documents(q)
@@ -1009,8 +1009,7 @@ async def _db_tag_leaderboard_impl(
         paper_id_set = [e["id"] for e in entries]
         local_matches = await collect_all(db.matches.find(
             {"completed": True, "winner_id": {"$exists": True}, "failed": {"$ne": True},
-             "paper1_id": {"$in": paper_id_set}, "paper2_id": {"$in": paper_id_set},
-             "mode": {"$exists": False}},
+             "paper1_id": {"$in": paper_id_set}, "paper2_id": {"$in": paper_id_set}},
             {"_id": 0, "paper1_id": 1, "paper2_id": 1, "winner_id": 1},
         ))
         if local_matches:
@@ -1153,7 +1152,6 @@ async def get_paper_detail(paper_id: str):
         return await db.matches.find(
             {
                 "completed": True,
-                "mode": {"$exists": False},
                 "$or": [{"paper1_id": paper_id}, {"paper2_id": paper_id}],
             },
             {"_id": 0, "revision_superseded": 1, "paper1_id": 1, "paper2_id": 1,
@@ -1341,7 +1339,7 @@ async def get_system_status():
         # Query DB directly — no dependency on in-memory cache
         total_papers = await db.rankings.count_documents({})
         total_matches = await db.matches.count_documents(
-            {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}, "revision_superseded": {"$ne": True}}
+            {"completed": True, "failed": {"$ne": True}, "revision_superseded": {"$ne": True}}
         )
         failed_matches = await db.matches.count_documents({"failed": True})
         _status_cache["data"] = {
@@ -1465,7 +1463,7 @@ async def _compute_convergence(category, steps):
 
     pid_set = {p["id"] for p in papers}
 
-    match_query = {"completed": True, "failed": {"$ne": True}, "mode": {"$exists": False}, "revision_superseded": {"$ne": True}}
+    match_query = {"completed": True, "failed": {"$ne": True}, "revision_superseded": {"$ne": True}}
     if category:
         match_query["primary_category"] = category
     all_matches = await collect_all(db.matches.find(
@@ -1922,7 +1920,6 @@ async def positional_bias(since: str = None):
     """
     match_filter = {
         "completed": True, "failed": {"$ne": True}, "winner_id": {"$exists": True},
-        "mode": {"$exists": False},
     }
     if since:
         match_filter["created_at"] = {"$gte": since}
