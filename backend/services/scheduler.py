@@ -1326,7 +1326,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
         from core.memlog import log_event
         pdf_fail = result.get("pdf_failures", {})
         pdf_fail_str = ", ".join(f"{r}={c}" for r, c in pdf_fail.items()) if pdf_fail else ""
-        detail_parts = [f"{category}: new={result['new_papers']}, pdfs={result['pdfs_downloaded']}, summaries={result['summaries_generated']}, rankings={result['rankings_inserted']}"]
+        detail_parts = [f"new={result['new_papers']}, pdfs={result['pdfs_downloaded']}, summaries={result['summaries_generated']}, rankings={result['rankings_inserted']}"]
         if pdf_fail_str:
             detail_parts.append(f"pdf_failed: {pdf_fail_str}")
         if result.get("errors"):
