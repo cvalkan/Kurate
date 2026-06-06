@@ -88,7 +88,10 @@ async def fetch_arxiv_papers(
             except (httpx.HTTPStatusError, httpx.ReadTimeout,
                     httpx.ConnectTimeout, Exception) as e:
                 status = getattr(getattr(e, 'response', None), 'status_code', None)
-                is_retryable = status in (429, 500, 502, 503, 504) or isinstance(
+                if status == 429:
+                    # Rate limited — don't retry, just fail fast
+                    raise
+                is_retryable = status in (500, 502, 503, 504) or isinstance(
                     e, (httpx.ReadTimeout, httpx.ConnectTimeout))
                 if is_retryable and attempt < 2:
                     wait = 5 + random.uniform(0, 3.0)
