@@ -2764,6 +2764,26 @@ async def fix_oai_dates(dry_run: bool = True, phase: int = 0, category: str = ""
     return await run_migration(dry_run=dry_run, phase=phase, category=category)
 
 
+@router.post("/cleanup-stale-tournaments", dependencies=[Depends(verify_admin)])
+async def cleanup_stale_tournaments(dry_run: bool = True):
+    """Remove tournament docs for categories no longer in active_categories."""
+    from core.auth import get_settings
+    settings = await get_settings()
+    active = set(settings.get("active_categories", []))
+    all_tournaments = await db.tournaments.find(
+        {}, {"_id": 1, "category": 1, "tournament_id": 1, "status": 1}
+    ).to_list(500)
+    stale = [t for t in all_tournaments if t.get("category") not in active]
+    if dry_run:
+        return {"dry_run": True, "stale_count": len(stale),
+                "stale": [{"category": t["category"], "status": t.get("status")} for t in stale]}
+    ids = [t["_id"] for t in stale]
+    result = await db.tournaments.delete_many({"_id": {"$in": ids}})
+    return {"deleted": result.deleted_count,
+            "categories": [t["category"] for t in stale]}
+
+
+
 @router.post("/dedup-papers", dependencies=[Depends(verify_admin)])
 async def deduplicate_papers():
     """Find and merge duplicate papers (same title + first author).
