@@ -26,32 +26,8 @@ from routers.validation_utils import collect_all
 
 router = APIRouter(prefix="/api/admin")
 
-# Per-endpoint cache for admin endpoints.
-# ONLY used for expensive/slow-changing endpoints (stats, timeseries).
-# Real-time endpoints (status, progress) are NEVER cached — they query indexed
-# collections directly and should respond in <200ms.
-_admin_cache = {}  # {(endpoint, category): {"data": ..., "ts": float}}
-_ADMIN_CACHE_MAX = 50  # Max cached entries
-
-# Per-endpoint TTLs — differentiated by how fast the underlying data changes
-_ADMIN_CACHE_TTLS = {
-    "stats": 300,           # 5 min — token/cost aggregation, expensive & slow-changing
-    "stats_all_cats": 300,  # 5 min — precomputed stats across all categories
-    "timeseries": 300,      # 5 min — historical daily data (also backed by MongoDB)
-}
 
 
-
-def _invalidate_admin_cache(category: str = None):
-    """Invalidate admin cache for a category (or all if None).
-    Always also invalidates __all__ aggregates and __precomputed__ data
-    since any category change affects cross-category totals."""
-    if category:
-        keys_to_remove = [k for k in _admin_cache if k[1] == category or k[1] in ("__all__", None, "__precomputed__")]
-    else:
-        keys_to_remove = list(_admin_cache.keys())
-    for k in keys_to_remove:
-        _admin_cache.pop(k, None)
 
 
 class AdminLogin(BaseModel):
@@ -138,7 +114,6 @@ async def update_settings(update: SettingsUpdate):
         {"$set": update_dict},
         upsert=True,
     )
-    _invalidate_admin_cache()  # Settings change affects progress calculations
     logger.info(f"Admin updated settings: {list(update_dict.keys())}")
     return {"success": True, "updated": list(update_dict.keys())}
 
@@ -180,7 +155,7 @@ async def _run_fetch_in_background(category: str):
             "error": str(e),
         }
     finally:
-        _invalidate_admin_cache(category)
+        pass
 
 
 @router.post("/fetch", dependencies=[Depends(verify_admin)])
@@ -518,7 +493,6 @@ async def toggle_pause():
     settings = await get_settings()
     new_state = not settings.get("paused", False)
     await db.settings.update_one({"key": "global"}, {"$set": {"paused": new_state}}, upsert=True)
-    _invalidate_admin_cache()  # Global pause affects all categories
     if new_state:
         # Immediately stop any running summary generation
         from services.scheduler import stop_summary_generation
@@ -1520,7 +1494,6 @@ async def update_tournament_status(tournament_id: str, request: Request):
         wake_scheduler()  # Wake immediately so comparisons start
 
     # Invalidate cache for the affected category
-    _invalidate_admin_cache()
 
 @router.post("/tournaments/{tournament_id}/toggle-fetch", dependencies=[Depends(verify_admin)])
 async def toggle_tournament_fetch(tournament_id: str):
@@ -1533,7 +1506,6 @@ async def toggle_tournament_fetch(tournament_id: str):
         {"tournament_id": tournament_id},
         {"$set": {"fetch_paused": new_paused, "updated_at": datetime.now(timezone.utc).isoformat()}},
     )
-    _invalidate_admin_cache()
     return {"fetch_paused": new_paused}
 
 
@@ -1549,7 +1521,6 @@ async def toggle_tournament_compare(tournament_id: str):
         {"tournament_id": tournament_id},
         {"$set": {"compare_paused": new_paused, "status": new_status, "updated_at": datetime.now(timezone.utc).isoformat()}},
     )
-    _invalidate_admin_cache()
     if not new_paused:
         wake_scheduler()
     return {"compare_paused": new_paused}
@@ -1638,7 +1609,6 @@ async def add_category(body: CategoryAction):
     )
 
     logger.info(f"Admin added category: {cat_id} (preset to paused)")
-    _invalidate_admin_cache()
     return {"status": "ok", "active_categories": active, "tournament_status": "paused"}
 
 
@@ -1669,7 +1639,6 @@ async def remove_category(body: CategoryAction):
     )
 
     logger.info(f"Admin removed category: {cat_id}")
-    _invalidate_admin_cache()
     return {"status": "ok", "active_categories": active}
 
 
@@ -1691,7 +1660,6 @@ async def reorder_categories(body: dict):
         {"key": "global"},
         {"$set": {"active_categories": new_order}},
     )
-    _invalidate_admin_cache()
     return {"status": "ok", "active_categories": new_order}
 
 
@@ -1715,7 +1683,6 @@ async def set_featured_categories(body: dict):
         {"$set": {"featured_categories": featured}},
         upsert=True,
     )
-    _invalidate_admin_cache()
     return {"status": "ok", "featured": featured}
 
 
@@ -1739,7 +1706,6 @@ async def toggle_featured_category(body: CategoryAction):
         {"$set": {"featured_categories": featured}},
         upsert=True,
     )
-    _invalidate_admin_cache()
     return {"status": "ok", "featured": featured}
 
 
@@ -1761,7 +1727,6 @@ async def reorder_featured_categories(body: dict):
         {"$set": {"featured_categories": new_order}},
         upsert=True,
     )
-    _invalidate_admin_cache()
     return {"status": "ok", "featured": new_order}
 
 
@@ -2629,7 +2594,6 @@ async def deduplicate_papers():
     self_matches_deleted = self_match_result.deleted_count
 
     # Invalidate caches after cleanup
-    _invalidate_admin_cache()
     lb_cache = _get_lb_cache()
     lb_cache.clear()
     lb_cache.update({"ts": 0, "total_papers": 0, "total_matches": 0, "warming_up": True})
