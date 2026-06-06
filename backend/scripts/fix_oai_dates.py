@@ -317,19 +317,27 @@ def _affected_categories() -> set:
     }
 
 
-async def _phase3_recompute(dry_run: bool) -> dict:
+async def _phase3_recompute(dry_run: bool, category: str = "") -> dict:
     """Recompute TrueSkill + win/loss/model_stats from remaining matches
     for every category that had ghost papers.
 
     Must run AFTER Phase 2 so the ghost matches are already deleted.
     Loads matches + rankings per category, replays TrueSkill, and writes
     the corrected ratings back. Idempotent.
+
+    If category is specified, only recompute that single category
+    (use this to avoid proxy timeouts on large batches).
     """
     import trueskill
 
     affected_cats = _affected_categories()
     if not affected_cats:
         return {"phase": 3, "error": "No affected categories found"}
+
+    if category:
+        if category not in affected_cats:
+            return {"phase": 3, "error": f"{category} not in affected categories"}
+        affected_cats = {category}
 
     if dry_run:
         cat_match_counts = {}
@@ -460,14 +468,15 @@ async def _phase3_recompute(dry_run: bool) -> dict:
     return {"phase": 3, "dry_run": False, **log}
 
 
-async def run_migration(dry_run: bool = True, phase: int = 0) -> dict:
+async def run_migration(dry_run: bool = True, phase: int = 0, category: str = "") -> dict:
     """Run the OAI-PMH migration.
-    phase=0: all three phases, phase=1/2/3: individual phase."""
+    phase=0: all three phases, phase=1/2/3: individual phase.
+    category: for phase=3, run only this category (avoids proxy timeout)."""
     results = {}
     if phase in (0, 1):
         results["phase1_repair"] = await _phase1_repair(dry_run)
     if phase in (0, 2):
         results["phase2_remove"] = await _phase2_remove(dry_run)
     if phase in (0, 3):
-        results["phase3_recompute"] = await _phase3_recompute(dry_run)
+        results["phase3_recompute"] = await _phase3_recompute(dry_run, category=category)
     return results

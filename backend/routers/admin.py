@@ -2756,11 +2756,12 @@ async def arxiv_health():
 
 
 @router.post("/fix-oai-dates", dependencies=[Depends(verify_admin)])
-async def fix_oai_dates(dry_run: bool = True, phase: int = 0):
-    """OAI-PMH migration: repair 2026 dates (phase=1) + remove pre-2026 ghosts (phase=2).
-    phase=0 runs both. Pass ?dry_run=false to apply."""
+async def fix_oai_dates(dry_run: bool = True, phase: int = 0, category: str = ""):
+    """OAI-PMH migration: repair 2026 dates (phase=1) + remove pre-2026 ghosts (phase=2)
+    + recompute TrueSkill (phase=3). phase=0 runs all. Pass ?dry_run=false to apply.
+    For phase=3, pass ?category=cs.AI to run one category at a time."""
     from scripts.fix_oai_dates import run_migration
-    return await run_migration(dry_run=dry_run, phase=phase)
+    return await run_migration(dry_run=dry_run, phase=phase, category=category)
 
 
 @router.post("/dedup-papers", dependencies=[Depends(verify_admin)])
