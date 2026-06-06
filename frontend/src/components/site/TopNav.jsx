@@ -5,8 +5,7 @@ const NAV = [
   { to: "#rankings", label: "Rankings" },
   { to: "#categories", label: "Categories" },
   { to: "#methodology", label: "Methodology" },
-  { to: "#validation", label: "Validation" },
-  { to: "#recent", label: "Recent Papers" },
+  { to: "#faq", label: "FAQ" },
   { to: "#about", label: "About" },
 ];
 

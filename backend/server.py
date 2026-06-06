@@ -76,15 +76,13 @@ def _filter_papers(
 def _sort_papers(papers: list[dict[str, Any]], rank_type: str) -> list[dict[str, Any]]:
     if rank_type == "recent":
         return sorted(papers, key=lambda p: p["added_at"], reverse=True)
-    if rank_type == "agreement":
-        return sorted(papers, key=lambda p: p["model_agreement"], reverse=True)
-    if rank_type == "validation":
-        return sorted(papers, key=lambda p: p["validation_signal"], reverse=True)
-    if rank_type == "fast_moving":
-        return sorted(papers, key=lambda p: p["momentum"], reverse=True)
+    if rank_type == "rating":
+        return sorted(papers, key=lambda p: p["rating"], reverse=True)
+    if rank_type == "gap":
+        return sorted(papers, key=lambda p: p["gap"], reverse=True)
     if rank_type == "newly_ranked":
         return sorted(papers, key=lambda p: (p["added_at"], p["score"]), reverse=True)
-    # default: top ranked
+    # default: score
     return sorted(papers, key=lambda p: p["score"], reverse=True)
 
 
@@ -144,18 +142,14 @@ async def get_metrics():
     for p in PAPERS:
         counts[p["category_code"]] = counts.get(p["category_code"], 0) + 1
     most_active = max(counts.items(), key=lambda kv: kv[1])
-    avg_agreement = sum(p["model_agreement"] for p in PAPERS) / len(PAPERS)
-    avg_validation = sum(p["validation_signal"] for p in PAPERS) / len(PAPERS)
-    total_comparisons = sum(int(p["model_agreement"] * 1000) + int(p["score"] * 10) for p in PAPERS)
+    total_comparisons = sum(int(p["score"] * 25) + p["rating"] for p in PAPERS)
     return {
         "papers_ranked": len(PAPERS),
         "active_categories": len(CATEGORIES),
         "total_comparisons": total_comparisons,
-        "ai_judges": 4,
+        "ai_judges": 3,
         "most_active_category": most_active[0],
         "latest_update": latest_update_string(PAPERS),
-        "avg_model_agreement": round(avg_agreement, 2),
-        "avg_validation_signal": round(avg_validation, 2),
     }
 
 

@@ -26,12 +26,9 @@ export const api = {
 };
 
 export const RANK_TYPES = [
-  { value: "top", label: "Top Ranked" },
-  { value: "recent", label: "Recent Rankings" },
-  { value: "agreement", label: "Highest Model Agreement" },
-  { value: "validation", label: "Strongest Validation Signal" },
-  { value: "fast_moving", label: "Fast-Moving Categories" },
-  { value: "newly_ranked", label: "Newly Ranked Papers" },
+  { value: "score", label: "Score" },
+  { value: "rating", label: "Rating" },
+  { value: "gap", label: "Gap" },
 ];
 
 export const PERIODS = [

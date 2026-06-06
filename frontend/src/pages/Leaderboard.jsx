@@ -11,29 +11,25 @@ export default function Leaderboard() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [categories, setCategories] = useState([]);
-  const [years, setYears] = useState([]);
   const [papers, setPapers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [q, setQ] = useState(searchParams.get("q") || "");
   const [category, setCategory] = useState(searchParams.get("category") || "all");
-  const [year, setYear] = useState(searchParams.get("year") || "all");
   const [period, setPeriod] = useState(searchParams.get("period") || "all");
-  const [rankType, setRankType] = useState(searchParams.get("rank_type") || "top");
+  const [rankType, setRankType] = useState(searchParams.get("rank_type") || "score");
 
   useEffect(() => {
-    Promise.all([api.categories(), api.years()]).then(([c, y]) => {
-      setCategories(c); setYears(y);
-    });
+    api.categories().then(setCategories);
   }, []);
 
   useEffect(() => {
     setLoading(true);
-    api.papers({ category, year, period, rank_type: rankType, q, limit: 50 })
+    api.papers({ category, period, rank_type: rankType, q, limit: 50 })
       .then((res) => setPapers(res.results))
       .finally(() => setLoading(false));
-    setSearchParams({ category, year, period, rank_type: rankType, q });
-  }, [category, year, period, rankType, q, setSearchParams]);
+    setSearchParams({ category, period, rank_type: rankType, q });
+  }, [category, period, rankType, q, setSearchParams]);
 
   return (
     <div className="min-h-screen bg-white">
@@ -52,19 +48,12 @@ export default function Leaderboard() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search papers, authors, topics…" data-testid="lb-search" className="pl-9 h-10 rounded-sm border-slate-200" />
             </div>
-            <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="mt-4 grid grid-cols-2 lg:grid-cols-3 gap-3">
               <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger data-testid="lb-category" className="h-10 rounded-sm border-slate-200"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
                   {categories.map((c) => <SelectItem key={c.code} value={c.code}>{c.code} · {c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={year} onValueChange={setYear}>
-                <SelectTrigger data-testid="lb-year" className="h-10 rounded-sm border-slate-200"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Years</SelectItem>
-                  {years.map((y) => <SelectItem key={y.value} value={y.value}>{y.label}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={period} onValueChange={setPeriod}>

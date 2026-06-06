@@ -1,9 +1,8 @@
 import TopNav from "@/components/site/TopNav";
 import HeroPanel from "@/components/site/HeroPanel";
 import {
-  RecentRankings, BrowseCategories, LatestActivity, ResearchSignals,
-  HowItWorks, WhyCategories, PlatformCapabilities, WhatMakesDifferent,
-  WhoFor, TrustPanel,
+  RecentRankings, ResearchAndCapabilities, HowItWorks, WhyCategories,
+  WhatMakesDifferent, WhoFor, TrustPanel,
 } from "@/components/site/ContentSections";
 import { FaqSection } from "@/components/site/FaqSection";
 import SiteFooter from "@/components/site/SiteFooter";
@@ -14,12 +13,9 @@ export default function Home() {
       <TopNav />
       <HeroPanel />
       <RecentRankings />
-      <BrowseCategories />
-      <LatestActivity />
-      <ResearchSignals />
+      <ResearchAndCapabilities />
       <HowItWorks />
       <WhyCategories />
-      <PlatformCapabilities />
       <WhatMakesDifferent />
       <WhoFor />
       <TrustPanel />

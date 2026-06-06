@@ -227,12 +227,15 @@ def build_papers() -> list[dict[str, Any]]:
             n_authors = rng.randint(2, 5)
             authors = rng.sample(AUTHOR_POOL, k=n_authors)
             score = round(rng.uniform(72.0, 97.5), 1)
+            rating = int(rng.uniform(1380, 1820))
+            gap = round(rng.uniform(0.2, 9.5), 2)
             model_agreement = round(rng.uniform(0.62, 0.97), 2)
             validation = round(rng.uniform(0.55, 0.95), 2)
             momentum = round(rng.uniform(-0.2, 0.95), 2)
             novelty = round(rng.uniform(0.40, 0.95), 2)
             days_ago = rng.randint(0, 89)
             added_at = now - timedelta(days=days_ago, hours=rng.randint(0, 23))
+            published_at = added_at - timedelta(days=rng.randint(0, 14))
             signal_badge = None
             if model_agreement > 0.90:
                 signal_badge = "high model agreement"
@@ -255,6 +258,9 @@ def build_papers() -> list[dict[str, Any]]:
                 "field": cat["field"],
                 "year": year,
                 "score": score,
+                "rating": rating,
+                "gap": gap,
+                "published_at": published_at.isoformat(),
                 "model_agreement": model_agreement,
                 "validation_signal": validation,
                 "momentum": momentum,
