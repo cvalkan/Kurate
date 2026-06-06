@@ -186,7 +186,30 @@ export function AdminLogs() {
       }
 
       const results = await Promise.all(fetches);
-      setRows(results.flat().sort((a, b) => (b.ts || "").localeCompare(a.ts || "")));
+      const merged = results.flat().sort((a, b) => (b.ts || "").localeCompare(a.ts || ""));
+      // Deduplicate: failed llm_usage rows are redundant when llm_error_logs has the same failure with more detail
+      // Keep the error log version (isError=true has the actual error message)
+      const deduped = [];
+      const seenFailures = new Set();
+      // First pass: collect error log entries
+      for (const r of merged) {
+        if (r.isError && !r.success) {
+          // Build a key from timestamp (rounded to second) + first 40 chars of detail
+          const tKey = (r.ts || "").slice(0, 19);
+          const dKey = (r.detail || "").replace(/^[\w.-]+:\s*/, "").slice(0, 40);
+          seenFailures.add(`${tKey}|${dKey}`);
+        }
+      }
+      // Second pass: skip failed llm_usage rows that have a matching error log
+      for (const r of merged) {
+        if (!r.isError && r.success === false) {
+          const tKey = (r.ts || "").slice(0, 19);
+          const dKey = (r.detail || "").replace(/^[\w.-]+:\s*/, "").replace(/ — failed$/, "").slice(0, 40);
+          if (seenFailures.has(`${tKey}|${dKey}`)) continue;
+        }
+        deduped.push(r);
+      }
+      setRows(deduped);
     } catch { }
     finally { setLoading(false); }
   }, [type, status]);
