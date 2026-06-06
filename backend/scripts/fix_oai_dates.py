@@ -111,8 +111,9 @@ async def _phase1_repair(dry_run: bool) -> dict:
             if not corr:
                 continue
             pub = str(doc.get("published", ""))
-            # Already fixed? (published is a full ISO timestamp)
-            if len(pub) > 10 and pub.startswith("20") and "T" in pub:
+            has_correct_date = len(pub) > 10 and pub.startswith("20") and "T" in pub
+            has_version = bool(re.search(r"v\d+$", aid))
+            if has_correct_date and has_version:
                 already_ok += 1
                 continue
             to_fix.append({
@@ -122,6 +123,8 @@ async def _phase1_repair(dry_run: bool) -> dict:
                 "new_published": corr["rest_api_published"],
                 "new_version": corr.get("current_version"),  # e.g. "v2"
                 "title": doc.get("title", "")[:60],
+                "needs_date": not has_correct_date,
+                "needs_version": not has_version,
             })
         last_id = batch[-1]["_id"]
 
@@ -140,12 +143,17 @@ async def _phase1_repair(dry_run: bool) -> dict:
     fixed_papers = 0
     fixed_rankings = 0
     for p in to_fix:
-        paper_update = {"published": p["new_published"]}
-        ranking_update = {"published": p["new_published"]}
+        paper_update = {}
+        ranking_update = {}
 
-        # Add versioning fields if we have a version
+        # Fix date if needed
+        if p.get("needs_date", True):
+            paper_update["published"] = p["new_published"]
+            ranking_update["published"] = p["new_published"]
+
+        # Fix versioning if needed
         ver_str = p.get("new_version")  # e.g. "v2"
-        if ver_str:
+        if ver_str and p.get("needs_version", True):
             ver_num = int(ver_str.lstrip("v"))
             versioned_id = f"{p['arxiv_id']}{ver_str}"
             paper_update["arxiv_id"] = versioned_id
@@ -154,17 +162,19 @@ async def _phase1_repair(dry_run: bool) -> dict:
             paper_update["is_latest_version"] = True
             ranking_update["arxiv_id"] = versioned_id
 
-        result = await db.papers.update_one(
-            {"id": p["paper_id"]}, {"$set": paper_update}
-        )
-        if result.modified_count:
-            fixed_papers += 1
+        if paper_update:
+            result = await db.papers.update_one(
+                {"id": p["paper_id"]}, {"$set": paper_update}
+            )
+            if result.modified_count:
+                fixed_papers += 1
 
-        result2 = await db.rankings.update_one(
-            {"paper_id": p["paper_id"]}, {"$set": ranking_update}
-        )
-        if result2.modified_count:
-            fixed_rankings += 1
+        if ranking_update:
+            result2 = await db.rankings.update_one(
+                {"paper_id": p["paper_id"]}, {"$set": ranking_update}
+            )
+            if result2.modified_count:
+                fixed_rankings += 1
 
     return {
         "phase": 1, "dry_run": False,
