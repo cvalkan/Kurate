@@ -159,10 +159,10 @@ function LeaderboardRow({ paper, rankType, onCategoryClick, activeCodes }) {
           <LatexTitle text={paper.title} />
         </Link>
         <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 flex-wrap">
-          <span className="hidden md:inline">{paper.authors.slice(0, 2).join(", ")}{paper.authors.length > 2 ? ` +${paper.authors.length - 2}` : ""}</span>
+          <span>{paper.authors.slice(0, 2).join(", ")}{paper.authors.length > 2 ? ` +${paper.authors.length - 2}` : ""}</span>
           {primary && primary !== "\u2014" && (
             <>
-              <span className="hidden md:inline text-slate-300">·</span>
+              <span className="text-slate-300">·</span>
               <button
                 type="button"
                 onClick={() => onCategoryClick(primary)}
