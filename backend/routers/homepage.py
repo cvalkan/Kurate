@@ -76,6 +76,9 @@ async def _active_categories() -> list[dict]:
 @router.get("/categories")
 async def homepage_categories():
     """Categories shaped for the homepage chip bar and filter dropdowns."""
+    from core.auth import get_settings
+    settings = await get_settings()
+    featured = settings.get("featured_categories", [])
     cats = await _active_categories()
 
     # Aggregate paper counts and latest update per category from rankings
@@ -97,6 +100,7 @@ async def homepage_categories():
         code = c["code"]
         c["paper_count"] = counts.get(code, 0)
         c["latest_update"] = _humanise(latest_by_cat.get(code, ""))
+        c["featured"] = code in featured
 
     return cats
 
@@ -126,15 +130,29 @@ async def homepage_metrics():
         )
         return _humanise(doc.get("published", "")) if doc else "—"
 
+    from core.config import TOURNAMENT_MODELS
+
     papers, matches, cat_count, latest = await asyncio.gather(
         _paper_count(), _match_count(), _cat_count(), _latest_update(),
     )
+
+    model_labels = []
+    for m in TOURNAMENT_MODELS:
+        name = m.get("model", "")
+        if "gpt" in name.lower():
+            model_labels.append("GPT-5.2")
+        elif "claude" in name.lower():
+            model_labels.append("Claude Opus")
+        elif "gemini" in name.lower():
+            model_labels.append("Gemini Pro")
+        else:
+            model_labels.append(name)
 
     return {
         "papers_ranked": papers,
         "active_categories": cat_count,
         "total_comparisons": matches,
-        "ai_judges": 3,
+        "ai_judges": ", ".join(model_labels),
         "latest_update": latest,
     }
 

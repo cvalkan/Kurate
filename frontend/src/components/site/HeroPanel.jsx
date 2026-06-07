@@ -12,26 +12,29 @@ const COL_TOOLTIP = {
   gap: "Percentile difference between Score and Rating",
 };
 
-function CategoryChip({ code, name, field, active, onClick }) {
-  const a = accentFor(field);
+function CategoryChip({ code, name, active, onClick }) {
   return (
     <button
       type="button"
       onClick={onClick}
       data-testid={`chip-${code}`}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-all ${a.bg} ${a.text} ${active ? "ring-1 ring-blue-600 border-blue-600" : a.border}`}
+      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-medium transition-all ${
+        active
+          ? "bg-blue-600 text-white border-blue-600"
+          : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+      }`}
     >
-      <span className={`h-1.5 w-1.5 rounded-full ${a.dot}`} />
       {code}
-      <span className="text-slate-500 font-normal hidden sm:inline">· {name}</span>
+      <span className={`font-normal hidden sm:inline ${active ? "text-blue-100" : "text-slate-400"}`}>· {name}</span>
     </button>
   );
 }
 
 function MetricTile({ label, value, last }) {
+  const isLong = typeof value === "string" && value.length > 10;
   return (
-    <div className={`flex flex-col px-6 py-5 ${last ? "" : "border-r border-slate-200"}`}>
-      <span className="font-serif text-3xl font-medium text-slate-900 leading-none">{value}</span>
+    <div className={`flex flex-col px-6 py-5 ${last ? "" : "sm:border-r border-slate-200"}`}>
+      <span className={`font-medium text-slate-900 leading-tight ${isLong ? "text-sm" : "font-serif text-3xl leading-none"}`}>{value}</span>
       <span className="mt-2 text-xs font-medium uppercase tracking-[0.08em] text-slate-500">{label}</span>
     </div>
   );
@@ -144,7 +147,7 @@ function LeaderboardRow({ paper, rankType }) {
   return (
     <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70 transition-colors" data-testid={`paper-row-${paper.id}`}>
       <td className="pl-5 pr-2 py-3 w-10 text-center align-baseline">
-        <span className="font-serif text-base text-slate-400">{paper.rank}</span>
+        <span className="font-serif text-base font-medium text-blue-600">{paper.rank}</span>
       </td>
       <td className="px-2 py-3">
         <Link to={`/paper/${paper.id}`} className="text-sm font-medium text-slate-900 leading-snug line-clamp-2 pr-2 hover:text-blue-700 transition-colors" data-testid={`paper-link-${paper.rank}`}>
@@ -168,7 +171,7 @@ function LeaderboardRow({ paper, rankType }) {
         </div>
       </td>
       <td className="px-2 py-3 text-right whitespace-nowrap align-baseline">
-        <span className="text-sm font-bold text-slate-900 tabular-nums">{display}</span>
+        <span className="text-sm font-semibold text-slate-900 tabular-nums">{display}</span>
       </td>
       <td className="pl-2 pr-5 py-3 text-right whitespace-nowrap text-xs text-slate-500 hidden sm:table-cell align-baseline">
         {formatPublished(paper.published_at)}
@@ -199,7 +202,7 @@ export default function HeroPanel() {
     const fetchPapers = async () => {
       setLoading(true);
       try {
-        const res = await homepageApi.papers({ category, period, rank_type: rankType, q, limit: 8 });
+        const res = await homepageApi.papers({ category, period, rank_type: rankType, q, limit: 10 });
         if (!cancelled) setPapers(res.results);
       } catch {
         // ignore
@@ -210,7 +213,7 @@ export default function HeroPanel() {
     return () => { cancelled = true; };
   }, [category, period, rankType, q]);
 
-  const chipCats = useMemo(() => categories.slice(0, 8), [categories]);
+  const chipCats = useMemo(() => categories.filter(c => c.featured), [categories]);
   const filterParams = new URLSearchParams({ category, period, rank_type: rankType, q }).toString();
 
   return (
@@ -300,11 +303,11 @@ export default function HeroPanel() {
 
             <div className="mt-5">
               <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-slate-500 mb-2">Quick categories</div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 justify-start">
                 <button
                   onClick={() => setCategory("all")}
                   data-testid="chip-all"
-                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${category === "all" ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-700 border-slate-200 hover:border-slate-400"}`}
+                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border transition-all ${category === "all" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"}`}
                 >
                   All
                 </button>
@@ -313,7 +316,6 @@ export default function HeroPanel() {
                     key={c.code}
                     code={c.code}
                     name={c.name}
-                    field={c.field}
                     active={category === c.code}
                     onClick={() => setCategory(c.code === category ? "all" : c.code)}
                   />
@@ -368,10 +370,10 @@ export default function HeroPanel() {
         </div>
 
         {/* Metrics strip */}
-        <div className="mt-10 border border-slate-200 rounded-sm bg-white grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 divide-y sm:divide-y-0">
+        <div className="mt-10 border border-slate-200 rounded-sm bg-white grid grid-cols-1 sm:grid-cols-4 lg:grid-cols-4 divide-y sm:divide-y-0">
           <MetricTile label="Papers Ranked" value={metrics?.papers_ranked?.toLocaleString() ?? ""} />
           <MetricTile label="Active Categories" value={metrics?.active_categories ?? ""} />
-          <MetricTile label="AI Judges" value={metrics?.ai_judges ?? ""} />
+          <MetricTile label="AI Models" value={metrics?.ai_judges ?? ""} />
           <MetricTile label="Latest Update" value={metrics?.latest_update ?? ""} last />
         </div>
       </div>
