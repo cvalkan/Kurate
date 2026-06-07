@@ -14,27 +14,44 @@ export function RecentRankings() {
   useEffect(() => { homepageApi.recent().then((d) => setCards(d.cards)); }, []);
 
   return (
-    <section id="categories" className="w-full border-t border-slate-200 bg-white" data-testid="recent-rankings">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-16">
-        <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Recent Rankings</span>
-        <h2 className="font-serif text-2xl sm:text-3xl text-slate-900 mt-1">Explore newly ranked papers and active research categories.</h2>
-        <Link to="/leaderboard" className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 mt-3" data-testid="recent-browse-link">
-          Browse all rankings <ArrowRight className="h-3 w-3" />
-        </Link>
+    <section id="categories" className="bg-white border-t border-slate-200">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
+        <div className="flex items-end justify-between gap-6 mb-10">
+          <div>
+            <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">Recent Rankings</div>
+            <h2 className="font-serif text-3xl sm:text-4xl font-medium text-slate-900 max-w-2xl leading-tight">
+              Explore newly ranked papers and active research categories.
+            </h2>
+          </div>
+          <Link to="/leaderboard" className="hidden md:inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700" data-testid="recent-view-all">
+            Browse all rankings <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {cards.map((card) => {
             const a = accentFor(card.field);
             return (
-              <div key={card.key} className="border border-slate-200 rounded-sm p-4 hover:shadow-sm transition-shadow" data-testid={`recent-card-${card.key}`}>
-                <span className={`inline-block text-[10px] font-mono font-medium px-1.5 py-0.5 rounded ${a.bg} ${a.text}`}>
+              <div
+                key={card.key}
+                data-testid={`recent-card-${card.key}`}
+                className="flex flex-col border border-slate-200 bg-white p-5 rounded-sm hover:border-slate-400 transition-colors group"
+              >
+                <span className={`inline-flex w-fit items-center gap-1.5 px-2 py-0.5 rounded-sm border text-[10px] font-medium ${a.bg} ${a.text} ${a.border}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${a.dot}`} />
                   {card.category_code || "newly-ranked"}
                 </span>
-                <h3 className="font-serif text-base text-slate-900 mt-2 line-clamp-2">{card.title}</h3>
-                <p className="text-xs text-slate-500 mt-1 line-clamp-2">{card.description}</p>
-                <div className="flex items-center justify-between mt-3 text-[11px] text-slate-400">
+                <h3 className="mt-3 font-serif text-lg font-medium text-slate-900 leading-snug">{card.title}</h3>
+                <p className="mt-1.5 text-sm text-slate-600 leading-relaxed line-clamp-2">{card.description}</p>
+                <div className="mt-auto pt-5 flex items-center justify-between text-xs text-slate-500">
                   <span>{card.count} papers · {card.latest_update}</span>
-                  <span className="font-medium text-blue-600">View</span>
+                  <Link
+                    to={card.category_code ? `/leaderboard?category=${card.category_code}` : "/leaderboard"}
+                    data-testid={`recent-view-${card.key}`}
+                    className="font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-1"
+                  >
+                    View <ArrowRight className="h-3 w-3" />
+                  </Link>
                 </div>
               </div>
             );
@@ -52,7 +69,7 @@ const CAPS = [
   { icon: GitCompareArrows, t: "AI-assisted comparison", d: "Papers are compared using AI-assisted pairwise evaluation to produce category-level rankings." },
   { icon: Layers, t: "Category-based leaderboards", d: "Papers are organised within live arXiv categories so rankings can be read in their proper field context." },
   { icon: BarChart3, t: "Score — comparative tournament ranking", d: "Score is the comparative tournament-based ranking score derived from AI-assisted paper comparisons within a category." },
-  { icon: Telescope, t: "Rating — standalone scientific impact (1.0-10.0)", d: "Rating is a standalone scientific impact rating on a 1.0-10.0 scale. It is independent of the tournament and does not come from pairwise comparison." },
+  { icon: Telescope, t: "Rating — standalone scientific impact (1.0–10.0)", d: "Rating is a standalone scientific impact rating on a 1.0–10.0 scale. It is independent of the tournament and does not come from pairwise comparison." },
   { icon: Filter, t: "Gap — percentile difference between Score and Rating", d: "Gap shows how far the comparative Score sits from the standalone Rating, expressed as a percentile difference between the two signals." },
   { icon: Clock3, t: "Recent rankings & search", d: "Recently ranked papers and updated categories are surfaced on the homepage, with search and time-period filtering across papers." },
 ];
@@ -66,33 +83,34 @@ const COMING_SOON = [
 
 export function ResearchAndCapabilities() {
   return (
-    <section className="w-full border-t border-slate-200 bg-slate-50/40" data-testid="capabilities-section">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-16">
-        <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Research Intelligence & Current Capabilities</span>
-        <h2 className="font-serif text-2xl sm:text-3xl text-slate-900 mt-1">What Kurate supports today.</h2>
-        <p className="text-sm text-slate-500 max-w-xl mt-2">
-          A ranking and discovery layer for scientific preprints. The capabilities below reflect what is currently live on the platform.
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
+    <section id="capabilities" className="bg-slate-50 border-t border-slate-200" data-testid="capabilities-section">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
+        <div className="mb-10 max-w-3xl">
+          <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">Research Intelligence & Current Capabilities</div>
+          <h2 className="font-serif text-3xl sm:text-4xl font-medium text-slate-900 leading-tight">What Kurate supports today.</h2>
+          <p className="mt-4 text-base text-slate-600 leading-relaxed">A ranking and discovery layer for scientific preprints. The capabilities below reflect what is currently live on the platform.</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {CAPS.map(({ icon: Icon, t, d }) => (
-            <div key={t} className="flex gap-3">
-              <Icon className="h-5 w-5 text-slate-400 shrink-0 mt-0.5" />
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">{t}</h3>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">{d}</p>
-              </div>
+            <div key={t} className="border border-slate-200 bg-white p-6 rounded-sm hover:border-slate-300 transition-colors">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-sm bg-blue-50 text-blue-600 border border-blue-100 mb-4">
+                <Icon className="h-4 w-4" strokeWidth={1.5} />
+              </span>
+              <h3 className="font-sans text-base font-semibold text-slate-900">{t}</h3>
+              <p className="mt-2 text-sm text-slate-600 leading-relaxed">{d}</p>
             </div>
           ))}
         </div>
 
-        <div className="mt-12 border border-slate-200 rounded-sm p-5 bg-white">
-          <h3 className="text-sm font-semibold text-slate-900">Coming Soon</h3>
-          <p className="text-xs text-slate-500 mt-1">Planned features under active development. These are not yet part of the live platform.</p>
-          <ul className="mt-3 space-y-1.5">
+        <div className="mt-10 border border-dashed border-slate-300 bg-white p-6 rounded-sm">
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] text-slate-500 mb-3">
+            <span className="inline-flex h-1.5 w-1.5 rounded-full bg-amber-500" /> Coming Soon
+          </div>
+          <p className="text-sm text-slate-600 mb-4 max-w-2xl leading-relaxed">Planned features under active development. These are not yet part of the live platform.</p>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
             {COMING_SOON.map((item) => (
-              <li key={item} className="text-xs text-slate-600 flex items-start gap-2">
-                <span className="mt-1.5 h-1 w-1 rounded-full bg-slate-300 shrink-0" />
+              <li key={item} className="flex items-start gap-2 text-sm text-slate-600">
+                <span className="mt-2 h-1 w-1 rounded-full bg-slate-400 shrink-0" />
                 {item}
               </li>
             ))}
@@ -109,29 +127,30 @@ export function ResearchAndCapabilities() {
 const STEPS = [
   { n: "01", t: "Collect papers", d: "Kurate gathers scientific preprints from supported arXiv categories." },
   { n: "02", t: "Compare papers", d: "Papers are evaluated through AI-assisted pairwise judgement within each category." },
-  { n: "03", t: "Generate Score, Rating, Gap", d: "Tournament comparisons produce the comparative Score. A separate process assigns each paper a standalone Rating on a 1.0-10.0 scale. Gap is the percentile difference between Score and Rating." },
+  { n: "03", t: "Generate Score, Rating, Gap", d: "Tournament comparisons produce the comparative Score. A separate process assigns each paper a standalone Rating on a 1.0–10.0 scale. Gap is the percentile difference between Score and Rating." },
   { n: "04", t: "Explore rankings", d: "Researchers explore ranked papers within each arXiv category to identify work worth closer reading." },
 ];
 
 export function HowItWorks() {
   return (
-    <section className="w-full border-t border-slate-200 bg-white" data-testid="how-it-works">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-16">
-        <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">How Kurate Rankings Work</span>
-        <h2 className="font-serif text-2xl sm:text-3xl text-slate-900 mt-1">A discovery workflow for fast-moving scientific literature.</h2>
-        <p className="text-sm text-slate-500 max-w-xl mt-2">
-          Kurate compares papers using AI-assisted evaluation and produces category-based rankings that help researchers identify work worth closer inspection.
-        </p>
-        <Link to="/methodology" className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 mt-3" data-testid="hiw-methodology-link">
-          Read full methodology <ArrowRight className="h-3 w-3" />
-        </Link>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mt-10">
+    <section className="bg-white border-t border-slate-200" data-testid="how-it-works">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
+        <div className="mb-10 flex items-end justify-between gap-6">
+          <div>
+            <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">How Kurate Rankings Work</div>
+            <h2 className="font-serif text-3xl sm:text-4xl font-medium text-slate-900 leading-tight max-w-3xl">A discovery workflow for fast-moving scientific literature.</h2>
+            <p className="mt-4 text-base text-slate-600 leading-relaxed max-w-2xl">Kurate compares papers using AI-assisted evaluation and produces category-based rankings that help researchers identify work worth closer inspection.</p>
+          </div>
+          <Link to="/methodology" data-testid="hiw-methodology-link" className="hidden md:inline-flex items-center justify-center gap-2 rounded-sm border border-slate-200 bg-white px-4 h-10 text-sm font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap">
+            <BookOpen className="h-4 w-4" /> Read full methodology
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 border-t border-l border-slate-200">
           {STEPS.map((s) => (
-            <div key={s.n} className="relative">
-              <span className="text-4xl font-serif text-slate-200">{s.n}</span>
-              <h3 className="text-sm font-semibold text-slate-900 mt-2">{s.t}</h3>
-              <p className="text-xs text-slate-500 mt-1 leading-relaxed">{s.d}</p>
+            <div key={s.n} className="border-b border-r border-slate-200 p-6 bg-white">
+              <span className="font-serif text-xl text-blue-600">{s.n}</span>
+              <h3 className="mt-3 font-sans text-base font-semibold text-slate-900">{s.t}</h3>
+              <p className="mt-2 text-sm text-slate-600 leading-relaxed">{s.d}</p>
             </div>
           ))}
         </div>
@@ -150,19 +169,20 @@ export function WhyCategories() {
     { t: "Category filters improve discovery", d: "Move directly into the arXiv category you care about and inspect ranked papers within that context." },
   ];
   return (
-    <section className="w-full border-t border-slate-200 bg-slate-50/40" data-testid="why-categories">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-16">
-        <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Why Category-Based Rankings Matter</span>
-        <h2 className="font-serif text-2xl sm:text-3xl text-slate-900 mt-1">Scientific papers are difficult to compare across unrelated fields.</h2>
-        <p className="text-sm text-slate-500 max-w-xl mt-2">
-          A robotics paper, a quantum physics paper, and an economics paper may all be important — but they should not be interpreted through the same field assumptions. Kurate uses category-based leaderboards so papers are ranked within more meaningful research contexts.
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mt-10">
+    <section className="bg-slate-50 border-t border-slate-200" data-testid="why-categories">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20 grid grid-cols-1 lg:grid-cols-12 gap-10">
+        <div className="lg:col-span-5">
+          <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">Why Category-Based Rankings Matter</div>
+          <h2 className="font-serif text-3xl sm:text-4xl font-medium text-slate-900 leading-tight">Scientific papers are difficult to compare across unrelated fields.</h2>
+          <p className="mt-5 text-base text-slate-600 leading-relaxed">
+            A robotics paper, a quantum physics paper, and an economics paper may all be important — but they should not be interpreted through the same field assumptions. Kurate uses category-based leaderboards so papers are ranked within more meaningful research contexts.
+          </p>
+        </div>
+        <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-4">
           {points.map((p) => (
-            <div key={p.t}>
-              <h3 className="text-sm font-semibold text-slate-900">{p.t}</h3>
-              <p className="text-xs text-slate-500 mt-1 leading-relaxed">{p.d}</p>
+            <div key={p.t} className="border border-slate-200 bg-white p-5 rounded-sm">
+              <h3 className="font-sans text-sm font-semibold text-slate-900">{p.t}</h3>
+              <p className="mt-2 text-sm text-slate-600 leading-relaxed">{p.d}</p>
             </div>
           ))}
         </div>
@@ -181,22 +201,29 @@ export function WhatMakesDifferent() {
     { a: "Citation databases are useful but slower to reflect new work.", b: "Kurate focuses on earlier discovery through AI-assisted comparison." },
   ];
   return (
-    <section className="w-full border-t border-slate-200 bg-white" data-testid="what-makes-different">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-16">
-        <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">What Makes Kurate Different</span>
-        <h2 className="font-serif text-2xl sm:text-3xl text-slate-900 mt-1">A ranking layer for scientific preprints.</h2>
-        <p className="text-sm text-slate-500 max-w-xl mt-2">
-          Kurate adds a ranking layer on top of preprint discovery, combining category-based leaderboards with AI-assisted comparison so users can explore work that may deserve closer reading.
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-10">
-          {compare.map((c, i) => (
-            <div key={i} className="border border-slate-200 rounded-sm p-4 space-y-3">
-              <p className="text-xs text-slate-500 leading-relaxed">{c.a}</p>
-              <div className="border-t border-slate-100" />
-              <p className="text-xs text-slate-900 font-medium leading-relaxed"><span className="text-blue-600">Kurate</span>{c.b.replace("Kurate", "")}</p>
+    <section className="bg-white border-t border-slate-200" data-testid="what-makes-different">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          <div className="lg:col-span-5">
+            <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">What Makes Kurate Different</div>
+            <h2 className="font-serif text-3xl sm:text-4xl font-medium text-slate-900 leading-tight">A ranking layer for scientific preprints.</h2>
+            <p className="mt-5 text-base text-slate-600 leading-relaxed">
+              Kurate adds a ranking layer on top of preprint discovery, combining category-based leaderboards with AI-assisted comparison so users can explore work that may deserve closer reading.
+            </p>
+          </div>
+          <div className="lg:col-span-7">
+            <div className="border border-slate-200 bg-white rounded-sm divide-y divide-slate-100">
+              {compare.map((c, i) => (
+                <div key={i} className="grid grid-cols-1 md:grid-cols-2 gap-4 px-5 py-5">
+                  <div className="text-sm text-slate-500 leading-relaxed">{c.a}</div>
+                  <div className="text-sm text-slate-900 font-medium leading-relaxed flex items-start gap-2">
+                    <span className="font-serif italic text-blue-600 text-base shrink-0">Kurate</span>
+                    <span>{c.b.replace("Kurate ", "")}</span>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
       </div>
     </section>
@@ -217,19 +244,20 @@ const PERSONAS = [
 
 export function WhoFor() {
   return (
-    <section id="about" className="w-full border-t border-slate-200 bg-slate-50/40" data-testid="who-for">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-16">
-        <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Who Kurate Is For</span>
-        <h2 className="font-serif text-2xl sm:text-3xl text-slate-900 mt-1">Built for researchers, students, supervisors, labs, institutions, and analysts.</h2>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
+    <section id="about" className="bg-slate-50 border-t border-slate-200" data-testid="who-for">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
+        <div className="mb-10 max-w-3xl">
+          <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">Who Kurate Is For</div>
+          <h2 className="font-serif text-3xl sm:text-4xl font-medium text-slate-900 leading-tight">Built for researchers, students, supervisors, labs, institutions, and analysts.</h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {PERSONAS.map(({ icon: Icon, t, d }) => (
-            <div key={t} className="flex gap-3">
-              <Icon className="h-5 w-5 text-slate-400 shrink-0 mt-0.5" />
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">{t}</h3>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">{d}</p>
-              </div>
+            <div key={t} className="border border-slate-200 bg-white p-6 rounded-sm hover:border-slate-300 transition-colors">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-sm bg-blue-50 text-blue-600 border border-blue-100 mb-4">
+                <Icon className="h-4 w-4" strokeWidth={1.5} />
+              </span>
+              <h3 className="font-serif text-xl font-medium text-slate-900">{t}</h3>
+              <p className="mt-2 text-sm text-slate-600 leading-relaxed">{d}</p>
             </div>
           ))}
         </div>
@@ -243,13 +271,21 @@ export function WhoFor() {
    ========================================================================= */
 export function TrustPanel() {
   return (
-    <section className="w-full border-t border-slate-200 bg-white" data-testid="trust-panel">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-16">
-        <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Trust, Transparency, Limitations</span>
-        <h2 className="font-serif text-2xl sm:text-3xl text-slate-900 mt-1">A discovery layer, not a replacement for peer review.</h2>
-        <p className="text-sm text-slate-500 max-w-2xl mt-2 leading-relaxed">
-          Kurate rankings are discovery signals, not peer review. They are intended to help users prioritise papers for closer reading. Users should still inspect the paper, methodology, evidence, assumptions, limitations, and field context before forming conclusions.
-        </p>
+    <section className="bg-white border-t border-slate-200" data-testid="trust-panel">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          <div className="lg:col-span-5">
+            <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">Trust, Transparency, Limitations</div>
+            <h2 className="font-serif text-3xl sm:text-4xl font-medium text-slate-900 leading-tight">A discovery layer, not a replacement for peer review.</h2>
+          </div>
+          <div className="lg:col-span-7">
+            <div className="border border-slate-200 bg-white p-7 rounded-sm">
+              <p className="text-base text-slate-700 leading-relaxed">
+                Kurate rankings are discovery signals, not peer review. They are intended to help users prioritise papers for closer reading. Users should still inspect the paper, methodology, evidence, assumptions, limitations, and field context before forming conclusions.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );

@@ -2,11 +2,11 @@ import { Link } from "react-router-dom";
 import { Linkedin, Instagram, Github, Facebook, BookOpen, Trophy } from "lucide-react";
 
 const NAV = [
-  { to: "#rankings", label: "Rankings", external: false },
-  { to: "#categories", label: "Categories", external: false },
-  { to: "/methodology", label: "Methodology", external: false },
-  { to: "#faq", label: "FAQ", external: false },
-  { to: "#about", label: "About", external: false },
+  { to: "#rankings", label: "Rankings" },
+  { to: "#categories", label: "Categories" },
+  { to: "/methodology", label: "Methodology", internal: true },
+  { to: "#faq", label: "FAQ" },
+  { to: "#about", label: "About" },
 ];
 
 const SOCIAL = [
@@ -19,57 +19,71 @@ const SOCIAL = [
 
 export default function TopNav() {
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-        {/* Logo */}
-        <Link to="/" className="flex items-center gap-[10px] hover:opacity-80 transition-opacity" data-testid="topnav-logo">
-          <Trophy className="h-5 w-5 text-blue-600 shrink-0 -translate-y-[2px]" />
-          <img src="/kurate-logo.png" alt="Kurate.org" className="h-6 shrink-0" />
-        </Link>
+    <header
+      data-testid="top-nav"
+      className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80"
+    >
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between">
+          <Link to="/" className="flex items-center gap-2 group" data-testid="brand-link" aria-label="Kurate.org home">
+            <Trophy className="h-6 w-6 text-blue-600 shrink-0" strokeWidth={1.8} />
+            <img
+              src="/kurate-logo.png"
+              alt="Kurate.org"
+              className="h-7 w-auto"
+              draggable={false}
+            />
+          </Link>
 
-        {/* Desktop nav + social */}
-        <div className="hidden md:flex items-center gap-6">
-          <nav className="flex items-center gap-6 text-sm font-medium text-slate-600">
-            {NAV.map((n) =>
-              n.to.startsWith("#") ? (
-                <a key={n.to} href={n.to} className="hover:text-slate-900 transition-colors" data-testid={`topnav-${n.label.toLowerCase()}`}>
-                  {n.label}
-                </a>
-              ) : (
-                <Link key={n.to} to={n.to} className="hover:text-slate-900 transition-colors" data-testid={`topnav-${n.label.toLowerCase()}`}>
-                  {n.label}
+          <nav className="hidden lg:flex items-center gap-7" aria-label="Primary">
+            {NAV.map((item) =>
+              item.internal ? (
+                <Link
+                  key={item.label}
+                  to={item.to}
+                  data-testid={`nav-link-${item.label.toLowerCase()}`}
+                  className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                >
+                  {item.label}
                 </Link>
+              ) : (
+                <a
+                  key={item.label}
+                  href={item.to}
+                  data-testid={`nav-link-${item.label.toLowerCase()}`}
+                  className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                >
+                  {item.label}
+                </a>
               )
             )}
           </nav>
 
-          {/* Social icons */}
-          <div className="flex items-center gap-3 border-l border-slate-200 pl-5">
-            {SOCIAL.map(({ href, label, Icon, key }) => (
-              <a
-                key={key}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={label}
-                className="text-slate-400 hover:text-slate-600 transition-colors"
-                data-testid={`topnav-social-${key}`}
-              >
-                <Icon className="h-4 w-4" />
-              </a>
-            ))}
+          <div className="flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-0.5 pr-3 border-r border-slate-200">
+              {SOCIAL.map(({ href, label, Icon, key }) => (
+                <a
+                  key={key}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid={`social-${key}`}
+                  aria-label={label}
+                  className="p-2 text-slate-500 hover:text-blue-600 transition-colors"
+                >
+                  <Icon className="h-4 w-4" strokeWidth={1.5} />
+                </a>
+              ))}
+            </div>
+            <Link
+              to="/leaderboard"
+              data-testid="explore-rankings-button"
+              className="inline-flex items-center justify-center rounded-sm bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+            >
+              Explore Rankings
+            </Link>
           </div>
         </div>
-
-        {/* CTA */}
-        <Link
-          to="/leaderboard"
-          className="hidden sm:inline-flex items-center gap-1.5 rounded-sm border border-slate-900 bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors"
-          data-testid="topnav-explore-btn"
-        >
-          <Trophy className="h-3.5 w-3.5" />
-          Explore Rankings
-        </Link>
       </div>
     </header>
   );
