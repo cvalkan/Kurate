@@ -8,23 +8,20 @@
 .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
 
 
-html {
-    overflow-y: scroll;
-}
-
-/* Prevent Radix UI Select/Popover from hiding the scrollbar and shifting content.
-   react-remove-scroll sets overflow:hidden + padding-right on body when a portal opens. */
-body[data-scroll-locked] {
-    overflow: scroll !important;
-    margin-right: 0 !important;
-    padding-right: 0 !important;
-}
-
 body {
     margin: 0;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-y: scroll;
+}
+
+/* Prevent Radix react-remove-scroll from shifting page layout.
+   Doubled attribute selector beats the injected [data-scroll-locked]{overflow:hidden!important} */
+body[data-scroll-locked][data-scroll-locked] {
+    overflow: scroll !important;
+    padding-right: 0px !important;
+    margin-right: 0px !important;
 }
 
 h1, h2, h3, h4, h5, h6 {
