@@ -322,7 +322,7 @@ export default function HeroPanel() {
                   data-testid="hero-search-btn"
                   className="col-span-2 mt-2 inline-flex h-10 items-center justify-center gap-2 rounded-sm bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
                 >
-                  <Search className="h-4 w-4" /> Search Rankings
+                  <Search className="h-4 w-4" /> Explore All Rankings
                 </Link>
                 <a
                   href="#methodology"
