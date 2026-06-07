@@ -3,6 +3,7 @@ import "katex/dist/katex.min.css";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
+import HomePage from "@/pages/HomePage";
 import LeaderboardPage from "@/pages/LeaderboardPage";
 import CorrelationPage from "@/pages/CorrelationPage";
 import MethodologyPage from "@/pages/MethodologyPage";
@@ -40,12 +41,23 @@ function AppRouter() {
   if (location.hash?.includes("session_id=")) {
     return <AuthCallback />;
   }
+
+  // Homepage has its own TopNav and SiteFooter — render without the app shell
+  if (location.pathname === "/") {
+    return (
+      <>
+        <HomePage />
+        <Toaster position="bottom-right" />
+      </>
+    );
+  }
+
   return (
     <>
       <Navbar />
       <main className="pb-12">
         <Routes>
-          <Route path="/" element={<LeaderboardPage />} />
+          <Route path="/leaderboard" element={<LeaderboardPage />} />
           <Route path="/start" element={<StartRedirect />} />
           <Route path="/leaderboard/:category/:year/:weekOrMonth" element={<ArchivePage />} />
           <Route path="/correlation" element={<CorrelationPage />} />

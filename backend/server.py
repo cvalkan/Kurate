@@ -105,6 +105,7 @@ from routers.defi import router as defi_router
 from routers.bookmarks import router as bookmarks_router
 from routers.reading_lists import router as reading_lists_router
 from routers.sync import router as sync_router
+from routers.homepage import router as homepage_router
 from routers.human_ai_benchmark import router as benchmark_router
 from routers.si_benchmark import router as si_benchmark_router
 from routers.unified_benchmark import router as unified_benchmark_router
@@ -266,6 +267,7 @@ app.include_router(db_explorer_router)
 app.include_router(defi_router)
 app.include_router(bookmarks_router)
 app.include_router(sync_router)
+app.include_router(homepage_router)
 app.include_router(reading_lists_router)
 app.include_router(benchmark_router)
 app.include_router(si_benchmark_router)
