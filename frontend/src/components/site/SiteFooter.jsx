@@ -1,4 +1,4 @@
-import { Linkedin, Instagram, Github, Facebook, BookOpen } from "lucide-react";
+import { Linkedin, Instagram, Github, Facebook, BookOpen, Trophy } from "lucide-react";
 
 const SOCIAL = [
   { href: "https://www.linkedin.com/company/kurate-org", label: "LinkedIn", Icon: Linkedin, key: "linkedin" },
@@ -46,7 +46,8 @@ export default function SiteFooter() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10">
           <div className="lg:col-span-2 lg:pr-6">
-            <div className="flex items-center">
+            <div className="flex items-center gap-2">
+              <Trophy className="h-6 w-6 text-blue-600 shrink-0" strokeWidth={1.8} />
               <img src="/kurate-logo.png" alt="Kurate.org" className="h-7 w-auto" draggable={false} />
             </div>
             <p className="mt-5 text-sm leading-relaxed text-slate-600 max-w-sm">

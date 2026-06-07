@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Linkedin, Instagram, Github, Facebook, BookOpen } from "lucide-react";
+import { Linkedin, Instagram, Github, Facebook, BookOpen, Trophy } from "lucide-react";
 
 const NAV = [
   { to: "#rankings", label: "Rankings", external: false },
@@ -25,7 +25,8 @@ export default function TopNav() {
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
-          <Link to="/" className="flex items-center group" data-testid="brand-link" aria-label="Kurate.org home">
+          <Link to="/" className="flex items-center gap-2 group" data-testid="brand-link" aria-label="Kurate.org home">
+            <Trophy className="h-6 w-6 text-blue-600 shrink-0" strokeWidth={1.8} />
             <img
               src="/kurate-logo.png"
               alt="Kurate.org"
