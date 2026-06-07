@@ -2,11 +2,11 @@ import { Link } from "react-router-dom";
 import { Linkedin, Instagram, Github, Facebook, BookOpen } from "lucide-react";
 
 const NAV = [
-  { to: "#rankings", label: "Rankings" },
-  { to: "#categories", label: "Categories" },
-  { to: "#methodology", label: "Methodology" },
-  { to: "#faq", label: "FAQ" },
-  { to: "#about", label: "About" },
+  { to: "#rankings", label: "Rankings", external: false },
+  { to: "#categories", label: "Categories", external: false },
+  { to: "https://kurate.org/methodology", label: "Methodology", external: true },
+  { to: "#faq", label: "FAQ", external: false },
+  { to: "#about", label: "About", external: false },
 ];
 
 const SOCIAL = [
@@ -39,6 +39,7 @@ export default function TopNav() {
               <a
                 key={item.label}
                 href={item.to}
+                {...(item.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                 data-testid={`nav-link-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
                 className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
               >

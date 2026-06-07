@@ -22,10 +22,10 @@ const COLS = [
   {
     h: "Research",
     links: [
-      { l: "Methodology", to: "#methodology" },
-      { l: "Validation", to: "#validation" },
-      { l: "Model Agreement", to: "#methodology" },
-      { l: "Research Signals", to: "#methodology" },
+      { l: "Methodology", to: "https://kurate.org/methodology", external: true },
+      { l: "Validation", to: "https://kurate.org/methodology", external: true },
+      { l: "Model Agreement", to: "https://kurate.org/methodology", external: true },
+      { l: "Research Signals", to: "https://kurate.org/methodology", external: true },
     ],
   },
   {
@@ -63,7 +63,14 @@ export default function SiteFooter() {
               <ul className="space-y-2.5">
                 {c.links.map((l) => (
                   <li key={l.l}>
-                    <a href={l.to} data-testid={`footer-${c.h.toLowerCase()}-${l.l.toLowerCase().replace(/\s+/g, "-")}`} className="text-sm text-slate-600 hover:text-blue-600 transition-colors">{l.l}</a>
+                    <a
+                      href={l.to}
+                      {...(l.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                      data-testid={`footer-${c.h.toLowerCase()}-${l.l.toLowerCase().replace(/\s+/g, "-")}`}
+                      className="text-sm text-slate-600 hover:text-blue-600 transition-colors"
+                    >
+                      {l.l}
+                    </a>
                   </li>
                 ))}
               </ul>
