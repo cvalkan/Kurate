@@ -45,9 +45,9 @@ export default function SiteFooter() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10">
           <div className="lg:col-span-2 lg:pr-6">
-            <Link to="/" className="flex items-center gap-2">
-              <Trophy className="h-6 w-6 text-blue-600 shrink-0" strokeWidth={1.8} />
-              <img src="/kurate-logo.png" alt="Kurate.org" className="h-7 w-auto" draggable={false} />
+            <Link to="/" className="flex items-center gap-[10px]">
+              <Trophy className="h-5 w-5 text-blue-600 shrink-0 -translate-y-[2px]" strokeWidth={1.8} />
+              <img src="/kurate-logo.png" alt="Kurate.org" className="h-6 w-auto" draggable={false} />
             </Link>
             <p className="mt-5 text-sm leading-relaxed text-slate-600 max-w-sm">
               Scientific paper rankings, category leaderboards, and research intelligence signals for discovering important preprints earlier.

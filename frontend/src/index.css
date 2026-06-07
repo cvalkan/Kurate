@@ -8,6 +8,10 @@
 .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
 
 
+html {
+    scrollbar-gutter: stable;
+}
+
 body {
     margin: 0;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
