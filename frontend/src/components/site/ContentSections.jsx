@@ -43,7 +43,7 @@ export function RecentRankings() {
                 <h3 className="mt-3 font-serif text-lg font-medium text-slate-900 leading-snug">{card.title}</h3>
                 <p className="mt-1.5 text-sm text-slate-600 leading-relaxed line-clamp-2">{card.description}</p>
                 <div className="mt-auto pt-5 flex items-center justify-between text-xs text-slate-500">
-                  <span>{card.count} papers · {card.latest_update}</span>
+                  <span>{card.count} papers{card.time_label ? ` · ${card.time_label}` : ""}</span>
                   <Link
                     to={card.category_code ? `/leaderboard?cat=${card.category_code}` : "/leaderboard"}
                     data-testid={`recent-view-${card.key}`}

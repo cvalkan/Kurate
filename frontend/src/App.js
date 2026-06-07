@@ -1,5 +1,6 @@
 import "@/App.css";
 import "katex/dist/katex.min.css";
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -36,6 +37,12 @@ import { BookmarkProvider } from "@/contexts/BookmarkContext";
 
 function AppRouter() {
   const location = useLocation();
+
+  // Scroll to top on route change
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
+
   // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
   // Check URL fragment for session_id synchronously during render (prevents race conditions)
   if (location.hash?.includes("session_id=")) {

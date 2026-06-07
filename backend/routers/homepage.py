@@ -37,11 +37,11 @@ def _field_for(code: str, group: str) -> str:
 def _humanise(iso: str) -> str:
     """Convert an ISO timestamp to a human-friendly relative string."""
     if not iso:
-        return "—"
+        return ""
     try:
         dt = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
     except Exception:
-        return "—"
+        return ""
     delta = datetime.now(timezone.utc) - dt
     h = int(delta.total_seconds() // 3600)
     if h < 1:
@@ -52,6 +52,17 @@ def _humanise(iso: str) -> str:
     if d < 30:
         return f"{d}d ago"
     return f"{d // 30}mo ago"
+
+
+def _format_month(iso: str) -> str:
+    """Convert an ISO timestamp to 'Mon YYYY' format."""
+    if not iso:
+        return ""
+    try:
+        dt = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+        return dt.strftime("%b %Y")
+    except Exception:
+        return ""
 
 
 async def _active_categories() -> list[dict]:
@@ -232,20 +243,20 @@ async def homepage_recent():
     cats = await _active_categories()
     cat_lookup = {c["code"]: c for c in cats}
 
-    # Aggregate counts and latest update per category
+    # Aggregate counts, oldest and latest published per category
     counts = {}
-    latest_by_cat = {}
+    oldest_by_cat = {}
     pipeline = [
         {"$group": {
             "_id": "$category",
             "count": {"$sum": 1},
-            "latest": {"$max": "$published"},
+            "oldest": {"$min": "$published"},
         }},
     ]
     async for doc in db.rankings.aggregate(pipeline):
         cat = doc["_id"]
         counts[cat] = doc["count"]
-        latest_by_cat[cat] = doc.get("latest") or ""
+        oldest_by_cat[cat] = doc.get("oldest") or ""
 
     # Count newly added papers: rolling 48h window anchored to latest added_at
     # (same logic as _build_recent_filter in leaderboard.py)
@@ -275,7 +286,7 @@ async def homepage_recent():
         "field": "cs",
         "description": "Latest papers added to the live Kurate ranking pipeline.",
         "count": newly_ranked_count,
-        "latest_update": _humanise(latest_added_str),
+        "time_label": f"Last updated {_humanise(latest_added_str)}",
     }]
 
     # Sort categories by paper count, take top 7
@@ -284,6 +295,7 @@ async def homepage_recent():
         code = c["code"]
         if counts.get(code, 0) == 0:
             continue
+        oldest_str = _format_month(oldest_by_cat.get(code, ""))
         cards.append({
             "key": code,
             "kind": "category",
@@ -292,7 +304,7 @@ async def homepage_recent():
             "field": c["field"],
             "description": c["broad"],
             "count": counts.get(code, 0),
-            "latest_update": _humanise(latest_by_cat.get(code, "")),
+            "time_label": f"Since {oldest_str}" if oldest_str else "",
         })
 
     return {"cards": cards}

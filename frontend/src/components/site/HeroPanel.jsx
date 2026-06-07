@@ -225,7 +225,14 @@ export default function HeroPanel() {
   }, [category, period, rankType, q]);
 
   const chipCats = categories.filter(c => c.featured);
-  const filterParams = new URLSearchParams({ cat: category, period, rank_type: rankType, q }).toString();
+  // Build leaderboard URL params — only include non-default values
+  const leaderboardParams = (() => {
+    const p = new URLSearchParams();
+    if (category && category !== "all") p.set("cat", category);
+    if (q) p.set("q", q);
+    return p.toString();
+  })();
+  const leaderboardUrl = leaderboardParams ? `/leaderboard?${leaderboardParams}` : "/leaderboard";
 
   return (
     <section id="rankings" className="bg-white">
@@ -296,7 +303,7 @@ export default function HeroPanel() {
 
                 {/* Buttons row in same grid for alignment */}
                 <Link
-                  to={`/leaderboard?${filterParams}`}
+                  to={leaderboardUrl}
                   data-testid="hero-search-btn"
                   className="col-span-2 mt-2 inline-flex h-10 items-center justify-center gap-2 rounded-sm bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
                 >
@@ -344,7 +351,7 @@ export default function HeroPanel() {
                   <h2 className="font-serif text-lg font-medium text-slate-900 truncate">Top Papers</h2>
                 </div>
                 <Link
-                  to={`/leaderboard?${filterParams}`}
+                  to={leaderboardUrl}
                   data-testid="hero-full-leaderboard-link"
                   className="text-xs font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-1 whitespace-nowrap"
                 >
@@ -374,7 +381,7 @@ export default function HeroPanel() {
                 <span className="inline-flex items-center gap-1.5">
                   <Clock className="h-3 w-3" /> Updated {metrics?.latest_update || ""}
                 </span>
-                <Link to={`/leaderboard?${filterParams}`} data-testid="hero-view-all-link" className="font-medium text-blue-600 hover:text-blue-700">View all →</Link>
+                <Link to={leaderboardUrl} data-testid="hero-view-all-link" className="font-medium text-blue-600 hover:text-blue-700">View all →</Link>
               </div>
             </div>
           </div>
