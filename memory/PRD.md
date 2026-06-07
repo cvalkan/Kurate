@@ -44,23 +44,36 @@ Build and maintain an AI paper-judging system using multiple LLM judges to rank 
 - `within_label_match_pipeline.py` — Within-label matching
 
 ## Pending / Next
-- Deploy latest changes (log dedup, 429 fix, archived files)
-- P1: Extend prompt schema with 5 categorical metrics
 - P1: SI source of truth consolidation
+- P1: Handle 9 dormant categories (reactivate or purge?)
 - P2: admin.py / scheduler.py file splits (structural refactor)
 - P2: "Older" archive path inconsistency fix
+- P2: Add "last sealed / next reconcile check" timestamp to Admin UI
 - P2: Semantic Search & "Papers Like This"
 - P2: Live ChemRxiv Fetcher, Multiple Reviewer Personas
 
 ## Known Issues
 - TweetAPI returns 401 (external account limitation)
 - Compound indexes on matches still include `mode` field (harmless, drop on Atlas if desired)
-- `_ADMIN_CACHE_TTLS` / `_invalidate_admin_cache` still present but cache is never read/written (cosmetic)
 
 ## Key Files
 - `/app/backend/routers/admin.py` — Admin endpoints (4,173 lines)
 - `/app/backend/routers/admin2_stats.py` — SSOT stats
+- `/app/backend/routers/homepage.py` — Homepage API endpoints (metrics, papers, categories, recent)
 - `/app/backend/services/scheduler.py` — Fetch + compare pipeline (2,406 lines)
 - `/app/backend/services/arxiv.py` — arXiv REST API client
 - `/app/backend/scripts/fix_oai_dates.py` — Migration script
 - `/app/archive/` — Archived unused scripts, components, docs
+- `/app/frontend/src/pages/HomePage.jsx` — New homepage page
+- `/app/frontend/src/components/site/` — Homepage site components (TopNav, HeroPanel, ContentSections, FaqSection, SiteFooter)
+- `/app/frontend/src/lib/homepage-api.js` — Homepage API client
+
+### New Homepage (Jun 7, 2026) — COMPLETE
+- Merged new homepage design from `new_homepage` branch
+- `"/"` now renders the new homepage (TopNav, HeroPanel, RecentRankings, Capabilities, HowItWorks, WhyCategories, WhatMakesDifferent, WhoFor, TrustPanel, FAQ, SiteFooter)
+- Original LeaderboardPage moved to `/leaderboard`
+- All 70+ existing routes unchanged and working
+- Backend: Created `/api/homepage/*` endpoints (categories, metrics, papers, recent) querying live MongoDB
+- Frontend: 5 new site components + HomePage page + homepage-api client
+- Trophy icon alignment fixed to match existing Navbar
+- EB Garamond serif font added for homepage headings

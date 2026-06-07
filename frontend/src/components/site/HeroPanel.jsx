@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Search, ArrowRight, BookOpen, Sparkles, Clock } from "lucide-react";
+import { Search, ArrowRight, BookOpen, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { homepageApi, accentFor, PERIODS, RANK_TYPES } from "@/lib/homepage-api";
@@ -105,7 +105,6 @@ export default function HeroPanel() {
   }, [category, period, rankType, q]);
 
   const chipCats = useMemo(() => categories.slice(0, 8), [categories]);
-  const filterParams = new URLSearchParams({ category, period, rank_type: rankType, q }).toString();
 
   return (
     <section id="rankings" className="w-full bg-white" data-testid="hero-panel">
