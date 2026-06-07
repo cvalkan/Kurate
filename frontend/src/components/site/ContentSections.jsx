@@ -4,7 +4,7 @@ import {
   ArrowRight, Layers, GitCompareArrows, Telescope, Filter,
   BarChart3, BookOpen, GraduationCap, Building2, Users, Newspaper, Clock3,
 } from "lucide-react";
-import { homepageApi, accentFor } from "@/lib/homepage-api";
+import { homepageApi } from "@/lib/homepage-api";
 
 /* =========================================================================
    Recent Rankings — dynamic from live category data
@@ -30,15 +30,14 @@ export function RecentRankings() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {cards.map((card) => {
-            const a = accentFor(card.field);
             return (
               <div
                 key={card.key}
                 data-testid={`recent-card-${card.key}`}
                 className="flex flex-col border border-slate-200 bg-white p-5 rounded-sm hover:border-slate-400 transition-colors group"
               >
-                <span className={`inline-flex w-fit items-center gap-1.5 px-2 py-0.5 rounded-sm border text-[10px] font-medium ${a.bg} ${a.text} ${a.border}`}>
-                  <span className={`h-1.5 w-1.5 rounded-full ${a.dot}`} />
+                <span className="inline-flex w-fit items-center gap-1.5 px-2 py-0.5 rounded-sm border text-[10px] font-medium bg-blue-50 text-blue-700 border-blue-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
                   {card.category_code || "newly-ranked"}
                 </span>
                 <h3 className="mt-3 font-serif text-lg font-medium text-slate-900 leading-snug">{card.title}</h3>

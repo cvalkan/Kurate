@@ -125,10 +125,11 @@ async def homepage_metrics():
 
     async def _latest_update():
         doc = await db.rankings.find_one(
-            {}, {"_id": 0, "published": 1},
-            sort=[("published", -1)],
+            {"added_at": {"$nin": ["", None]}},
+            {"_id": 0, "added_at": 1},
+            sort=[("added_at", -1)],
         )
-        return _humanise(doc.get("published", "")) if doc else "—"
+        return _humanise(doc.get("added_at", "")) if doc else ""
 
     papers, matches, cat_count, latest = await asyncio.gather(
         _paper_count(), _match_count(), _cat_count(), _latest_update(),
@@ -246,9 +247,25 @@ async def homepage_recent():
         counts[cat] = doc["count"]
         latest_by_cat[cat] = doc.get("latest") or ""
 
+    # Count newly added papers: rolling 48h window anchored to latest added_at
+    # (same logic as _build_recent_filter in leaderboard.py)
+    latest_added = await db.rankings.find_one(
+        {"added_at": {"$nin": ["", None]}},
+        {"_id": 0, "added_at": 1},
+        sort=[("added_at", -1)],
+    )
+    if latest_added and latest_added.get("added_at"):
+        try:
+            anchor_dt = datetime.fromisoformat(str(latest_added["added_at"]).replace("Z", "+00:00"))
+            recent_cutoff = (anchor_dt - timedelta(hours=48)).isoformat()
+        except (ValueError, TypeError):
+            recent_cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+    else:
+        recent_cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+    newly_ranked_count = await db.rankings.count_documents({"added_at": {"$gte": recent_cutoff}})
+
     # Build cards: "Newly Ranked" card first, then top categories by count
-    total_papers = sum(counts.values())
-    latest_overall = max(latest_by_cat.values(), default="") if latest_by_cat else ""
+    latest_added_str = latest_added.get("added_at", "") if latest_added else ""
 
     cards = [{
         "key": "newly_ranked",
@@ -257,8 +274,8 @@ async def homepage_recent():
         "category_code": None,
         "field": "cs",
         "description": "Latest papers added to the live Kurate ranking pipeline.",
-        "count": total_papers,
-        "latest_update": _humanise(latest_overall),
+        "count": newly_ranked_count,
+        "latest_update": _humanise(latest_added_str),
     }]
 
     # Sort categories by paper count, take top 7
