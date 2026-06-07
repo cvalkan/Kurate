@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Search, ArrowRight, BookOpen, Clock } from "lucide-react";
+import { Search, ArrowRight, BookOpen, Sparkles, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { homepageApi, accentFor, PERIODS, RANK_TYPES } from "@/lib/homepage-api";
@@ -13,14 +13,15 @@ function CategoryChip({ code, name, field, active, onClick }) {
     <button
       onClick={onClick}
       data-testid={`chip-${code}`}
-      className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
         active
           ? `${a.bg} ${a.text} ${a.border} ring-1 ring-current/10`
           : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
       }`}
     >
+      <span className={`h-1.5 w-1.5 rounded-full ${active ? a.dot : "bg-slate-300"}`} />
       {code}
-      <span className="ml-1 opacity-60">· {name}</span>
+      <span className="opacity-60">· {name}</span>
     </button>
   );
 }
@@ -48,12 +49,12 @@ function LeaderboardRow({ paper, rankType }) {
     value;
   return (
     <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition-colors">
-      <td className="py-2.5 pl-4 pr-2 text-xs text-slate-400 font-mono w-8">{paper.rank}</td>
-      <td className="py-2.5 px-2">
-        <Link to={`/paper/${paper.id}`} className="text-sm font-medium text-slate-900 hover:text-blue-700 transition-colors line-clamp-1" data-testid={`paper-link-${paper.rank}`}>
+      <td className="py-3 pl-4 pr-2 text-sm text-slate-400 font-mono w-8 align-top">{paper.rank}</td>
+      <td className="py-3 px-2">
+        <Link to={`/paper/${paper.id}`} className="text-sm font-medium text-slate-900 hover:text-blue-700 transition-colors leading-snug" data-testid={`paper-link-${paper.rank}`}>
           {paper.title}
         </Link>
-        <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500">
+        <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-500">
           {paper.category_code && paper.category_code !== "—" && (
             <>
               <span className="font-mono text-slate-400">{paper.category_code}</span>
@@ -63,8 +64,8 @@ function LeaderboardRow({ paper, rankType }) {
           {paper.authors.slice(0, 2).join(", ")}{paper.authors.length > 2 ? ` +${paper.authors.length - 2}` : ""}
         </div>
       </td>
-      <td className="py-2.5 px-2 text-right text-sm font-semibold text-slate-900 tabular-nums w-20">{display}</td>
-      <td className="py-2.5 pr-4 text-right text-[11px] text-slate-400 w-28 hidden sm:table-cell">
+      <td className="py-3 px-2 text-right text-sm font-semibold text-slate-900 tabular-nums w-16 align-top">{display}</td>
+      <td className="py-3 pr-4 text-right text-[11px] text-slate-400 w-28 hidden sm:table-cell align-top">
         {formatPublished(paper.published_at)}
       </td>
     </tr>
@@ -112,90 +113,107 @@ export default function HeroPanel() {
         {/* Live badge */}
         <div className="flex items-center gap-2 mb-6">
           <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" /></span>
-          <span className="text-xs font-medium text-slate-500">Live · Scientific Paper Rankings</span>
+          <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Live · Scientific Paper Rankings</span>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
           {/* LEFT */}
           <div className="space-y-5">
             <h1 className="font-serif text-4xl sm:text-5xl lg:text-[3.25rem] leading-[1.1] tracking-tight text-slate-900">
-              Paper Rankings. <br className="hidden sm:block" /> across live arXiv categories.
+              Paper Rankings. <br className="hidden sm:block" />
+              <em className="text-slate-700">across live arXiv categories.</em>
             </h1>
             <p className="text-base text-slate-600 max-w-lg leading-relaxed">
               Search and explore AI-assisted scientific preprint rankings. Kurate helps researchers
               explore ranked papers using category-based leaderboards and AI-assisted paper comparison.
             </p>
 
-            {/* Search + Filters */}
-            <div className="space-y-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search papers, authors, topics, or arXiv categories..."
-                  className="pl-9 h-10 rounded-sm border-slate-200 focus-visible:ring-1 focus-visible:ring-blue-600 focus-visible:border-blue-600"
-                  data-testid="hero-search"
-                />
+            {/* Search + Filters — bordered card */}
+            <div className="border border-slate-200 rounded-sm p-5 space-y-4">
+              {/* Search */}
+              <div>
+                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Search</span>
+                <div className="relative mt-1.5">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="Search papers, authors, topics, or arXiv categories..."
+                    className="pl-9 h-10 rounded-sm border-slate-200 focus-visible:ring-1 focus-visible:ring-blue-600 focus-visible:border-blue-600"
+                    data-testid="hero-search"
+                  />
+                </div>
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                <Select value={category} onValueChange={setCategory}>
-                  <SelectTrigger className="w-[180px] h-9 text-xs rounded-sm border-slate-200" data-testid="hero-category-select">
-                    <SelectValue placeholder="Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {categories.map((c) => (
-                      <SelectItem key={c.code} value={c.code}>{c.code} · {c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Filter row with labels */}
+              <div className="flex flex-wrap gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Category</span>
+                  <Select value={category} onValueChange={setCategory}>
+                    <SelectTrigger className="w-[160px] h-9 text-xs rounded-sm border-slate-200" data-testid="hero-category-select">
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {categories.map((c) => (
+                        <SelectItem key={c.code} value={c.code}>{c.code} · {c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                <Select value={period} onValueChange={setPeriod}>
-                  <SelectTrigger className="w-[140px] h-9 text-xs rounded-sm border-slate-200" data-testid="hero-period-select">
-                    <SelectValue placeholder="Time Period" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PERIODS.map((p) => (
-                      <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Time Period</span>
+                  <Select value={period} onValueChange={setPeriod}>
+                    <SelectTrigger className="w-[140px] h-9 text-xs rounded-sm border-slate-200" data-testid="hero-period-select">
+                      <SelectValue placeholder="Time Period" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PERIODS.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                <Select value={rankType} onValueChange={setRankType}>
-                  <SelectTrigger className="w-[120px] h-9 text-xs rounded-sm border-slate-200" data-testid="hero-ranktype-select">
-                    <SelectValue placeholder="Sort by" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {RANK_TYPES.map((r) => (
-                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Sort by</span>
+                  <Select value={rankType} onValueChange={setRankType}>
+                    <SelectTrigger className="w-[120px] h-9 text-xs rounded-sm border-slate-200" data-testid="hero-ranktype-select">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {RANK_TYPES.map((r) => (
+                        <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              {/* Actions */}
+              <div className="flex items-center gap-3 pt-1">
                 <Link
-                  to={`/leaderboard`}
-                  className="inline-flex items-center gap-1.5 rounded-sm bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 transition-colors"
+                  to="/leaderboard"
+                  className="inline-flex items-center gap-2 rounded-sm bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
                   data-testid="hero-search-btn"
                 >
+                  <Search className="h-4 w-4" />
                   Search Rankings
                 </Link>
                 <Link
                   to="/methodology"
-                  className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"
                   data-testid="hero-methodology-link"
                 >
-                  <BookOpen className="h-3.5 w-3.5" /> Methodology
+                  <BookOpen className="h-4 w-4" /> Methodology
                 </Link>
               </div>
             </div>
 
             {/* Quick categories */}
             <div className="space-y-2 pt-2">
-              <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Quick categories</span>
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Quick categories</span>
               <div className="flex flex-wrap gap-1.5">
                 <button
                   onClick={() => setCategory("all")}
@@ -221,7 +239,10 @@ export default function HeroPanel() {
           {/* RIGHT - Top Papers leaderboard */}
           <div className="border border-slate-200 rounded-sm overflow-hidden bg-white" data-testid="hero-leaderboard">
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50">
-              <h2 className="font-serif text-lg text-slate-900">Top Papers</h2>
+              <h2 className="font-serif text-lg text-slate-900 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-slate-400" />
+                Top Papers
+              </h2>
               <Link to="/leaderboard" className="text-xs font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1" data-testid="hero-full-leaderboard-link">
                 Full leaderboard <ArrowRight className="h-3 w-3" />
               </Link>

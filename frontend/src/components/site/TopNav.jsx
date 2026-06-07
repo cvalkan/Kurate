@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Trophy } from "lucide-react";
+import { Linkedin, Instagram, Github, Facebook, BookOpen, Trophy } from "lucide-react";
 
 const NAV = [
   { to: "#rankings", label: "Rankings", external: false },
@@ -7,6 +7,14 @@ const NAV = [
   { to: "/methodology", label: "Methodology", external: false },
   { to: "#faq", label: "FAQ", external: false },
   { to: "#about", label: "About", external: false },
+];
+
+const SOCIAL = [
+  { href: "https://www.linkedin.com/company/kurate-org", label: "LinkedIn", Icon: Linkedin, key: "linkedin" },
+  { href: "https://www.instagram.com/kurate2026/", label: "Instagram", Icon: Instagram, key: "instagram" },
+  { href: "https://github.com/cvalkan/PaperSumo", label: "GitHub", Icon: Github, key: "github" },
+  { href: "https://www.facebook.com/Kurate/", label: "Facebook", Icon: Facebook, key: "facebook" },
+  { href: "https://medium.com/kurate", label: "Medium", Icon: BookOpen, key: "medium" },
 ];
 
 export default function TopNav() {
@@ -19,24 +27,39 @@ export default function TopNav() {
           <img src="/kurate-logo.png" alt="Kurate.org" className="h-6 shrink-0" />
         </Link>
 
-        {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600">
-          {NAV.map((n) =>
-            n.external ? (
-              <a key={n.to} href={n.to} className="hover:text-slate-900 transition-colors" data-testid={`topnav-${n.label.toLowerCase()}`}>
-                {n.label}
+        {/* Desktop nav + social */}
+        <div className="hidden md:flex items-center gap-6">
+          <nav className="flex items-center gap-6 text-sm font-medium text-slate-600">
+            {NAV.map((n) =>
+              n.to.startsWith("#") ? (
+                <a key={n.to} href={n.to} className="hover:text-slate-900 transition-colors" data-testid={`topnav-${n.label.toLowerCase()}`}>
+                  {n.label}
+                </a>
+              ) : (
+                <Link key={n.to} to={n.to} className="hover:text-slate-900 transition-colors" data-testid={`topnav-${n.label.toLowerCase()}`}>
+                  {n.label}
+                </Link>
+              )
+            )}
+          </nav>
+
+          {/* Social icons */}
+          <div className="flex items-center gap-3 border-l border-slate-200 pl-5">
+            {SOCIAL.map(({ href, label, Icon, key }) => (
+              <a
+                key={key}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={label}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+                data-testid={`topnav-social-${key}`}
+              >
+                <Icon className="h-4 w-4" />
               </a>
-            ) : n.to.startsWith("#") ? (
-              <a key={n.to} href={n.to} className="hover:text-slate-900 transition-colors" data-testid={`topnav-${n.label.toLowerCase()}`}>
-                {n.label}
-              </a>
-            ) : (
-              <Link key={n.to} to={n.to} className="hover:text-slate-900 transition-colors" data-testid={`topnav-${n.label.toLowerCase()}`}>
-                {n.label}
-              </Link>
-            )
-          )}
-        </nav>
+            ))}
+          </div>
+        </div>
 
         {/* CTA */}
         <Link
