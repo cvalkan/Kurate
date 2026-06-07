@@ -6,11 +6,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { homepageApi, accentFor, PERIODS, RANK_TYPES } from "@/lib/homepage-api";
 import { LatexTitle } from "@/components/LatexTitle";
 
-const COL_LABEL = { score: "Score", rating: "Rating", gap: "Gap" };
+const COL_LABEL = { score: "Score", ai_rating: "Rating", gap_score: "Gap" };
 const COL_TOOLTIP = {
   score: "Comparative tournament-based ranking score",
-  rating: "Standalone scientific impact rating from 1.0 to 10.0",
-  gap: "Percentile difference between Score and Rating",
+  ai_rating: "Standalone scientific impact rating from 1.0 to 10.0",
+  gap_score: "Percentile difference between Score and Rating",
 };
 
 function CategoryChip({ code, name, active, onClick }) {
@@ -142,8 +142,8 @@ function CategoryDropdown({ categories, value, onChange, closeRef }) {
 function LeaderboardRow({ paper, rankType, onCategoryClick, activeCodes }) {
   const value = paper[rankType] ?? paper.score;
   const display =
-    rankType === "rating" ? (value || 0).toFixed(1) :
-    rankType === "gap" ? `${value || 0}%` :
+    rankType === "ai_rating" ? (value || 0).toFixed(1) :
+    rankType === "gap_score" ? `${value || 0}%` :
     value;
   const cats = paper.categories || [];
   const primary = paper.category_code || cats[0] || "";
@@ -238,11 +238,13 @@ export default function HeroPanel() {
   }, [category, period, rankType, q]);
 
   const chipCats = categories.filter(c => c.featured);
-  // Build leaderboard URL params — only include non-default values
+  // Build leaderboard URL — values match leaderboard params directly
   const leaderboardParams = (() => {
     const p = new URLSearchParams();
     if (category && category !== "all") p.set("cat", category);
     if (q) p.set("q", q);
+    if (period !== "week") p.set("period", period);
+    if (rankType !== "score") { p.set("sort", rankType); p.set("dir", "desc"); }
     return p.toString();
   })();
   const leaderboardUrl = leaderboardParams ? `/leaderboard?${leaderboardParams}` : "/leaderboard";
@@ -322,13 +324,13 @@ export default function HeroPanel() {
                 >
                   <Search className="h-4 w-4" /> Search Rankings
                 </Link>
-                <Link
-                  to="/methodology"
+                <a
+                  href="#methodology"
                   data-testid="hero-methodology-link"
                   className="col-span-2 lg:col-span-1 mt-2 inline-flex h-10 items-center justify-center gap-2 rounded-sm border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
                 >
                   <BookOpen className="h-4 w-4" /> Methodology
-                </Link>
+                </a>
               </div>
             </div>
 

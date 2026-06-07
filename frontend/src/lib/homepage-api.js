@@ -25,13 +25,13 @@ export const homepageApi = {
 
 export const RANK_TYPES = [
   { value: "score", label: "Score" },
-  { value: "rating", label: "Rating" },
-  { value: "gap", label: "Gap" },
+  { value: "ai_rating", label: "Rating" },
+  { value: "gap_score", label: "Gap" },
 ];
 
 export const PERIODS = [
   { value: "all", label: "All Time" },
-  { value: "new", label: "Newly Added" },
-  { value: "7d", label: "Last 7 Days" },
-  { value: "30d", label: "Last 30 Days" },
+  { value: "recent", label: "Newly Added" },
+  { value: "week", label: "Last 7 Days" },
+  { value: "month", label: "Last 30 Days" },
 ];

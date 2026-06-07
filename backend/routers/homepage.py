@@ -171,9 +171,9 @@ async def homepage_papers(
     if category and category != "all":
         query["category"] = category
 
-    # Time-period filter
+    # Time-period filter (uses leaderboard-consistent names)
     if period and period != "all":
-        days_map = {"new": 3, "7d": 7, "30d": 30}
+        days_map = {"recent": 3, "week": 7, "month": 30}
         days = days_map.get(period, 0)
         if days > 0:
             cutoff = datetime.now(timezone.utc) - timedelta(days=days)
@@ -189,11 +189,11 @@ async def homepage_papers(
             {"category": {"$regex": escaped, "$options": "i"}},
         ]
 
-    # Sort
+    # Sort (uses leaderboard-consistent field names)
     sort_field = "ts_score"
-    if rank_type == "rating":
+    if rank_type == "ai_rating":
         sort_field = "ai_rating"
-    elif rank_type == "gap":
+    elif rank_type == "gap_score":
         sort_field = "gap_score"
     sort_order = [("$natural" if sort_field == "ts_score" else sort_field, -1)]
     if sort_field == "ts_score":
