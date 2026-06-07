@@ -46,10 +46,15 @@ function formatPublished(iso) {
 }
 
 /* ── Structured Category Dropdown ── */
-function CategoryDropdown({ categories, value, onChange }) {
+function CategoryDropdown({ categories, value, onChange, closeRef }) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
   const ref = useRef(null);
+
+  // Expose close function to parent so other dropdowns can close this one
+  useEffect(() => {
+    if (closeRef) closeRef.current = () => setOpen(false);
+  }, [closeRef]);
 
   // Close on outside click
   useEffect(() => {
@@ -167,14 +172,9 @@ function LeaderboardRow({ paper, rankType, onCategoryClick }) {
             </>
           )}
           {secondary.map(tag => (
-            <button
-              key={tag}
-              type="button"
-              onClick={() => onCategoryClick(tag)}
-              className="inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[10px] font-medium bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer"
-            >
+            <span key={tag} className="inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[10px] font-medium bg-slate-50 text-slate-500 border-slate-200">
               {tag}
-            </button>
+            </span>
           ))}
         </div>
       </td>
@@ -198,6 +198,9 @@ export default function HeroPanel() {
   const [category, setCategory] = useState("all");
   const [period, setPeriod] = useState("all");
   const [rankType, setRankType] = useState("score");
+
+  const catDropdownCloseRef = useRef(null);
+  const closeCatDropdown = () => { if (catDropdownCloseRef.current) catDropdownCloseRef.current(); };
 
   useEffect(() => {
     homepageApi.categories().then(setCategories).catch(() => {});
@@ -260,12 +263,12 @@ export default function HeroPanel() {
                 <div>
                   <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-slate-500">Category</label>
                   <div className="mt-1.5">
-                    <CategoryDropdown categories={categories} value={category} onChange={setCategory} />
+                    <CategoryDropdown categories={categories} value={category} onChange={setCategory} closeRef={catDropdownCloseRef} />
                   </div>
                 </div>
                 <div>
                   <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-slate-500">Time Period</label>
-                  <Select value={period} onValueChange={setPeriod}>
+                  <Select value={period} onValueChange={setPeriod} onOpenChange={(o) => { if (o) closeCatDropdown(); }}>
                     <SelectTrigger data-testid="hero-period-select" className="mt-1.5 h-10 rounded-sm border-slate-200">
                       <SelectValue />
                     </SelectTrigger>
@@ -278,7 +281,7 @@ export default function HeroPanel() {
                 </div>
                 <div className="col-span-2 lg:col-span-1">
                   <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-slate-500">Sort by</label>
-                  <Select value={rankType} onValueChange={setRankType}>
+                  <Select value={rankType} onValueChange={setRankType} onOpenChange={(o) => { if (o) closeCatDropdown(); }}>
                     <SelectTrigger data-testid="hero-ranktype-select" className="mt-1.5 h-10 rounded-sm border-slate-200">
                       <SelectValue />
                     </SelectTrigger>
