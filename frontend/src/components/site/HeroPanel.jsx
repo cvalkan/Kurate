@@ -71,7 +71,7 @@ function LeaderboardRow({ paper, rankType }) {
         </div>
       </td>
       <td className="px-2 py-3 align-top text-right whitespace-nowrap">
-        <span className="font-serif text-base font-bold text-slate-900">{display}</span>
+        <span className="text-base font-bold text-slate-900 tabular-nums">{display}</span>
       </td>
       <td className="pl-2 pr-5 py-3 align-top text-right whitespace-nowrap text-xs text-slate-500 hidden sm:table-cell">
         {formatPublished(paper.published_at)}
@@ -190,20 +190,19 @@ export default function HeroPanel() {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
 
-              <div className="mt-5 grid grid-cols-2 lg:grid-cols-3 gap-2">
+                {/* Buttons row — same grid so Methodology aligns with Sort By */}
                 <Link
                   to={`/leaderboard?${filterParams}`}
                   data-testid="hero-search-btn"
-                  className="col-span-2 inline-flex h-10 items-center justify-center gap-2 rounded-sm bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                  className="col-span-2 mt-2 inline-flex h-10 items-center justify-center gap-2 rounded-sm bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
                 >
                   <Search className="h-4 w-4" /> Search Rankings
                 </Link>
                 <Link
                   to="/methodology"
                   data-testid="hero-methodology-link"
-                  className="col-span-2 lg:col-span-1 inline-flex h-10 items-center justify-center gap-2 rounded-sm border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                  className="col-span-2 lg:col-span-1 mt-2 inline-flex h-10 items-center justify-center gap-2 rounded-sm border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
                 >
                   <BookOpen className="h-4 w-4" /> Methodology
                 </Link>

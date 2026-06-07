@@ -26,11 +26,11 @@ export default function TopNav() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <Link to="/" className="flex items-center gap-[10px] group" data-testid="brand-link" aria-label="Kurate.org home">
-            <Trophy className="h-5 w-5 text-blue-600 shrink-0 -translate-y-[2px]" strokeWidth={1.8} />
+            <Trophy className="h-6 w-6 text-blue-600 shrink-0 -translate-y-[2px]" strokeWidth={1.8} />
             <img
               src="/kurate-logo.png"
               alt="Kurate.org"
-              className="h-6 w-auto"
+              className="h-[29px] w-auto"
               draggable={false}
             />
           </Link>
