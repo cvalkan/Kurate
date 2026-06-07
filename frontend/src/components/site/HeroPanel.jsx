@@ -225,7 +225,7 @@ export default function HeroPanel() {
   }, [category, period, rankType, q]);
 
   const chipCats = categories.filter(c => c.featured);
-  const filterParams = new URLSearchParams({ category, period, rank_type: rankType, q }).toString();
+  const filterParams = new URLSearchParams({ cat: category, period, rank_type: rankType, q }).toString();
 
   return (
     <section id="rankings" className="bg-white">
