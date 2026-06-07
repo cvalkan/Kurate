@@ -15,7 +15,7 @@ import requests
 
 BASE_URL = os.environ.get(
     "REACT_APP_BACKEND_URL",
-    "https://oai-paper-repair.preview.emergentagent.com",
+    "https://analytics-rebuild-2.preview.emergentagent.com",
 ).rstrip("/")
 ADMIN_PASSWORD = "papersumo2025"
 TOL_ABS = 2.0  # absolute tolerance in dollars / counts per spec ("<2")
