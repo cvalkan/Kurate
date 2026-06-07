@@ -1,4 +1,12 @@
-import { Linkedin, Twitter, BookOpen } from "lucide-react";
+import { Linkedin, Instagram, Github, Facebook, BookOpen } from "lucide-react";
+
+const SOCIAL = [
+  { href: "https://www.linkedin.com/company/kurate-org", label: "LinkedIn", Icon: Linkedin, key: "linkedin" },
+  { href: "https://www.instagram.com/kurate2026/", label: "Instagram", Icon: Instagram, key: "instagram" },
+  { href: "https://github.com/cvalkan/PaperSumo", label: "GitHub", Icon: Github, key: "github" },
+  { href: "https://www.facebook.com/Kurate/", label: "Facebook", Icon: Facebook, key: "facebook" },
+  { href: "https://medium.com/kurate", label: "Medium", Icon: BookOpen, key: "medium" },
+];
 
 const COLS = [
   {
@@ -65,9 +73,19 @@ export default function SiteFooter() {
           <div>
             <h4 className="text-slate-900 font-sans font-semibold text-xs tracking-[0.12em] uppercase mb-4">Social</h4>
             <ul className="space-y-2.5">
-              <li><a href="#" data-testid="footer-social-linkedin" className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600 transition-colors"><Linkedin className="h-3.5 w-3.5" /> LinkedIn</a></li>
-              <li><a href="#" data-testid="footer-social-twitter" className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600 transition-colors"><Twitter className="h-3.5 w-3.5" /> X / Twitter</a></li>
-              <li><a href="#" data-testid="footer-social-medium" className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600 transition-colors"><BookOpen className="h-3.5 w-3.5" /> Medium / Articles</a></li>
+              {SOCIAL.map(({ href, label, Icon, key }) => (
+                <li key={key}>
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid={`footer-social-${key}`}
+                    className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600 transition-colors"
+                  >
+                    <Icon className="h-3.5 w-3.5" /> {label}
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
         </div>

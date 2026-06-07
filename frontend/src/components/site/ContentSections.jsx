@@ -66,12 +66,12 @@ export function RecentRankings() {
    Research Intelligence and Current Capabilities (merged)
    ========================================================================= */
 const CAPS = [
-  { icon: GitCompareArrows, t: "AI-assisted comparison", d: "Papers are compared using AI-assisted evaluation across multiple language models to produce category-level rankings." },
+  { icon: GitCompareArrows, t: "AI-assisted comparison", d: "Papers are compared using AI-assisted pairwise evaluation to produce category-level rankings." },
   { icon: Layers, t: "Category-based leaderboards", d: "Papers are organised within live arXiv categories so rankings can be read in their proper field context." },
-  { icon: BarChart3, t: "Score, Rating, and Gap", d: "Each paper carries a tournament score, a comparative rating, and a gap value separating it from neighbouring papers." },
-  { icon: Telescope, t: "arXiv category discovery", d: "Discover preprints across supported arXiv categories without sifting through generic search results." },
-  { icon: Clock3, t: "Recent rankings", d: "Recently ranked papers and recently updated categories are surfaced on the homepage and category views." },
-  { icon: Filter, t: "Search and filtering", d: "Filter ranked papers by category and time period; sort by Score, Rating, or Gap." },
+  { icon: BarChart3, t: "Score — comparative tournament ranking", d: "Score is the comparative tournament-based ranking score derived from AI-assisted paper comparisons within a category." },
+  { icon: Telescope, t: "Rating — standalone scientific impact (1.0–10.0)", d: "Rating is a standalone scientific impact rating on a 1.0–10.0 scale. It is independent of the tournament and does not come from pairwise comparison." },
+  { icon: Filter, t: "Gap — percentile difference between Score and Rating", d: "Gap shows how far the comparative Score sits from the standalone Rating, expressed as a percentile difference between the two signals." },
+  { icon: Clock3, t: "Recent rankings & search", d: "Recently ranked papers and updated categories are surfaced on the homepage, with search and time-period filtering across papers." },
 ];
 
 const COMING_SOON = [
@@ -83,7 +83,7 @@ const COMING_SOON = [
 
 export function ResearchAndCapabilities() {
   return (
-    <section id="methodology" className="bg-slate-50 border-t border-slate-200">
+    <section id="capabilities" className="bg-slate-50 border-t border-slate-200">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
         <div className="mb-10 max-w-3xl">
           <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">Research Intelligence & Current Capabilities</div>
@@ -126,8 +126,8 @@ export function ResearchAndCapabilities() {
    ========================================================================= */
 const STEPS = [
   { n: "01", t: "Collect papers", d: "Kurate gathers scientific preprints from supported arXiv categories." },
-  { n: "02", t: "Compare papers", d: "Papers are evaluated through AI-assisted pairwise judgement." },
-  { n: "03", t: "Generate rankings", d: "Comparison outputs become category-based leaderboards with Score, Rating, and Gap." },
+  { n: "02", t: "Compare papers", d: "Papers are evaluated through AI-assisted pairwise judgement within each category." },
+  { n: "03", t: "Generate Score, Rating, Gap", d: "Tournament comparisons produce the comparative Score. A separate process assigns each paper a standalone Rating on a 1.0–10.0 scale. Gap is the percentile difference between Score and Rating." },
   { n: "04", t: "Explore rankings", d: "Researchers explore ranked papers within each arXiv category to identify work worth closer reading." },
 ];
 

@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Linkedin, Twitter, BookOpen } from "lucide-react";
+import { Linkedin, Instagram, Github, Facebook, BookOpen } from "lucide-react";
 
 const NAV = [
   { to: "#rankings", label: "Rankings" },
@@ -7,6 +7,14 @@ const NAV = [
   { to: "#methodology", label: "Methodology" },
   { to: "#faq", label: "FAQ" },
   { to: "#about", label: "About" },
+];
+
+const SOCIAL = [
+  { href: "https://www.linkedin.com/company/kurate-org", label: "LinkedIn", Icon: Linkedin, key: "linkedin" },
+  { href: "https://www.instagram.com/kurate2026/", label: "Instagram", Icon: Instagram, key: "instagram" },
+  { href: "https://github.com/cvalkan/PaperSumo", label: "GitHub", Icon: Github, key: "github" },
+  { href: "https://www.facebook.com/Kurate/", label: "Facebook", Icon: Facebook, key: "facebook" },
+  { href: "https://medium.com/kurate", label: "Medium", Icon: BookOpen, key: "medium" },
 ];
 
 export default function TopNav() {
@@ -40,16 +48,20 @@ export default function TopNav() {
           </nav>
 
           <div className="flex items-center gap-3">
-            <div className="hidden md:flex items-center gap-1 pr-3 border-r border-slate-200">
-              <a href="#" data-testid="social-linkedin" aria-label="LinkedIn" className="p-2 text-slate-500 hover:text-blue-600 transition-colors">
-                <Linkedin className="h-4 w-4" strokeWidth={1.5} />
-              </a>
-              <a href="#" data-testid="social-twitter" aria-label="X / Twitter" className="p-2 text-slate-500 hover:text-blue-600 transition-colors">
-                <Twitter className="h-4 w-4" strokeWidth={1.5} />
-              </a>
-              <a href="#" data-testid="social-medium" aria-label="Medium / Articles" className="p-2 text-slate-500 hover:text-blue-600 transition-colors">
-                <BookOpen className="h-4 w-4" strokeWidth={1.5} />
-              </a>
+            <div className="hidden md:flex items-center gap-0.5 pr-3 border-r border-slate-200">
+              {SOCIAL.map(({ href, label, Icon, key }) => (
+                <a
+                  key={key}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid={`social-${key}`}
+                  aria-label={label}
+                  className="p-2 text-slate-500 hover:text-blue-600 transition-colors"
+                >
+                  <Icon className="h-4 w-4" strokeWidth={1.5} />
+                </a>
+              ))}
             </div>
             <Link
               to="/leaderboard"

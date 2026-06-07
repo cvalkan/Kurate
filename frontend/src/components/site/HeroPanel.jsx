@@ -6,6 +6,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { api, accentFor, PERIODS, RANK_TYPES } from "@/lib/api";
 
 const COL_LABEL = { score: "Score", rating: "Rating", gap: "Gap" };
+const COL_TOOLTIP = {
+  score: "Comparative tournament-based ranking score",
+  rating: "Standalone scientific impact rating from 1.0 to 10.0",
+  gap: "Percentile difference between Score and Rating",
+};
 
 function CategoryChip({ code, name, field, active, onClick }) {
   const a = accentFor(field);
@@ -39,9 +44,11 @@ function formatPublished(iso) {
 }
 
 function LeaderboardRow({ paper, rankType }) {
-  const a = accentFor(paper.field);
   const value = paper[rankType] ?? paper.score;
-  const display = rankType === "rating" ? value : (rankType === "gap" ? value.toFixed(2) : value);
+  const display =
+    rankType === "rating" ? value.toFixed(1) :
+    rankType === "gap" ? `${value}%` :
+    value;
   return (
     <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70 transition-colors cursor-pointer" data-testid={`paper-row-${paper.id}`}>
       <td className="pl-5 pr-2 py-3 align-top w-10">
@@ -49,10 +56,11 @@ function LeaderboardRow({ paper, rankType }) {
       </td>
       <td className="px-2 py-3 align-top">
         <div className="text-sm font-medium text-slate-900 leading-snug line-clamp-2 pr-2">{paper.title}</div>
-        <div className="mt-1 flex items-center gap-2 text-xs text-slate-500 flex-wrap">
-          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm border text-[10px] font-medium ${a.bg} ${a.text} ${a.border}`}>
+        <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 flex-wrap">
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[10px] font-medium bg-blue-50 text-blue-700 border-blue-200">
             {paper.category_code}
           </span>
+          <span className="hidden md:inline text-slate-500">·</span>
           <span className="hidden md:inline">{paper.authors.slice(0, 2).join(", ")}{paper.authors.length > 2 ? ` +${paper.authors.length - 2}` : ""}</span>
         </div>
       </td>
@@ -232,7 +240,7 @@ export default function HeroPanel() {
                   <tr className="text-[10px] font-medium uppercase tracking-wider text-slate-500 bg-white border-b border-slate-100">
                     <th className="pl-5 pr-2 py-2.5 text-left w-10">#</th>
                     <th className="px-2 py-2.5 text-left">Paper</th>
-                    <th className="px-2 py-2.5 text-right">{COL_LABEL[rankType]}</th>
+                    <th className="px-2 py-2.5 text-right" title={COL_TOOLTIP[rankType]}>{COL_LABEL[rankType]}</th>
                     <th className="pl-2 pr-5 py-2.5 text-right hidden sm:table-cell">Published</th>
                   </tr>
                 </thead>
