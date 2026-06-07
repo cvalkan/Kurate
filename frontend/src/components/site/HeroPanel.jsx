@@ -4,6 +4,7 @@ import { Search, ArrowRight, BookOpen, Sparkles, Clock, ChevronDown } from "luci
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { homepageApi, accentFor, PERIODS, RANK_TYPES } from "@/lib/homepage-api";
+import { LatexTitle } from "@/components/LatexTitle";
 
 const COL_LABEL = { score: "Score", rating: "Rating", gap: "Gap" };
 const COL_TOOLTIP = {
@@ -155,7 +156,7 @@ function LeaderboardRow({ paper, rankType, onCategoryClick }) {
       </td>
       <td className="px-2 py-3">
         <Link to={`/paper/${paper.id}`} className="text-sm font-medium text-slate-900 leading-snug line-clamp-2 pr-2 hover:text-blue-700 transition-colors" data-testid={`paper-link-${paper.rank}`}>
-          {paper.title}
+          <LatexTitle text={paper.title} />
         </Link>
         <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 flex-wrap">
           <span className="hidden md:inline">{paper.authors.slice(0, 2).join(", ")}{paper.authors.length > 2 ? ` +${paper.authors.length - 2}` : ""}</span>
