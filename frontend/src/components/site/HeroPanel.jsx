@@ -133,7 +133,7 @@ function CategoryDropdown({ categories, value, onChange }) {
   );
 }
 
-function LeaderboardRow({ paper, rankType }) {
+function LeaderboardRow({ paper, rankType, onCategoryClick }) {
   const value = paper[rankType] ?? paper.score;
   const display =
     rankType === "rating" ? (value || 0).toFixed(1) :
@@ -157,15 +157,24 @@ function LeaderboardRow({ paper, rankType }) {
           {primary && primary !== "\u2014" && (
             <>
               <span className="hidden md:inline text-slate-300">·</span>
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[10px] font-medium bg-blue-50 text-blue-700 border-blue-200">
+              <button
+                type="button"
+                onClick={() => onCategoryClick(primary)}
+                className="inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[10px] font-medium bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer"
+              >
                 {primary}
-              </span>
+              </button>
             </>
           )}
           {secondary.map(tag => (
-            <span key={tag} className="inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[10px] font-medium bg-slate-50 text-slate-500 border-slate-200">
+            <button
+              key={tag}
+              type="button"
+              onClick={() => onCategoryClick(tag)}
+              className="inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[10px] font-medium bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
               {tag}
-            </span>
+            </button>
           ))}
         </div>
       </td>
@@ -354,7 +363,7 @@ export default function HeroPanel() {
                   {!loading && papers.length === 0 && (
                     <tr><td colSpan={4} className="px-5 py-10 text-center text-sm text-slate-500">No papers match these filters.</td></tr>
                   )}
-                  {papers.map((p) => <LeaderboardRow key={p.id} paper={p} rankType={rankType} />)}
+                  {papers.map((p) => <LeaderboardRow key={p.id} paper={p} rankType={rankType} onCategoryClick={setCategory} />)}
                 </tbody>
               </table>
               <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-xs text-slate-500">

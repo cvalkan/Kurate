@@ -4,7 +4,7 @@ import { Linkedin, Instagram, Github, Facebook, BookOpen, Trophy } from "lucide-
 const NAV = [
   { to: "#rankings", label: "Rankings" },
   { to: "#categories", label: "Categories" },
-  { to: "/methodology", label: "Methodology", internal: true },
+  { to: "#methodology", label: "Methodology" },
   { to: "#faq", label: "FAQ" },
   { to: "#about", label: "About" },
 ];

@@ -133,7 +133,7 @@ const STEPS = [
 
 export function HowItWorks() {
   return (
-    <section className="bg-white border-t border-slate-200" data-testid="how-it-works">
+    <section id="methodology" className="bg-white border-t border-slate-200" data-testid="how-it-works">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
         <div className="mb-10 flex items-end justify-between gap-6">
           <div>
