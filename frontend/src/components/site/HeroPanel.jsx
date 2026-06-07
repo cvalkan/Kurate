@@ -139,7 +139,7 @@ function CategoryDropdown({ categories, value, onChange, closeRef }) {
   );
 }
 
-function LeaderboardRow({ paper, rankType, onCategoryClick }) {
+function LeaderboardRow({ paper, rankType, onCategoryClick, activeCodes }) {
   const value = paper[rankType] ?? paper.score;
   const display =
     rankType === "rating" ? (value || 0).toFixed(1) :
@@ -172,11 +172,22 @@ function LeaderboardRow({ paper, rankType, onCategoryClick }) {
               </button>
             </>
           )}
-          {secondary.map(tag => (
-            <span key={tag} className="inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[10px] font-medium bg-slate-50 text-slate-500 border-slate-200">
-              {tag}
-            </span>
-          ))}
+          {secondary.map(tag =>
+            activeCodes.has(tag) ? (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => onCategoryClick(tag)}
+                className="inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[10px] font-medium bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                {tag}
+              </button>
+            ) : (
+              <span key={tag} className="inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[10px] font-medium bg-slate-50 text-slate-500 border-slate-200">
+                {tag}
+              </span>
+            )
+          )}
         </div>
       </td>
       <td className="px-2 py-3 text-right whitespace-nowrap align-baseline">
@@ -202,6 +213,8 @@ export default function HeroPanel() {
 
   const catDropdownCloseRef = useRef(null);
   const closeCatDropdown = () => { if (catDropdownCloseRef.current) catDropdownCloseRef.current(); };
+
+  const activeCodes = useMemo(() => new Set(categories.map(c => c.code)), [categories]);
 
   useEffect(() => {
     homepageApi.categories().then(setCategories).catch(() => {});
@@ -374,7 +387,7 @@ export default function HeroPanel() {
                   {!loading && papers.length === 0 && (
                     <tr><td colSpan={4} className="px-5 py-10 text-center text-sm text-slate-500">No papers match these filters.</td></tr>
                   )}
-                  {papers.map((p) => <LeaderboardRow key={p.id} paper={p} rankType={rankType} onCategoryClick={setCategory} />)}
+                  {papers.map((p) => <LeaderboardRow key={p.id} paper={p} rankType={rankType} onCategoryClick={setCategory} activeCodes={activeCodes} />)}
                 </tbody>
               </table>
               <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-xs text-slate-500">
