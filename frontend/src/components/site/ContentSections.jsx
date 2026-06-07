@@ -69,7 +69,7 @@ const CAPS = [
   { icon: GitCompareArrows, t: "AI-assisted comparison", d: "Papers are compared using AI-assisted pairwise evaluation to produce category-level rankings." },
   { icon: Layers, t: "Category-based leaderboards", d: "Papers are organised within live arXiv categories so rankings can be read in their proper field context." },
   { icon: BarChart3, t: "Score: comparative tournament ranking", d: "Score is the comparative tournament-based ranking score derived from AI-assisted paper comparisons within a category." },
-  { icon: Telescope, t: "Rating: standalone scientific impact (1.0 to 10.0)", d: "Rating is a standalone scientific impact rating on a 1.0 to 10.0 scale. It is independent of the tournament and does not come from pairwise comparison." },
+  { icon: Telescope, t: "Rating: standalone scientific impact (1 to 10)", d: "Rating is a standalone scientific impact rating on a 1 to 10 scale. It is independent of the tournament and does not come from pairwise comparison." },
   { icon: Filter, t: "Gap: percentile difference between Score and Rating", d: "Gap shows how far the comparative Score sits from the standalone Rating, expressed as a percentile difference between the two signals." },
   { icon: Clock3, t: "Recent rankings & search", d: "Recently ranked papers and updated categories are surfaced on the homepage, with search and time-period filtering across papers." },
 ];
@@ -126,9 +126,9 @@ export function ResearchAndCapabilities() {
    ========================================================================= */
 const STEPS = [
   { n: "01", t: "Collect papers", d: "Kurate gathers scientific preprints from supported arXiv categories." },
-  { n: "02", t: "Compare papers", d: "Papers are evaluated through AI-assisted pairwise judgement within each category." },
-  { n: "03", t: "Generate Score, Rating, Gap", d: "Tournament comparisons produce the comparative Score. A separate process assigns each paper a standalone Rating on a 1.0 to 10.0 scale. Gap is the percentile difference between Score and Rating." },
-  { n: "04", t: "Explore rankings", d: "Researchers explore ranked papers within each arXiv category to identify work worth closer reading." },
+  { n: "02", t: "Evaluate papers", d: "Papers are reviewed, rated, and compared through AI-assisted pairwise evaluation within each category. Three independent AI models judge each pair to produce robust rankings." },
+  { n: "03", t: "Score, Rating, Gap", d: "Pairwise comparisons produce a tournament-based Score using TrueSkill. Each paper also receives a standalone Rating (1 to 10) based on scientific impact, independent of the tournament. Gap measures how far the two signals diverge for a given paper." },
+  { n: "04", t: "Explore rankings", d: "Browse ranked papers by category, time period, or search to find work worth closer reading." },
 ];
 
 export function HowItWorks() {

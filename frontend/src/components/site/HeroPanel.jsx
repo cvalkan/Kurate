@@ -191,9 +191,8 @@ export default function HeroPanel() {
   const [rankType, setRankType] = useState("score");
 
   useEffect(() => {
-    Promise.all([homepageApi.categories(), homepageApi.metrics()]).then(([c, m]) => {
-      setCategories(c); setMetrics(m);
-    });
+    homepageApi.categories().then(setCategories).catch(() => {});
+    homepageApi.metrics().then(setMetrics).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -212,7 +211,7 @@ export default function HeroPanel() {
     return () => { cancelled = true; };
   }, [category, period, rankType, q]);
 
-  const chipCats = useMemo(() => categories.filter(c => c.featured), [categories]);
+  const chipCats = categories.filter(c => c.featured);
   const filterParams = new URLSearchParams({ category, period, rank_type: rankType, q }).toString();
 
   return (

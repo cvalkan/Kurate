@@ -130,6 +130,10 @@ async def homepage_metrics():
         )
         return _humanise(doc.get("published", "")) if doc else "—"
 
+    papers, matches, cat_count, latest = await asyncio.gather(
+        _paper_count(), _match_count(), _cat_count(), _latest_update(),
+    )
+
     return {
         "papers_ranked": papers,
         "active_categories": cat_count,
