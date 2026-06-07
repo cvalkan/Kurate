@@ -21,6 +21,7 @@ body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-y: scroll;
 }
 
 /* Prevent Radix react-remove-scroll from shifting page layout.
