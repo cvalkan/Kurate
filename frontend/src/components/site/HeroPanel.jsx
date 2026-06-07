@@ -71,7 +71,7 @@ function LeaderboardRow({ paper, rankType }) {
         </div>
       </td>
       <td className="px-2 py-3 align-top text-right whitespace-nowrap">
-        <span className="text-base font-bold text-slate-900 tabular-nums">{display}</span>
+        <span className="text-sm font-bold text-slate-900 tabular-nums">{display}</span>
       </td>
       <td className="pl-2 pr-5 py-3 align-top text-right whitespace-nowrap text-xs text-slate-500 hidden sm:table-cell">
         {formatPublished(paper.published_at)}
@@ -131,7 +131,7 @@ export default function HeroPanel() {
               Paper Rankings.
               <span className="block text-slate-500 italic font-normal">across live arXiv categories.</span>
             </h1>
-            <p className="mt-5 text-base text-slate-600 leading-[1.75] max-w-xl" style={{ fontFamily: '"IBM Plex Sans", system-ui, sans-serif' }}>
+            <p className="mt-5 text-base text-slate-600 leading-[1.75] max-w-xl">
               Search and explore AI-assisted scientific preprint rankings. Kurate helps researchers
               explore ranked papers using category-based leaderboards and AI-assisted paper comparison.
             </p>

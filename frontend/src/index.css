@@ -12,6 +12,14 @@ html {
     overflow-y: scroll;
 }
 
+/* Prevent Radix UI Select/Popover from hiding the scrollbar and shifting content.
+   react-remove-scroll sets overflow:hidden + padding-right on body when a portal opens. */
+body[data-scroll-locked] {
+    overflow: scroll !important;
+    margin-right: 0 !important;
+    padding-right: 0 !important;
+}
+
 body {
     margin: 0;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -25,6 +33,26 @@ h1, h2, h3, h4, h5, h6 {
 
 code, .mono {
     font-family: 'JetBrains Mono', monospace;
+}
+
+/* Homepage-scoped font: IBM Plex Sans body + EB Garamond headings (matches the original fork design) */
+.kurate-homepage {
+    font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    color: #0F172A;
+    font-feature-settings: "ss01", "cv11";
+}
+.kurate-homepage h1,
+.kurate-homepage h2,
+.kurate-homepage h3,
+.kurate-homepage h4 {
+    font-family: "EB Garamond", Georgia, serif;
+    color: #0F172A;
+    letter-spacing: -0.005em;
+}
+/* Override for card headings that should stay sans-serif */
+.kurate-homepage h3.hp-sans {
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    letter-spacing: normal;
 }
 
 @layer base {
