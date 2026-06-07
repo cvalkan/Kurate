@@ -134,13 +134,13 @@ export function HowItWorks() {
   return (
     <section id="methodology" className="bg-white border-t border-slate-200" data-testid="how-it-works">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
-        <div className="mb-10 flex items-end justify-between gap-6">
+        <div className="mb-10 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div>
             <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">How Kurate Rankings Work</div>
             <h2 className="font-serif text-3xl sm:text-4xl font-medium text-slate-900 leading-tight max-w-3xl">A discovery workflow for fast-moving scientific literature.</h2>
             <p className="mt-4 text-base text-slate-600 leading-relaxed max-w-2xl">Kurate compares papers using AI-assisted evaluation and produces category-based rankings that help researchers identify work worth closer inspection.</p>
           </div>
-          <Link to="/methodology" data-testid="hiw-methodology-link" className="inline-flex items-center justify-center gap-2 rounded-sm border border-slate-200 bg-white px-4 h-10 text-sm font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap">
+          <Link to="/methodology" data-testid="hiw-methodology-link" className="inline-flex items-center justify-center gap-2 rounded-sm border border-slate-200 bg-white px-4 h-10 text-sm font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0">
             <BookOpen className="h-4 w-4" /> Read full methodology
           </Link>
         </div>
