@@ -20,21 +20,20 @@ function CategoryChip({ code, name, active, onClick }) {
       data-testid={`chip-${code}`}
       className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-medium transition-all ${
         active
-          ? "bg-blue-600 text-white border-blue-600"
+          ? "bg-blue-50 text-blue-700 border-blue-200"
           : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
       }`}
     >
       {code}
-      <span className={`font-normal hidden sm:inline ${active ? "text-blue-100" : "text-slate-400"}`}>· {name}</span>
+      <span className={`font-normal hidden sm:inline ${active ? "text-blue-500" : "text-slate-400"}`}>· {name}</span>
     </button>
   );
 }
 
 function MetricTile({ label, value, last }) {
-  const isLong = typeof value === "string" && value.length > 10;
   return (
     <div className={`flex flex-col px-6 py-5 ${last ? "" : "sm:border-r border-slate-200"}`}>
-      <span className={`font-medium text-slate-900 leading-tight ${isLong ? "text-sm" : "font-serif text-3xl leading-none"}`}>{value}</span>
+      <span className="font-serif text-3xl font-medium text-slate-900 leading-none">{value}</span>
       <span className="mt-2 text-xs font-medium uppercase tracking-[0.08em] text-slate-500">{label}</span>
     </div>
   );
@@ -307,7 +306,7 @@ export default function HeroPanel() {
                 <button
                   onClick={() => setCategory("all")}
                   data-testid="chip-all"
-                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border transition-all ${category === "all" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"}`}
+                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border transition-all ${category === "all" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"}`}
                 >
                   All
                 </button>
@@ -373,7 +372,7 @@ export default function HeroPanel() {
         <div className="mt-10 border border-slate-200 rounded-sm bg-white grid grid-cols-1 sm:grid-cols-4 lg:grid-cols-4 divide-y sm:divide-y-0">
           <MetricTile label="Papers Ranked" value={metrics?.papers_ranked?.toLocaleString() ?? ""} />
           <MetricTile label="Active Categories" value={metrics?.active_categories ?? ""} />
-          <MetricTile label="AI Models" value={metrics?.ai_judges ?? ""} />
+          <MetricTile label="AI Judges" value={metrics?.ai_judges ?? ""} />
           <MetricTile label="Latest Update" value={metrics?.latest_update ?? ""} last />
         </div>
       </div>

@@ -130,29 +130,11 @@ async def homepage_metrics():
         )
         return _humanise(doc.get("published", "")) if doc else "—"
 
-    from core.config import TOURNAMENT_MODELS
-
-    papers, matches, cat_count, latest = await asyncio.gather(
-        _paper_count(), _match_count(), _cat_count(), _latest_update(),
-    )
-
-    model_labels = []
-    for m in TOURNAMENT_MODELS:
-        name = m.get("model", "")
-        if "gpt" in name.lower():
-            model_labels.append("GPT-5.2")
-        elif "claude" in name.lower():
-            model_labels.append("Claude Opus")
-        elif "gemini" in name.lower():
-            model_labels.append("Gemini Pro")
-        else:
-            model_labels.append(name)
-
     return {
         "papers_ranked": papers,
         "active_categories": cat_count,
         "total_comparisons": matches,
-        "ai_judges": ", ".join(model_labels),
+        "ai_judges": 3,
         "latest_update": latest,
     }
 
