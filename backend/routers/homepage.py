@@ -204,6 +204,7 @@ async def homepage_papers(
             "arxiv_id": doc.get("arxiv_id", ""),
             "link": doc.get("link", ""),
             "category_code": cat or "—",
+            "categories": doc.get("categories", [cat] if cat else []),
             "field": field,
             "score": score_val,
             "rating": rating_val or 0,

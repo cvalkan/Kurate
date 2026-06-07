@@ -8,12 +8,19 @@
 .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
 
 
+html {
+    overflow-y: scroll;
+}
+
+#root {
+    overflow: visible !important;
+}
+
 body {
     margin: 0;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    overflow-y: scroll;
 }
 
 /* Prevent Radix react-remove-scroll from shifting page layout.
