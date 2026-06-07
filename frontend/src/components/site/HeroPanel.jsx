@@ -57,10 +57,14 @@ function LeaderboardRow({ paper, rankType }) {
       <td className="px-2 py-3 align-top">
         <div className="text-sm font-medium text-slate-900 leading-snug line-clamp-2 pr-2">{paper.title}</div>
         <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 flex-wrap">
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[10px] font-medium bg-blue-50 text-blue-700 border-blue-200">
-            {paper.category_code}
-          </span>
-          <span className="hidden md:inline text-slate-500">·</span>
+          {paper.category_code && paper.category_code !== "—" && (
+            <>
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[10px] font-medium bg-blue-50 text-blue-700 border-blue-200">
+                {paper.category_code}
+              </span>
+              <span className="hidden md:inline text-slate-500">·</span>
+            </>
+          )}
           <span className="hidden md:inline">{paper.authors.slice(0, 2).join(", ")}{paper.authors.length > 2 ? ` +${paper.authors.length - 2}` : ""}</span>
         </div>
       </td>
