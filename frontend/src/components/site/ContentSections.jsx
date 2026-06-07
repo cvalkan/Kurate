@@ -140,7 +140,7 @@ export function HowItWorks() {
             <h2 className="font-serif text-3xl sm:text-4xl font-medium text-slate-900 leading-tight max-w-3xl">A discovery workflow for fast-moving scientific literature.</h2>
             <p className="mt-4 text-base text-slate-600 leading-relaxed max-w-2xl">Kurate compares papers using AI-assisted evaluation and produces category-based rankings that help researchers identify work worth closer inspection.</p>
           </div>
-          <Link to="/methodology" data-testid="hiw-methodology-link" className="hidden md:inline-flex items-center justify-center gap-2 rounded-sm border border-slate-200 bg-white px-4 h-10 text-sm font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap">
+          <Link to="/methodology" data-testid="hiw-methodology-link" className="inline-flex items-center justify-center gap-2 rounded-sm border border-slate-200 bg-white px-4 h-10 text-sm font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap">
             <BookOpen className="h-4 w-4" /> Read full methodology
           </Link>
         </div>
