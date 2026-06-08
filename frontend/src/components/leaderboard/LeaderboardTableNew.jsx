@@ -45,10 +45,10 @@ export function LeaderboardTableNew({
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!sentinel || !loadMore) return;
+    if (!sentinel || !loadMore || !nextCursor || loadingMore) return;
     const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && nextCursor && !loadingMore) loadMore();
-    }, { rootMargin: "400px" });
+      if (entry.isIntersecting) loadMore();
+    }, { rootMargin: "200px" });
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [loadMore, nextCursor, loadingMore]);
@@ -198,7 +198,9 @@ export function LeaderboardTableNew({
         </tbody>
       </table>
       {nextCursor && !isArchive && (
-        <div ref={sentinelRef} className="py-4 text-center text-xs text-slate-400">{loadingMore ? "Loading more..." : ""}</div>
+        <div ref={sentinelRef} className="py-4 text-center text-xs text-slate-400">
+          {loadingMore ? "Loading more..." : "\u00A0"}
+        </div>
       )}
     </>
     </TooltipProvider>
