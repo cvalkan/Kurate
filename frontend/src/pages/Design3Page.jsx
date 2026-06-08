@@ -43,6 +43,7 @@ export default function Design3Page() {
   const [catSearch, setCatSearch] = useState("");
   const [tagSearch, setTagSearch] = useState("");
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const activeCodes = useMemo(() => new Set(d.categories.map(c => c.id)), [d.categories]);
 
   // Group categories by domain
   const filteredCats = catSearch
@@ -154,7 +155,7 @@ export default function Design3Page() {
             </SidebarSection>
 
             {/* Tags */}
-            <SidebarSection title="Tags" defaultOpen={d.hasSelectedTags}>
+            <SidebarSection title="Filter" defaultOpen={d.hasSelectedTags}>
               <div className="flex items-center justify-between mb-2">
                 {d.hasSelectedTags && (
                   <div className="flex items-center gap-1 text-[10px]">
@@ -268,6 +269,8 @@ export default function Design3Page() {
                 hasSelectedTags={d.hasSelectedTags} globalStats={d.globalStats}
                 isArchive={!!d.activeArchive} nextCursor={d.nextCursor}
                 loadMore={d.loadMore} loadingMore={d.loadingMore} keyword={d.keyword}
+                onCategoryClick={(cat) => { d.setCategory(cat); d.setSelectedTags([]); d.setTagFilterOpen(false); d.clearArchive(); }}
+                activeCodes={activeCodes}
               />
             </div>
           </div>

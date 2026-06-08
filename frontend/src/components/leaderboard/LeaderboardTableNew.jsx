@@ -18,6 +18,7 @@ export function LeaderboardTableNew({
   leaderboard, loading, sortKey, sortDir, onSort,
   showRatingCol, showGapCol, hasSelectedTags, globalStats, isArchive,
   nextCursor, loadMore, loadingMore, keyword,
+  onCategoryClick, activeCodes,
 }) {
   const sentinelRef = useRef(null);
   const { bookmarkedIds, toggleBookmark } = useBookmarks();
@@ -94,6 +95,36 @@ export function LeaderboardTableNew({
                         <span className="text-[9px] font-mono px-1 py-px rounded bg-amber-50 text-amber-700 border border-amber-200">v{v}</span>
                       ) : null;
                     })()}
+                    {/* Primary + secondary category tags */}
+                    {(() => {
+                      const primary = p.primary_category || (p.categories || [])[0] || "";
+                      const secondary = (p.categories || []).filter(c => c !== primary);
+                      if (!primary) return null;
+                      const canClick = onCategoryClick && activeCodes;
+                      return (
+                        <>
+                          <span className="text-slate-300">·</span>
+                          {canClick && activeCodes.has(primary) ? (
+                            <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onCategoryClick(primary); }}
+                              className="inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[10px] font-medium bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer">
+                              {primary}
+                            </button>
+                          ) : (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[10px] font-medium bg-blue-50 text-blue-700 border-blue-200">{primary}</span>
+                          )}
+                          {secondary.map(tag => (
+                            canClick && activeCodes.has(tag) ? (
+                              <button key={tag} type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onCategoryClick(tag); }}
+                                className="inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[10px] font-medium bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer">
+                                {tag}
+                              </button>
+                            ) : (
+                              <span key={tag} className="inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[10px] font-medium bg-slate-50 text-slate-500 border-slate-200">{tag}</span>
+                            )
+                          ))}
+                        </>
+                      );
+                    })()}
                   </div>
                 </td>
                 {hasSelectedTags && (
@@ -119,7 +150,7 @@ export function LeaderboardTableNew({
                     {p.gap_score != null ? (p.gap_score > 0 ? "+" : "") + p.gap_score : "\u2014"}
                   </td>
                 )}
-                <td className="px-2 py-3 text-right align-baseline text-xs text-slate-500 hidden sm:table-cell">
+                <td className="px-2 py-3 text-right align-baseline text-xs text-slate-500 hidden sm:table-cell whitespace-nowrap">
                   {p.published ? new Date(p.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }) : "\u2014"}
                 </td>
                 <td className="pr-4 py-3 text-center align-baseline">

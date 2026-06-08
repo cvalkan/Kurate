@@ -29,6 +29,7 @@ export default function Design2Page() {
   const featuredSet = new Set(d.featured);
   const chipCats = d.categories.filter(c => featuredSet.has(c.id));
   const overflowCats = d.categories.filter(c => !featuredSet.has(c.id));
+  const activeCodes = useMemo(() => new Set(d.categories.map(c => c.id)), [d.categories]);
 
   // Tag chips from allTags
   const topTags = useMemo(() => d.allTags.slice(0, 30), [d.allTags]);
@@ -94,7 +95,7 @@ export default function Design2Page() {
             className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
               d.isTagMode ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
             }`}>
-            <Tag className="h-3 w-3" /> Tags {d.hasSelectedTags ? `(${d.selectedTags.length})` : ""}
+            <Tag className="h-3 w-3" /> Filter {d.hasSelectedTags ? `(${d.selectedTags.length})` : ""}
           </button>
         </div>
 
@@ -194,6 +195,8 @@ export default function Design2Page() {
             hasSelectedTags={d.hasSelectedTags} globalStats={d.globalStats}
             isArchive={!!d.activeArchive} nextCursor={d.nextCursor}
             loadMore={d.loadMore} loadingMore={d.loadingMore} keyword={d.keyword}
+            onCategoryClick={(cat) => { d.setCategory(cat); d.setSelectedTags([]); d.setTagFilterOpen(false); d.clearArchive(); }}
+            activeCodes={activeCodes}
           />
         </div>
 
