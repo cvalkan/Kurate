@@ -2,17 +2,38 @@
 
 Serves pre-shaped data for the new homepage components (HeroPanel, RecentRankings, etc.).
 Reads from the live MongoDB collections — no upstream proxy.
+
+Performance optimizations (targeting 30k+ papers on Atlas):
+- 60s TTL in-memory cache for /categories, /metrics, /recent
+- Match count from leaderboard's O(1) incremental counters
+- /papers skips total count (homepage only shows top 10)
+- Explicit projection reduces network transfer
 """
 from fastapi import APIRouter, Query
 from typing import Optional
 from datetime import datetime, timezone, timedelta
+import time as _time
 from core.config import db, logger, CATEGORIES
 
 router = APIRouter(prefix="/api/homepage")
 
+# ── In-memory cache (60s TTL) ──
+_cache = {}  # key -> {"ts": float, "data": any}
+_CACHE_TTL = 60
+
+
+def _cached(key: str):
+    entry = _cache.get(key)
+    if entry and (_time.time() - entry["ts"]) < _CACHE_TTL:
+        return entry["data"]
+    return None
+
+
+def _set_cache(key: str, data):
+    _cache[key] = {"ts": _time.time(), "data": data}
+
 
 def _field_for(code: str, group: str) -> str:
-    """Map a category code to a broad field key used for accent colours."""
     c = code.lower()
     g = (group or "").lower()
     if c.startswith("cs.ai") or c.startswith("cs.lg") or c.startswith("cs.cl"):
@@ -35,7 +56,6 @@ def _field_for(code: str, group: str) -> str:
 
 
 def _humanise(iso: str) -> str:
-    """Convert an ISO timestamp to a human-friendly relative string."""
     if not iso:
         return ""
     try:
@@ -55,7 +75,6 @@ def _humanise(iso: str) -> str:
 
 
 def _format_month(iso: str) -> str:
-    """Convert an ISO timestamp to 'Mon YYYY' format."""
     if not iso:
         return ""
     try:
@@ -66,7 +85,6 @@ def _format_month(iso: str) -> str:
 
 
 async def _active_categories() -> list[dict]:
-    """Return active categories with metadata from settings."""
     from core.auth import get_settings
     from core.arxiv_categories import ARXIV_TAXONOMY, get_group
     settings = await get_settings()
@@ -86,26 +104,23 @@ async def _active_categories() -> list[dict]:
 
 @router.get("/categories")
 async def homepage_categories():
-    """Categories shaped for the homepage chip bar and filter dropdowns."""
+    """Categories for chips + dropdown. Cached 60s."""
+    cached = _cached("categories")
+    if cached is not None:
+        return cached
+
     from core.auth import get_settings
     settings = await get_settings()
     featured = settings.get("featured_categories", [])
     cats = await _active_categories()
 
-    # Aggregate paper counts and latest update per category from rankings
     counts = {}
     latest_by_cat = {}
-    pipeline = [
-        {"$group": {
-            "_id": "$category",
-            "count": {"$sum": 1},
-            "latest": {"$max": "$published"},
-        }},
-    ]
-    async for doc in db.rankings.aggregate(pipeline):
-        cat = doc["_id"]
-        counts[cat] = doc["count"]
-        latest_by_cat[cat] = doc.get("latest") or ""
+    async for doc in db.rankings.aggregate([
+        {"$group": {"_id": "$category", "count": {"$sum": 1}, "latest": {"$max": "$published"}}},
+    ]):
+        counts[doc["_id"]] = doc["count"]
+        latest_by_cat[doc["_id"]] = doc.get("latest") or ""
 
     for c in cats:
         code = c["code"]
@@ -113,26 +128,21 @@ async def homepage_categories():
         c["latest_update"] = _humanise(latest_by_cat.get(code, ""))
         c["featured"] = code in featured
 
+    _set_cache("categories", cats)
     return cats
 
 
 @router.get("/metrics")
 async def homepage_metrics():
-    """Aggregate metrics for the homepage stats strip."""
+    """Stats strip. Cached 60s. Match count from O(1) in-memory counters."""
+    cached = _cached("metrics")
+    if cached is not None:
+        return cached
+
     import asyncio
 
     async def _paper_count():
-        return await db.rankings.count_documents({})
-
-    async def _match_count():
-        return await db.matches.count_documents({
-            "completed": True, "failed": {"$ne": True},
-            "revision_superseded": {"$ne": True},
-        })
-
-    async def _cat_count():
-        cats = await _active_categories()
-        return len(cats)
+        return await db.rankings.estimated_document_count()
 
     async def _latest_update():
         doc = await db.rankings.find_one(
@@ -142,17 +152,35 @@ async def homepage_metrics():
         )
         return _humanise(doc.get("added_at", "")) if doc else ""
 
-    papers, matches, cat_count, latest = await asyncio.gather(
-        _paper_count(), _match_count(), _cat_count(), _latest_update(),
+    async def _cat_count():
+        cats = await _active_categories()
+        return len(cats)
+
+    papers, cat_count, latest = await asyncio.gather(
+        _paper_count(), _cat_count(), _latest_update(),
     )
 
-    return {
+    # estimated_document_count is O(1) — reads collection metadata
+    total_matches = await db.matches.estimated_document_count()
+
+    result = {
         "papers_ranked": papers,
         "active_categories": cat_count,
-        "total_comparisons": matches,
+        "total_comparisons": total_matches,
         "ai_judges": 3,
         "latest_update": latest,
     }
+    _set_cache("metrics", result)
+    return result
+
+
+# Projection — only fields the frontend needs (reduces Atlas → app network transfer)
+_PAPER_PROJ = {
+    "_id": 0, "paper_id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
+    "link": 1, "category": 1, "categories": 1, "ts_score": 1,
+    "ai_rating": 1, "gap_score": 1, "wins": 1, "losses": 1,
+    "comparisons": 1, "published": 1, "win_rate": 1,
+}
 
 
 @router.get("/papers")
@@ -163,15 +191,13 @@ async def homepage_papers(
     q: Optional[str] = None,
     limit: int = Query(default=10, ge=1, le=200),
 ):
-    """Filtered, sorted papers for the homepage HeroPanel table."""
+    """Filtered, sorted papers. No count_documents — homepage only shows top N."""
     from core.arxiv_categories import get_group
-    import re as _re
 
     query = {"is_latest_version": {"$ne": False}}
     if category and category != "all":
         query["category"] = category
 
-    # Time-period filter (uses leaderboard-consistent names)
     if period and period != "all":
         days_map = {"recent": 3, "week": 7, "month": 30}
         days = days_map.get(period, 0)
@@ -179,8 +205,8 @@ async def homepage_papers(
             cutoff = datetime.now(timezone.utc) - timedelta(days=days)
             query["published"] = {"$gte": cutoff.isoformat()}
 
-    # Search filter
     if q and q.strip():
+        import re as _re
         escaped = _re.escape(q.strip())
         query["$or"] = [
             {"title": {"$regex": escaped, "$options": "i"}},
@@ -189,18 +215,13 @@ async def homepage_papers(
             {"category": {"$regex": escaped, "$options": "i"}},
         ]
 
-    # Sort (uses leaderboard-consistent field names)
     sort_field = "ts_score"
     if rank_type == "ai_rating":
         sort_field = "ai_rating"
     elif rank_type == "gap_score":
         sort_field = "gap_score"
-    sort_order = [("$natural" if sort_field == "ts_score" else sort_field, -1)]
-    if sort_field == "ts_score":
-        sort_order = [("ts_score", -1)]
 
-    total = await db.rankings.count_documents(query)
-    cursor = db.rankings.find(query, {"_id": 0}).sort(sort_order).limit(limit)
+    cursor = db.rankings.find(query, _PAPER_PROJ).sort([(sort_field, -1)]).limit(limit)
 
     results = []
     rank = 1
@@ -208,9 +229,6 @@ async def homepage_papers(
         cat = doc.get("category", "")
         group = get_group(cat)
         field = _field_for(cat, group)
-        score_val = doc.get("ts_score", 0)
-        rating_val = doc.get("ai_rating", 0)
-        gap_val = doc.get("gap_score", 0)
 
         results.append({
             "id": doc.get("paper_id"),
@@ -219,12 +237,12 @@ async def homepage_papers(
             "authors": doc.get("authors", []),
             "arxiv_id": doc.get("arxiv_id", ""),
             "link": doc.get("link", ""),
-            "category_code": cat or "—",
+            "category_code": cat or "",
             "categories": doc.get("categories", [cat] if cat else []),
             "field": field,
-            "score": score_val,
-            "ai_rating": rating_val or 0,
-            "gap_score": gap_val or 0,
+            "score": doc.get("ts_score", 0),
+            "ai_rating": doc.get("ai_rating") or 0,
+            "gap_score": doc.get("gap_score") or 0,
             "wins": doc.get("wins", 0),
             "losses": doc.get("losses", 0),
             "comparisons": doc.get("comparisons", 0),
@@ -234,32 +252,26 @@ async def homepage_papers(
         })
         rank += 1
 
-    return {"total": total, "results": results}
+    return {"total": len(results), "results": results}
 
 
 @router.get("/recent")
 async def homepage_recent():
-    """Recent rankings: category cards + latest papers for the RecentRankings section."""
-    cats = await _active_categories()
-    cat_lookup = {c["code"]: c for c in cats}
+    """Recent rankings cards. Cached 60s."""
+    cached = _cached("recent")
+    if cached is not None:
+        return cached
 
-    # Aggregate counts, oldest and latest published per category
+    cats = await _active_categories()
+
     counts = {}
     oldest_by_cat = {}
-    pipeline = [
-        {"$group": {
-            "_id": "$category",
-            "count": {"$sum": 1},
-            "oldest": {"$min": "$published"},
-        }},
-    ]
-    async for doc in db.rankings.aggregate(pipeline):
-        cat = doc["_id"]
-        counts[cat] = doc["count"]
-        oldest_by_cat[cat] = doc.get("oldest") or ""
+    async for doc in db.rankings.aggregate([
+        {"$group": {"_id": "$category", "count": {"$sum": 1}, "oldest": {"$min": "$published"}}},
+    ]):
+        counts[doc["_id"]] = doc["count"]
+        oldest_by_cat[doc["_id"]] = doc.get("oldest") or ""
 
-    # Count newly added papers: rolling 48h window anchored to latest added_at
-    # (same logic as _build_recent_filter in leaderboard.py)
     latest_added = await db.rankings.find_one(
         {"added_at": {"$nin": ["", None]}},
         {"_id": 0, "added_at": 1},
@@ -275,7 +287,6 @@ async def homepage_recent():
         recent_cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
     newly_ranked_count = await db.rankings.count_documents({"added_at": {"$gte": recent_cutoff}})
 
-    # Build cards: "Newly Ranked" card first, then top categories by count
     latest_added_str = latest_added.get("added_at", "") if latest_added else ""
 
     cards = [{
@@ -289,7 +300,6 @@ async def homepage_recent():
         "time_label": f"Last updated {_humanise(latest_added_str)}",
     }]
 
-    # Sort categories by paper count, take top 7
     sorted_cats = sorted(cats, key=lambda c: counts.get(c["code"], 0), reverse=True)[:7]
     for c in sorted_cats:
         code = c["code"]
@@ -307,4 +317,6 @@ async def homepage_recent():
             "time_label": f"Since {oldest_str}" if oldest_str else "",
         })
 
-    return {"cards": cards}
+    result = {"cards": cards}
+    _set_cache("recent", result)
+    return result

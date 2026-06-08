@@ -207,6 +207,7 @@ export default function HeroPanel() {
   const [loading, setLoading] = useState(true);
 
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [category, setCategory] = useState("all");
   const [period, setPeriod] = useState("all");
   const [rankType, setRankType] = useState("score");
@@ -221,21 +222,31 @@ export default function HeroPanel() {
     homepageApi.metrics().then(setMetrics).catch(() => {});
   }, []);
 
+  // Search debounce — 250ms delay to avoid firing API calls per keystroke
+  useEffect(() => {
+    if (q === debouncedQ) return;
+    const id = setTimeout(() => setDebouncedQ(q), 250);
+    return () => clearTimeout(id);
+  }, [q, debouncedQ]);
+
+  // Fetch papers — stale-while-revalidate (don't clear papers on filter change)
   useEffect(() => {
     let cancelled = false;
     const fetchPapers = async () => {
       setLoading(true);
       try {
-        const res = await homepageApi.papers({ category, period, rank_type: rankType, q, limit: 10 });
-        if (!cancelled) setPapers(res.results);
+        const res = await homepageApi.papers({ category, period, rank_type: rankType, q: debouncedQ, limit: 10 });
+        if (!cancelled) {
+          setPapers(res.results);
+          setLoading(false);
+        }
       } catch {
-        // ignore
+        if (!cancelled) setLoading(false);
       }
-      if (!cancelled) setLoading(false);
     };
     fetchPapers();
     return () => { cancelled = true; };
-  }, [category, period, rankType, q]);
+  }, [category, period, rankType, debouncedQ]);
 
   const chipCats = categories.filter(c => c.featured);
   // Build leaderboard URL — values match leaderboard params directly
