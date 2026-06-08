@@ -49,8 +49,8 @@ function AppRouter() {
     return <AuthCallback />;
   }
 
-  // Homepage has its own TopNav and SiteFooter — render without the app shell
-  if (location.pathname === "/") {
+  // New homepage at /new (staging) — has its own TopNav and SiteFooter
+  if (location.pathname === "/new") {
     return (
       <>
         <HomePage />
@@ -64,6 +64,7 @@ function AppRouter() {
       <Navbar />
       <main className="pb-12">
         <Routes>
+          <Route path="/" element={<LeaderboardPage />} />
           <Route path="/leaderboard" element={<LeaderboardPage />} />
           <Route path="/start" element={<StartRedirect />} />
           <Route path="/leaderboard/:category/:year/:weekOrMonth" element={<ArchivePage />} />
