@@ -56,14 +56,12 @@ export function LeaderboardTableNew({
   }, [loadMore, nextCursor, loadingMore]);
 
   const isGlobal = hasSelectedTags && globalStats;
-  const isDefaultSort = !sortKey || sortKey === "rank";
   const getScore = (p) => isGlobal && p.global_score !== undefined ? p.global_score : (p.ts_score || p.score);
   const getWinRate = (p) => isGlobal && p.global_win_rate !== undefined ? p.global_win_rate : p.win_rate;
   const getComparisons = (p) => isGlobal && p.global_comparisons !== undefined ? p.global_comparisons : p.comparisons;
   const getCi = (p) => isGlobal ? null : p.ci;
-  // When sorted by default (rank), show the backend's TrueSkill rank.
-  // When sorted by any other column, show position in current order (1, 2, 3...).
-  const getRank = (p, i) => isDefaultSort ? (p._displayRank || p.rank_ts || p.rank || (i + 1)) : (i + 1);
+  // Always show sequential position in current view
+  const getRank = (p, i) => i + 1;
 
   if (loading && leaderboard.length === 0) {
     return (
@@ -99,7 +97,7 @@ export function LeaderboardTableNew({
         </colgroup>
         <thead>
           <tr className="text-slate-500 bg-slate-50 border-b border-slate-100 whitespace-nowrap">
-            <th className="pl-5 pr-2 py-2.5 text-center w-10"><SortHeader label="#" sortKey="rank" current={sortKey} dir={sortDir} onSort={onSort} tip={COL_TIPS.rank} /></th>
+            <th className="pl-5 pr-2 py-2.5 text-center w-10 text-[10px] font-bold uppercase tracking-wider">#</th>
             <th className="px-2 py-2.5 text-left"><SortHeader label="Paper" sortKey="title" current={sortKey} dir={sortDir} onSort={onSort} tip={COL_TIPS.title} /></th>
             <th className="px-2 py-2.5 text-right"><SortHeader label="Score" sortKey="score" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.score} /></th>
             <th className="px-2 py-2.5 text-right hidden lg:table-cell"><SortHeader label="CI" sortKey="wilson_margin" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.wilson_margin} /></th>
