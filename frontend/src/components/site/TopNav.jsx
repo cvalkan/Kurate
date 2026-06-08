@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Linkedin, Instagram, Github, Facebook, BookOpen, Trophy, Menu, X, LogIn, User, Bookmark as BookmarkIcon } from "lucide-react";
 import { useBasePath } from "@/contexts/BasePathContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,14 +11,6 @@ function XIcon({ className, strokeWidth }) {
     </svg>
   );
 }
-
-const NAV = [
-  { to: "#rankings", label: "Rankings" },
-  { to: "#categories", label: "Categories" },
-  { to: "#methodology", label: "Methodology" },
-  { to: "#faq", label: "FAQ" },
-  { to: "#about", label: "About" },
-];
 
 const SOCIAL = [
   { href: "https://www.linkedin.com/company/kurate-org", label: "LinkedIn", Icon: Linkedin, key: "linkedin" },
@@ -33,9 +25,44 @@ const requireAuth = () => window.dispatchEvent(new Event("open-auth-modal"));
 
 export default function TopNav() {
   const basePath = useBasePath();
+  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, logout } = useAuth();
   const isLoggedIn = !!user;
+
+  // Context-aware nav: homepage gets section anchors, other pages get full page links
+  const isHomepage = location.pathname === basePath || location.pathname === `${basePath}/`;
+  const NAV = isHomepage
+    ? [
+        { to: "#rankings", label: "Rankings" },
+        { to: "#categories", label: "Categories" },
+        { to: "#methodology", label: "Methodology" },
+        { to: "#faq", label: "FAQ" },
+        { to: "#about", label: "About" },
+      ]
+    : [
+        { to: basePath || "/", label: "Home" },
+        { to: "/methodology", label: "Methodology" },
+        { to: "/correlation", label: "Model Analysis" },
+        { to: "/validation", label: "Validation" },
+      ];
+
+  const renderNavLink = (item, onClick) => {
+    if (item.to.startsWith("#")) {
+      return (
+        <a key={item.label} href={item.to} onClick={onClick}
+          className="px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-sm transition-colors lg:px-0 lg:py-0 lg:hover:bg-transparent">
+          {item.label}
+        </a>
+      );
+    }
+    return (
+      <Link key={item.label} to={item.to} onClick={onClick}
+        className="px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-sm transition-colors lg:px-0 lg:py-0 lg:hover:bg-transparent">
+        {item.label}
+      </Link>
+    );
+  };
 
   return (
     <header
@@ -52,13 +79,7 @@ export default function TopNav() {
 
           {/* Desktop nav */}
           <nav className="hidden lg:flex items-center gap-7" aria-label="Primary">
-            {NAV.map((item) =>
-              item.to.startsWith("#") ? (
-                <a key={item.label} href={item.to} className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">{item.label}</a>
-              ) : (
-                <Link key={item.label} to={item.to} className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">{item.label}</Link>
-              )
-            )}
+            {NAV.map((item) => renderNavLink(item))}
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-3">
@@ -99,7 +120,7 @@ export default function TopNav() {
               <span className="hidden sm:inline">Explore Rankings</span>
             </Link>
 
-            {/* Hamburger — mobile/tablet only */}
+            {/* Hamburger */}
             <button onClick={() => setMobileOpen(v => !v)} className="lg:hidden p-1.5 text-slate-600 hover:text-slate-900 transition-colors" aria-label="Toggle menu">
               {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
@@ -112,15 +133,7 @@ export default function TopNav() {
         <div className="lg:hidden border-t border-slate-100 bg-white">
           <div className="mx-auto max-w-7xl px-5 sm:px-6 py-4 space-y-3">
             <nav className="flex flex-col gap-1">
-              {NAV.map((item) =>
-                item.to.startsWith("#") ? (
-                  <a key={item.label} href={item.to} onClick={() => setMobileOpen(false)}
-                    className="px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-sm transition-colors">{item.label}</a>
-                ) : (
-                  <Link key={item.label} to={item.to} onClick={() => setMobileOpen(false)}
-                    className="px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-sm transition-colors">{item.label}</Link>
-                )
-              )}
+              {NAV.map((item) => renderNavLink(item, () => setMobileOpen(false)))}
             </nav>
             <div className="border-t border-slate-100 pt-3">
               {isLoggedIn ? (
