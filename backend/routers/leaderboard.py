@@ -584,6 +584,8 @@ def _rank_doc_to_entry(doc: dict) -> dict:
         "arxiv_id": doc.get("arxiv_id", ""),
         "link": doc.get("link", ""),
         "published": doc.get("published", ""),
+        "primary_category": doc.get("category", ""),
+        "categories": doc.get("categories", []),
         "score": doc.get("ts_score", doc.get("score", 1200)),
         "ts_score": doc.get("ts_score", 1200),
         "ts_sigma": doc.get("ts_sigma"),
