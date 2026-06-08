@@ -377,15 +377,15 @@ export default function LeaderboardPage() {
       <meta property="og:title" content={seoTitle} />
       <meta property="og:description" content={seoDesc} />
       <meta property="og:url" content={seoCanonical} />
-    </Helmet>    <div className="container mx-auto px-4 md:px-6 max-w-7xl py-6 md:py-10">
+    </Helmet>    <div className="kurate-homepage container mx-auto px-4 md:px-6 max-w-7xl py-6 md:py-10">
       <div className="mb-8">
-        <h1 className="font-heading text-3xl md:text-4xl font-semibold tracking-tight mb-2" data-testid="page-title">{title}</h1>
-        <p className="text-muted-foreground text-sm md:text-base max-w-2xl">
+        <h1 className="font-serif text-3xl md:text-4xl font-medium tracking-tight mb-2" data-testid="page-title">{title}</h1>
+        <p className="text-slate-600 text-sm md:text-base max-w-2xl">
           {hasSelectedTags
             ? `Cross-category view: showing papers tagged with ${selectedTags.join(tagMode === "and" ? " AND " : " OR ")}.`
             : isTagMode
             ? "Showing all papers across all categories. Select tags below to filter."
-            : <>AI-estimated scientific impact ranking of the latest {category?.startsWith("iacr.") ? "IACR ePrint" : "arXiv"} {categoryName} preprints. <Link to="/methodology" className="text-accent hover:underline">Methodology</Link>{newCategoryNames.length > 0 && <>{" "}<span className="inline-flex items-center gap-1 ml-2 text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 dark:text-emerald-400 px-2 py-0.5 rounded-full">New: {newCategoryNames.join(", ")}</span></>}</>}
+            : <>AI-estimated scientific impact ranking of the latest {category?.startsWith("iacr.") ? "IACR ePrint" : "arXiv"} {categoryName} preprints. <Link to="/methodology" className="text-blue-600 hover:underline">Methodology</Link>{newCategoryNames.length > 0 && <>{" "}<span className="inline-flex items-center gap-1 ml-2 text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 dark:text-emerald-400 px-2 py-0.5 rounded-full">New: {newCategoryNames.join(", ")}</span></>}</>}
         </p>
       </div>
 
@@ -439,10 +439,10 @@ export default function LeaderboardPage() {
       />
 
       {warmingUp && (
-            <div className="mb-4 p-4 bg-accent/10 border border-accent/30 rounded-lg flex items-center gap-3" data-testid="warming-up-banner">
-              <div className="animate-spin h-5 w-5 border-2 border-accent border-t-transparent rounded-full" />
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-sm flex items-center gap-3" data-testid="warming-up-banner">
+              <div className="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full" />
               <div>
-                <p className="text-sm font-medium text-accent">Warming up...</p>
+                <p className="text-sm font-medium text-blue-700">Warming up...</p>
                 <p className="text-xs text-muted-foreground">Leaderboard data is being prepared. This only happens once after deployment.</p>
               </div>
             </div>

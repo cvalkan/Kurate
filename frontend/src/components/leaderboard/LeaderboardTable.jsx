@@ -154,7 +154,7 @@ export function LeaderboardTable({
   if (loading) {
     return (
       <div className="space-y-3" data-testid="loading-skeleton">
-        {[...Array(8)].map((_, i) => <div key={i} className="h-14 bg-secondary/30 rounded-lg animate-pulse" />)}
+        {[...Array(8)].map((_, i) => <div key={i} className="h-14 bg-secondary/30 rounded-sm animate-pulse" />)}
       </div>
     );
   }
@@ -176,7 +176,7 @@ export function LeaderboardTable({
       {debouncedKeyword && (
         <div className="text-xs text-muted-foreground mb-2">Showing {leaderboard.length} papers matching "{keyword}"</div>
       )}
-      <div className="border border-border rounded-lg overflow-x-auto" data-testid="leaderboard-table">
+      <div className="border border-border rounded-sm overflow-x-auto" data-testid="leaderboard-table">
         <div className={`${gridBase} py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border select-none`} style={gridStyle}>
           {bookmarksMode && selectedPapers && <div />}
           <SortHeader label="#" sortKey="rank" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.rank} />
