@@ -168,9 +168,15 @@ export function AdminLogs() {
       const skipErrors = status === "success";
 
       if (!skipEvents) {
+        // Build server-side filter for system_logs based on event type
+        const eventFilter = { level: "event" };
+        if (type === "fetch_cycle") eventFilter.event = "fetch_cycle";
+        else if (type === "convergence") eventFilter.event = "convergence";
+        else if (type === "archive") eventFilter.event = "archive_created";
+
         fetches.push(
           axios.get(`${API}/api/admin/db/system_logs`, {
-            headers, params: { sort: JSON.stringify({ ts: -1 }), limit: 500, filter: JSON.stringify({ level: "event" }) },
+            headers, params: { sort: JSON.stringify({ ts: -1 }), limit: 500, filter: JSON.stringify(eventFilter) },
           }).then(r => (r.data.docs || []).map(d => normalizeRow(d, "events"))).catch(() => [])
         );
       }
