@@ -79,10 +79,12 @@ export default function PaperDesignB() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAllMatches, setShowAllMatches] = useState(false);
+  const [paperBadges, setPaperBadges] = useState([]);
 
   useEffect(() => {
     setLoading(true);
     axios.get(`${API}/api/papers/${id}`).then(r => setData(r.data)).catch(() => {}).finally(() => setLoading(false));
+    axios.get(`${API}/api/badge/paper/${id}/badges`).then(r => setPaperBadges(r.data.badges || [])).catch(() => {});
   }, [id]);
 
   if (loading) return <div className="kurate-homepage"><TopNav /><div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8 py-16"><div className="h-8 w-64 bg-slate-100 rounded-sm animate-pulse" /></div></div>;
@@ -192,12 +194,12 @@ export default function PaperDesignB() {
             "Top 10": { color: "#059669", bg: "#ECFDF5" },
             "Top 20": { color: "#6366F1", bg: "#EEF2FF" },
           };
-          const paperBadges = paper.badges || [];
+          const badges = paperBadges;
 
           const ScoreCard = () => (
             <div className="space-y-4">
               {/* Badge banner(s) — between score card and actions */}
-              {paperBadges.length > 0 && paperBadges.map((b, i) => {
+              {badges.length > 0 ? badges.map((b, i) => {
                 const tc = TIER_COLORS[b.tier] || { color: b.tier_color || "#64748B", bg: "#F8FAFC" };
                 return (
                   <div key={i} className="flex items-center justify-between px-4 py-2.5 rounded-sm border" style={{ backgroundColor: tc.bg, borderColor: `${tc.color}33` }}>
@@ -215,7 +217,16 @@ export default function PaperDesignB() {
                     </Link>
                   </div>
                 );
-              })}
+              }) : paper.current_rank && (
+                <div className="flex items-center justify-between px-4 py-2.5 rounded-sm border border-slate-200 bg-slate-50">
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <span className="font-bold text-slate-900">#{paper.current_rank}</span>
+                    <span className="text-slate-400">of {paper.total_in_category || "\u2014"}</span>
+                    <span className="text-slate-300 mx-0.5">·</span>
+                    <span className="text-slate-500">{paper.category_name || paper.categories?.[0] || ""}</span>
+                  </div>
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex items-center gap-2">
