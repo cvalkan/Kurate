@@ -50,6 +50,9 @@ import Design2Page from "@/pages/Design2Page";
 import Design3Page from "@/pages/Design3Page";
 import PaperDesignA from "@/pages/PaperDesignA";
 import PaperDesignB from "@/pages/PaperDesignB";
+import NewMethodologyPage from "@/pages/NewMethodologyPage";
+import NewCorrelationPage from "@/pages/NewCorrelationPage";
+import NewValidationPage from "@/pages/NewValidationPage";
 import Navbar from "@/components/Navbar";
 import { BookmarkProvider } from "@/contexts/BookmarkContext";
 
@@ -76,6 +79,9 @@ function AppRouter() {
           <Route path="/new" element={<HomePage />} />
           <Route path="/new/leaderboard" element={<Design3Page />} />
           <Route path="/new/paper/:id" element={<PaperDesignB />} />
+          <Route path="/new/methodology" element={<NewMethodologyPage />} />
+          <Route path="/new/correlation" element={<NewCorrelationPage />} />
+          <Route path="/new/validation" element={<NewValidationPage />} />
         </Routes>
         <NewSiteAuthModal />
         <Toaster position="bottom-right" />

@@ -42,9 +42,9 @@ export default function TopNav() {
       ]
     : [
         { to: basePath || "/", label: "Home" },
-        { to: "/methodology", label: "Methodology" },
-        { to: "/correlation", label: "Model Analysis" },
-        { to: "/validation", label: "Validation" },
+        { to: `${basePath}/methodology`, label: "Methodology" },
+        { to: `${basePath}/correlation`, label: "Model Analysis" },
+        { to: `${basePath}/validation`, label: "Validation" },
       ];
 
   const renderNavLink = (item, onClick) => {
