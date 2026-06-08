@@ -97,53 +97,71 @@ export default function Design3Page() {
         {/* Sidebar */}
         {sidebarOpen && (
           <aside className="w-72 shrink-0 border-r border-slate-200 bg-white overflow-y-auto">
-            {/* Signup CTA — only when not logged in */}
-            {!isLoggedIn && (
-              <div className="p-4 border-b border-slate-100">
-                <div className="rounded-sm border border-blue-200 bg-blue-50/50 p-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <LockOpen className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-                    <span className="text-xs font-semibold text-slate-900">Sign up for free</span>
+            {!isLoggedIn ? (
+              /* Locked sidebar — single CTA, all controls disabled */
+              <>
+                <div className="p-4 border-b border-slate-100">
+                  <div className="rounded-sm border border-blue-200 bg-blue-50/50 p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <LockOpen className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                      <span className="text-xs font-semibold text-slate-900">Sign up for free</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-relaxed mb-3">Unlock search, filters, categories, archives, and bookmarks.</p>
+                    <button onClick={requireAuth} className="w-full inline-flex items-center justify-center gap-1.5 rounded-sm bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors">
+                      Sign up <ArrowRight className="h-3 w-3" />
+                    </button>
                   </div>
-                  <p className="text-[11px] text-slate-600 leading-relaxed mb-3">Unlock all categories, archives, cross-field filters, and bookmarks.</p>
-                  <button onClick={requireAuth} className="w-full inline-flex items-center justify-center gap-1.5 rounded-sm bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors">
-                    Sign up <ArrowRight className="h-3 w-3" />
-                  </button>
                 </div>
-              </div>
-            )}
-
-            {/* Search */}
-            <div className="p-4 border-b border-slate-100">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Search</span>
-                <button onClick={() => setSidebarOpen(false)} className="text-slate-400 hover:text-slate-600"><PanelLeftClose className="h-4 w-4" /></button>
-              </div>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                <Input value={d.keyword} onChange={e => d.setKeyword(e.target.value)} placeholder="Papers, authors..."
-                  className="pl-8 h-9 text-sm rounded-sm border-slate-200" />
-                {d.keyword && <button onClick={() => d.setKeyword("")} className="absolute right-2.5 top-1/2 -translate-y-1/2"><X className="h-3 w-3 text-slate-400" /></button>}
-              </div>
-            </div>
+                <div className="p-4 opacity-40 pointer-events-none select-none">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Search</span>
+                    <button onClick={() => setSidebarOpen(false)} className="text-slate-400"><PanelLeftClose className="h-4 w-4" /></button>
+                  </div>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <Input disabled placeholder="Papers, authors..." className="pl-8 h-9 text-sm rounded-sm border-slate-200" />
+                  </div>
+                  <div className="mt-6 space-y-4">
+                    <div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Time Period</div>
+                      {PERIODS.map(p => <div key={p.value} className="px-2.5 py-1.5 text-sm text-slate-400">{p.label}</div>)}
+                    </div>
+                    <div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Field</div>
+                      <div className="px-2.5 py-1.5 text-sm text-slate-400">All Categories</div>
+                    </div>
+                    <div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Cross-Field</div></div>
+                    <div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Sort By</div></div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* Unlocked sidebar — full controls */
+              <>
+                {/* Search */}
+                <div className="p-4 border-b border-slate-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Search</span>
+                    <button onClick={() => setSidebarOpen(false)} className="text-slate-400 hover:text-slate-600"><PanelLeftClose className="h-4 w-4" /></button>
+                  </div>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <Input value={d.keyword} onChange={e => d.setKeyword(e.target.value)} placeholder="Papers, authors..."
+                      className="pl-8 h-9 text-sm rounded-sm border-slate-200" />
+                    {d.keyword && <button onClick={() => d.setKeyword("")} className="absolute right-2.5 top-1/2 -translate-y-1/2"><X className="h-3 w-3 text-slate-400" /></button>}
+                  </div>
+                </div>
 
             {/* Time Period */}
             <SidebarSection title="Time Period" defaultOpen={true}>
               <div className="space-y-0.5">
-                {PERIODS.map(p => {
-                  const locked = !isLoggedIn && (p.value === "month" || p.value === "all");
-                  return (
-                    <button key={p.value}
-                      onClick={() => locked ? requireAuth() : (() => { d.setPeriod(p.value); d.clearArchive(); })()}
-                      className={`w-full text-left px-2.5 py-1.5 rounded-sm text-sm transition-colors flex items-center justify-between ${
-                        d.period === p.value && !d.activeArchive ? "bg-blue-50 text-blue-700 font-medium"
-                        : locked ? "text-slate-400" : "text-slate-600 hover:bg-slate-50"
-                      }`}>
-                      <span>{p.label}</span>
-                      {locked && <Lock className="h-3 w-3 text-slate-400" />}
-                    </button>
-                  );
-                })}
+                {PERIODS.map(p => (
+                  <button key={p.value}
+                    onClick={() => { d.setPeriod(p.value); d.clearArchive(); }}
+                    className={`w-full text-left px-2.5 py-1.5 rounded-sm text-sm transition-colors ${
+                      d.period === p.value && !d.activeArchive ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-50"
+                    }`}>
+                    {p.label}
+                  </button>
+                ))}
               </div>
             </SidebarSection>
 
@@ -176,43 +194,35 @@ export default function Design3Page() {
               </div>
             </SidebarSection>
 
-            {/* Filter (tag cloud) — locked behind auth */}
+            {/* Filter (tag cloud) */}
             <SidebarSection title="Cross-Field" defaultOpen={false}>
-              {!isLoggedIn ? (
-                <button onClick={requireAuth} className="w-full text-left text-xs text-slate-400 flex items-center gap-1.5 px-2.5 py-2">
-                  <Lock className="h-3 w-3" /> Sign in to use cross-field filters
-                </button>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between mb-2">
-                    {d.hasSelectedTags && (
-                      <div className="flex items-center gap-1 text-[10px]">
-                        <button onClick={() => d.setTagMode("or")}
-                          className={`px-1.5 py-0.5 rounded-sm border ${d.tagMode === "or" ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-400"}`}>
-                          OR
-                        </button>
-                        <button onClick={() => d.setTagMode("and")}
-                          className={`px-1.5 py-0.5 rounded-sm border ${d.tagMode === "and" ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-400"}`}>
-                          AND
-                        </button>
-                      </div>
-                    )}
-                    {d.hasSelectedTags && (
-                      <button onClick={() => { d.setSelectedTags([]); d.setTagFilterOpen(false); }} className="text-[10px] text-slate-400 hover:text-slate-600">Clear</button>
-                    )}
+              <div className="flex items-center justify-between mb-2">
+                {d.hasSelectedTags && (
+                  <div className="flex items-center gap-1 text-[10px]">
+                    <button onClick={() => d.setTagMode("or")}
+                      className={`px-1.5 py-0.5 rounded-sm border ${d.tagMode === "or" ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-400"}`}>
+                      OR
+                    </button>
+                    <button onClick={() => d.setTagMode("and")}
+                      className={`px-1.5 py-0.5 rounded-sm border ${d.tagMode === "and" ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-400"}`}>
+                      AND
+                    </button>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {filteredTags.map(tag => (
-                      <button key={tag.id} onClick={() => toggleTag(tag.id)}
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] border transition-all ${
-                          d.selectedTags.includes(tag.id) ? "bg-blue-50 text-blue-700 border-blue-200 font-medium" : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
-                        }`}>
-                        {tag.id}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+                )}
+                {d.hasSelectedTags && (
+                  <button onClick={() => { d.setSelectedTags([]); d.setTagFilterOpen(false); }} className="text-[10px] text-slate-400 hover:text-slate-600">Clear</button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {filteredTags.map(tag => (
+                  <button key={tag.id} onClick={() => toggleTag(tag.id)}
+                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] border transition-all ${
+                      d.selectedTags.includes(tag.id) ? "bg-blue-50 text-blue-700 border-blue-200 font-medium" : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
+                    }`}>
+                    {tag.id}
+                  </button>
+                ))}
+              </div>
             </SidebarSection>
 
             {/* Sort By */}
@@ -229,6 +239,8 @@ export default function Design3Page() {
                 ))}
               </div>
             </SidebarSection>
+              </>
+            )}
           </aside>
         )}
 
@@ -313,7 +325,7 @@ export default function Design3Page() {
                 hasSelectedTags={d.hasSelectedTags} globalStats={d.globalStats}
                 isArchive={!!d.activeArchive} nextCursor={d.nextCursor}
                 loadMore={d.loadMore} loadingMore={d.loadingMore} keyword={d.keyword}
-                onCategoryClick={(cat) => { d.setCategory(cat); d.setSelectedTags([]); d.setTagFilterOpen(false); d.clearArchive(); }}
+                onCategoryClick={isLoggedIn ? (cat) => { d.setCategory(cat); d.setSelectedTags([]); d.setTagFilterOpen(false); d.clearArchive(); } : () => requireAuth()}
                 activeCodes={activeCodes}
               />
             </div>

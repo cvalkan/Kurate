@@ -14,7 +14,7 @@ const FAQS = [
 
 export function FaqSection() {
   return (
-    <section className="bg-white border-t border-slate-200" data-testid="faq-section">
+    <section id="faq" className="bg-white border-t border-slate-200" data-testid="faq-section">
       <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8 py-20">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           <div className="lg:col-span-4">

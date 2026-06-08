@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Linkedin, Instagram, Github, Facebook, BookOpen, Trophy, Menu, X, LogIn, User, Bookmark as BookmarkIcon } from "lucide-react";
+import { Linkedin, Instagram, Github, Facebook, BookOpen, Trophy, Menu, X, LogIn, LogOut, User, Bookmark as BookmarkIcon } from "lucide-react";
 import { useBasePath } from "@/contexts/BasePathContext";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -95,13 +95,16 @@ export default function TopNav() {
 
             {/* Auth section */}
             {isLoggedIn ? (
-              <div className="hidden sm:flex items-center gap-2">
+              <div className="hidden sm:flex items-center gap-1">
                 <Link to="/bookmarks" className="p-2 text-slate-500 hover:text-blue-600 transition-colors" title="Bookmarks">
                   <BookmarkIcon className="h-4 w-4" />
                 </Link>
                 <Link to="/profile" className="p-2 text-slate-500 hover:text-blue-600 transition-colors" title="Profile">
                   <User className="h-4 w-4" />
                 </Link>
+                <button onClick={logout} className="p-2 text-slate-500 hover:text-red-500 transition-colors" title="Sign out">
+                  <LogOut className="h-4 w-4" />
+                </button>
               </div>
             ) : (
               <button onClick={requireAuth}
