@@ -33,7 +33,7 @@ export default function TopNav() {
       data-testid="top-nav"
       className="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur-md supports-[backdrop-filter]:bg-white/80"
     >
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <Link to="/" className="flex items-center gap-[10px] group" data-testid="brand-link" aria-label="Kurate.org home">
             <Trophy className="h-6 w-6 text-blue-600 shrink-0 -translate-y-[2px]" strokeWidth={1.8} />

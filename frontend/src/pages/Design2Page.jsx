@@ -52,7 +52,7 @@ export default function Design2Page() {
   return (
     <div className="kurate-homepage">
       <TopNav />
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-8 pb-12">
+      <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8 pt-8 pb-12">
         {/* Title */}
         <div className="flex items-start justify-between mb-6">
           <div>

@@ -262,7 +262,7 @@ export default function HeroPanel() {
 
   return (
     <section id="rankings" className="bg-white">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-10 lg:pt-14 pb-12">
+      <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8 pt-10 lg:pt-14 pb-12">
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] text-slate-500">
           <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
           Live · Scientific Paper Rankings

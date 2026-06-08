@@ -15,7 +15,7 @@ export function RecentRankings() {
 
   return (
     <section id="categories" className="bg-white border-t border-slate-200">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
+      <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8 py-20">
         <div className="flex items-end justify-between gap-6 mb-10">
           <div>
             <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">Recent Rankings</div>
@@ -83,7 +83,7 @@ const COMING_SOON = [
 export function ResearchAndCapabilities() {
   return (
     <section id="capabilities" className="bg-slate-50 border-t border-slate-200" data-testid="capabilities-section">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
+      <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8 py-20">
         <div className="mb-10 max-w-3xl">
           <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">Research Intelligence & Current Capabilities</div>
           <h2 className="font-serif text-3xl sm:text-4xl font-medium text-slate-900 leading-tight">What Kurate supports today.</h2>
@@ -133,7 +133,7 @@ const STEPS = [
 export function HowItWorks() {
   return (
     <section id="methodology" className="bg-white border-t border-slate-200" data-testid="how-it-works">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
+      <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8 py-20">
         <div className="mb-10 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div>
             <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">How Kurate Rankings Work</div>
@@ -169,7 +169,7 @@ export function WhyCategories() {
   ];
   return (
     <section className="bg-slate-50 border-t border-slate-200" data-testid="why-categories">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20 grid grid-cols-1 lg:grid-cols-12 gap-10">
+      <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8 py-20 grid grid-cols-1 lg:grid-cols-12 gap-10">
         <div className="lg:col-span-5">
           <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">Why Category-Based Rankings Matter</div>
           <h2 className="font-serif text-3xl sm:text-4xl font-medium text-slate-900 leading-tight">Scientific papers are difficult to compare across unrelated fields.</h2>
@@ -201,7 +201,7 @@ export function WhatMakesDifferent() {
   ];
   return (
     <section className="bg-white border-t border-slate-200" data-testid="what-makes-different">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
+      <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8 py-20">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           <div className="lg:col-span-5">
             <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">What Makes Kurate Different</div>
@@ -244,7 +244,7 @@ const PERSONAS = [
 export function WhoFor() {
   return (
     <section id="about" className="bg-slate-50 border-t border-slate-200" data-testid="who-for">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
+      <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8 py-20">
         <div className="mb-10 max-w-3xl">
           <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">Who Kurate Is For</div>
           <h2 className="font-serif text-3xl sm:text-4xl font-medium text-slate-900 leading-tight">Built for researchers, students, supervisors, labs, institutions, and analysts.</h2>
@@ -271,7 +271,7 @@ export function WhoFor() {
 export function TrustPanel() {
   return (
     <section className="bg-white border-t border-slate-200" data-testid="trust-panel">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
+      <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8 py-20">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           <div className="lg:col-span-5">
             <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">Trust, Transparency, Limitations</div>
