@@ -198,36 +198,6 @@ export default function PaperDesignB() {
 
           const ScoreCard = () => (
             <div className="space-y-4">
-              {/* Badge banner(s) — between score card and actions */}
-              {badges.length > 0 ? badges.map((b, i) => {
-                const tc = TIER_COLORS[b.tier] || { color: b.tier_color || "#64748B", bg: "#F8FAFC" };
-                return (
-                  <div key={i} className="flex items-center justify-between px-4 py-2.5 rounded-sm border" style={{ backgroundColor: tc.bg, borderColor: `${tc.color}33` }}>
-                    <div className="flex items-center gap-1.5 text-sm">
-                      <span className="font-bold" style={{ color: tc.color }}>#{paper.current_rank || b.rank}</span>
-                      <span className="text-slate-400">of {paper.total_in_category || "\u2014"}</span>
-                      <span className="text-slate-300 mx-0.5">·</span>
-                      <span className="flex items-center gap-1 font-semibold" style={{ color: tc.color }}>
-                        <Award className="h-3.5 w-3.5" />
-                        {b.tier} · {b.archive_label}
-                      </span>
-                    </div>
-                    <Link to={`/share/${paper.id}`} className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-sm border transition-colors hover:opacity-80" style={{ color: tc.color, borderColor: `${tc.color}44` }}>
-                      <Share2 className="h-3 w-3" /> Share
-                    </Link>
-                  </div>
-                );
-              }) : paper.current_rank && (
-                <div className="flex items-center justify-between px-4 py-2.5 rounded-sm border border-slate-200 bg-slate-50">
-                  <div className="flex items-center gap-1.5 text-sm">
-                    <span className="font-bold text-slate-900">#{paper.current_rank}</span>
-                    <span className="text-slate-400">of {paper.total_in_category || "\u2014"}</span>
-                    <span className="text-slate-300 mx-0.5">·</span>
-                    <span className="text-slate-500">{paper.category_name || paper.categories?.[0] || ""}</span>
-                  </div>
-                </div>
-              )}
-
               {/* Actions */}
               <div className="flex items-center gap-2">
                 <button onClick={() => toggleBookmark(paper.id)} className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-sm border text-sm font-medium transition-colors ${isBookmarked ? "bg-blue-50 text-blue-700 border-blue-200" : "text-slate-600 border-slate-200 hover:border-slate-400"}`}>
@@ -238,8 +208,38 @@ export default function PaperDesignB() {
                 </Link>
               </div>
 
-              {/* Tournament Score */}
-              <div className="border border-slate-200 rounded-sm p-5">
+              {/* Badge banner + Tournament Score — touching, no gap */}
+              <div className="border border-slate-200 rounded-sm overflow-hidden">
+                {/* Badge bar */}
+                {badges.length > 0 ? badges.map((b, i) => {
+                  const tc = TIER_COLORS[b.tier] || { color: b.tier_color || "#64748B", bg: "#F8FAFC" };
+                  return (
+                    <div key={i} className="flex items-center justify-between px-5 py-2.5 border-b border-slate-200" style={{ backgroundColor: tc.bg }}>
+                      <div className="flex items-center gap-1.5 text-sm">
+                        <span className="font-bold text-slate-900">#{paper.current_rank || b.rank}</span>
+                        <span className="text-slate-500">of {paper.total_in_category || "\u2014"}</span>
+                        <span className="text-slate-300 mx-0.5">·</span>
+                        <span className="text-slate-500">{paper.category_name || paper.categories?.[0] || ""}</span>
+                      </div>
+                      <span className="flex items-center gap-1 text-sm font-semibold" style={{ color: tc.color }}>
+                        <Award className="h-3.5 w-3.5" />
+                        {b.tier} · {b.archive_label}
+                      </span>
+                    </div>
+                  );
+                }) : paper.current_rank ? (
+                  <div className="flex items-center justify-between px-5 py-2.5 border-b border-slate-200 bg-slate-50">
+                    <div className="flex items-center gap-1.5 text-sm">
+                      <span className="font-bold text-slate-900">#{paper.current_rank}</span>
+                      <span className="text-slate-400">of {paper.total_in_category || "\u2014"}</span>
+                      <span className="text-slate-300 mx-0.5">·</span>
+                      <span className="text-slate-500">{paper.category_name || paper.categories?.[0] || ""}</span>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Tournament Score — inside the same bordered box */}
+                <div className="p-5">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-900 mb-2 flex items-center gap-1.5">
                   <Trophy className="h-3.5 w-3.5 text-blue-600" /> Tournament Score
                 </div>
@@ -272,7 +272,8 @@ export default function PaperDesignB() {
                   <div className="text-center py-2.5 bg-slate-50 rounded-sm"><div className="text-xl font-semibold text-red-400">{stats.losses}</div><div className="text-[9px] text-slate-500">Losses</div></div>
                   <div className="text-center py-2.5 bg-slate-50 rounded-sm"><div className="text-xl font-semibold text-slate-900">{stats.comparisons}</div><div className="text-[9px] text-slate-500">Matches</div></div>
                 </div>
-              </div>
+              </div>{/* close p-5 */}
+              </div>{/* close border wrapper */}
 
               {/* Rating */}
               {ratings?.score && (
