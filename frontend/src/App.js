@@ -35,6 +35,8 @@ import StartRedirect from "@/pages/StartRedirect";
 import Design1Page from "@/pages/Design1Page";
 import Design2Page from "@/pages/Design2Page";
 import Design3Page from "@/pages/Design3Page";
+import PaperDesignA from "@/pages/PaperDesignA";
+import PaperDesignB from "@/pages/PaperDesignB";
 import Navbar from "@/components/Navbar";
 import { BookmarkProvider } from "@/contexts/BookmarkContext";
 
@@ -66,6 +68,12 @@ function AppRouter() {
   }
   if (location.pathname === "/design3") {
     return (<><Design3Page /><Toaster position="bottom-right" /></>);
+  }
+  if (location.pathname.startsWith("/paper-a/")) {
+    return (<><Routes><Route path="/paper-a/:id" element={<PaperDesignA />} /></Routes><Toaster position="bottom-right" /></>);
+  }
+  if (location.pathname.startsWith("/paper-b/")) {
+    return (<><Routes><Route path="/paper-b/:id" element={<PaperDesignB />} /></Routes><Toaster position="bottom-right" /></>);
   }
 
   return (
