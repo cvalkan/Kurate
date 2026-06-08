@@ -388,7 +388,7 @@ export default function HeroPanel() {
               </div>
               <table className="w-full" data-testid="leaderboard-table">
                 <thead>
-                  <tr className="text-[10px] font-medium uppercase tracking-wider text-slate-500 bg-white border-b border-slate-100">
+                  <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-white border-b border-slate-100 whitespace-nowrap">
                     <th className="pl-5 pr-2 py-2.5 text-center w-10">#</th>
                     <th className="px-2 py-2.5 text-left">Paper</th>
                     <th className="px-2 py-2.5 text-right" title={COL_TOOLTIP[rankType]}>{COL_LABEL[rankType]}</th>
