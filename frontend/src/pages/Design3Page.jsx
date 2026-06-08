@@ -1,8 +1,9 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Search, X, PanelLeftClose, PanelLeft, Tag, Archive, ChevronDown, ChevronRight, Activity } from "lucide-react";
+import { Search, X, PanelLeftClose, PanelLeft, Tag, Archive, ChevronDown, ChevronRight, Activity, LockOpen, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useLeaderboardData } from "@/hooks/useLeaderboardData";
+import { useAuth } from "@/contexts/AuthContext";
 import { LeaderboardTableNew } from "@/components/leaderboard/LeaderboardTableNew";
 import TopNav from "@/components/site/TopNav";
 import SiteFooter from "@/components/site/SiteFooter";
@@ -45,6 +46,7 @@ export default function Design3Page() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const archiveRef = useRef(null);
   const activeCodes = useMemo(() => new Set(d.categories.map(c => c.id)), [d.categories]);
+  const { isLoggedIn, setShowAuth } = useAuth();
 
   useEffect(() => {
     const handler = (e) => { if (archiveRef.current && !archiveRef.current.contains(e.target)) setArchiveOpen(false); };
@@ -94,6 +96,22 @@ export default function Design3Page() {
         {/* Sidebar */}
         {sidebarOpen && (
           <aside className="w-72 shrink-0 border-r border-slate-200 bg-white overflow-y-auto">
+            {/* Signup CTA — only when not logged in */}
+            {!isLoggedIn && (
+              <div className="p-4 border-b border-slate-100">
+                <div className="rounded-sm border border-blue-200 bg-blue-50/50 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <LockOpen className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                    <span className="text-xs font-semibold text-slate-900">Sign up for free</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed mb-3">Unlock all categories, archives, cross-field filters, and bookmarks.</p>
+                  <button onClick={() => setShowAuth(true)} className="w-full inline-flex items-center justify-center gap-1.5 rounded-sm bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors">
+                    Sign up <ArrowRight className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Search */}
             <div className="p-4 border-b border-slate-100">
               <div className="flex items-center justify-between mb-3">

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import axios from "axios";
 import DOMPurify from "dompurify";
-import { ArrowLeft, ExternalLink, Clock, Sparkles, Trophy, Share2, Bookmark, Target } from "lucide-react";
+import { ArrowLeft, ExternalLink, Clock, Sparkles, Trophy, Share2, Bookmark, Target, Award } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useBookmarks } from "@/contexts/BookmarkContext";
 import { useBasePath } from "@/contexts/BasePathContext";
@@ -186,8 +186,37 @@ export default function PaperDesignB() {
           const paddedMax = Math.ceil((rangeMax + 50) / 50) * 50;
           const range = paddedMax - paddedMin || 1;
 
+          const TIER_COLORS = {
+            "Top 3": { color: "#D97706", bg: "#FFFBEB" },
+            "Top 5": { color: "#2563EB", bg: "#EFF6FF" },
+            "Top 10": { color: "#059669", bg: "#ECFDF5" },
+            "Top 20": { color: "#6366F1", bg: "#EEF2FF" },
+          };
+          const paperBadges = paper.badges || [];
+
           const ScoreCard = () => (
             <div className="space-y-4">
+              {/* Badge banner(s) — between score card and actions */}
+              {paperBadges.length > 0 && paperBadges.map((b, i) => {
+                const tc = TIER_COLORS[b.tier] || { color: b.tier_color || "#64748B", bg: "#F8FAFC" };
+                return (
+                  <div key={i} className="flex items-center justify-between px-4 py-2.5 rounded-sm border" style={{ backgroundColor: tc.bg, borderColor: `${tc.color}33` }}>
+                    <div className="flex items-center gap-1.5 text-sm">
+                      <span className="font-bold" style={{ color: tc.color }}>#{paper.current_rank || b.rank}</span>
+                      <span className="text-slate-400">of {paper.total_in_category || "\u2014"}</span>
+                      <span className="text-slate-300 mx-0.5">·</span>
+                      <span className="flex items-center gap-1 font-semibold" style={{ color: tc.color }}>
+                        <Award className="h-3.5 w-3.5" />
+                        {b.tier} · {b.archive_label}
+                      </span>
+                    </div>
+                    <Link to={`/share/${paper.id}`} className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-sm border transition-colors hover:opacity-80" style={{ color: tc.color, borderColor: `${tc.color}44` }}>
+                      <Share2 className="h-3 w-3" /> Share
+                    </Link>
+                  </div>
+                );
+              })}
+
               {/* Actions */}
               <div className="flex items-center gap-2">
                 <button onClick={() => toggleBookmark(paper.id)} className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-sm border text-sm font-medium transition-colors ${isBookmarked ? "bg-blue-50 text-blue-700 border-blue-200" : "text-slate-600 border-slate-200 hover:border-slate-400"}`}>
