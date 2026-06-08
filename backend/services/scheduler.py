@@ -453,15 +453,18 @@ async def _fetch_loop():
 
 async def _fetch_loop_inner():
     """Round-robin fetch: process ONE category per tick.
-    Each category takes 5-10 min (API call + PDF/summary processing).
-    Full cycle ~1-2 hours for 45 categories.
+
+    Three configurable delays (admin settings):
+      fetch_interval_hours: hours between full cycles per category (default 6)
+      fetch_success_delay:  seconds to wait after a successful fetch (default 10)
+      fetch_fail_delay:     seconds to pause ALL fetching after a 429 (default 300)
     """
     from core.memlog import log_mem
 
     _rr_idx = 0
-    _skip_this_cycle = set()  # Categories that 429'd — skip until next cycle
 
     while _scheduler_running:
+        delay = 10  # default, overridden below
         try:
             settings = await get_settings()
 
@@ -470,6 +473,8 @@ async def _fetch_loop_inner():
                 continue
 
             interval_hours = settings.get("fetch_interval_hours", 6)
+            success_delay = settings.get("fetch_success_delay", 10)
+            fail_delay = settings.get("fetch_fail_delay", 300)
             now = datetime.now(timezone.utc)
 
             fetch_cats = sorted(set(
@@ -494,10 +499,6 @@ async def _fetch_loop_inner():
                 if t_doc and t_doc.get("fetch_paused"):
                     continue
 
-                # Skip categories that got 429'd this cycle
-                if cat in _skip_this_cycle:
-                    continue
-
                 ckey = cat.replace('.', '_')
                 last_fetch_key = f"last_fetch_at_{ckey}"
                 last_fetch = settings.get(last_fetch_key)
@@ -515,8 +516,6 @@ async def _fetch_loop_inner():
                     should_fetch = True
 
                 if not should_fetch:
-                    # Category is up to date — clear it from skip set if present
-                    _skip_this_cycle.discard(cat)
                     continue
 
                 log_mem(f"Round-robin fetch: {cat} (idx={idx}/{len(fetch_cats)})")
@@ -530,13 +529,15 @@ async def _fetch_loop_inner():
                         upsert=True,
                     )
                     cat_status["last_fetch_at"] = now_iso
-                    _skip_this_cycle.discard(cat)
+                    delay = success_delay
                 else:
                     fail_reason = result.get("_failure_reason", "")
                     logger.warning(f"[{cat}] fetch failed (reason={fail_reason})")
                     if fail_reason == "rate_limit":
-                        _skip_this_cycle.add(cat)
-                        logger.info(f"[{cat}] 429 rate-limited — skipping until next cycle")
+                        logger.info(f"429 rate-limited on {cat} — pausing all fetches for {fail_delay}s")
+                        delay = fail_delay
+                    else:
+                        delay = success_delay
 
                 cat_status["next_fetch_at"] = (now + timedelta(hours=interval_hours)).isoformat()
                 from core.memlog import force_gc
@@ -548,11 +549,13 @@ async def _fetch_loop_inner():
 
             if not fetched_one:
                 _rr_idx = (_rr_idx + 1) % len(fetch_cats)
+                delay = success_delay
 
         except Exception as e:
             logger.error(f"Fetch loop error: {e}")
+            delay = 60
 
-        await asyncio.sleep(10)
+        await asyncio.sleep(delay)
 
 
 async def _compare_loop():
