@@ -18,10 +18,16 @@ const PERIODS = [
 export default function Design2Page() {
   const d = useLeaderboardData();
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [moreCatsOpen, setMoreCatsOpen] = useState(false);
+  const [moreCatsFilter, setMoreCatsFilter] = useState("");
   const archiveRef = useRef(null);
+  const moreCatsRef = useRef(null);
 
   useEffect(() => {
-    const handler = (e) => { if (archiveRef.current && !archiveRef.current.contains(e.target)) setArchiveOpen(false); };
+    const handler = (e) => {
+      if (archiveRef.current && !archiveRef.current.contains(e.target)) setArchiveOpen(false);
+      if (moreCatsRef.current && !moreCatsRef.current.contains(e.target)) setMoreCatsOpen(false);
+    };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
@@ -76,6 +82,7 @@ export default function Design2Page() {
                     className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${!d.activeArchive ? "bg-blue-50 text-blue-700 font-medium" : "hover:bg-slate-50 text-slate-600"}`}>
                     Live rankings
                   </button>
+                  <div className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Archive</div>
                   {d.archives.map(a => {
                     const slug = a.period_type === "weekly" ? `w${a.week}` : `m${a.month}`;
                     return (
@@ -109,16 +116,59 @@ export default function Design2Page() {
               {c.name}
             </button>
           ))}
-          {overflowCats.length > 0 && (
-            <Select value={d.category} onValueChange={v => { d.setCategory(v); d.setSelectedTags([]); d.setTagFilterOpen(false); d.clearArchive(); }}>
-              <SelectTrigger className="h-8 w-auto px-3 rounded-full text-xs border-slate-200">
-                <span>{overflowCats.find(c => c.id === d.category)?.name || "More"}</span>
-              </SelectTrigger>
-              <SelectContent>
-                {overflowCats.map(c => <SelectItem key={c.id} value={c.id}>{c.id} · {c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
+          {overflowCats.length > 0 && (() => {
+            const [moreOpen, setMoreOpen] = [moreCatsOpen, setMoreCatsOpen];
+            const [moreFilter, setMoreFilter] = [moreCatsFilter, setMoreCatsFilter];
+            const selected = overflowCats.find(c => c.id === d.category);
+            // Group overflow by domain
+            const fl = moreFilter.toLowerCase();
+            const filtered = moreFilter
+              ? overflowCats.filter(c => c.id.toLowerCase().includes(fl) || c.name.toLowerCase().includes(fl) || (c.group || "").toLowerCase().includes(fl))
+              : overflowCats;
+            const groups = {};
+            for (const c of filtered) { const g = c.group || "Other"; if (!groups[g]) groups[g] = []; groups[g].push(c); }
+            const grouped = Object.entries(groups).sort(([a],[b]) => a.localeCompare(b));
+
+            return (
+              <div className="relative" ref={moreCatsRef}>
+                <button onClick={() => { setMoreOpen(v => !v); setMoreFilter(""); }}
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                    selected && !d.isTagMode ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+                  }`}>
+                  {selected ? selected.name : "More"}
+                  <ChevronDown className={`h-3 w-3 transition-transform ${moreOpen ? "rotate-180" : ""}`} />
+                </button>
+                {moreOpen && (
+                  <div className="absolute left-0 top-full mt-1 z-50 w-72 max-h-80 overflow-y-auto rounded-sm border border-slate-200 bg-white shadow-lg">
+                    <div className="sticky top-0 bg-white border-b border-slate-100 p-2">
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                        <input autoFocus value={moreFilter} onChange={e => setMoreFilter(e.target.value)} placeholder="Filter categories..."
+                          className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-sm focus:outline-none focus:ring-1 focus:ring-blue-600" />
+                      </div>
+                    </div>
+                    <div className="p-1">
+                      {grouped.map(([group, cats]) => (
+                        <div key={group}>
+                          <div className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">{group}</div>
+                          {cats.map(c => (
+                            <button key={c.id}
+                              onClick={() => { d.setCategory(c.id); d.setSelectedTags([]); d.setTagFilterOpen(false); d.clearArchive(); setMoreOpen(false); setMoreFilter(""); }}
+                              className={`w-full text-left px-3 py-1.5 text-sm rounded-sm transition-colors flex items-center gap-2 ${
+                                d.category === c.id ? "bg-blue-50 text-blue-700 font-medium" : "hover:bg-slate-50"
+                              }`}>
+                              <span className="font-mono text-blue-600 text-xs">{c.id}</span>
+                              <span className="text-slate-700">{c.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           <div className="w-px h-5 bg-slate-200 mx-1" />
           <button onClick={() => { d.setTagFilterOpen(!d.tagFilterOpen); if (d.tagFilterOpen && !d.hasSelectedTags) d.setTagFilterOpen(false); }}
             className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${

@@ -43,7 +43,14 @@ export default function Design3Page() {
   const [catSearch, setCatSearch] = useState("");
   const [tagSearch, setTagSearch] = useState("");
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const archiveRef = useRef(null);
   const activeCodes = useMemo(() => new Set(d.categories.map(c => c.id)), [d.categories]);
+
+  useEffect(() => {
+    const handler = (e) => { if (archiveRef.current && !archiveRef.current.contains(e.target)) setArchiveOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   // Group categories by domain
   const filteredCats = catSearch
@@ -221,7 +228,7 @@ export default function Design3Page() {
                 </div>
               </div>
               {d.archives.length > 0 && d.category && (
-                <div className="relative shrink-0 mt-1">
+                <div className="relative shrink-0 mt-1" ref={archiveRef}>
                   <button onClick={() => setArchiveOpen(v => !v)}
                     className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm border text-xs font-medium transition-all ${
                       d.activeArchive ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-500 hover:border-slate-400"
@@ -236,6 +243,7 @@ export default function Design3Page() {
                         className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${!d.activeArchive ? "bg-blue-50 text-blue-700 font-medium" : "hover:bg-slate-50 text-slate-600"}`}>
                         Live rankings
                       </button>
+                      <div className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Archive</div>
                       {d.archives.map(a => {
                         const slug = a.period_type === "weekly" ? `w${a.week}` : `m${a.month}`;
                         return (
