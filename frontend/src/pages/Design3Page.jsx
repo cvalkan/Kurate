@@ -110,32 +110,6 @@ export default function Design3Page() {
                     {p.label}
                   </button>
                 ))}
-                {d.archives.length > 0 && (
-                  <div className="pt-2">
-                    <button onClick={() => setArchiveOpen(v => !v)}
-                      className={`w-full text-left px-2.5 py-1.5 rounded-sm text-sm transition-colors flex items-center justify-between ${
-                        d.activeArchive ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-50"
-                      }`}>
-                      <span className="flex items-center gap-1.5"><Archive className="h-3.5 w-3.5" /> {d.activeArchive?.label || "Archive"}</span>
-                      <ChevronDown className={`h-3 w-3 transition-transform ${archiveOpen ? "rotate-180" : ""}`} />
-                    </button>
-                    {archiveOpen && (
-                      <div className="mt-1 ml-3 space-y-0.5 max-h-[200px] overflow-y-auto">
-                        {d.archives.map(a => {
-                          const slug = a.period_type === "weekly" ? `w${a.week}` : `m${a.month}`;
-                          return (
-                            <button key={`${a.category}-${a.year}-${slug}`}
-                              onClick={() => { d.loadArchive(a); setArchiveOpen(false); }}
-                              className="w-full text-left px-2.5 py-1 text-xs hover:bg-slate-50 transition-colors flex items-center justify-between rounded-sm">
-                              <span>{a.label}</span>
-                              <span className="text-[10px] text-slate-400">{a.paper_count}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             </SidebarSection>
 
@@ -219,30 +193,59 @@ export default function Design3Page() {
                 ))}
               </div>
             </SidebarSection>
+
+            {/* Archives — per-category historical snapshots */}
+            {d.archives.length > 0 && d.category && (
+              <SidebarSection title={`${d.categoryName} Archives`} defaultOpen={!!d.activeArchive}>
+                <div className="space-y-0.5 max-h-[250px] overflow-y-auto">
+                  <button onClick={() => d.clearArchive()}
+                    className={`w-full text-left px-2.5 py-1.5 rounded-sm text-sm transition-colors ${!d.activeArchive ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-50"}`}>
+                    Live rankings
+                  </button>
+                  {d.archives.map(a => {
+                    const slug = a.period_type === "weekly" ? `w${a.week}` : `m${a.month}`;
+                    return (
+                      <button key={`${a.category}-${a.year}-${slug}`}
+                        onClick={() => d.loadArchive(a)}
+                        className={`w-full text-left px-2.5 py-1.5 rounded-sm text-xs transition-colors flex items-center justify-between ${
+                          d.activeArchive?.label === a.label ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-50"
+                        }`}>
+                        <span>{a.label}</span>
+                        <span className="text-[10px] text-slate-400">{a.paper_count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </SidebarSection>
+            )}
           </aside>
+        )}
+
+        {/* Collapsed sidebar edge strip */}
+        {!sidebarOpen && (
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="w-8 shrink-0 border-r border-slate-200 bg-slate-50/50 hover:bg-slate-100 transition-colors flex items-center justify-center cursor-pointer"
+            title="Open filters"
+          >
+            <PanelLeft className="h-4 w-4 text-slate-400" />
+          </button>
         )}
 
         {/* Main content */}
         <main className="flex-1 min-w-0">
           <div className="px-6 lg:px-8 pt-6 pb-12">
-            <div className="flex items-center gap-3 mb-6">
-              {!sidebarOpen && (
-                <button onClick={() => setSidebarOpen(true)} className="text-slate-400 hover:text-slate-600" title="Open filters">
-                  <PanelLeft className="h-5 w-5" />
-                </button>
-              )}
-              <div className="flex-1">
-                <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight text-slate-900">
-                  {d.activeArchive ? `${d.categoryName} — ${d.activeArchive.label}` : `${d.categoryName} Paper Rankings`}
-                </h1>
-                <div className="flex items-center gap-3 text-sm text-slate-500 mt-0.5">
+            <div className="mb-6">
+              <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight text-slate-900">
+                {d.activeArchive ? `${d.categoryName} — ${d.activeArchive.label}` : `${d.categoryName} Paper Rankings`}
+              </h1>
+              <div className="flex items-center gap-3 text-sm text-slate-500 mt-0.5">
                   <span>{d.totalPapers} papers</span>
                   <span className="text-slate-300">·</span>
                   <span>{d.totalMatches} comparisons</span>
                   {d.isRanking && <span className="inline-flex items-center gap-1 text-blue-600 animate-pulse"><Activity className="h-3 w-3" /> Ranking</span>}
                   <span className="text-slate-300">·</span>
                   <Link to="/methodology" className="text-blue-600 hover:underline">Methodology</Link>
-                </div>
               </div>
             </div>
 
