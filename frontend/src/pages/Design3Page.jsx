@@ -210,18 +210,47 @@ export default function Design3Page() {
         {/* Main content */}
         <main className="flex-1 min-w-0">
           <div className="px-6 lg:px-8 pt-6 pb-12">
-            <div className="mb-6">
-              <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight text-slate-900">
-                {d.activeArchive ? `${d.categoryName} — ${d.activeArchive.label}` : `${d.categoryName} Paper Rankings`}
-              </h1>
-              <div className="flex items-center gap-3 text-sm text-slate-500 mt-0.5">
-                  <span>{d.totalPapers} papers</span>
-                  <span className="text-slate-300">·</span>
-                  <span>{d.totalMatches} comparisons</span>
-                  {d.isRanking && <span className="inline-flex items-center gap-1 text-blue-600 animate-pulse"><Activity className="h-3 w-3" /> Ranking</span>}
-                  <span className="text-slate-300">·</span>
-                  <Link to="/methodology" className="text-blue-600 hover:underline">Methodology</Link>
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight text-slate-900">
+                  {d.activeArchive ? `${d.categoryName} — ${d.activeArchive.label}` : `${d.categoryName} Paper Rankings`}
+                </h1>
+                <div className="flex items-center gap-3 text-sm text-slate-500 mt-0.5">
+                    <span>{d.totalPapers} papers</span>
+                    {d.isRanking && <><span className="text-slate-300">·</span><span className="inline-flex items-center gap-1 text-blue-600 animate-pulse"><Activity className="h-3 w-3" /> Ranking</span></>}
+                </div>
               </div>
+              {d.archives.length > 0 && d.category && (
+                <div className="relative shrink-0 mt-1">
+                  <button onClick={() => setArchiveOpen(v => !v)}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm border text-xs font-medium transition-all ${
+                      d.activeArchive ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-500 hover:border-slate-400"
+                    }`}>
+                    <Archive className="h-3 w-3" />
+                    {d.activeArchive ? d.activeArchive.label : "Live"}
+                    <ChevronDown className={`h-3 w-3 transition-transform ${archiveOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {archiveOpen && (
+                    <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-sm shadow-lg min-w-[220px] max-h-[320px] overflow-y-auto py-1">
+                      <button onClick={() => { d.clearArchive(); setArchiveOpen(false); }}
+                        className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${!d.activeArchive ? "bg-blue-50 text-blue-700 font-medium" : "hover:bg-slate-50 text-slate-600"}`}>
+                        Live rankings
+                      </button>
+                      {d.archives.map(a => {
+                        const slug = a.period_type === "weekly" ? `w${a.week}` : `m${a.month}`;
+                        return (
+                          <button key={`${a.category}-${a.year}-${slug}`}
+                            onClick={() => { d.loadArchive(a); setArchiveOpen(false); }}
+                            className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 transition-colors flex items-center justify-between">
+                            <span>{a.label}</span>
+                            <span className="text-[10px] text-slate-400 ml-3">{a.paper_count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Selected tags display */}
@@ -240,43 +269,6 @@ export default function Design3Page() {
 
             {/* Table */}
             <div className="border border-slate-200 bg-white rounded-sm overflow-hidden">
-              {/* Table header with archive selector */}
-              <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
-                <h2 className="font-serif text-lg font-medium text-slate-900">
-                  {d.activeArchive ? `${d.categoryName} — ${d.activeArchive.label}` : d.categoryName}
-                </h2>
-                {d.archives.length > 0 && d.category && (
-                  <div className="relative">
-                    <button onClick={() => setArchiveOpen(v => !v)}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm border text-xs font-medium transition-all ${
-                        d.activeArchive ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-500 hover:border-slate-400"
-                      }`}>
-                      <Archive className="h-3 w-3" />
-                      {d.activeArchive ? d.activeArchive.label : "Live"}
-                      <ChevronDown className={`h-3 w-3 transition-transform ${archiveOpen ? "rotate-180" : ""}`} />
-                    </button>
-                    {archiveOpen && (
-                      <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-sm shadow-lg min-w-[220px] max-h-[320px] overflow-y-auto py-1">
-                        <button onClick={() => { d.clearArchive(); setArchiveOpen(false); }}
-                          className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${!d.activeArchive ? "bg-blue-50 text-blue-700 font-medium" : "hover:bg-slate-50 text-slate-600"}`}>
-                          Live rankings
-                        </button>
-                        {d.archives.map(a => {
-                          const slug = a.period_type === "weekly" ? `w${a.week}` : `m${a.month}`;
-                          return (
-                            <button key={`${a.category}-${a.year}-${slug}`}
-                              onClick={() => { d.loadArchive(a); setArchiveOpen(false); }}
-                              className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 transition-colors flex items-center justify-between">
-                              <span>{a.label}</span>
-                              <span className="text-[10px] text-slate-400 ml-3">{a.paper_count}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
               <LeaderboardTableNew
                 leaderboard={d.leaderboard} loading={d.loading}
                 sortKey={d.sortKey} sortDir={d.sortDir} onSort={d.handleSort}
