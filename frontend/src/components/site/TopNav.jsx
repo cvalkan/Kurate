@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Linkedin, Instagram, Github, Facebook, BookOpen, Trophy } from "lucide-react";
+import { useBasePath } from "@/contexts/BasePathContext";
 
 // X (Twitter) icon — not in lucide-react
 function XIcon({ className, strokeWidth }) {
@@ -28,6 +29,7 @@ const SOCIAL = [
 ];
 
 export default function TopNav() {
+  const basePath = useBasePath();
   return (
     <header
       data-testid="top-nav"
@@ -35,7 +37,7 @@ export default function TopNav() {
     >
       <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
-          <Link to="/" className="flex items-center gap-[10px] group" data-testid="brand-link" aria-label="Kurate.org home">
+          <Link to={basePath || "/"} className="flex items-center gap-[10px] group" data-testid="brand-link" aria-label="Kurate.org home">
             <Trophy className="h-6 w-6 text-blue-600 shrink-0 -translate-y-[2px]" strokeWidth={1.8} />
             <img
               src="/kurate-logo.png"
@@ -86,7 +88,7 @@ export default function TopNav() {
               ))}
             </div>
             <Link
-              to="/leaderboard"
+              to={`${basePath}/leaderboard`}
               data-testid="explore-rankings-button"
               className="inline-flex items-center justify-center rounded-sm bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
             >

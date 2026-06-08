@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { homepageApi, accentFor, PERIODS, RANK_TYPES } from "@/lib/homepage-api";
 import { LatexTitle } from "@/components/LatexTitle";
+import { useBasePath } from "@/contexts/BasePathContext";
 
 const COL_LABEL = { score: "Score", ai_rating: "Rating", gap_score: "Gap" };
 const COL_TOOLTIP = {
@@ -139,7 +140,7 @@ function CategoryDropdown({ categories, value, onChange, closeRef }) {
   );
 }
 
-function LeaderboardRow({ paper, rankType, onCategoryClick, activeCodes }) {
+function LeaderboardRow({ paper, rankType, onCategoryClick, activeCodes, basePath }) {
   const value = paper[rankType] ?? paper.score;
   const display =
     rankType === "ai_rating" ? (value || 0).toFixed(1) :
@@ -155,7 +156,7 @@ function LeaderboardRow({ paper, rankType, onCategoryClick, activeCodes }) {
         <span className="font-serif text-base font-medium text-blue-600">{paper.rank}</span>
       </td>
       <td className="px-2 py-3">
-        <Link to={`/paper/${paper.id}`} className="text-sm font-medium text-slate-900 leading-snug line-clamp-2 pr-2 hover:text-blue-700 transition-colors" data-testid={`paper-link-${paper.rank}`}>
+        <Link to={`${basePath}/paper/${paper.id}`} className="text-sm font-medium text-slate-900 leading-snug line-clamp-2 pr-2 hover:text-blue-700 transition-colors" data-testid={`paper-link-${paper.rank}`}>
           <LatexTitle text={paper.title} />
         </Link>
         <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 flex-wrap">
@@ -201,6 +202,7 @@ function LeaderboardRow({ paper, rankType, onCategoryClick, activeCodes }) {
 }
 
 export default function HeroPanel() {
+  const basePath = useBasePath();
   const [categories, setCategories] = useState([]);
   const [metrics, setMetrics] = useState(null);
   const [papers, setPapers] = useState([]);
@@ -258,7 +260,7 @@ export default function HeroPanel() {
     if (rankType !== "score") { p.set("sort", rankType); p.set("dir", "desc"); }
     return p.toString();
   })();
-  const leaderboardUrl = leaderboardParams ? `/leaderboard?${leaderboardParams}` : "/leaderboard";
+  const leaderboardUrl = leaderboardParams ? `${basePath}/leaderboard?${leaderboardParams}` : `${basePath}/leaderboard`;
 
   return (
     <section id="rankings" className="bg-white">
@@ -377,7 +379,7 @@ export default function HeroPanel() {
                   <h2 className="font-serif text-lg font-medium text-slate-900 truncate">Top Papers</h2>
                 </div>
                 <Link
-                  to={leaderboardUrl}
+                  to={`${basePath}/leaderboard?period=all`}
                   data-testid="hero-full-leaderboard-link"
                   className="text-xs font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-1 whitespace-nowrap"
                 >
@@ -400,14 +402,14 @@ export default function HeroPanel() {
                   {!loading && papers.length === 0 && (
                     <tr><td colSpan={4} className="px-5 py-10 text-center text-sm text-slate-500">No papers match these filters.</td></tr>
                   )}
-                  {papers.map((p) => <LeaderboardRow key={p.id} paper={p} rankType={rankType} onCategoryClick={setCategory} activeCodes={activeCodes} />)}
+                  {papers.map((p) => <LeaderboardRow key={p.id} paper={p} rankType={rankType} onCategoryClick={setCategory} activeCodes={activeCodes} basePath={basePath} />)}
                 </tbody>
               </table>
               <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-xs text-slate-500">
                 <span className="inline-flex items-center gap-1.5">
                   <Clock className="h-3 w-3" /> Updated {metrics?.latest_update || ""}
                 </span>
-                <Link to={leaderboardUrl} data-testid="hero-view-all-link" className="font-medium text-blue-600 hover:text-blue-700">View all →</Link>
+                <Link to={`${basePath}/leaderboard?period=all`} data-testid="hero-view-all-link" className="font-medium text-blue-600 hover:text-blue-700">View all →</Link>
               </div>
             </div>
           </div>

@@ -19,5 +19,11 @@ Disallow: /auth/
 Disallow: /profile
 Disallow: /bookmarks
 Disallow: /members/
+Disallow: /new/
+Disallow: /design1
+Disallow: /design2
+Disallow: /design3
+Disallow: /paper-a/
+Disallow: /paper-b/
 
 Sitemap: https://kurate.org/api/sitemap.xml

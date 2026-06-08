@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { BasePathProvider } from "@/contexts/BasePathContext";
+import { Helmet } from "react-helmet";
 import HomePage from "@/pages/HomePage";
 import LeaderboardPage from "@/pages/LeaderboardPage";
 import CorrelationPage from "@/pages/CorrelationPage";
@@ -54,12 +56,22 @@ function AppRouter() {
     return <AuthCallback />;
   }
 
-  // New homepage at /new (staging) — has its own TopNav and SiteFooter
-  if (location.pathname === "/new") {
-    return (<><HomePage /><Toaster position="bottom-right" /></>);
+  // New site structure under /new/... — noindex, mirrors current routes with new designs
+  if (location.pathname.startsWith("/new")) {
+    return (
+      <BasePathProvider value="/new">
+        <Helmet><meta name="robots" content="noindex, nofollow" /></Helmet>
+        <Routes>
+          <Route path="/new" element={<HomePage />} />
+          <Route path="/new/leaderboard" element={<Design3Page />} />
+          <Route path="/new/paper/:id" element={<PaperDesignB />} />
+        </Routes>
+        <Toaster position="bottom-right" />
+      </BasePathProvider>
+    );
   }
 
-  // Design explorations — each has its own TopNav/SiteFooter
+  // Standalone design explorations (legacy URLs, keep working)
   if (location.pathname === "/design1") {
     return (<><Design1Page /><Toaster position="bottom-right" /></>);
   }

@@ -5,11 +5,13 @@ import {
   BarChart3, BookOpen, GraduationCap, Building2, Users, Newspaper, Clock3,
 } from "lucide-react";
 import { homepageApi } from "@/lib/homepage-api";
+import { useBasePath } from "@/contexts/BasePathContext";
 
 /* =========================================================================
    Recent Rankings — dynamic from live category data
    ========================================================================= */
 export function RecentRankings() {
+  const basePath = useBasePath();
   const [cards, setCards] = useState([]);
   useEffect(() => { homepageApi.recent().then((d) => setCards(d.cards)); }, []);
 
@@ -23,7 +25,7 @@ export function RecentRankings() {
               Explore newly ranked papers and active research categories.
             </h2>
           </div>
-          <Link to="/leaderboard" className="hidden md:inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700" data-testid="recent-view-all">
+          <Link to={`${basePath}/leaderboard`} className="hidden md:inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700" data-testid="recent-view-all">
             Browse all rankings <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
@@ -45,7 +47,7 @@ export function RecentRankings() {
                 <div className="mt-auto pt-5 flex items-center justify-between text-xs text-slate-500">
                   <span>{card.count} papers{card.time_label ? ` · ${card.time_label}` : ""}</span>
                   <Link
-                    to={card.category_code ? `/leaderboard?cat=${card.category_code}` : "/leaderboard"}
+                    to={card.category_code ? `${basePath}/leaderboard?cat=${card.category_code}` : `${basePath}/leaderboard`}
                     data-testid={`recent-view-${card.key}`}
                     className="font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-1"
                   >

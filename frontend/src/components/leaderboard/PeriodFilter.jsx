@@ -61,54 +61,47 @@ export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedI
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-6">
-      <div className="flex items-center gap-1.5 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0" data-testid="period-filter">
+      <div className="flex items-center gap-1 p-1 bg-secondary/50 rounded-lg overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-1" data-testid="period-filter">
         {PERIODS.map((p) => {
           const Icon = p.icon;
           const isLocked = !isLoggedIn && (p.key === "month" || p.key === "all");
           return isLocked ? (
             <Tooltip key={p.key}>
               <TooltipTrigger asChild>
-                <button onClick={requireAuth} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-slate-200 text-slate-400 shrink-0" data-testid={`filter-${p.key}-locked`}>
+                <Button variant="ghost" size="sm" onClick={requireAuth} className="gap-1.5 text-xs h-8 shrink-0 opacity-40" data-testid={`filter-${p.key}-locked`}>
                   <Lock className="h-3 w-3" /> {p.label}
-                </button>
+                </Button>
               </TooltipTrigger>
               <TooltipContent><p className="text-xs">Sign in for free to access {p.label.toLowerCase()} view</p></TooltipContent>
             </Tooltip>
           ) : (
-            <button key={p.key}
+            <Button key={p.key} variant={period === p.key ? "default" : "ghost"} size="sm"
               onClick={() => {
                 setPeriod(p.key);
                 if (onArchiveSelect) onArchiveSelect(null);
+                // Clear archive URL param
                 const params = new URLSearchParams(window.location.search);
                 if (params.has("archive")) { params.delete("archive"); window.history.replaceState(null, "", `?${params.toString()}`); }
               }}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all shrink-0 ${
-                period === p.key
-                  ? "bg-blue-50 text-blue-700 border-blue-200"
-                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
-              }`}
-              data-testid={`filter-${p.key}`}>
+              className="gap-1.5 text-xs h-8 shrink-0" data-testid={`filter-${p.key}`}>
               <Icon className="h-3.5 w-3.5" /> {p.label}
-            </button>
+            </Button>
           );
         })}
         {archives.length > 0 && (
           <div className="relative shrink-0" ref={archiveRef}>
-            <button
+            <Button
+              variant={activeArchiveLabel ? "default" : "ghost"} size="sm"
               onClick={() => setArchiveOpen(v => !v)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all shrink-0 ${
-                activeArchiveLabel
-                  ? "bg-blue-50 text-blue-700 border-blue-200"
-                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
-              }`}
+              className="gap-1.5 text-xs h-8"
               data-testid="filter-archive"
             >
               <Archive className="h-3.5 w-3.5" />
               {activeArchiveLabel || "Archive"}
               <ChevronDown className={`h-3 w-3 transition-transform ${archiveOpen ? "rotate-180" : ""}`} />
-            </button>
+            </Button>
             {archiveOpen && (
-              <div className="fixed z-50 bg-white border border-slate-200 rounded-sm shadow-lg min-w-[220px] max-h-[320px] overflow-y-auto py-1"
+              <div className="fixed z-50 bg-background border border-border rounded-lg shadow-lg min-w-[220px] max-h-[320px] overflow-y-auto py-1"
                 style={{ top: archiveRef.current?.getBoundingClientRect().bottom + 4, left: archiveRef.current?.getBoundingClientRect().left }}>
                 {archives.map(a => {
                   const slug = a.period_type === "weekly" ? `w${a.week}` : `m${a.month}`;
@@ -116,7 +109,7 @@ export function PeriodFilter({ period, setPeriod, keyword, setKeyword, isLoggedI
                     <button
                       key={`${a.category}-${a.year}-${slug}`}
                       onClick={() => handleArchiveClick(a)}
-                      className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 transition-colors flex items-center justify-between"
+                      className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent/10 transition-colors flex items-center justify-between"
                     >
                       <span>{a.label}</span>
                       <span className="text-[10px] text-muted-foreground ml-3">{a.paper_count} papers</span>

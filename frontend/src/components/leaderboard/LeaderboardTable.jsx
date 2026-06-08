@@ -154,7 +154,7 @@ export function LeaderboardTable({
   if (loading) {
     return (
       <div className="space-y-3" data-testid="loading-skeleton">
-        {[...Array(8)].map((_, i) => <div key={i} className="h-14 bg-secondary/30 rounded-sm animate-pulse" />)}
+        {[...Array(8)].map((_, i) => <div key={i} className="h-14 bg-secondary/30 rounded-lg animate-pulse" />)}
       </div>
     );
   }
@@ -176,8 +176,8 @@ export function LeaderboardTable({
       {debouncedKeyword && (
         <div className="text-xs text-muted-foreground mb-2">Showing {leaderboard.length} papers matching "{keyword}"</div>
       )}
-      <div className="border border-border rounded-sm overflow-x-auto" data-testid="leaderboard-table">
-        <div className={`${gridBase} py-2.5 bg-slate-50 text-[10px] font-medium uppercase tracking-wider text-slate-500 border-b border-slate-200 select-none`} style={gridStyle}>
+      <div className="border border-border rounded-lg overflow-x-auto" data-testid="leaderboard-table">
+        <div className={`${gridBase} py-2.5 bg-secondary/50 text-xs font-medium text-muted-foreground border-b border-border select-none`} style={gridStyle}>
           {bookmarksMode && selectedPapers && <div />}
           <SortHeader label="#" sortKey="rank" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.rank} />
           <SortHeader label="Paper" sortKey="title" currentSort={sortKey} currentDir={sortDir} onSort={onSort} tip={COLUMN_TIPS.title} />
@@ -205,7 +205,7 @@ export function LeaderboardTable({
           <RowTag
             key={paper.id || idx}
             {...rowLinkProps}
-            className={`${gridBase} py-2 sm:py-3 items-center border-b border-slate-100 hover:bg-slate-50/70 transition-colors cursor-pointer`}
+            className={`${gridBase} py-2 sm:py-3 items-center border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer ${idx < 3 && !debouncedKeyword && (!sortKey || sortKey === "rank") ? "bg-accent/[0.02]" : ""}`}
             style={gridStyle}
             data-testid={`leaderboard-row-${idx}`}
           >
@@ -262,7 +262,7 @@ export function LeaderboardTable({
                 <span className="inline-block text-[9px] px-1.5 py-0.5 rounded font-mono bg-secondary text-muted-foreground">{paper.primary_category || "?"}</span>
               </div>
             )}
-            <div className="text-right text-xs sm:text-sm font-semibold tabular-nums">{getScore(paper) || "—"}</div>
+            <div className="text-right font-mono text-xs sm:text-sm font-medium">{getScore(paper) || "—"}</div>
             {!isMobile && !isTablet && <div className="text-right font-mono text-xs text-muted-foreground">
               {(() => { const wm = getWilsonMargin(paper); return wm != null && wm > 0 ? `\u00B1${Math.round(wm)}` : "—"; })()}
             </div>}

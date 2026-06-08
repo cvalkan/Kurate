@@ -18,11 +18,11 @@ export function SignupCTA({ onClick, categories = [] }) {
   ];
   return (
     <div
-      className="mb-6 rounded-sm border border-blue-200 bg-blue-50/50 px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between gap-3 sm:gap-4"
+      className="mb-6 rounded-lg border border-accent/25 bg-accent/[0.07] px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between gap-3 sm:gap-4"
       data-testid="signup-cta-banner"
     >
       <div className="flex items-center gap-3 min-w-0">
-        <div className="hidden sm:flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+        <div className="hidden sm:flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
           <LockOpen className="h-4 w-4" />
         </div>
         <p className="text-sm sm:text-[15px] leading-snug text-foreground">
@@ -47,7 +47,7 @@ export function SignupCTA({ onClick, categories = [] }) {
               <ul className="space-y-1.5">
                 {perks.map(({ icon: Icon, label, detail }) => (
                   <li key={label} className="flex items-start gap-2">
-                    <Icon className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-600" />
+                    <Icon className="h-3.5 w-3.5 mt-0.5 shrink-0 text-accent" />
                     <div className="min-w-0">
                       <div className="text-xs font-medium leading-tight">{label}</div>
                       <div className="text-[11px] opacity-80 leading-tight">{detail}</div>
@@ -61,7 +61,7 @@ export function SignupCTA({ onClick, categories = [] }) {
       </div>
       <button
         onClick={onClick}
-        className="shrink-0 inline-flex items-center gap-1.5 rounded-sm bg-blue-600 text-white px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium hover:bg-blue-700 transition-colors"
+        className="shrink-0 inline-flex items-center gap-1.5 rounded-md bg-accent text-accent-foreground px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium hover:bg-accent/90 transition-colors"
         data-testid="signup-cta-button"
       >
         Sign up

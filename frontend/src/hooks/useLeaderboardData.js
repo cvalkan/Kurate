@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import axios from "axios";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -6,20 +7,25 @@ const API = process.env.REACT_APP_BACKEND_URL;
 /**
  * Full-featured leaderboard hook — matches the production LeaderboardPage's API contract.
  * Supports: categories, tags (AND/OR), periods, archives, sorting, search, infinite scroll.
+ * Reads initial state from URL search params (cat, period, sort, dir, q, tags, tag_mode).
  */
 export function useLeaderboardData() {
+  const [searchParams] = useSearchParams();
   const [categories, setCategories] = useState([]);
   const [featured, setFeatured] = useState([]);
   const [allTags, setAllTags] = useState([]);
-  const [category, setCategory] = useState("");       // "" = All Categories
-  const [selectedTags, setSelectedTags] = useState([]);
-  const [tagMode, setTagMode] = useState("or");       // "or" | "and"
-  const [tagFilterOpen, setTagFilterOpen] = useState(false);
-  const [period, setPeriod] = useState("week");
-  const [keyword, setKeyword] = useState("");
-  const [debouncedKeyword, setDebouncedKeyword] = useState("");
-  const [sortKey, setSortKey] = useState("rank");
-  const [sortDir, setSortDir] = useState("asc");
+  const [category, setCategory] = useState(searchParams.get("cat") || "");
+  const [selectedTags, setSelectedTags] = useState(() => {
+    const t = searchParams.get("tags");
+    return t ? t.split(",").filter(Boolean) : [];
+  });
+  const [tagMode, setTagMode] = useState(searchParams.get("tag_mode") || "or");
+  const [tagFilterOpen, setTagFilterOpen] = useState(!!searchParams.get("tags"));
+  const [period, setPeriod] = useState(searchParams.get("period") || "week");
+  const [keyword, setKeyword] = useState(searchParams.get("q") || "");
+  const [debouncedKeyword, setDebouncedKeyword] = useState(searchParams.get("q") || "");
+  const [sortKey, setSortKey] = useState(searchParams.get("sort") || "rank");
+  const [sortDir, setSortDir] = useState(searchParams.get("dir") || "asc");
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalPapers, setTotalPapers] = useState(0);

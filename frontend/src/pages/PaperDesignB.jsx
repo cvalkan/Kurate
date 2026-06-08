@@ -5,6 +5,7 @@ import DOMPurify from "dompurify";
 import { ArrowLeft, ExternalLink, Clock, Sparkles, Trophy, Share2, Bookmark, Target } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useBookmarks } from "@/contexts/BookmarkContext";
+import { useBasePath } from "@/contexts/BasePathContext";
 import { LatexTitle } from "@/components/LatexTitle";
 import TopNav from "@/components/site/TopNav";
 import katex from "katex";
@@ -73,6 +74,7 @@ function SummaryBlock({ text, fallbackRatings }) {
 
 export default function PaperDesignB() {
   const { id } = useParams();
+  const basePath = useBasePath();
   const { bookmarkedIds, toggleBookmark } = useBookmarks();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -108,7 +110,7 @@ export default function PaperDesignB() {
     <div className="kurate-homepage">
       <TopNav />
       <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8 pt-8 pb-16">
-        <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 mb-6 transition-colors">
+        <Link to={`${basePath}/leaderboard`} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 mb-6 transition-colors">
           <ArrowLeft className="h-4 w-4" /> Back to Rankings
         </Link>
 

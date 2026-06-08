@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowUp, ArrowDown, Bookmark } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { LatexTitle } from "@/components/LatexTitle";
+import { useBasePath } from "@/contexts/BasePathContext";
 import { useBookmarks } from "@/contexts/BookmarkContext";
 
 const COL_TIPS = {
@@ -41,6 +42,7 @@ export function LeaderboardTableNew({
   onCategoryClick, activeCodes,
 }) {
   const sentinelRef = useRef(null);
+  const basePath = useBasePath();
   const { bookmarkedIds, toggleBookmark } = useBookmarks();
 
   useEffect(() => {
@@ -118,7 +120,7 @@ export function LeaderboardTableNew({
                   <span className="font-serif text-base font-medium text-blue-600">{getRank(p, i)}</span>
                 </td>
                 <td className="px-2 py-3">
-                  <Link to={`/paper/${p.id}`} className="text-sm font-medium text-slate-900 hover:text-blue-700 leading-snug line-clamp-2">
+                  <Link to={`${basePath}/paper/${p.id}`} className="text-sm font-medium text-slate-900 hover:text-blue-700 leading-snug line-clamp-2">
                     <LatexTitle text={p.title} />
                   </Link>
                   <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 flex-wrap">
