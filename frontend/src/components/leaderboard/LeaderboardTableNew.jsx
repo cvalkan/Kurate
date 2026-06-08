@@ -62,7 +62,6 @@ export function LeaderboardTableNew({
         <colgroup>
           <col className="w-12" />{/* # */}
           <col />{/* Paper — gets remaining space */}
-          {hasSelectedTags && <col className="w-14" />}{/* Cat */}
           <col className="w-16" />{/* Score */}
           <col className="w-14" />{/* CI */}
           <col className="w-14" />{/* Match */}
@@ -76,7 +75,6 @@ export function LeaderboardTableNew({
           <tr className="text-[10px] font-medium uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-100 whitespace-nowrap">
             <th className="pl-5 pr-2 py-2.5 text-center w-10"><SortHeader label="#" sortKey="rank" current={sortKey} dir={sortDir} onSort={onSort} /></th>
             <th className="px-2 py-2.5 text-left"><SortHeader label="Paper" sortKey="title" current={sortKey} dir={sortDir} onSort={onSort} /></th>
-            {hasSelectedTags && <th className="px-2 py-2.5 text-center hidden md:table-cell">Cat</th>}
             <th className="px-2 py-2.5 text-right"><SortHeader label="Score" sortKey="score" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" /></th>
             <th className="px-2 py-2.5 text-right hidden lg:table-cell"><SortHeader label="CI" sortKey="wilson_margin" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" /></th>
             <th className="px-2 py-2.5 text-right hidden md:table-cell"><SortHeader label="Match" sortKey="comparisons" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" /></th>
@@ -140,11 +138,6 @@ export function LeaderboardTableNew({
                     })()}
                   </div>
                 </td>
-                {hasSelectedTags && (
-                  <td className="px-2 py-3 text-center hidden md:table-cell">
-                    <span className="inline-block text-[9px] px-1.5 py-0.5 rounded font-mono bg-blue-50 text-blue-700 border border-blue-200">{p.primary_category || "?"}</span>
-                  </td>
-                )}
                 <td className="px-2 py-3 text-right align-baseline">
                   <span className="text-sm font-semibold tabular-nums">{getScore(p) || "\u2014"}</span>
                 </td>
