@@ -109,7 +109,7 @@ export default function Design3Page() {
             </div>
 
             {/* Time Period */}
-            <SidebarSection title="Time Period" defaultOpen={false}>
+            <SidebarSection title="Time Period" defaultOpen={true}>
               <div className="space-y-0.5">
                 {PERIODS.map(p => (
                   <button key={p.value} onClick={() => { d.setPeriod(p.value); d.clearArchive(); }}
