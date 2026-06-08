@@ -2488,6 +2488,128 @@ async def arxiv_health():
     }
 
 
+@router.get("/category-status", dependencies=[Depends(verify_admin)])
+async def category_status():
+    """Category status dashboard: fetch health, paper/match counts, tournament state."""
+    from services.scheduler import _fetching_cats, _get_cat_status
+    settings = await get_settings()
+    active = sorted(c for c in (settings.get("active_categories") or []) if c and c.strip())
+    interval = settings.get("fetch_interval_hours", 6)
+    now = datetime.now(timezone.utc)
+
+    # Batch-load tournament docs for all categories
+    t_docs = {}
+    async for t in db.tournaments.find(
+        {"category": {"$in": active}},
+        {"_id": 0, "category": 1, "status": 1, "fetch_paused": 1, "compare_paused": 1},
+    ):
+        t_docs[t["category"]] = t
+
+    # Batch-load last fetch_cycle log per category (most recent, success or fail)
+    last_logs = {}
+    async for doc in db.system_logs.aggregate([
+        {"$match": {"event": "fetch_cycle", "category": {"$in": active}}},
+        {"$sort": {"ts": -1}},
+        {"$group": {
+            "_id": "$category",
+            "ts": {"$first": "$ts"},
+            "success": {"$first": "$success"},
+            "count": {"$first": "$count"},
+            "detail": {"$first": "$detail"},
+            "reason": {"$first": "$reason"},
+        }},
+    ]):
+        last_logs[doc["_id"]] = doc
+
+    # Batch-load paper + match counts from rankings
+    paper_counts = {}
+    async for doc in db.rankings.aggregate([
+        {"$match": {"category": {"$in": active}}},
+        {"$group": {"_id": "$category", "papers": {"$sum": 1}}},
+    ]):
+        paper_counts[doc["_id"]] = doc["papers"]
+
+    match_counts = {}
+    async for doc in db.matches.aggregate([
+        {"$match": {"primary_category": {"$in": active}, "completed": True, "failed": {"$ne": True}}},
+        {"$group": {"_id": "$primary_category", "matches": {"$sum": 1}}},
+    ]):
+        match_counts[doc["_id"]] = doc["matches"]
+
+    rows = []
+    for cat in active:
+        ck = cat.replace(".", "_")
+        last_fetch = settings.get(f"last_fetch_at_{ck}")
+        if not isinstance(last_fetch, str):
+            last_fetch = None
+
+        # Tournament state
+        t = t_docs.get(cat, {})
+        fetch_paused = bool(t.get("fetch_paused"))
+        tournament_paused = t.get("status") == "paused"
+
+        # Determine status
+        is_fetching = cat in _fetching_cats
+        last_log = last_logs.get(cat)
+        last_failed = last_log and last_log.get("success") is False
+
+        if is_fetching:
+            status = "fetching"
+        elif fetch_paused:
+            status = "fetch_paused"
+        elif tournament_paused:
+            status = "tournament_paused"
+        elif not last_fetch:
+            status = "never"
+        elif last_failed:
+            status = "fetch_failed"
+        elif last_fetch and now >= datetime.fromisoformat(last_fetch) + timedelta(hours=interval):
+            status = "overdue"
+        else:
+            status = "up_to_date"
+
+        # Time until next fetch
+        next_due = None
+        if last_fetch:
+            due_at = datetime.fromisoformat(last_fetch) + timedelta(hours=interval)
+            next_due = due_at.isoformat()
+
+        # Last action summary
+        last_action = None
+        if last_log:
+            log_ts = last_log.get("ts", "")
+            new_count = last_log.get("count") or 0
+            if last_log.get("success") is False:
+                reason = last_log.get("reason", "error")
+                last_action = f"Failed: {reason}"
+            elif new_count > 0:
+                last_action = f"+{new_count} papers"
+            else:
+                last_action = "No new papers"
+            last_action_at = log_ts.isoformat() if hasattr(log_ts, "isoformat") else str(log_ts)
+        else:
+            last_action_at = None
+
+        rows.append({
+            "category": cat,
+            "status": status,
+            "papers": paper_counts.get(cat, 0),
+            "matches": match_counts.get(cat, 0),
+            "last_fetch_at": last_fetch,
+            "next_due": next_due,
+            "last_action": last_action,
+            "last_action_at": last_action_at,
+            "fetch_paused": fetch_paused,
+            "tournament_paused": tournament_paused,
+        })
+
+    summary = {}
+    for r in rows:
+        summary[r["status"]] = summary.get(r["status"], 0) + 1
+
+    return {"now": now.isoformat(), "interval_hours": interval, "categories": rows, "summary": summary}
+
+
 
 
 @router.post("/fix-oai-dates", dependencies=[Depends(verify_admin)])
