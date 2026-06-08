@@ -5,6 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import { LatexTitle } from "@/components/LatexTitle";
 import { useBasePath } from "@/contexts/BasePathContext";
 import { useBookmarks } from "@/contexts/BookmarkContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 const COL_TIPS = {
   rank: "Position based on score. Click to restore default ranking.",
@@ -44,6 +45,9 @@ export function LeaderboardTableNew({
   const sentinelRef = useRef(null);
   const basePath = useBasePath();
   const { bookmarkedIds, toggleBookmark } = useBookmarks();
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
+  const requireAuth = () => window.dispatchEvent(new Event("open-auth-modal"));
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -185,7 +189,7 @@ export function LeaderboardTableNew({
                 </td>
                 <td className="pr-4 py-3 text-center align-baseline">
                   <button
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleBookmark(p.id); }}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); isLoggedIn ? toggleBookmark(p.id) : requireAuth(); }}
                     className={`transition-colors ${isBookmarked ? "text-blue-600" : "text-slate-300 opacity-0 group-hover:opacity-100 hover:text-blue-600"}`}
                     title={isBookmarked ? "Remove bookmark" : "Bookmark"}
                   >

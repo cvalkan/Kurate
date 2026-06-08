@@ -46,7 +46,8 @@ export default function Design3Page() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const archiveRef = useRef(null);
   const activeCodes = useMemo(() => new Set(d.categories.map(c => c.id)), [d.categories]);
-  const { isLoggedIn } = useAuth();
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
   const requireAuth = () => window.dispatchEvent(new Event("open-auth-modal"));
 
   useEffect(() => {
