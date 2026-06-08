@@ -150,17 +150,45 @@ export default function PaperDesignA() {
         )}
 
         {/* Score Card */}
-        <div className="border border-slate-200 rounded-sm overflow-hidden mb-8">
+        {(() => {
+          const displayScore = paper.ts_score || stats.score;
+          const displayCi = stats.ci_elo || null;
+          const rangeMin = paper.category_ts_min || 900;
+          const rangeMax = paper.category_ts_max || 2000;
+          const paddedMin = Math.floor((rangeMin - 50) / 50) * 50;
+          const paddedMax = Math.ceil((rangeMax + 50) / 50) * 50;
+          const range = paddedMax - paddedMin || 1;
+          return (
+          <div className="border border-slate-200 rounded-sm overflow-hidden mb-8">
           <div className="flex">
             {/* Tournament Score */}
             <div className="flex-1 p-6 border-r border-slate-200">
               <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
                 <Trophy className="h-3.5 w-3.5 text-blue-600" /> Tournament Score
               </div>
-              <div className="flex items-baseline gap-2 mb-4">
-                <span className="font-serif text-5xl font-medium text-slate-900">{paper.ts_score || stats.score || "\u2014"}</span>
-                {stats.ci_elo && <span className="text-lg text-slate-400">±{stats.ci_elo}</span>}
+              <div className="flex items-baseline gap-2 mb-3">
+                <span className="font-serif text-5xl font-medium text-slate-900">{displayScore || "\u2014"}</span>
+                {displayCi && <span className="text-lg text-slate-400">±{displayCi}</span>}
               </div>
+              {/* Confidence interval bar */}
+              {displayScore && (
+                <div className="mb-4">
+                  <div className="w-full h-2 bg-slate-100 rounded-full relative">
+                    {displayCi && (
+                      <div className="absolute h-full bg-blue-200 rounded-full" style={{
+                        left: `${Math.max(0, ((displayScore - displayCi - paddedMin) / range) * 100)}%`,
+                        width: `${Math.min(100, (displayCi * 2 / range) * 100)}%`,
+                      }} />
+                    )}
+                    <div className="absolute h-3.5 w-3.5 bg-blue-600 rounded-full top-1/2 -translate-y-1/2 -translate-x-1/2 border-2 border-white shadow-sm" style={{
+                      left: `${Math.max(0, Math.min(100, ((displayScore - paddedMin) / range) * 100))}%`,
+                    }} />
+                  </div>
+                  <div className="flex justify-between mt-1 text-[10px] text-slate-400">
+                    <span>{paddedMin}</span><span>{paddedMax}</span>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-4 gap-2">
                 <div className="text-center py-2 bg-slate-50 rounded-sm"><div className="text-lg font-semibold text-slate-900">{winRate}%</div><div className="text-[9px] text-slate-500">Win Rate</div></div>
                 <div className="text-center py-2 bg-slate-50 rounded-sm"><div className="text-lg font-semibold text-emerald-600">{stats.wins}</div><div className="text-[9px] text-slate-500">Wins</div></div>
@@ -188,6 +216,8 @@ export default function PaperDesignA() {
             </div>
           </div>
         </div>
+          );
+        })()}
 
         {/* Abstract */}
         {paper.abstract && (
