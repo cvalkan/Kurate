@@ -149,7 +149,7 @@ export default function Design3Page() {
               </div>
             </SidebarSection>
 
-            {/* Filter (tags) */}
+            {/* Filter (tag cloud) */}
             <SidebarSection title="Filter" defaultOpen={false}>
               <div className="flex items-center justify-between mb-2">
                 {d.hasSelectedTags && (
@@ -168,19 +168,13 @@ export default function Design3Page() {
                   <button onClick={() => { d.setSelectedTags([]); d.setTagFilterOpen(false); }} className="text-[10px] text-slate-400 hover:text-slate-600">Clear</button>
                 )}
               </div>
-              <div className="relative mb-2">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" />
-                <input value={tagSearch} onChange={e => setTagSearch(e.target.value)} placeholder="Filter tags..."
-                  className="w-full pl-6 pr-2 py-1 text-xs border border-slate-200 rounded-sm focus:outline-none focus:ring-1 focus:ring-blue-600" />
-              </div>
-              <div className="space-y-0.5 max-h-[200px] overflow-y-auto">
+              <div className="flex flex-wrap gap-1.5">
                 {filteredTags.map(tag => (
                   <button key={tag.id} onClick={() => toggleTag(tag.id)}
-                    className={`w-full text-left px-2.5 py-1 rounded-sm text-xs transition-colors flex items-center justify-between ${
-                      d.selectedTags.includes(tag.id) ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-50"
+                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] border transition-all ${
+                      d.selectedTags.includes(tag.id) ? "bg-blue-50 text-blue-700 border-blue-200 font-medium" : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
                     }`}>
-                    <span className="font-mono">{tag.id}</span>
-                    <span className="text-[10px] text-slate-400">{tag.count}</span>
+                    {tag.id}
                   </button>
                 ))}
               </div>
