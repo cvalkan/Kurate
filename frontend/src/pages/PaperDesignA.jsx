@@ -163,7 +163,7 @@ export default function PaperDesignA() {
           <div className="flex">
             {/* Tournament Score */}
             <div className="flex-1 p-6 border-r border-slate-200">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-900 mb-2 flex items-center gap-1.5">
                 <Trophy className="h-3.5 w-3.5 text-blue-600" /> Tournament Score
               </div>
               <div className="flex items-baseline gap-2 mb-3">
@@ -198,7 +198,7 @@ export default function PaperDesignA() {
             </div>
             {/* Rating */}
             <div className="w-[200px] p-6 bg-slate-50/50">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-900 mb-2 flex items-center gap-1.5">
                 <Target className="h-3.5 w-3.5 text-blue-600" /> Rating
               </div>
               <div className="flex items-baseline gap-1 mb-4">
@@ -222,7 +222,7 @@ export default function PaperDesignA() {
         {/* Abstract */}
         {paper.abstract && (
           <div className="mb-8 border border-slate-200 rounded-sm p-5">
-            <h3 className="hp-sans text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-3">Abstract</h3>
+            <h3 className="hp-sans text-[10px] font-bold uppercase tracking-wider text-slate-900 mb-3">Abstract</h3>
             <p className="text-sm leading-relaxed text-slate-700" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderLatex(paper.abstract)) }} />
           </div>
         )}
@@ -232,7 +232,7 @@ export default function PaperDesignA() {
           <div className="mb-8 border border-slate-200 rounded-sm p-5">
             <div className="flex items-center gap-1.5 mb-4">
               <Sparkles className="h-3.5 w-3.5 text-blue-600" />
-              <h3 className="hp-sans text-[10px] font-bold uppercase tracking-wider text-slate-500">AI Impact Assessments</h3>
+              <h3 className="hp-sans text-[10px] font-bold uppercase tracking-wider text-slate-900">AI Impact Assessments</h3>
               <span className="text-[10px] text-slate-400 ml-1">({summaryEntries.length} models)</span>
             </div>
             <Tabs defaultValue={summaryEntries[0].tabId}>
@@ -252,7 +252,7 @@ export default function PaperDesignA() {
         {/* Comparison History */}
         <div className="border border-slate-200 rounded-sm overflow-hidden">
           <div className="px-5 py-3 bg-slate-50 border-b border-slate-200">
-            <h3 className="hp-sans text-[10px] font-bold uppercase tracking-wider text-slate-500">Comparison History ({validMatches.length})</h3>
+            <h3 className="hp-sans text-[10px] font-bold uppercase tracking-wider text-slate-900">Comparison History ({validMatches.length})</h3>
           </div>
           {validMatches.length === 0 ? (
             <div className="py-10 text-center text-sm text-slate-400">No comparisons yet.</div>
