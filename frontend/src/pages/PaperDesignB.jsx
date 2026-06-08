@@ -188,7 +188,7 @@ export default function PaperDesignB() {
                           <span className="text-sm text-slate-700 truncate">vs. {m.opponent_title}</span>
                         </div>
                         <div className="flex items-center gap-2 shrink-0 text-xs text-slate-400">
-                          <span>{m.model_used || ""}</span>
+                          <span>{typeof m.model_used === "object" ? m.model_used.model : (m.model_used || "")}</span>
                           {m.created_at && <span className="whitespace-nowrap">{new Date(m.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>}
                         </div>
                       </div>
@@ -225,7 +225,7 @@ export default function PaperDesignB() {
                 </div>
                 <div className="flex items-baseline gap-2 mb-4">
                   <span className="font-serif text-5xl font-medium text-slate-900">{paper.ts_score || stats.score || "\u2014"}</span>
-                  {stats.ci_elo && <span className="text-lg text-slate-400">\u00B1{stats.ci_elo}</span>}
+                  {stats.ci_elo && <span className="text-lg text-slate-400">±{stats.ci_elo}</span>}
                 </div>
                 <div className="grid grid-cols-4 gap-2">
                   <div className="text-center py-2.5 bg-slate-50 rounded-sm"><div className="text-xl font-semibold text-slate-900">{winRate}%</div><div className="text-[9px] text-slate-500">Win Rate</div></div>

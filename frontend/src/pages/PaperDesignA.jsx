@@ -159,7 +159,7 @@ export default function PaperDesignA() {
               </div>
               <div className="flex items-baseline gap-2 mb-4">
                 <span className="font-serif text-5xl font-medium text-slate-900">{paper.ts_score || stats.score || "\u2014"}</span>
-                {stats.ci_elo && <span className="text-lg text-slate-400">\u00B1{stats.ci_elo}</span>}
+                {stats.ci_elo && <span className="text-lg text-slate-400">±{stats.ci_elo}</span>}
               </div>
               <div className="grid grid-cols-4 gap-2">
                 <div className="text-center py-2 bg-slate-50 rounded-sm"><div className="text-lg font-semibold text-slate-900">{winRate}%</div><div className="text-[9px] text-slate-500">Win Rate</div></div>
@@ -242,7 +242,7 @@ export default function PaperDesignA() {
                     <tr key={m.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70">
                       <td className="pl-5 py-2.5"><span className={`text-xs font-medium ${m.won ? "text-emerald-600" : "text-red-400"}`}>{m.won ? "Won" : "Lost"}</span></td>
                       <td className="px-2 py-2.5 text-sm text-slate-700 truncate max-w-[300px]">{m.opponent_title}</td>
-                      <td className="px-2 py-2.5 text-right text-xs text-slate-500 hidden sm:table-cell">{m.model_used || "\u2014"}</td>
+                      <td className="px-2 py-2.5 text-right text-xs text-slate-500 hidden sm:table-cell">{typeof m.model_used === "object" ? m.model_used.model : (m.model_used || "\u2014")}</td>
                       <td className="pr-5 py-2.5 text-right text-xs text-slate-400 hidden sm:table-cell whitespace-nowrap">{m.created_at ? new Date(m.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "\u2014"}</td>
                     </tr>
                   ))}
