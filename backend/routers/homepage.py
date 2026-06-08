@@ -221,7 +221,12 @@ async def homepage_papers(
     elif rank_type == "gap_score":
         sort_field = "gap_score"
 
-    cursor = db.rankings.find(query, _PAPER_PROJ).sort([(sort_field, -1)]).limit(limit)
+    # Secondary sort by ts_score to break ties (e.g., when all gap_scores are 0)
+    sort_order = [(sort_field, -1)]
+    if sort_field != "ts_score":
+        sort_order.append(("ts_score", -1))
+
+    cursor = db.rankings.find(query, _PAPER_PROJ).sort(sort_order).limit(limit)
 
     results = []
     rank = 1
