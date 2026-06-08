@@ -102,7 +102,7 @@ export default function Design3Page() {
             </div>
 
             {/* Time Period */}
-            <SidebarSection title="Time Period">
+            <SidebarSection title="Time Period" defaultOpen={false}>
               <div className="space-y-0.5">
                 {PERIODS.map(p => (
                   <button key={p.value} onClick={() => { d.setPeriod(p.value); d.clearArchive(); }}
@@ -113,23 +113,37 @@ export default function Design3Page() {
               </div>
             </SidebarSection>
 
-            {/* Sort By */}
-            <SidebarSection title="Sort By">
-              <div className="space-y-0.5">
-                {SORTS.map(s => (
-                  <button key={s.value} onClick={() => d.handleSort(s.value)}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-sm text-sm transition-colors flex items-center justify-between ${
-                      (d.sortKey === s.value || (d.sortKey === "rank" && s.value === "score")) ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-50"
-                    }`}>
-                    <span>{s.label}</span>
-                    {d.sortKey === s.value && <span className="text-[10px] text-blue-500">{d.sortDir === "asc" ? "\u2191" : "\u2193"}</span>}
-                  </button>
+            {/* Categories */}
+            <SidebarSection title="Categories" defaultOpen={false}>
+              <div className="relative mb-2">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" />
+                <input value={catSearch} onChange={e => setCatSearch(e.target.value)} placeholder="Filter..."
+                  className="w-full pl-6 pr-2 py-1 text-xs border border-slate-200 rounded-sm focus:outline-none focus:ring-1 focus:ring-blue-600" />
+              </div>
+              <div className="space-y-0.5 max-h-[400px] overflow-y-auto">
+                <button onClick={() => selectCategory("")}
+                  className={`w-full text-left px-2.5 py-1.5 rounded-sm text-sm transition-colors ${!d.category && !d.isTagMode ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-50"}`}>
+                  All Categories
+                </button>
+                {Object.entries(grouped).sort(([a],[b]) => a.localeCompare(b)).map(([group, cats]) => (
+                  <div key={group}>
+                    <div className="px-2.5 pt-3 pb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">{group}</div>
+                    {cats.map(c => (
+                      <button key={c.id} onClick={() => selectCategory(c.id)}
+                        className={`w-full text-left px-2.5 py-1.5 rounded-sm text-sm transition-colors flex items-center gap-2 ${
+                          d.category === c.id && !d.isTagMode ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-50"
+                        }`}>
+                        <span className="font-mono text-[10px] text-blue-600 shrink-0">{c.id}</span>
+                        <span className="truncate">{c.name}</span>
+                      </button>
+                    ))}
+                  </div>
                 ))}
               </div>
             </SidebarSection>
 
-            {/* Tags */}
-            <SidebarSection title="Filter" defaultOpen={d.hasSelectedTags}>
+            {/* Filter (tags) */}
+            <SidebarSection title="Filter" defaultOpen={false}>
               <div className="flex items-center justify-between mb-2">
                 {d.hasSelectedTags && (
                   <div className="flex items-center gap-1 text-[10px]">
@@ -165,70 +179,31 @@ export default function Design3Page() {
               </div>
             </SidebarSection>
 
-            {/* Categories */}
-            <SidebarSection title="Categories">
-              <div className="relative mb-2">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" />
-                <input value={catSearch} onChange={e => setCatSearch(e.target.value)} placeholder="Filter..."
-                  className="w-full pl-6 pr-2 py-1 text-xs border border-slate-200 rounded-sm focus:outline-none focus:ring-1 focus:ring-blue-600" />
-              </div>
-              <div className="space-y-0.5 max-h-[400px] overflow-y-auto">
-                <button onClick={() => selectCategory("")}
-                  className={`w-full text-left px-2.5 py-1.5 rounded-sm text-sm transition-colors ${!d.category && !d.isTagMode ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-50"}`}>
-                  All Categories
-                </button>
-                {Object.entries(grouped).sort(([a],[b]) => a.localeCompare(b)).map(([group, cats]) => (
-                  <div key={group}>
-                    <div className="px-2.5 pt-3 pb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">{group}</div>
-                    {cats.map(c => (
-                      <button key={c.id} onClick={() => selectCategory(c.id)}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-sm text-sm transition-colors flex items-center gap-2 ${
-                          d.category === c.id && !d.isTagMode ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-50"
-                        }`}>
-                        <span className="font-mono text-[10px] text-blue-600 shrink-0">{c.id}</span>
-                        <span className="truncate">{c.name}</span>
-                      </button>
-                    ))}
-                  </div>
+            {/* Sort By */}
+            <SidebarSection title="Sort By" defaultOpen={false}>
+              <div className="space-y-0.5">
+                {SORTS.map(s => (
+                  <button key={s.value} onClick={() => d.handleSort(s.value)}
+                    className={`w-full text-left px-2.5 py-1.5 rounded-sm text-sm transition-colors flex items-center justify-between ${
+                      (d.sortKey === s.value || (d.sortKey === "rank" && s.value === "score")) ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-50"
+                    }`}>
+                    <span>{s.label}</span>
+                    {d.sortKey === s.value && <span className="text-[10px] text-blue-500">{d.sortDir === "asc" ? "\u2191" : "\u2193"}</span>}
+                  </button>
                 ))}
               </div>
             </SidebarSection>
-
-            {/* Archives — per-category historical snapshots */}
-            {d.archives.length > 0 && d.category && (
-              <SidebarSection title={`${d.categoryName} Archives`} defaultOpen={!!d.activeArchive}>
-                <div className="space-y-0.5 max-h-[250px] overflow-y-auto">
-                  <button onClick={() => d.clearArchive()}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-sm text-sm transition-colors ${!d.activeArchive ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-50"}`}>
-                    Live rankings
-                  </button>
-                  {d.archives.map(a => {
-                    const slug = a.period_type === "weekly" ? `w${a.week}` : `m${a.month}`;
-                    return (
-                      <button key={`${a.category}-${a.year}-${slug}`}
-                        onClick={() => d.loadArchive(a)}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-sm text-xs transition-colors flex items-center justify-between ${
-                          d.activeArchive?.label === a.label ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-50"
-                        }`}>
-                        <span>{a.label}</span>
-                        <span className="text-[10px] text-slate-400">{a.paper_count}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </SidebarSection>
-            )}
           </aside>
         )}
 
-        {/* Collapsed sidebar edge strip */}
+        {/* Collapsed sidebar toggle */}
         {!sidebarOpen && (
           <button
             onClick={() => setSidebarOpen(true)}
-            className="w-8 shrink-0 border-r border-slate-200 bg-slate-50/50 hover:bg-slate-100 transition-colors flex items-center justify-center cursor-pointer"
+            className="w-5 shrink-0 border-r border-slate-200 hover:bg-slate-100 transition-colors flex items-center justify-center"
             title="Open filters"
           >
-            <PanelLeft className="h-4 w-4 text-slate-400" />
+            <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
           </button>
         )}
 
@@ -265,6 +240,43 @@ export default function Design3Page() {
 
             {/* Table */}
             <div className="border border-slate-200 bg-white rounded-sm overflow-hidden">
+              {/* Table header with archive selector */}
+              <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
+                <h2 className="font-serif text-lg font-medium text-slate-900">
+                  {d.activeArchive ? `${d.categoryName} — ${d.activeArchive.label}` : d.categoryName}
+                </h2>
+                {d.archives.length > 0 && d.category && (
+                  <div className="relative">
+                    <button onClick={() => setArchiveOpen(v => !v)}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm border text-xs font-medium transition-all ${
+                        d.activeArchive ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-500 hover:border-slate-400"
+                      }`}>
+                      <Archive className="h-3 w-3" />
+                      {d.activeArchive ? d.activeArchive.label : "Live"}
+                      <ChevronDown className={`h-3 w-3 transition-transform ${archiveOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {archiveOpen && (
+                      <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-sm shadow-lg min-w-[220px] max-h-[320px] overflow-y-auto py-1">
+                        <button onClick={() => { d.clearArchive(); setArchiveOpen(false); }}
+                          className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${!d.activeArchive ? "bg-blue-50 text-blue-700 font-medium" : "hover:bg-slate-50 text-slate-600"}`}>
+                          Live rankings
+                        </button>
+                        {d.archives.map(a => {
+                          const slug = a.period_type === "weekly" ? `w${a.week}` : `m${a.month}`;
+                          return (
+                            <button key={`${a.category}-${a.year}-${slug}`}
+                              onClick={() => { d.loadArchive(a); setArchiveOpen(false); }}
+                              className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 transition-colors flex items-center justify-between">
+                              <span>{a.label}</span>
+                              <span className="text-[10px] text-slate-400 ml-3">{a.paper_count}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               <LeaderboardTableNew
                 leaderboard={d.leaderboard} loading={d.loading}
                 sortKey={d.sortKey} sortDir={d.sortDir} onSort={d.handleSort}
