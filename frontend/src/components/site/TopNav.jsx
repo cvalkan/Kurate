@@ -80,7 +80,7 @@ export default function TopNav() {
               data-testid="explore-rankings-button"
               className="inline-flex items-center justify-center gap-1.5 rounded-sm bg-blue-600 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white hover:bg-blue-700 transition-colors"
             >
-              <Trophy className="h-3.5 w-3.5 sm:hidden" />
+              <span className="sm:hidden">Rankings</span>
               <span className="hidden sm:inline">Explore Rankings</span>
             </Link>
 
