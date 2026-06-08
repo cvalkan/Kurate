@@ -1,16 +1,36 @@
 import { useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ArrowUp, ArrowDown, Bookmark } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { LatexTitle } from "@/components/LatexTitle";
 import { useBookmarks } from "@/contexts/BookmarkContext";
 
-function SortHeader({ label, sortKey, current, dir, onSort, className = "" }) {
+const COL_TIPS = {
+  rank: "Position based on score. Click to restore default ranking.",
+  title: "Paper title. Click to sort alphabetically.",
+  score: "TrueSkill score from pairwise comparisons. Higher = stronger.",
+  wilson_margin: "95% confidence interval in Elo points. Lower = more certain.",
+  comparisons: "Number of pairwise LLM comparisons this paper has participated in.",
+  win_rate: "Percentage of head-to-head comparisons won.",
+  ai_rating: "Standalone AI quality rating (1 to 10) from Opus 4.6 Thinking.",
+  gap_score: "Difference between tournament rank percentile and AI rating percentile.",
+  published: "arXiv publication date.",
+};
+
+function SortHeader({ label, sortKey, current, dir, onSort, className = "", tip }) {
   const active = current === sortKey;
-  return (
-    <button onClick={() => onSort(sortKey)} className={`inline-flex items-center gap-0.5 hover:text-slate-900 transition-colors ${active ? "text-slate-900" : ""} ${className}`}>
+  const btn = (
+    <button onClick={() => onSort(sortKey)} className={`inline-flex items-center gap-0.5 uppercase text-[10px] font-medium tracking-wider hover:text-slate-900 transition-colors ${active ? "text-slate-900" : ""} ${className}`}>
       {label}
       {active && (dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
     </button>
+  );
+  if (!tip) return btn;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{btn}</TooltipTrigger>
+      <TooltipContent side="bottom" className="max-w-xs"><p className="text-xs">{tip}</p></TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -34,11 +54,14 @@ export function LeaderboardTableNew({
   }, [loadMore, nextCursor, loadingMore]);
 
   const isGlobal = hasSelectedTags && globalStats;
+  const isDefaultSort = !sortKey || sortKey === "rank";
   const getScore = (p) => isGlobal && p.global_score !== undefined ? p.global_score : (p.ts_score || p.score);
   const getWinRate = (p) => isGlobal && p.global_win_rate !== undefined ? p.global_win_rate : p.win_rate;
   const getComparisons = (p) => isGlobal && p.global_comparisons !== undefined ? p.global_comparisons : p.comparisons;
   const getCi = (p) => isGlobal ? null : p.ci;
-  const getRank = (p, i) => p._displayRank || p.rank_ts || p.rank || (i + 1);
+  // When sorted by default (rank), show the backend's TrueSkill rank.
+  // When sorted by any other column, show position in current order (1, 2, 3...).
+  const getRank = (p, i) => isDefaultSort ? (p._displayRank || p.rank_ts || p.rank || (i + 1)) : (i + 1);
 
   if (loading && leaderboard.length === 0) {
     return (
@@ -57,6 +80,7 @@ export function LeaderboardTableNew({
   }
 
   return (
+    <TooltipProvider delayDuration={200}>
     <>
       <table className="w-full table-fixed">
         <colgroup>
@@ -72,16 +96,16 @@ export function LeaderboardTableNew({
           <col className="w-8" />{/* Bookmark */}
         </colgroup>
         <thead>
-          <tr className="text-[10px] font-medium uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-100 whitespace-nowrap">
-            <th className="pl-5 pr-2 py-2.5 text-center w-10"><SortHeader label="#" sortKey="rank" current={sortKey} dir={sortDir} onSort={onSort} /></th>
-            <th className="px-2 py-2.5 text-left"><SortHeader label="Paper" sortKey="title" current={sortKey} dir={sortDir} onSort={onSort} /></th>
-            <th className="px-2 py-2.5 text-right"><SortHeader label="Score" sortKey="score" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" /></th>
-            <th className="px-2 py-2.5 text-right hidden lg:table-cell"><SortHeader label="CI" sortKey="wilson_margin" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" /></th>
-            <th className="px-2 py-2.5 text-right hidden md:table-cell"><SortHeader label="Match" sortKey="comparisons" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" /></th>
-            <th className="px-2 py-2.5 text-right hidden md:table-cell"><SortHeader label="Win%" sortKey="win_rate" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" /></th>
-            {showRatingCol && <th className="px-2 py-2.5 text-right hidden lg:table-cell"><SortHeader label="Rating" sortKey="ai_rating" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" /></th>}
-            {showGapCol && <th className="px-2 py-2.5 text-right hidden xl:table-cell"><SortHeader label="Gap" sortKey="gap_score" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" /></th>}
-            <th className="px-2 py-2.5 text-right hidden sm:table-cell"><SortHeader label="Published" sortKey="published" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" /></th>
+          <tr className="text-slate-500 bg-slate-50 border-b border-slate-100 whitespace-nowrap">
+            <th className="pl-5 pr-2 py-2.5 text-center w-10"><SortHeader label="#" sortKey="rank" current={sortKey} dir={sortDir} onSort={onSort} tip={COL_TIPS.rank} /></th>
+            <th className="px-2 py-2.5 text-left"><SortHeader label="Paper" sortKey="title" current={sortKey} dir={sortDir} onSort={onSort} tip={COL_TIPS.title} /></th>
+            <th className="px-2 py-2.5 text-right"><SortHeader label="Score" sortKey="score" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.score} /></th>
+            <th className="px-2 py-2.5 text-right hidden lg:table-cell"><SortHeader label="CI" sortKey="wilson_margin" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.wilson_margin} /></th>
+            <th className="px-2 py-2.5 text-right hidden md:table-cell"><SortHeader label="Match" sortKey="comparisons" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.comparisons} /></th>
+            <th className="px-2 py-2.5 text-right hidden md:table-cell"><SortHeader label="Win%" sortKey="win_rate" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.win_rate} /></th>
+            {showRatingCol && <th className="px-2 py-2.5 text-right hidden lg:table-cell"><SortHeader label="Rating" sortKey="ai_rating" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.ai_rating} /></th>}
+            {showGapCol && <th className="px-2 py-2.5 text-right hidden xl:table-cell"><SortHeader label="Gap" sortKey="gap_score" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.gap_score} /></th>}
+            <th className="px-2 py-2.5 text-right hidden sm:table-cell"><SortHeader label="Published" sortKey="published" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.published} /></th>
             <th className="pr-4 py-2.5 w-8"></th>
           </tr>
         </thead>
@@ -177,5 +201,6 @@ export function LeaderboardTableNew({
         <div ref={sentinelRef} className="py-4 text-center text-xs text-slate-400">{loadingMore ? "Loading more..." : ""}</div>
       )}
     </>
+    </TooltipProvider>
   );
 }

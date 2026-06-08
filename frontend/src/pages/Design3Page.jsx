@@ -121,7 +121,7 @@ export default function Design3Page() {
             </SidebarSection>
 
             {/* Categories */}
-            <SidebarSection title="Categories" defaultOpen={false}>
+            <SidebarSection title="Field" defaultOpen={false}>
               <div className="relative mb-2">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" />
                 <input value={catSearch} onChange={e => setCatSearch(e.target.value)} placeholder="Filter..."
@@ -150,7 +150,7 @@ export default function Design3Page() {
             </SidebarSection>
 
             {/* Filter (tag cloud) */}
-            <SidebarSection title="Filter" defaultOpen={false}>
+            <SidebarSection title="Cross-Field" defaultOpen={false}>
               <div className="flex items-center justify-between mb-2">
                 {d.hasSelectedTags && (
                   <div className="flex items-center gap-1 text-[10px]">

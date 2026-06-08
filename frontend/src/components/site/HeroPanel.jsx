@@ -81,7 +81,7 @@ function CategoryDropdown({ categories, value, onChange, closeRef }) {
   }, [categories, filter]);
 
   const selected = categories.find(c => c.code === value);
-  const label = value === "all" ? "All Categories" : (selected ? `${selected.code} · ${selected.name}` : value);
+  const label = value === "all" ? "All Categories" : (selected ? selected.code : value);
 
   return (
     <div ref={ref} className="relative">

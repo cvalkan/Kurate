@@ -174,7 +174,7 @@ export default function Design2Page() {
             className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
               d.isTagMode ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
             }`}>
-            <Tag className="h-3 w-3" /> Filter {d.hasSelectedTags ? `(${d.selectedTags.length})` : ""}
+            <Tag className="h-3 w-3" /> Cross-Field {d.hasSelectedTags ? `(${d.selectedTags.length})` : ""}
           </button>
         </div>
 
@@ -183,7 +183,7 @@ export default function Design2Page() {
           <div className="mb-4 border border-slate-200 rounded-sm p-4 bg-white">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-slate-700">Filter by tags</span>
+                <span className="text-xs font-semibold text-slate-700">Cross-field filter</span>
                 <div className="flex items-center gap-1 text-[10px]">
                   <button onClick={() => d.setTagMode("or")}
                     className={`px-2 py-0.5 rounded-sm border ${d.tagMode === "or" ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-500"}`}>
