@@ -285,7 +285,6 @@ export default function Design3Page() {
           </div>
         </main>
       </div>
-      <SiteFooter />
     </div>
   );
 }

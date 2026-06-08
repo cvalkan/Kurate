@@ -254,7 +254,6 @@ export default function Design2Page() {
             : "Win-rate scores from pairwise comparisons. Papers compared using full-text analysis."}
         </div>
       </div>
-      <SiteFooter />
     </div>
   );
 }
