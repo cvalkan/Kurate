@@ -140,6 +140,42 @@ export default function PaperDesignB() {
           </div>
         )}
 
+        {/* Version toggle */}
+        {paper.sibling_versions?.length >= 2 && (
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <div className="inline-flex items-center rounded-sm border border-slate-200 p-0.5" role="tablist" aria-label="Paper versions">
+              {[...paper.sibling_versions].sort((a, b) => (a.version || 0) - (b.version || 0)).map(v => {
+                const isCurrent = v.paper_id === paper.id || (v.version != null && v.version === paper.current_version);
+                const label = `v${v.version}`;
+                const title = `Version ${v.version}${v.is_latest ? " (latest)" : " (frozen)"}`;
+                return isCurrent ? (
+                  <span key={v.paper_id || v.version} className="inline-flex items-center px-2.5 py-1 rounded-sm text-[11px] font-mono font-semibold bg-slate-900 text-white" title={title} aria-current="page">{label}</span>
+                ) : (
+                  <Link key={v.paper_id || v.version} to={`${basePath}/paper/${v.paper_id}`} className="inline-flex items-center px-2.5 py-1 rounded-sm text-[11px] font-mono text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors" title={title}>{label}</Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Frozen version banner */}
+        {paper.is_latest_version === false && (() => {
+          const latest = (paper.sibling_versions || []).find(s => s.is_latest);
+          return (
+            <div className="mb-6 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-sm flex items-center justify-between gap-3 text-xs text-amber-900">
+              <span className="flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 shrink-0" />
+                <span><strong>Frozen v{paper.current_version || "\u2014"}</strong> — this version was superseded on arXiv. Stats reflect the state at freeze time.</span>
+              </span>
+              {latest?.paper_id && (
+                <Link to={`${basePath}/paper/${latest.paper_id}`} className="shrink-0 font-semibold text-amber-800 underline hover:no-underline">
+                  View latest (v{latest.version}) →
+                </Link>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Score card component — reused in both mobile and desktop positions */}
         {(() => {
           const displayScore = paper.ts_score || stats.score;
