@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Search, X, PanelLeftClose, PanelLeft, Tag, Archive, ChevronDown, ChevronRight, Activity, LockOpen, ArrowRight } from "lucide-react";
+import { Search, X, PanelLeftClose, PanelLeft, Tag, Archive, ChevronDown, ChevronRight, Activity, LockOpen, ArrowRight, Lock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useLeaderboardData } from "@/hooks/useLeaderboardData";
 import { useAuth } from "@/contexts/AuthContext";
@@ -46,7 +46,8 @@ export default function Design3Page() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const archiveRef = useRef(null);
   const activeCodes = useMemo(() => new Set(d.categories.map(c => c.id)), [d.categories]);
-  const { isLoggedIn, setShowAuth } = useAuth();
+  const { isLoggedIn } = useAuth();
+  const requireAuth = () => window.dispatchEvent(new Event("open-auth-modal"));
 
   useEffect(() => {
     const handler = (e) => { if (archiveRef.current && !archiveRef.current.contains(e.target)) setArchiveOpen(false); };
@@ -105,7 +106,7 @@ export default function Design3Page() {
                     <span className="text-xs font-semibold text-slate-900">Sign up for free</span>
                   </div>
                   <p className="text-[11px] text-slate-600 leading-relaxed mb-3">Unlock all categories, archives, cross-field filters, and bookmarks.</p>
-                  <button onClick={() => setShowAuth(true)} className="w-full inline-flex items-center justify-center gap-1.5 rounded-sm bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors">
+                  <button onClick={requireAuth} className="w-full inline-flex items-center justify-center gap-1.5 rounded-sm bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors">
                     Sign up <ArrowRight className="h-3 w-3" />
                   </button>
                 </div>
@@ -129,12 +130,20 @@ export default function Design3Page() {
             {/* Time Period */}
             <SidebarSection title="Time Period" defaultOpen={true}>
               <div className="space-y-0.5">
-                {PERIODS.map(p => (
-                  <button key={p.value} onClick={() => { d.setPeriod(p.value); d.clearArchive(); }}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-sm text-sm transition-colors ${d.period === p.value && !d.activeArchive ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-50"}`}>
-                    {p.label}
-                  </button>
-                ))}
+                {PERIODS.map(p => {
+                  const locked = !isLoggedIn && (p.value === "month" || p.value === "all");
+                  return (
+                    <button key={p.value}
+                      onClick={() => locked ? requireAuth() : (() => { d.setPeriod(p.value); d.clearArchive(); })()}
+                      className={`w-full text-left px-2.5 py-1.5 rounded-sm text-sm transition-colors flex items-center justify-between ${
+                        d.period === p.value && !d.activeArchive ? "bg-blue-50 text-blue-700 font-medium"
+                        : locked ? "text-slate-400" : "text-slate-600 hover:bg-slate-50"
+                      }`}>
+                      <span>{p.label}</span>
+                      {locked && <Lock className="h-3 w-3 text-slate-400" />}
+                    </button>
+                  );
+                })}
               </div>
             </SidebarSection>
 
@@ -167,35 +176,43 @@ export default function Design3Page() {
               </div>
             </SidebarSection>
 
-            {/* Filter (tag cloud) */}
+            {/* Filter (tag cloud) — locked behind auth */}
             <SidebarSection title="Cross-Field" defaultOpen={false}>
-              <div className="flex items-center justify-between mb-2">
-                {d.hasSelectedTags && (
-                  <div className="flex items-center gap-1 text-[10px]">
-                    <button onClick={() => d.setTagMode("or")}
-                      className={`px-1.5 py-0.5 rounded-sm border ${d.tagMode === "or" ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-400"}`}>
-                      OR
-                    </button>
-                    <button onClick={() => d.setTagMode("and")}
-                      className={`px-1.5 py-0.5 rounded-sm border ${d.tagMode === "and" ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-400"}`}>
-                      AND
-                    </button>
+              {!isLoggedIn ? (
+                <button onClick={requireAuth} className="w-full text-left text-xs text-slate-400 flex items-center gap-1.5 px-2.5 py-2">
+                  <Lock className="h-3 w-3" /> Sign in to use cross-field filters
+                </button>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    {d.hasSelectedTags && (
+                      <div className="flex items-center gap-1 text-[10px]">
+                        <button onClick={() => d.setTagMode("or")}
+                          className={`px-1.5 py-0.5 rounded-sm border ${d.tagMode === "or" ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-400"}`}>
+                          OR
+                        </button>
+                        <button onClick={() => d.setTagMode("and")}
+                          className={`px-1.5 py-0.5 rounded-sm border ${d.tagMode === "and" ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-400"}`}>
+                          AND
+                        </button>
+                      </div>
+                    )}
+                    {d.hasSelectedTags && (
+                      <button onClick={() => { d.setSelectedTags([]); d.setTagFilterOpen(false); }} className="text-[10px] text-slate-400 hover:text-slate-600">Clear</button>
+                    )}
                   </div>
-                )}
-                {d.hasSelectedTags && (
-                  <button onClick={() => { d.setSelectedTags([]); d.setTagFilterOpen(false); }} className="text-[10px] text-slate-400 hover:text-slate-600">Clear</button>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {filteredTags.map(tag => (
-                  <button key={tag.id} onClick={() => toggleTag(tag.id)}
-                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] border transition-all ${
-                      d.selectedTags.includes(tag.id) ? "bg-blue-50 text-blue-700 border-blue-200 font-medium" : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
-                    }`}>
-                    {tag.id}
-                  </button>
-                ))}
-              </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {filteredTags.map(tag => (
+                      <button key={tag.id} onClick={() => toggleTag(tag.id)}
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] border transition-all ${
+                          d.selectedTags.includes(tag.id) ? "bg-blue-50 text-blue-700 border-blue-200 font-medium" : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
+                        }`}>
+                        {tag.id}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </SidebarSection>
 
             {/* Sort By */}

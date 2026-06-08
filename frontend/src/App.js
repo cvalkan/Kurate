@@ -1,11 +1,22 @@
 import "@/App.css";
 import "katex/dist/katex.min.css";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { BasePathProvider } from "@/contexts/BasePathContext";
 import { Helmet } from "react-helmet";
+import { AuthModal } from "@/components/AuthModal";
+
+function NewSiteAuthModal() {
+  const [showAuth, setShowAuth] = useState(false);
+  useEffect(() => {
+    const handler = () => setShowAuth(true);
+    window.addEventListener("open-auth-modal", handler);
+    return () => window.removeEventListener("open-auth-modal", handler);
+  }, []);
+  return <AuthModal open={showAuth} onClose={() => setShowAuth(false)} />;
+}
 import HomePage from "@/pages/HomePage";
 import LeaderboardPage from "@/pages/LeaderboardPage";
 import CorrelationPage from "@/pages/CorrelationPage";
@@ -66,6 +77,7 @@ function AppRouter() {
           <Route path="/new/leaderboard" element={<Design3Page />} />
           <Route path="/new/paper/:id" element={<PaperDesignB />} />
         </Routes>
+        <NewSiteAuthModal />
         <Toaster position="bottom-right" />
       </BasePathProvider>
     );
