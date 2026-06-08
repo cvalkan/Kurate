@@ -1,8 +1,17 @@
 import { Link } from "react-router-dom";
 import { Linkedin, Instagram, Github, Facebook, BookOpen, Trophy } from "lucide-react";
 
+function XIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4l6.5 7.5M20 4l-6.5 7.5m0 0L20 20m-6.5-8.5L4 20" />
+    </svg>
+  );
+}
+
 const SOCIAL = [
   { href: "https://www.linkedin.com/company/kurate-org", label: "LinkedIn", Icon: Linkedin, key: "linkedin" },
+  { href: "https://x.com/kurateorg", label: "X", Icon: XIcon, key: "x" },
   { href: "https://www.instagram.com/kurate2026/", label: "Instagram", Icon: Instagram, key: "instagram" },
   { href: "https://github.com/cvalkan/PaperSumo", label: "GitHub", Icon: Github, key: "github" },
   { href: "https://www.facebook.com/Kurate/", label: "Facebook", Icon: Facebook, key: "facebook" },

@@ -32,6 +32,9 @@ import PrivacyPage from "@/pages/PrivacyPage";
 import ImpressumPage from "@/pages/ImpressumPage";
 import ContactPage from "@/pages/ContactPage";
 import StartRedirect from "@/pages/StartRedirect";
+import Design1Page from "@/pages/Design1Page";
+import Design2Page from "@/pages/Design2Page";
+import Design3Page from "@/pages/Design3Page";
 import Navbar from "@/components/Navbar";
 import { BookmarkProvider } from "@/contexts/BookmarkContext";
 
@@ -51,12 +54,18 @@ function AppRouter() {
 
   // New homepage at /new (staging) — has its own TopNav and SiteFooter
   if (location.pathname === "/new") {
-    return (
-      <>
-        <HomePage />
-        <Toaster position="bottom-right" />
-      </>
-    );
+    return (<><HomePage /><Toaster position="bottom-right" /></>);
+  }
+
+  // Design explorations — each has its own TopNav/SiteFooter
+  if (location.pathname === "/design1") {
+    return (<><Design1Page /><Toaster position="bottom-right" /></>);
+  }
+  if (location.pathname === "/design2") {
+    return (<><Design2Page /><Toaster position="bottom-right" /></>);
+  }
+  if (location.pathname === "/design3") {
+    return (<><Design3Page /><Toaster position="bottom-right" /></>);
   }
 
   return (
