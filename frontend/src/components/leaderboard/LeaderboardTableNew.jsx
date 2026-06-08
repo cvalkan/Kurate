@@ -1,0 +1,144 @@
+import { useRef, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { ArrowUp, ArrowDown, Bookmark } from "lucide-react";
+import { LatexTitle } from "@/components/LatexTitle";
+import { useBookmarks } from "@/contexts/BookmarkContext";
+
+function SortHeader({ label, sortKey, current, dir, onSort, className = "" }) {
+  const active = current === sortKey;
+  return (
+    <button onClick={() => onSort(sortKey)} className={`inline-flex items-center gap-0.5 hover:text-slate-900 transition-colors ${active ? "text-slate-900" : ""} ${className}`}>
+      {label}
+      {active && (dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+    </button>
+  );
+}
+
+export function LeaderboardTableNew({
+  leaderboard, loading, sortKey, sortDir, onSort,
+  showRatingCol, showGapCol, hasSelectedTags, globalStats, isArchive,
+  nextCursor, loadMore, loadingMore, keyword,
+}) {
+  const sentinelRef = useRef(null);
+  const { bookmarkedIds, toggleBookmark } = useBookmarks();
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !loadMore) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && nextCursor && !loadingMore) loadMore();
+    }, { rootMargin: "400px" });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadMore, nextCursor, loadingMore]);
+
+  const isGlobal = hasSelectedTags && globalStats;
+  const getScore = (p) => isGlobal && p.global_score !== undefined ? p.global_score : (p.ts_score || p.score);
+  const getWinRate = (p) => isGlobal && p.global_win_rate !== undefined ? p.global_win_rate : p.win_rate;
+  const getComparisons = (p) => isGlobal && p.global_comparisons !== undefined ? p.global_comparisons : p.comparisons;
+  const getCi = (p) => isGlobal ? null : p.ci;
+  const getRank = (p, i) => p._displayRank || p.rank_ts || p.rank || (i + 1);
+
+  if (loading && leaderboard.length === 0) {
+    return (
+      <div className="space-y-2 p-4">
+        {[...Array(8)].map((_, i) => <div key={i} className="h-12 bg-slate-50 rounded-sm animate-pulse" />)}
+      </div>
+    );
+  }
+
+  if (leaderboard.length === 0) {
+    return (
+      <div className="py-16 text-center text-sm text-slate-400">
+        {keyword ? `No papers matching "${keyword}".` : "No papers found for this period. Try a broader time range."}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <table className="w-full">
+        <thead>
+          <tr className="text-[10px] font-medium uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-100 whitespace-nowrap">
+            <th className="pl-5 pr-2 py-2.5 text-center w-10"><SortHeader label="#" sortKey="rank" current={sortKey} dir={sortDir} onSort={onSort} /></th>
+            <th className="px-2 py-2.5 text-left"><SortHeader label="Paper" sortKey="title" current={sortKey} dir={sortDir} onSort={onSort} /></th>
+            {hasSelectedTags && <th className="px-2 py-2.5 text-center hidden md:table-cell">Cat</th>}
+            <th className="px-2 py-2.5 text-right"><SortHeader label="Score" sortKey="score" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" /></th>
+            <th className="px-2 py-2.5 text-right hidden lg:table-cell"><SortHeader label="CI" sortKey="wilson_margin" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" /></th>
+            <th className="px-2 py-2.5 text-right hidden md:table-cell"><SortHeader label="Match" sortKey="comparisons" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" /></th>
+            <th className="px-2 py-2.5 text-right hidden md:table-cell"><SortHeader label="Win%" sortKey="win_rate" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" /></th>
+            {showRatingCol && <th className="px-2 py-2.5 text-right hidden lg:table-cell"><SortHeader label="Rating" sortKey="ai_rating" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" /></th>}
+            {showGapCol && <th className="px-2 py-2.5 text-right hidden xl:table-cell"><SortHeader label="Gap" sortKey="gap_score" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" /></th>}
+            <th className="px-2 py-2.5 text-right hidden sm:table-cell"><SortHeader label="Published" sortKey="published" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" /></th>
+            <th className="pr-4 py-2.5 w-8"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {leaderboard.map((p, i) => {
+            const isBookmarked = bookmarkedIds?.has(p.id);
+            return (
+              <tr key={p.id || i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70 transition-colors group">
+                <td className="pl-5 pr-2 py-3 text-center align-baseline">
+                  <span className="font-serif text-base font-medium text-blue-600">{getRank(p, i)}</span>
+                </td>
+                <td className="px-2 py-3">
+                  <Link to={`/paper/${p.id}`} className="text-sm font-medium text-slate-900 hover:text-blue-700 leading-snug line-clamp-2">
+                    <LatexTitle text={p.title} />
+                  </Link>
+                  <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 flex-wrap">
+                    <span>{p.authors?.slice(0, 2).join(", ")}{p.authors?.length > 2 ? ` +${p.authors.length - 2}` : ""}</span>
+                    {(() => {
+                      const m = p.arxiv_id && /v(\d+)$/.exec(p.arxiv_id);
+                      const v = m ? parseInt(m[1], 10) : (p.current_version || 1);
+                      return v > 1 ? (
+                        <span className="text-[9px] font-mono px-1 py-px rounded bg-amber-50 text-amber-700 border border-amber-200">v{v}</span>
+                      ) : null;
+                    })()}
+                  </div>
+                </td>
+                {hasSelectedTags && (
+                  <td className="px-2 py-3 text-center hidden md:table-cell">
+                    <span className="inline-block text-[9px] px-1.5 py-0.5 rounded font-mono bg-blue-50 text-blue-700 border border-blue-200">{p.primary_category || "?"}</span>
+                  </td>
+                )}
+                <td className="px-2 py-3 text-right align-baseline">
+                  <span className="text-sm font-semibold tabular-nums">{getScore(p) || "\u2014"}</span>
+                </td>
+                <td className="px-2 py-3 text-right align-baseline text-xs text-slate-500 hidden lg:table-cell">
+                  {(() => { const c = getCi(p); return c != null && c > 0 ? `\u00B1${Math.round(c)}` : "\u2014"; })()}
+                </td>
+                <td className="px-2 py-3 text-right align-baseline text-xs text-slate-500 hidden md:table-cell">{getComparisons(p) ?? "\u2014"}</td>
+                <td className="px-2 py-3 text-right align-baseline text-xs text-slate-500 hidden md:table-cell">{getWinRate(p) != null ? `${getWinRate(p)}%` : "\u2014"}</td>
+                {showRatingCol && (
+                  <td className="px-2 py-3 text-right align-baseline text-xs text-slate-500 hidden lg:table-cell">
+                    {(typeof p.ai_rating === "object" ? p.ai_rating?.score : p.ai_rating) || "\u2014"}
+                  </td>
+                )}
+                {showGapCol && (
+                  <td className={`px-2 py-3 text-right align-baseline text-xs hidden xl:table-cell ${p.gap_score > 0 ? "text-emerald-600" : p.gap_score < 0 ? "text-red-400" : "text-slate-500"}`}>
+                    {p.gap_score != null ? (p.gap_score > 0 ? "+" : "") + p.gap_score : "\u2014"}
+                  </td>
+                )}
+                <td className="px-2 py-3 text-right align-baseline text-xs text-slate-500 hidden sm:table-cell">
+                  {p.published ? new Date(p.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }) : "\u2014"}
+                </td>
+                <td className="pr-4 py-3 text-center align-baseline">
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleBookmark(p.id); }}
+                    className={`transition-colors ${isBookmarked ? "text-blue-600" : "text-slate-300 opacity-0 group-hover:opacity-100 hover:text-blue-600"}`}
+                    title={isBookmarked ? "Remove bookmark" : "Bookmark"}
+                  >
+                    <Bookmark className="h-3.5 w-3.5" fill={isBookmarked ? "currentColor" : "none"} />
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {nextCursor && !isArchive && (
+        <div ref={sentinelRef} className="py-4 text-center text-xs text-slate-400">{loadingMore ? "Loading more..." : ""}</div>
+      )}
+    </>
+  );
+}

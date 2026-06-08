@@ -1,10 +1,10 @@
-import { useRef, useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Search, ArrowUp, ArrowDown, ChevronDown, Sparkles } from "lucide-react";
+import { Search, X, Tag, ChevronDown, Archive, Lock, Sparkles, Activity } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LatexTitle } from "@/components/LatexTitle";
 import { useLeaderboardData } from "@/hooks/useLeaderboardData";
+import { LeaderboardTableNew } from "@/components/leaderboard/LeaderboardTableNew";
 import TopNav from "@/components/site/TopNav";
 import SiteFooter from "@/components/site/SiteFooter";
 
@@ -15,150 +15,192 @@ const PERIODS = [
   { value: "all", label: "All Time" },
 ];
 
-function SortHeader({ label, sortKey, current, dir, onSort }) {
-  const active = current === sortKey;
-  return (
-    <button onClick={() => onSort(sortKey)} className={`inline-flex items-center gap-0.5 hover:text-slate-900 transition-colors ${active ? "text-slate-900" : ""}`}>
-      {label}
-      {active && (dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
-    </button>
-  );
-}
-
 export default function Design2Page() {
   const d = useLeaderboardData();
-  const sentinelRef = useRef(null);
-  const categoryName = d.category ? (d.categories.find(c => c.id === d.category)?.name || "Papers") : "All";
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const archiveRef = useRef(null);
 
   useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && d.nextCursor && !d.loadingMore) d.loadMore();
-    }, { rootMargin: "400px" });
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [d.loadMore, d.nextCursor, d.loadingMore]); // eslint-disable-line react-hooks/exhaustive-deps
+    const handler = (e) => { if (archiveRef.current && !archiveRef.current.contains(e.target)) setArchiveOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
-  // Quick category chips
   const featuredSet = new Set(d.featured);
   const chipCats = d.categories.filter(c => featuredSet.has(c.id));
+  const overflowCats = d.categories.filter(c => !featuredSet.has(c.id));
+
+  // Tag chips from allTags
+  const topTags = useMemo(() => d.allTags.slice(0, 30), [d.allTags]);
+
+  const toggleTag = (tagId) => {
+    if (d.selectedTags.includes(tagId)) {
+      d.setSelectedTags(d.selectedTags.filter(t => t !== tagId));
+    } else {
+      d.setSelectedTags([...d.selectedTags, tagId]);
+    }
+    if (!d.tagFilterOpen) d.setTagFilterOpen(true);
+  };
 
   return (
     <div className="kurate-homepage">
       <TopNav />
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-10 pb-12">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-8 pb-12">
         {/* Title */}
-        <h1 className="font-serif text-3xl sm:text-4xl font-medium tracking-tight text-slate-900 mb-1">{categoryName} Paper Rankings</h1>
-        <p className="text-sm text-slate-600 mb-6">
-          {d.totalPapers} papers · {d.totalMatches} comparisons ·
-          <Link to="/methodology" className="text-blue-600 hover:underline ml-1">Methodology</Link>
-        </p>
+        <div className="mb-6">
+          <h1 className="font-serif text-3xl sm:text-4xl font-medium tracking-tight text-slate-900 mb-1">
+            {d.activeArchive ? `${d.categoryName} — ${d.activeArchive.label}` : `${d.categoryName} Paper Rankings`}
+          </h1>
+          <div className="flex items-center gap-3 text-sm text-slate-500">
+            <span>{d.totalPapers} papers</span>
+            <span className="text-slate-300">·</span>
+            <span>{d.totalMatches} comparisons</span>
+            {d.isRanking && (
+              <span className="inline-flex items-center gap-1 text-blue-600 animate-pulse"><Activity className="h-3 w-3" /> Ranking</span>
+            )}
+            <span className="text-slate-300">·</span>
+            <Link to="/methodology" className="text-blue-600 hover:underline">Methodology</Link>
+          </div>
+        </div>
 
         {/* Category chips */}
-        <div className="flex flex-wrap gap-2 mb-6">
-          <button onClick={() => d.setCategory("")}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <button onClick={() => { d.setCategory(""); d.setSelectedTags([]); d.setTagFilterOpen(false); d.clearArchive(); }}
             className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-              !d.category ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+              !d.category && !d.isTagMode ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
             }`}>
             All Categories
           </button>
           {chipCats.map(c => (
-            <button key={c.id} onClick={() => d.setCategory(c.id)}
+            <button key={c.id} onClick={() => { d.setCategory(c.id); d.setSelectedTags([]); d.setTagFilterOpen(false); d.clearArchive(); }}
               className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                d.category === c.id ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+                d.category === c.id && !d.isTagMode ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
               }`}>
               {c.name}
             </button>
           ))}
-          {d.categories.length > chipCats.length && (
-            <Select value={d.category} onValueChange={d.setCategory}>
+          {overflowCats.length > 0 && (
+            <Select value={d.category} onValueChange={v => { d.setCategory(v); d.setSelectedTags([]); d.setTagFilterOpen(false); d.clearArchive(); }}>
               <SelectTrigger className="h-8 w-auto px-3 rounded-full text-xs border-slate-200">
-                <span>More categories</span>
+                <span>{overflowCats.find(c => c.id === d.category)?.name || "More"}</span>
               </SelectTrigger>
               <SelectContent>
-                {d.categories.filter(c => !featuredSet.has(c.id)).map(c => (
-                  <SelectItem key={c.id} value={c.id}>{c.id} · {c.name}</SelectItem>
-                ))}
+                {overflowCats.map(c => <SelectItem key={c.id} value={c.id}>{c.id} · {c.name}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
+          <div className="w-px h-5 bg-slate-200 mx-1" />
+          <button onClick={() => { d.setTagFilterOpen(!d.tagFilterOpen); if (d.tagFilterOpen && !d.hasSelectedTags) d.setTagFilterOpen(false); }}
+            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+              d.isTagMode ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+            }`}>
+            <Tag className="h-3 w-3" /> Tags {d.hasSelectedTags ? `(${d.selectedTags.length})` : ""}
+          </button>
         </div>
 
-        {/* Inline filter bar — all in one row */}
-        <div className="flex flex-wrap items-end gap-3 mb-6 pb-6 border-b border-slate-200">
+        {/* Tag filter panel */}
+        {d.tagFilterOpen && (
+          <div className="mb-4 border border-slate-200 rounded-sm p-4 bg-white">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-700">Filter by tags</span>
+                <div className="flex items-center gap-1 text-[10px]">
+                  <button onClick={() => d.setTagMode("or")}
+                    className={`px-2 py-0.5 rounded-sm border ${d.tagMode === "or" ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-500"}`}>
+                    OR
+                  </button>
+                  <button onClick={() => d.setTagMode("and")}
+                    className={`px-2 py-0.5 rounded-sm border ${d.tagMode === "and" ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-500"}`}>
+                    AND
+                  </button>
+                </div>
+              </div>
+              {d.hasSelectedTags && (
+                <button onClick={() => { d.setSelectedTags([]); d.setTagFilterOpen(false); }} className="text-xs text-slate-400 hover:text-slate-600">
+                  Clear all
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {topTags.map(tag => (
+                <button key={tag.id} onClick={() => toggleTag(tag.id)}
+                  className={`inline-flex items-center px-2 py-1 rounded-sm text-xs border transition-all ${
+                    d.selectedTags.includes(tag.id) ? "bg-blue-50 text-blue-700 border-blue-200 font-medium" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+                  }`}>
+                  {tag.id} <span className="ml-1 text-slate-400">{tag.count}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Filter bar */}
+        <div className="flex flex-wrap items-end gap-3 mb-6 pb-5 border-b border-slate-200">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <Input value={d.keyword} onChange={e => d.setKeyword(e.target.value)} placeholder="Search papers, authors, topics..."
               className="pl-9 h-10 rounded-sm border-slate-200 focus-visible:ring-1 focus-visible:ring-blue-600" />
+            {d.keyword && (
+              <button onClick={() => d.setKeyword("")} className="absolute right-3 top-1/2 -translate-y-1/2">
+                <X className="h-3.5 w-3.5 text-slate-400 hover:text-slate-600" />
+              </button>
+            )}
           </div>
-          <Select value={d.period} onValueChange={d.setPeriod}>
+          <Select value={d.activeArchive ? "__archive" : d.period} onValueChange={v => { if (v !== "__archive") { d.setPeriod(v); d.clearArchive(); } }}>
             <SelectTrigger className="h-10 w-[150px] rounded-sm border-slate-200 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
               {PERIODS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={d.sortKey === "rank" ? "score" : d.sortKey} onValueChange={k => d.handleSort(k)}>
-            <SelectTrigger className="h-10 w-[130px] rounded-sm border-slate-200 text-sm"><SelectValue placeholder="Sort by" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="score">Score</SelectItem>
-              <SelectItem value="ai_rating">Rating</SelectItem>
-              <SelectItem value="gap_score">Gap</SelectItem>
-              <SelectItem value="published">Published</SelectItem>
-            </SelectContent>
-          </Select>
+          {d.archives.length > 0 && (
+            <div className="relative" ref={archiveRef}>
+              <button onClick={() => setArchiveOpen(v => !v)}
+                className={`inline-flex items-center gap-1.5 h-10 px-3 rounded-sm border text-sm transition-all ${
+                  d.activeArchive ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-600 hover:border-slate-400"
+                }`}>
+                <Archive className="h-3.5 w-3.5" />
+                {d.activeArchive?.label || "Archive"}
+                <ChevronDown className={`h-3 w-3 transition-transform ${archiveOpen ? "rotate-180" : ""}`} />
+              </button>
+              {archiveOpen && (
+                <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-sm shadow-lg min-w-[220px] max-h-[320px] overflow-y-auto py-1">
+                  <button onClick={() => { d.clearArchive(); setArchiveOpen(false); }}
+                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 transition-colors text-slate-500">
+                    Live rankings
+                  </button>
+                  {d.archives.map(a => {
+                    const slug = a.period_type === "weekly" ? `w${a.week}` : `m${a.month}`;
+                    return (
+                      <button key={`${a.category}-${a.year}-${slug}`}
+                        onClick={() => { d.loadArchive(a); setArchiveOpen(false); }}
+                        className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 transition-colors flex items-center justify-between">
+                        <span>{a.label}</span>
+                        <span className="text-[10px] text-slate-400 ml-3">{a.paper_count} papers</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Table */}
         <div className="border border-slate-200 bg-white rounded-sm overflow-hidden">
-          {d.loading && d.leaderboard.length === 0 ? (
-            <div className="space-y-2 p-4">
-              {[...Array(8)].map((_, i) => <div key={i} className="h-12 bg-slate-50 rounded-sm animate-pulse" />)}
-            </div>
-          ) : d.leaderboard.length === 0 ? (
-            <div className="py-16 text-center text-sm text-slate-400">No papers found for this period.</div>
-          ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="text-[10px] font-medium uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-100">
-                  <th className="pl-5 pr-2 py-2.5 text-center w-10">#</th>
-                  <th className="px-2 py-2.5 text-left">Paper</th>
-                  <th className="px-2 py-2.5 text-right">Score</th>
-                  <th className="px-2 py-2.5 text-right hidden md:table-cell">CI</th>
-                  <th className="px-2 py-2.5 text-right hidden md:table-cell">Match</th>
-                  <th className="px-2 py-2.5 text-right hidden lg:table-cell">Win %</th>
-                  {d.showRatingCol && <th className="px-2 py-2.5 text-right hidden lg:table-cell">Rating</th>}
-                  {d.showGapCol && <th className="px-2 py-2.5 text-right hidden lg:table-cell">Gap</th>}
-                  <th className="pl-2 pr-5 py-2.5 text-right hidden sm:table-cell">Published</th>
-                </tr>
-              </thead>
-              <tbody>
-                {d.leaderboard.map((p, i) => (
-                  <tr key={p.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70 transition-colors">
-                    <td className="pl-5 pr-2 py-3 text-center align-baseline"><span className="font-serif text-base font-medium text-blue-600">{p.rank_ts || p.rank || i + 1}</span></td>
-                    <td className="px-2 py-3">
-                      <Link to={`/paper/${p.id}`} className="text-sm font-medium text-slate-900 hover:text-blue-700 leading-snug line-clamp-2">
-                        <LatexTitle text={p.title} />
-                      </Link>
-                      <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-                        <span>{p.authors?.slice(0, 2).join(", ")}{p.authors?.length > 2 ? ` +${p.authors.length - 2}` : ""}</span>
-                      </div>
-                    </td>
-                    <td className="px-2 py-3 text-right align-baseline"><span className="text-sm font-semibold tabular-nums">{p.ts_score || p.score || "—"}</span></td>
-                    <td className="px-2 py-3 text-right align-baseline text-xs text-slate-500 hidden md:table-cell">{p.ci > 0 ? `±${Math.round(p.ci)}` : "—"}</td>
-                    <td className="px-2 py-3 text-right align-baseline text-xs text-slate-500 hidden md:table-cell">{p.comparisons ?? "—"}</td>
-                    <td className="px-2 py-3 text-right align-baseline text-xs text-slate-500 hidden lg:table-cell">{p.win_rate != null ? `${p.win_rate}%` : "—"}</td>
-                    {d.showRatingCol && <td className="px-2 py-3 text-right align-baseline text-xs text-slate-500 hidden lg:table-cell">{p.ai_rating || "—"}</td>}
-                    {d.showGapCol && <td className={`px-2 py-3 text-right align-baseline text-xs hidden lg:table-cell ${p.gap_score > 0 ? "text-emerald-600" : p.gap_score < 0 ? "text-red-400" : "text-slate-500"}`}>{p.gap_score != null ? (p.gap_score > 0 ? "+" : "") + p.gap_score : "—"}</td>}
-                    <td className="pl-2 pr-5 py-3 text-right align-baseline text-xs text-slate-500 hidden sm:table-cell">
-                      {p.published ? new Date(p.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }) : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {d.nextCursor && <div ref={sentinelRef} className="py-4 text-center text-xs text-slate-400">{d.loadingMore ? "Loading more..." : ""}</div>}
+          <LeaderboardTableNew
+            leaderboard={d.leaderboard} loading={d.loading}
+            sortKey={d.sortKey} sortDir={d.sortDir} onSort={d.handleSort}
+            showRatingCol={d.showRatingCol} showGapCol={d.showGapCol}
+            hasSelectedTags={d.hasSelectedTags} globalStats={d.globalStats}
+            isArchive={!!d.activeArchive} nextCursor={d.nextCursor}
+            loadMore={d.loadMore} loadingMore={d.loadingMore} keyword={d.keyword}
+          />
+        </div>
+
+        <div className="mt-4 text-center text-xs text-slate-400">
+          {d.hasSelectedTags
+            ? `Cross-category rankings for ${d.selectedTags.join(d.tagMode === "and" ? " AND " : " OR ")} papers.`
+            : "Win-rate scores from pairwise comparisons. Papers compared using full-text analysis."}
         </div>
       </div>
       <SiteFooter />

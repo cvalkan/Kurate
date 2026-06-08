@@ -1,16 +1,20 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import axios from "axios";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 /**
- * Shared hook for leaderboard data — used by design explorations.
- * Handles category loading, paper fetching, sorting, infinite scroll.
+ * Full-featured leaderboard hook — matches the production LeaderboardPage's API contract.
+ * Supports: categories, tags (AND/OR), periods, archives, sorting, search, infinite scroll.
  */
 export function useLeaderboardData() {
   const [categories, setCategories] = useState([]);
   const [featured, setFeatured] = useState([]);
-  const [category, setCategory] = useState("");  // "" = All Categories
+  const [allTags, setAllTags] = useState([]);
+  const [category, setCategory] = useState("");       // "" = All Categories
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [tagMode, setTagMode] = useState("or");       // "or" | "and"
+  const [tagFilterOpen, setTagFilterOpen] = useState(false);
   const [period, setPeriod] = useState("week");
   const [keyword, setKeyword] = useState("");
   const [debouncedKeyword, setDebouncedKeyword] = useState("");
@@ -19,12 +23,20 @@ export function useLeaderboardData() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalPapers, setTotalPapers] = useState(0);
+  const [totalInPeriod, setTotalInPeriod] = useState(0);
   const [totalMatches, setTotalMatches] = useState(0);
+  const [isRanking, setIsRanking] = useState(false);
   const [nextCursor, setNextCursor] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [showRatingCol, setShowRatingCol] = useState(true);
   const [showGapCol, setShowGapCol] = useState(true);
+  const [archives, setArchives] = useState([]);
+  const [activeArchive, setActiveArchive] = useState(null);
+  const [globalStats, setGlobalStats] = useState(false);
   const abortRef = useRef(null);
+
+  const isTagMode = tagFilterOpen || selectedTags.length > 0;
+  const hasSelectedTags = selectedTags.length > 0;
 
   // Debounce search
   useEffect(() => {
@@ -33,51 +45,78 @@ export function useLeaderboardData() {
     return () => clearTimeout(id);
   }, [keyword, debouncedKeyword]);
 
-  // Load categories
+  // Load categories + tags
   useEffect(() => {
     axios.get(`${API}/api/categories`).then(res => {
-      const cats = res.data.categories || [];
-      setCategories(cats);
+      setCategories(res.data.categories || []);
       setFeatured(res.data.featured || []);
     }).catch(() => {});
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    axios.get(`${API}/api/tags`).then(res => {
+      setAllTags(res.data.tags || []);
+    }).catch(() => {});
+  }, []);
 
   // Fetch leaderboard
   useEffect(() => {
     if (categories.length === 0) return;
+    if (activeArchive) return; // Archive data is loaded separately
     if (abortRef.current) abortRef.current.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     setLoading(true);
 
     const params = new URLSearchParams();
-    if (category) params.set("category", category);
+
+    if (hasSelectedTags) {
+      params.set("tags", selectedTags.join(","));
+      params.set("tag_mode", tagMode);
+      if (globalStats) params.set("global_stats", "true");
+    } else if (isTagMode) {
+      params.set("show_all", "true");
+    } else if (category) {
+      params.set("category", category);
+    }
+
     params.set("period", period);
     params.set("limit", "50");
     if (debouncedKeyword) params.set("search", debouncedKeyword);
-    if (sortKey && sortKey !== "rank") { params.set("sort_by", sortKey); params.set("sort_dir", sortDir); }
+    if (sortKey && sortKey !== "rank") {
+      params.set("sort_by", sortKey);
+      params.set("sort_dir", sortDir);
+    }
 
     axios.get(`${API}/api/leaderboard?${params}`, { signal: ctrl.signal })
       .then(res => {
         if (ctrl.signal.aborted) return;
-        setLeaderboard(res.data.leaderboard || []);
-        setTotalPapers(res.data.total_papers || 0);
-        setTotalMatches(res.data.total_matches || 0);
-        setNextCursor(res.data.next_cursor || null);
-        setShowRatingCol(res.data.show_rating_column !== false);
-        setShowGapCol(res.data.show_gap_column !== false);
+        const d = res.data;
+        setLeaderboard(d.leaderboard || []);
+        setTotalPapers(d.total_papers || 0);
+        setTotalInPeriod(d.total_in_period || 0);
+        setTotalMatches(d.total_matches || 0);
+        setIsRanking(d.is_ranking || false);
+        setNextCursor(d.next_cursor || null);
+        setShowRatingCol(d.show_rating_column !== false);
+        setShowGapCol(d.show_gap_column !== false);
+        setArchives(d.archives || []);
         setLoading(false);
       })
       .catch(() => { if (!ctrl.signal.aborted) setLoading(false); });
     return () => ctrl.abort();
-  }, [category, period, debouncedKeyword, sortKey, sortDir, categories.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [category, period, debouncedKeyword, sortKey, sortDir, categories.length, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, activeArchive]);
 
+  // Load more (infinite scroll)
   const loadMore = useCallback(async () => {
-    if (!nextCursor || loadingMore) return;
+    if (!nextCursor || loadingMore || activeArchive) return;
     setLoadingMore(true);
     try {
       const params = new URLSearchParams();
-      if (category) params.set("category", category);
+      if (hasSelectedTags) {
+        params.set("tags", selectedTags.join(","));
+        params.set("tag_mode", tagMode);
+        if (globalStats) params.set("global_stats", "true");
+      } else if (category) {
+        params.set("category", category);
+      }
       params.set("period", period);
       params.set("limit", "50");
       params.set("cursor", nextCursor);
@@ -88,23 +127,78 @@ export function useLeaderboardData() {
       setNextCursor(res.data.next_cursor || null);
     } catch { /* ignore */ }
     setLoadingMore(false);
-  }, [nextCursor, loadingMore, category, period, debouncedKeyword, sortKey, sortDir]);
+  }, [nextCursor, loadingMore, category, period, debouncedKeyword, sortKey, sortDir, selectedTags, tagMode, hasSelectedTags, globalStats, activeArchive]);
 
-  const handleSort = (key) => {
+  // Load archive
+  const loadArchive = useCallback(async (archive) => {
+    if (!archive) { setActiveArchive(null); return; }
+    try {
+      const slug = archive.period_type === "older" ? "older"
+        : archive.period_type === "weekly" ? `w${archive.week}` : `m${archive.month}`;
+      const url = archive.period_type === "older"
+        ? `${API}/api/archive/${archive.category}/older`
+        : `${API}/api/archive/${archive.category}/${archive.year}/${slug}`;
+      const res = await axios.get(url);
+      if (res.data.leaderboard) {
+        setActiveArchive({ ...res.data, label: archive.label || slug });
+        setLeaderboard(res.data.leaderboard || []);
+        setLoading(false);
+      }
+    } catch (e) {
+      console.error("Failed to load archive:", e);
+    }
+  }, []);
+
+  const clearArchive = useCallback(() => {
+    setActiveArchive(null);
+  }, []);
+
+  const handleSort = useCallback((key) => {
+    if (!activeArchive) {
+      setNextCursor(null);
+    }
     if (sortKey === key) {
       setSortDir(d => d === "asc" ? "desc" : "asc");
     } else {
       setSortKey(key);
       setSortDir(key === "title" || key === "published" ? "asc" : "desc");
     }
-  };
+  }, [sortKey, activeArchive]);
+
+  // For archive mode, sort locally
+  const displayLeaderboard = useMemo(() => {
+    if (!activeArchive) return leaderboard;
+    const sorted = [...leaderboard];
+    if (sortKey && sortKey !== "rank") {
+      const dir = sortDir === "asc" ? 1 : -1;
+      sorted.sort((a, b) => {
+        const va = a[sortKey] ?? a.ts_score ?? 0;
+        const vb = b[sortKey] ?? b.ts_score ?? 0;
+        if (typeof va === "string") return dir * va.localeCompare(vb);
+        return dir * (va - vb);
+      });
+    }
+    return sorted.map((p, i) => ({ ...p, _displayRank: i + 1 }));
+  }, [leaderboard, activeArchive, sortKey, sortDir]);
+
+  const categoryName = useMemo(() => {
+    if (hasSelectedTags) return selectedTags.join(tagMode === "and" ? " ∩ " : " ∪ ");
+    if (isTagMode) return "All Papers";
+    if (!category) return "All";
+    return categories.find(c => c.id === category)?.name || category;
+  }, [category, categories, hasSelectedTags, selectedTags, tagMode, isTagMode]);
 
   return {
-    categories, featured, category, setCategory,
+    categories, featured, allTags,
+    category, setCategory, categoryName,
+    selectedTags, setSelectedTags, tagMode, setTagMode,
+    tagFilterOpen, setTagFilterOpen, isTagMode, hasSelectedTags,
     period, setPeriod, keyword, setKeyword, debouncedKeyword,
     sortKey, sortDir, handleSort,
-    leaderboard, loading, totalPapers, totalMatches,
+    leaderboard: displayLeaderboard, loading, totalPapers, totalInPeriod, totalMatches, isRanking,
     nextCursor, loadMore, loadingMore,
     showRatingCol, showGapCol,
+    archives, activeArchive, loadArchive, clearArchive,
+    globalStats, setGlobalStats,
   };
 }
