@@ -363,7 +363,7 @@ export default function AdminPage() {
               // Sigma fields: display as ±Elo (sigma × 20), save as raw sigma (÷20)
               const displayValue = isSigma && editSettings[key] != null && editSettings[key] !== ""
                 ? Math.round(editSettings[key] * 20)
-                : editSettings[key];
+                : editSettings[key] ?? dflt;
               return (
               <div key={key}>
                 <div className="flex items-center gap-1.5 mb-1">
