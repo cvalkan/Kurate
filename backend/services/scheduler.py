@@ -452,13 +452,14 @@ async def _fetch_loop():
 
 
 async def _fetch_loop_inner():
-    """Round-robin fetch: process ONE category per tick with OAI-PMH + cache.
-    Each category takes 5-10 min (harvest or cache hit + processing).
-    Full cycle ~4-6 hours for 45 categories.
+    """Round-robin fetch: process ONE category per tick.
+    Each category takes 5-10 min (API call + PDF/summary processing).
+    Full cycle ~1-2 hours for 45 categories.
     """
     from core.memlog import log_mem
 
     _rr_idx = 0
+    _skip_this_cycle = set()  # Categories that 429'd — skip until next cycle
 
     while _scheduler_running:
         try:
@@ -493,6 +494,10 @@ async def _fetch_loop_inner():
                 if t_doc and t_doc.get("fetch_paused"):
                     continue
 
+                # Skip categories that got 429'd this cycle
+                if cat in _skip_this_cycle:
+                    continue
+
                 ckey = cat.replace('.', '_')
                 last_fetch_key = f"last_fetch_at_{ckey}"
                 last_fetch = settings.get(last_fetch_key)
@@ -510,6 +515,8 @@ async def _fetch_loop_inner():
                     should_fetch = True
 
                 if not should_fetch:
+                    # Category is up to date — clear it from skip set if present
+                    _skip_this_cycle.discard(cat)
                     continue
 
                 log_mem(f"Round-robin fetch: {cat} (idx={idx}/{len(fetch_cats)})")
@@ -523,9 +530,13 @@ async def _fetch_loop_inner():
                         upsert=True,
                     )
                     cat_status["last_fetch_at"] = now_iso
+                    _skip_this_cycle.discard(cat)
                 else:
                     fail_reason = result.get("_failure_reason", "")
                     logger.warning(f"[{cat}] fetch failed (reason={fail_reason})")
+                    if fail_reason == "rate_limit":
+                        _skip_this_cycle.add(cat)
+                        logger.info(f"[{cat}] 429 rate-limited — skipping until next cycle")
 
                 cat_status["next_fetch_at"] = (now + timedelta(hours=interval_hours)).isoformat()
                 from core.memlog import force_gc
