@@ -1,0 +1,304 @@
+fetch_cycle logs: 300 entries
+
+Time (UTC)               Category               Status  New  Detail
+------------------------------------------------------------------------------------------------------------------------
+2026-06-08T03:45:52.269  physics.space-ph       OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-08T03:45:33.924  physics.plasm-ph       OK        4  new=4, pdfs=4, summaries=4, rankings=4
+2026-06-08T03:43:54.262  stat.ML                OK        7  new=7, pdfs=7, summaries=9, rankings=7
+2026-06-08T03:41:50.739  quant-ph               OK       38  new=38, pdfs=38, summaries=39, rankings=22
+2026-06-08T03:32:18.232  q-bio.QM               OK        3  new=3, pdfs=3, summaries=3, rankings=3
+2026-06-08T03:30:10.702  q-bio.PE               OK        1  new=1, pdfs=1, summaries=1, rankings=1
+2026-06-08T03:29:01.598  q-bio.NC               OK        1  new=1, pdfs=1, summaries=1, rankings=1
+2026-06-08T03:28:04.693  q-bio.GN               OK        1  new=1, pdfs=1, summaries=1, rankings=1
+2026-06-08T03:27:03.256  q-bio.BM               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-08T03:26:50.115  physics.optics         OK        0  new=0, pdfs=0, summaries=4, rankings=14
+2026-06-08T03:25:36.521  physics.comp-ph        OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-08T03:25:17.159  math-ph                OK        6  new=6, pdfs=6, summaries=6, rankings=6
+2026-06-08T03:24:01.019  iacr.proto             OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-08T03:23:48.231  iacr.pk                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-08T03:23:31.655  hep-th                 OK       10  new=10, pdfs=10, summaries=10, rankings=10
+2026-06-08T03:21:09.181  hep-ph                 OK       20  new=20, pdfs=20, summaries=20, rankings=20
+2026-06-08T03:17:26.475  hep-lat                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-08T03:17:06.101  gr-qc                  OK       10  new=10, pdfs=10, summaries=10, rankings=10
+2026-06-08T03:14:46.651  econ.GN                OK        3  new=3, pdfs=3, summaries=3, rankings=3
+2026-06-08T03:13:35.644  cs.IR                  OK       14  new=14, pdfs=14, summaries=14, rankings=14
+2026-06-08T03:10:50.623  cs.GT                  OK        8  new=8, pdfs=8, summaries=8, rankings=8
+2026-06-08T03:09:25.217  cs.DC                  OK        7  new=7, pdfs=7, summaries=7, rankings=7
+2026-06-08T03:08:01.876  cs.CR                  OK       22  new=22, pdfs=22, summaries=24, rankings=22
+2026-06-08T03:03:42.660  cs.AI                  OK       26  new=26, pdfs=26, summaries=26, rankings=26
+2026-06-08T02:58:39.581  cond-mat.supr-con      OK        4  new=4, pdfs=4, summaries=4, rankings=4
+2026-06-08T02:57:19.978  cond-mat.str-el        OK       11  new=11, pdfs=11, summaries=12, rankings=5
+2026-06-08T02:54:29.361  cond-mat.quant-gas     OK        3  new=3, pdfs=3, summaries=3, rankings=3
+2026-06-08T02:53:06.579  cond-mat.mtrl-sci      OK       21  new=21, pdfs=21, summaries=21, rankings=21
+2026-06-08T02:48:07.558  cond-mat.mes-hall      OK        7  new=7, pdfs=7, summaries=7, rankings=7
+2026-06-08T02:46:25.127  cond-mat.dis-nn        OK        5  new=5, pdfs=5, summaries=5, rankings=5
+2026-06-08T02:45:08.914  chemrxiv.IC            OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-08T02:44:51.678  astro-ph.IM            OK        8  new=8, pdfs=8, summaries=8, rankings=8
+2026-06-08T02:42:26.188  astro-ph.HE            OK       11  new=11, pdfs=11, summaries=11, rankings=11
+2026-06-08T02:39:55.843  astro-ph.CO            OK        7  new=7, pdfs=7, summaries=7, rankings=7
+2026-06-08T02:32:08.085  physics.gen-ph         OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-08T02:31:54.101  physics.chem-ph        OK        5  new=5, pdfs=5, summaries=5, rankings=5
+2026-06-08T02:30:33.472  physics.app-ph         OK        1  new=1, pdfs=1, summaries=1, rankings=1
+2026-06-08T02:29:38.351  nlin.PS                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-08T02:29:27.272  nlin.CD                OK        2  new=2, pdfs=2, summaries=2, rankings=2
+2026-06-08T02:28:17.952  math.PR                OK       10  new=10, pdfs=10, summaries=11, rankings=10
+2026-06-08T02:26:11.703  math.OC                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-08T02:25:41.124  math-ph                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:25:08.294  econ.GN                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:23:46.972  physics.optics         FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:22:26.398  physics.gen-ph         FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:22:15.080  physics.chem-ph        FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:21:59.503  physics.app-ph         FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:21:45.903  nlin.PS                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:21:19.151  nlin.CD                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:18:37.582  math.PR                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:17:54.975  math.OC                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:17:13.247  math-ph                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:17:00.663  econ.GN                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:16:15.361  physics.optics         FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:15:31.492  physics.gen-ph         FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:15:19.929  physics.chem-ph        FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:14:14.850  physics.app-ph         FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:14:03.343  nlin.PS                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:13:52.382  nlin.CD                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:13:41.391  math.PR                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:11:56.422  math.OC                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:11:14.522  math-ph                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:11:01.611  econ.GN                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:10:16.855  physics.gen-ph         FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:09:50.303  physics.chem-ph        FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:09:06.472  physics.app-ph         FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:08:39.897  nlin.PS                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:07:57.626  nlin.CD                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:07:46.643  math.PR                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:07:35.245  math.OC                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:07:09.072  math-ph                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:05:50.141  econ.GN                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:05:30.600  physics.gen-ph         FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:04:48.802  physics.chem-ph        FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:03:58.834  physics.app-ph         FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:03:31.865  nlin.PS                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:02:39.785  nlin.CD                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:02:03.789  math.PR                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:01:26.712  math.OC                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:01:04.915  math-ph                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T02:00:39.511  econ.GN                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-08T01:59:12.948  cs.SI                  OK        3  new=3, pdfs=3, summaries=3, rankings=3
+2026-06-08T01:57:49.174  cs.RO                  OK       42  new=42, pdfs=42, summaries=41, rankings=41
+2026-06-08T01:51:24.736  cs.LG                  OK       50  new=50, pdfs=50, summaries=50, rankings=50
+2026-06-08T01:43:08.622  cs.IT                  OK       13  new=13, pdfs=13, summaries=13, rankings=13
+2026-06-07T21:35:51.690  physics.space-ph       OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T21:35:30.191  physics.plasm-ph       OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T21:35:08.346  stat.ML                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:54:27.935  physics.comp-ph        OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:52:08.628  iacr.proto             OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:51:56.914  iacr.pk                OK        1  new=1, pdfs=1, summaries=1, rankings=1
+2026-06-07T20:49:22.096  hep-th                 OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:49:07.334  hep-ph                 OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:48:54.508  hep-lat                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:48:43.259  gr-qc                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:48:28.848  cs.IR                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:48:15.732  cs.GT                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:48:02.362  cs.DC                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:47:47.642  cs.CR                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:40:30.889  cs.AI                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:38:44.570  cond-mat.supr-con      OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:38:33.141  cond-mat.str-el        OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:38:21.147  q-bio.GN               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:38:10.003  q-bio.BM               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:37:58.305  cond-mat.quant-gas     OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:37:47.066  cond-mat.mtrl-sci      OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:37:30.811  cond-mat.mes-hall      OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:37:18.613  cond-mat.dis-nn        OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:37:07.475  chemrxiv.IC            OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:36:56.478  astro-ph.IM            OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:36:44.953  astro-ph.HE            OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:36:32.056  astro-ph.CO            OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:36:18.799  quant-ph               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:35:16.728  q-bio.QM               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:35:05.462  q-bio.PE               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:34:53.667  q-bio.NC               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:11:06.017  physics.optics         OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:04:57.989  physics.gen-ph         OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:04:06.239  physics.chem-ph        OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T20:01:40.539  physics.app-ph         OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T19:59:57.363  nlin.PS                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T19:59:46.486  nlin.CD                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T19:59:35.585  math.PR                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T19:50:36.300  math.OC                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T19:50:25.541  math-ph                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T19:43:57.287  econ.GN                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T19:43:43.782  cs.SI                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T19:43:32.021  cs.RO                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T19:43:07.418  cs.LG                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T19:40:42.685  cs.IT                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T15:35:42.418  physics.space-ph       OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T15:35:20.714  physics.plasm-ph       OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T15:34:59.011  stat.ML                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:54:25.343  physics.comp-ph        OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:51:30.726  iacr.proto             OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:50:58.601  iacr.pk                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:49:15.837  hep-th                 OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:48:51.540  hep-ph                 OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:48:38.788  hep-lat                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:48:27.537  gr-qc                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:48:14.228  cs.IR                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:48:01.417  cs.GT                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:47:48.712  cs.DC                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:47:34.534  cs.CR                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:40:06.767  cs.AI                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:38:30.209  cond-mat.supr-con      OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:38:18.744  cond-mat.str-el        OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:38:06.882  q-bio.GN               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:37:55.981  q-bio.BM               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:37:44.584  cond-mat.quant-gas     OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:37:33.431  cond-mat.mtrl-sci      OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:37:17.674  cond-mat.mes-hall      OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:37:05.210  cond-mat.dis-nn        OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:36:54.107  chemrxiv.IC            OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:36:43.143  astro-ph.IM            OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:36:31.729  astro-ph.HE            OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:36:19.128  astro-ph.CO            OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:36:06.212  quant-ph               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:35:13.582  q-bio.QM               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:35:02.236  q-bio.PE               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:34:50.907  q-bio.NC               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:10:58.398  physics.optics         OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:04:50.757  physics.gen-ph         OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:03:58.252  physics.chem-ph        OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T14:01:32.388  physics.app-ph         OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T13:59:49.580  nlin.PS                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T13:59:38.703  nlin.CD                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T13:59:27.802  math.PR                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T13:50:28.009  math.OC                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T13:50:17.187  math-ph                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T13:43:38.943  econ.GN                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T13:43:21.981  cs.SI                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T13:43:10.125  cs.RO                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T13:42:41.366  cs.LG                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T13:40:34.835  cs.IT                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T09:35:36.532  physics.space-ph       OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T09:35:15.134  physics.plasm-ph       OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T09:34:53.382  stat.ML                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:54:23.216  physics.comp-ph        OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:51:27.624  iacr.proto             OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:50:55.419  iacr.pk                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:49:01.953  hep-th                 OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:48:47.423  hep-ph                 OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:48:34.053  hep-lat                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:48:22.303  gr-qc                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:48:07.854  cs.IR                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:47:54.711  cs.GT                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:47:38.652  cs.DC                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:47:23.534  cs.CR                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:39:50.636  cs.AI                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:38:10.799  cond-mat.supr-con      OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:37:59.476  cond-mat.str-el        OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:37:47.384  q-bio.GN               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:37:36.479  q-bio.BM               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:37:24.744  cond-mat.quant-gas     OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:37:13.432  cond-mat.mtrl-sci      OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:36:55.658  cond-mat.mes-hall      OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:36:43.329  cond-mat.dis-nn        OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:36:32.212  chemrxiv.IC            OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:36:21.380  astro-ph.IM            OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:36:09.889  astro-ph.HE            OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:35:57.486  astro-ph.CO            OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:35:44.449  quant-ph               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:35:05.627  q-bio.QM               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:34:54.531  q-bio.PE               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:34:43.130  q-bio.NC               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:10:48.658  physics.optics         OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:04:49.596  physics.gen-ph         OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:03:47.550  physics.chem-ph        OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T08:01:21.260  physics.app-ph         OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T07:59:38.449  nlin.PS                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T07:59:27.482  nlin.CD                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T07:59:16.546  math.PR                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T07:50:16.546  math.OC                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T07:50:05.755  math-ph                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T07:43:02.892  econ.GN                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T07:42:48.555  cs.SI                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T07:42:36.793  cs.RO                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T07:42:12.325  cs.LG                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T07:40:27.989  cs.IT                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T03:35:28.866  physics.space-ph       OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T03:35:07.372  physics.plasm-ph       OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T03:34:45.905  stat.ML                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:54:14.130  physics.comp-ph        OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:51:17.710  iacr.proto             OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:50:44.968  iacr.pk                OK        1  new=1, pdfs=1, summaries=1, rankings=1
+2026-06-07T02:48:32.431  hep-th                 OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:48:17.880  hep-ph                 OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:48:05.305  hep-lat                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:47:54.378  gr-qc                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:47:40.153  cs.IR                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:47:26.963  cs.GT                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:47:14.245  cs.DC                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:46:59.592  cs.CR                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:39:23.935  cs.AI                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:37:47.986  cond-mat.supr-con      OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:37:36.704  cond-mat.str-el        OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:37:24.923  q-bio.GN               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:37:14.076  q-bio.BM               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:37:02.512  cond-mat.quant-gas     OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:36:51.373  cond-mat.mtrl-sci      OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:36:35.578  cond-mat.mes-hall      OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:36:23.322  cond-mat.dis-nn        OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:36:12.265  chemrxiv.IC            OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:36:01.093  astro-ph.IM            OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:35:49.641  astro-ph.HE            OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:35:37.412  astro-ph.CO            OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:35:24.610  quant-ph               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:35:02.465  q-bio.QM               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:34:51.342  q-bio.PE               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:34:33.408  q-bio.NC               OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:32:25.024  q-bio.GN               FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-07T02:31:43.509  q-bio.BM               FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-07T02:29:04.132  q-bio.QM               FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-07T02:27:45.297  q-bio.PE               FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-07T02:25:03.942  q-bio.NC               FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-07T02:24:00.033  q-bio.GN               FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-07T02:23:49.171  q-bio.BM               FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-07T02:23:22.102  q-bio.QM               FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-07T02:21:48.322  q-bio.PE               FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-07T02:21:21.689  q-bio.NC               FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-07T02:20:02.723  q-bio.GN               FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-07T02:17:24.502  q-bio.BM               FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-07T02:10:40.012  physics.optics         OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:04:46.600  physics.gen-ph         OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:03:42.963  physics.chem-ph        OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T02:01:15.890  physics.app-ph         OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T01:59:37.118  nlin.PS                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T01:59:26.076  nlin.CD                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T01:59:15.111  math.PR                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T01:50:05.770  math.OC                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T01:49:54.404  math-ph                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T01:42:35.978  econ.GN                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T01:42:22.939  cs.SI                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T01:42:11.313  cs.RO                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T01:41:48.447  cs.LG                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-07T01:40:13.521  cs.IT                  OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-06T21:35:19.371  physics.space-ph       OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-06T21:35:05.288  physics.plasm-ph       OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-06T21:34:35.254  stat.ML                OK        0  new=0, pdfs=0, summaries=0, rankings=0
+2026-06-06T21:31:58.647  physics.space-ph       FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:30:04.854  physics.plasm-ph       FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:27:26.961  stat.ML                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:26:06.479  physics.space-ph       FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:25:24.935  physics.plasm-ph       FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:25:13.707  stat.ML                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:24:46.250  physics.space-ph       FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:24:35.506  physics.plasm-ph       FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:23:02.681  stat.ML                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:20:34.843  physics.space-ph       FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:19:53.398  physics.plasm-ph       FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:17:28.772  stat.ML                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:16:12.468  physics.space-ph       FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:13:31.367  physics.plasm-ph       FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:12:49.401  stat.ML                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:10:08.443  physics.space-ph       FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:09:57.696  physics.plasm-ph       FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:07:19.119  stat.ML                FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:07:06.537  physics.space-ph       FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
+2026-06-06T21:06:55.766  physics.plasm-ph       FAIL      0  new=0, pdfs=0, summaries=0, rankings=0 | ERRORS: ArXiv/source fetch fa...
