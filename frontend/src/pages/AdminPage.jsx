@@ -222,7 +222,7 @@ export default function AdminPage() {
     setLoading(l => ({ ...l, settings: true }));
     try {
       const updates = {};
-      for (const key of ["fetch_interval_hours", "max_papers_per_fetch", "new_category_lookback_days", "parallel_agents", "top_k_focus", "max_new_matches_per_round", "sigma_target_general", "sigma_target_topk", "min_comparisons_converged", "calibration_ratio", "parallel_categories", "compare_loop_interval", "llm_request_timeout", "max_pairs_per_round", "summary_batch_size", "summary_parallel", "min_papers_for_tournament"]) {
+      for (const key of ["fetch_interval_hours", "fetch_success_delay", "fetch_fail_delay", "max_papers_per_fetch", "new_category_lookback_days", "parallel_agents", "top_k_focus", "max_new_matches_per_round", "sigma_target_general", "sigma_target_topk", "min_comparisons_converged", "calibration_ratio", "parallel_categories", "compare_loop_interval", "llm_request_timeout", "max_pairs_per_round", "summary_batch_size", "summary_parallel", "min_papers_for_tournament"]) {
         if (editSettings[key] !== settings[key]) {
           updates[key] = Number(editSettings[key]);
         }
@@ -341,6 +341,8 @@ export default function AdminPage() {
             <h3 className="text-sm font-medium">System Parameters</h3>
             {[
               { key: "fetch_interval_hours", label: "Fetch Interval (hours)", dflt: 24, help: "How often each category is checked for new papers. arXiv publishes once daily (~20:00 UTC), so 24h is the natural cycle. Lower values just re-check without finding new papers. Safe range: 1-168. Default: 24.", min: 1, max: 168 },
+              { key: "fetch_success_delay", label: "Fetch Success Delay (sec)", dflt: 10, help: "Seconds to wait between categories after a successful fetch. Controls how fast the round-robin cycles. Safe range: 5-120. Default: 10.", min: 5, max: 120 },
+              { key: "fetch_fail_delay", label: "Fetch 429 Cooldown (sec)", dflt: 300, help: "Seconds to pause ALL fetching after a 429 rate-limit from arXiv. Gives the rate limit time to expire before trying the next category. Safe range: 60-900. Default: 300 (5 min).", min: 60, max: 900 },
               { key: "max_papers_per_fetch", label: "Max Papers Per Cycle", dflt: 50, help: "Max new papers to process (PDF + summary) per category per cycle. Limits pipeline time for high-volume categories. Safe range: 10-2000. Default: 50.", min: 10, max: 2000 },
               { key: "new_category_lookback_days", label: "New Category Lookback (days)", dflt: 0, help: "When a new category is added, how many days back to fetch papers. 0 = only from today onward (no backlog). 7 = fetch the last week of papers. Default: 0.", min: 0, max: 90 },
               { key: "min_papers_for_tournament", label: "Min Papers for Tournament", dflt: 8, help: "Minimum papers needed before a category starts matching. Safe range: 2-50. Default: 8.", min: 2, max: 50 },
@@ -361,7 +363,7 @@ export default function AdminPage() {
               // Sigma fields: display as ±Elo (sigma × 20), save as raw sigma (÷20)
               const displayValue = isSigma && editSettings[key] != null && editSettings[key] !== ""
                 ? Math.round(editSettings[key] * 20)
-                : editSettings[key];
+                : editSettings[key] ?? dflt;
               return (
               <div key={key}>
                 <div className="flex items-center gap-1.5 mb-1">

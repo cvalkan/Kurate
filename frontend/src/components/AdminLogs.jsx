@@ -44,7 +44,7 @@ const APIS = [
 
 const VIEWS = [
   { value: "logs", label: "Logs" },
-  { value: "arxiv", label: "arXiv Health" },
+  { value: "arxiv", label: "Category Status" },
   { value: "health", label: "Paper Health" },
 ];
 
@@ -168,9 +168,15 @@ export function AdminLogs() {
       const skipErrors = status === "success";
 
       if (!skipEvents) {
+        // Build server-side filter for system_logs based on event type
+        const eventFilter = { level: "event" };
+        if (type === "fetch_cycle") eventFilter.event = "fetch_cycle";
+        else if (type === "convergence") eventFilter.event = "convergence";
+        else if (type === "archive") eventFilter.event = "archive_created";
+
         fetches.push(
           axios.get(`${API}/api/admin/db/system_logs`, {
-            headers, params: { sort: JSON.stringify({ ts: -1 }), limit: 500, filter: JSON.stringify({ level: "event" }) },
+            headers, params: { sort: JSON.stringify({ ts: -1 }), limit: 500, filter: JSON.stringify(eventFilter) },
           }).then(r => (r.data.docs || []).map(d => normalizeRow(d, "events"))).catch(() => [])
         );
       }
@@ -470,19 +476,20 @@ function fmtCooldown(s) {
   return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
 }
 
-function fmtAgo(ts) {
+function fmtAgo(ts, future = false) {
   if (!ts) return "never";
   try {
-    // ISO strings may already carry a tz offset (+00:00) or 'Z'; only append 'Z'
-    // for naive timestamps so they're parsed as UTC (avoids "NaNd ago").
     const hasTz = /[zZ]$|[+-]\d\d:?\d\d$/.test(ts);
     const t = new Date(hasTz ? ts : ts + "Z").getTime();
     if (isNaN(t)) return "—";
     const diff = (Date.now() - t) / 1000;
-    if (diff < 60) return `${Math.round(diff)}s ago`;
-    if (diff < 3600) return `${Math.round(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.round(diff / 3600)}h ago`;
-    return `${Math.round(diff / 86400)}d ago`;
+    const abs = Math.abs(diff);
+    const suffix = diff < 0 ? "" : " ago";
+    const prefix = diff < 0 ? "in " : "";
+    if (abs < 60) return `${prefix}${Math.round(abs)}s${suffix}`;
+    if (abs < 3600) return `${prefix}${Math.round(abs / 60)}m${suffix}`;
+    if (abs < 86400) return `${prefix}${Math.round(abs / 3600)}h${suffix}`;
+    return `${prefix}${Math.round(abs / 86400)}d${suffix}`;
   } catch { return "—"; }
 }
 
@@ -493,7 +500,7 @@ function ArxivHealthTable() {
 
   const load = useCallback(() => {
     setLoading(true);
-    axios.get(`${API}/api/admin/arxiv-health`, { headers: getAdminHeaders() })
+    axios.get(`${API}/api/admin/category-status`, { headers: getAdminHeaders() })
       .then(r => setData(r.data)).catch(() => setData(null))
       .finally(() => setLoading(false));
   }, []);
@@ -509,62 +516,90 @@ function ArxivHealthTable() {
   if (loading) return <div className="text-center text-xs text-muted-foreground py-8">Loading...</div>;
   if (!data) return <div className="text-center text-xs text-muted-foreground py-8">Failed to load</div>;
 
-  const statusColor = (s) => s === "healthy" ? "green" : s === "error" ? "red" : "gray";
+  const statusConfig = {
+    up_to_date:        { label: "Up to date",    color: "text-green-600",  bg: "" },
+    fetching:          { label: "Fetching…",     color: "text-blue-600",   bg: "bg-blue-50/30" },
+    fetch_failed:      { label: "Failed",        color: "text-red-600",    bg: "bg-red-50/30" },
+    overdue:           { label: "Overdue",       color: "text-amber-600",  bg: "bg-amber-50/30" },
+    fetch_paused:      { label: "Fetch paused",  color: "text-orange-500", bg: "bg-orange-50/20" },
+    tournament_paused: { label: "Tourn. paused", color: "text-purple-500", bg: "bg-purple-50/20" },
+    never:             { label: "Never fetched", color: "text-gray-400",   bg: "" },
+  };
+
+  const s = data.summary || {};
 
   return (
-    <div className="space-y-3" data-testid="arxiv-health">
+    <div className="space-y-3" data-testid="category-status">
       <div className="flex flex-wrap items-center gap-3 text-xs">
-        <span className="text-green-600" data-testid="arxiv-health-healthy-count">{data.healthy} healthy</span>
-        {data.error > 0 && <span className="text-red-500">{data.error} error</span>}
-        {data.never > 0 && <span className="text-muted-foreground">{data.never} never fetched</span>}
-        <Button size="sm" variant="outline" onClick={checkApi} className="h-8 text-xs gap-1" data-testid="arxiv-api-check-btn">
+        {s.up_to_date > 0 && <span className="text-green-600">{s.up_to_date} up to date</span>}
+        {s.fetch_failed > 0 && <span className="text-red-500">{s.fetch_failed} failed</span>}
+        {s.overdue > 0 && <span className="text-amber-600">{s.overdue} overdue</span>}
+        {s.fetching > 0 && <span className="text-blue-600">{s.fetching} fetching</span>}
+        {(s.fetch_paused || 0) + (s.tournament_paused || 0) > 0 && (
+          <span className="text-orange-500">{(s.fetch_paused || 0) + (s.tournament_paused || 0)} paused</span>
+        )}
+        <span className="text-muted-foreground">· {data.interval_hours}h cycle</span>
+        <Button size="sm" variant="outline" onClick={checkApi} className="h-8 text-xs gap-1" data-testid="api-check-btn">
           API Check
         </Button>
         {apiCheck && apiCheck !== "checking..." && (
           <span className={apiCheck.status === "ok" ? "text-green-600" : "text-red-500"}>
-            {apiCheck.status === "ok" ? `✓ OK (${apiCheck.response_time_ms}ms)` : `✗ ${apiCheck.status}: ${apiCheck.error || apiCheck.http_code}`}
+            {apiCheck.status === "ok" ? `OK (${apiCheck.response_time_ms}ms)` : `${apiCheck.error || apiCheck.http_code}`}
           </span>
         )}
         {apiCheck === "checking..." && <span className="text-muted-foreground">checking...</span>}
-        <Button size="sm" variant="outline" onClick={load} className="h-8 text-xs gap-1 ml-auto" data-testid="arxiv-health-refresh">
+        <Button size="sm" variant="outline" onClick={load} className="h-8 text-xs gap-1 ml-auto" data-testid="category-status-refresh">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
         </Button>
       </div>
-      <div className="border rounded-lg overflow-x-auto" data-testid="arxiv-health-table">
-        <table className="w-full text-xs" style={{ minWidth: "720px" }}>
+      <div className="border rounded-lg overflow-x-auto" data-testid="category-status-table">
+        <table className="w-full text-xs" style={{ minWidth: "800px" }}>
           <thead>
             <tr className="bg-secondary/50 text-muted-foreground">
-              <th className="px-3 py-2 text-left font-medium" style={{ width: "100px" }}>Status</th>
-              <th className="px-3 py-2 text-left font-medium" style={{ width: "90px" }}>Category</th>
-              <th className="px-3 py-2 text-left font-medium" style={{ width: "90px" }}>Last fetch</th>
-              <th className="px-3 py-2 text-left font-medium" style={{ width: "110px" }}>Cooldown</th>
-              <th className="px-3 py-2 text-center font-medium" style={{ width: "60px" }}>Fails</th>
-              <th className="px-3 py-2 text-left font-medium">Last error</th>
+              <th className="px-3 py-2 text-left font-medium" style={{ width: "80px" }}>Status</th>
+              <th className="px-3 py-2 text-left font-medium" style={{ width: "130px" }}>Category</th>
+              <th className="px-3 py-2 text-right font-medium" style={{ width: "70px" }}>Papers</th>
+              <th className="px-3 py-2 text-right font-medium" style={{ width: "80px" }}>Matches</th>
+              <th className="px-3 py-2 text-left font-medium" style={{ width: "110px" }}>Last fetch</th>
+              <th className="px-3 py-2 text-left font-medium" style={{ width: "100px" }}>Next due</th>
+              <th className="px-3 py-2 text-left font-medium">Last action</th>
             </tr>
           </thead>
           <tbody>
-            {(data.categories || []).map((r, i) => (
-              <tr key={i} className={`border-t border-border/50 hover:bg-secondary/20 ${
-                r.status === "cooling_down" ? "bg-red-50/20" : ""
-              }`} data-testid={`arxiv-health-row-${r.category}`}>
-                <td className="px-3 py-1.5"><Badge color={statusColor(r.status)}>{r.status.replace("_", " ")}</Badge></td>
-                <td className="px-3 py-1.5 font-medium whitespace-nowrap">{r.category}</td>
-                <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">{fmtAgo(r.last_fetch_at)}</td>
-                <td className="px-3 py-1.5 whitespace-nowrap">
-                  {r.status === "cooling_down" ? <span className="text-red-600">{fmtCooldown(r.cooldown_seconds)} left</span> : <span className="text-muted-foreground">—</span>}
-                </td>
-                <td className="px-3 py-1.5 text-center">{r.backoff_count > 0 ? <span className="text-red-600 font-medium">{r.backoff_count}</span> : <span className="text-muted-foreground">0</span>}</td>
-                <td className="px-3 py-1.5">
-                  <div className="overflow-x-auto max-w-[420px] scrollbar-none" style={{ scrollbarWidth: "none" }}>
-                    <span className="whitespace-nowrap text-muted-foreground">
-                      {r.last_error ? `${fmtAgo(r.last_error_at)}: ${r.last_error}` : "—"}
-                    </span>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {(data.categories || []).map((r, i) => {
+              const cfg = statusConfig[r.status] || statusConfig.never;
+              return (
+                <tr key={i} className={`border-t border-border/50 hover:bg-secondary/20 ${cfg.bg}`} data-testid={`cat-status-row-${r.category}`}>
+                  <td className="px-3 py-1.5">
+                    <span className={`font-medium whitespace-nowrap ${cfg.color}`}>{cfg.label}</span>
+                  </td>
+                  <td className="px-3 py-1.5 font-medium whitespace-nowrap">{r.category}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{(r.papers || 0).toLocaleString()}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{(r.matches || 0).toLocaleString()}</td>
+                  <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">{fmtAgo(r.last_fetch_at)}</td>
+                  <td className="px-3 py-1.5 whitespace-nowrap">
+                    {r.next_due ? (
+                      new Date(r.next_due) <= new Date(data.now)
+                        ? <span className="text-amber-600">now</span>
+                        : <span className="text-muted-foreground">{fmtAgo(r.next_due, true)}</span>
+                    ) : <span className="text-muted-foreground">—</span>}
+                  </td>
+                  <td className="px-3 py-1.5">
+                    <div className="flex items-center gap-1.5">
+                      {r.last_action_at && <span className="text-muted-foreground shrink-0">{fmtAgo(r.last_action_at)}</span>}
+                      {r.last_action && (
+                        <span className={r.last_action.startsWith("Failed") ? "text-red-500" : r.last_action.startsWith("+") ? "text-green-600 font-medium" : "text-muted-foreground"}>
+                          {r.last_action}
+                        </span>
+                      )}
+                      {!r.last_action && <span className="text-muted-foreground">—</span>}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
             {(data.categories || []).length === 0 && (
-              <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">No active categories.</td></tr>
+              <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">No active categories.</td></tr>
             )}
           </tbody>
         </table>
