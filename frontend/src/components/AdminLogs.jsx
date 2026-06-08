@@ -517,13 +517,13 @@ function ArxivHealthTable() {
   if (!data) return <div className="text-center text-xs text-muted-foreground py-8">Failed to load</div>;
 
   const statusConfig = {
-    up_to_date:        { label: "Up to date",        color: "text-green-600",  bg: "" },
-    fetching:          { label: "Fetching...",        color: "text-blue-600",   bg: "bg-blue-50/30" },
-    fetch_failed:      { label: "Fetch failed",       color: "text-red-600",    bg: "bg-red-50/30" },
-    overdue:           { label: "Overdue",            color: "text-amber-600",  bg: "bg-amber-50/30" },
-    fetch_paused:      { label: "Fetch paused",       color: "text-orange-500", bg: "bg-orange-50/20" },
-    tournament_paused: { label: "Tournament paused",  color: "text-purple-500", bg: "bg-purple-50/20" },
-    never:             { label: "Never fetched",      color: "text-gray-400",   bg: "" },
+    up_to_date:        { label: "Up to date",    color: "text-green-600",  bg: "" },
+    fetching:          { label: "Fetching…",     color: "text-blue-600",   bg: "bg-blue-50/30" },
+    fetch_failed:      { label: "Failed",        color: "text-red-600",    bg: "bg-red-50/30" },
+    overdue:           { label: "Overdue",       color: "text-amber-600",  bg: "bg-amber-50/30" },
+    fetch_paused:      { label: "Fetch paused",  color: "text-orange-500", bg: "bg-orange-50/20" },
+    tournament_paused: { label: "Tourn. paused", color: "text-purple-500", bg: "bg-purple-50/20" },
+    never:             { label: "Never fetched", color: "text-gray-400",   bg: "" },
   };
 
   const s = data.summary || {};
@@ -571,7 +571,7 @@ function ArxivHealthTable() {
               return (
                 <tr key={i} className={`border-t border-border/50 hover:bg-secondary/20 ${cfg.bg}`} data-testid={`cat-status-row-${r.category}`}>
                   <td className="px-3 py-1.5">
-                    <span className={`font-medium ${cfg.color}`}>{cfg.label}</span>
+                    <span className={`font-medium whitespace-nowrap ${cfg.color}`}>{cfg.label}</span>
                   </td>
                   <td className="px-3 py-1.5 font-medium whitespace-nowrap">{r.category}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums">{(r.papers || 0).toLocaleString()}</td>
