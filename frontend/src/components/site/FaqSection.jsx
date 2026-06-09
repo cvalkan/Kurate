@@ -22,9 +22,10 @@ export function FaqSection() {
               <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">Frequently Asked Questions</div>
               <h2 className="font-serif text-3xl sm:text-4xl font-medium text-slate-900 leading-tight">Methodology, scope, and how to interpret Kurate signals.</h2>
               <p className="mt-4 text-base text-slate-600 leading-relaxed">Practical answers about what the platform does, how rankings are produced, and how they should be used in research workflows.</p>
-              <div className="mt-8 border border-slate-200 rounded-sm p-4">
-                <p className="text-sm text-slate-600 mb-3">Still have questions?</p>
-                <a href="/contact" className="inline-flex items-center justify-center rounded-sm border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+              <div className="mt-8 rounded-sm border border-blue-200 bg-blue-50/50 p-5">
+                <p className="text-sm font-medium text-slate-900 mb-1">Still have questions?</p>
+                <p className="text-xs text-slate-500 mb-4">We'd love to hear from you.</p>
+                <a href="/contact" className="inline-flex items-center justify-center rounded-sm bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
                   Contact us
                 </a>
               </div>
