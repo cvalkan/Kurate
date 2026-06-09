@@ -45,8 +45,7 @@ import AuthCallback from "@/pages/AuthCallback";
 import OrcidCallbackPage from "@/pages/OrcidCallbackPage";
 import StartRedirect from "@/pages/StartRedirect";
 
-// Pages — admin (keep old Navbar)
-import Navbar from "@/components/Navbar";
+// Pages — admin
 import AdminLoginPage from "@/pages/AdminLoginPage";
 import AdminPage from "@/pages/AdminPage";
 import OutreachPage from "@/pages/OutreachPage";
@@ -69,25 +68,27 @@ function AppRouter() {
     return <AuthCallback />;
   }
 
-  // Admin pages — keep old Navbar
+  // Admin pages — TopNav for consistency
   if (location.pathname.startsWith("/admin") || location.pathname.startsWith("/test/")) {
     return (
-      <>
-        <Navbar />
-        <main className="pb-12">
-          <Routes>
-            <Route path="/admin" element={<AdminLoginPage />} />
-            <Route path="/admin/dashboard" element={<AdminPage />} />
-            <Route path="/admin/outreach" element={<OutreachPage />} />
-            <Route path="/admin/outreach/activity" element={<OutreachActivityPage />} />
-            <Route path="/admin/outreach/email" element={<EmailOutreachPage />} />
-            <Route path="/test/score-card" element={<ScoreCardTest />} />
-            <Route path="/test/new-badge" element={<NewBadgeTest />} />
-            <Route path="/test/sim-mem" element={<SimulatedMemChart />} />
-          </Routes>
-        </main>
+      <BasePathProvider value="">
+        <TopNavLayout>
+          <main className="pb-12">
+            <Routes>
+              <Route path="/admin" element={<AdminLoginPage />} />
+              <Route path="/admin/dashboard" element={<AdminPage />} />
+              <Route path="/admin/outreach" element={<OutreachPage />} />
+              <Route path="/admin/outreach/activity" element={<OutreachActivityPage />} />
+              <Route path="/admin/outreach/email" element={<EmailOutreachPage />} />
+              <Route path="/test/score-card" element={<ScoreCardTest />} />
+              <Route path="/test/new-badge" element={<NewBadgeTest />} />
+              <Route path="/test/sim-mem" element={<SimulatedMemChart />} />
+            </Routes>
+          </main>
+        </TopNavLayout>
+        <GlobalAuthModal />
         <Toaster position="bottom-right" />
-      </>
+      </BasePathProvider>
     );
   }
 
