@@ -147,7 +147,7 @@ export default function PaperDesignB() {
         </a>
 
         {/* Title + meta — always full width above both columns */}
-        <h1 className="font-heading text-xl md:text-2xl font-semibold tracking-tight text-slate-900 leading-tight mb-3">
+        <h1 className="font-heading text-xl md:text-2xl font-semibold tracking-tight text-slate-900 leading-tight mb-3 max-w-3xl">
           <LatexTitle text={paper.title} />
         </h1>
         <p className="text-sm text-slate-600 mb-3">{paper.authors?.join(", ")}</p>

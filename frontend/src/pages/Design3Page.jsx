@@ -1,5 +1,5 @@
 import { useMemo, useState, useRef, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { Search, X, PanelLeftClose, PanelLeft, Tag, Archive, ChevronDown, ChevronRight, Activity, LockOpen, ArrowRight, Lock, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useLeaderboardData } from "@/hooks/useLeaderboardData";
@@ -9,6 +9,7 @@ import { LeaderboardTableNew } from "@/components/leaderboard/LeaderboardTableNe
 import TopNav from "@/components/site/TopNav";
 import SiteFooter from "@/components/site/SiteFooter";
 import { Helmet } from "react-helmet";
+import axios from "axios";
 
 function SidebarSection({ title, defaultOpen = true, children }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -40,10 +41,11 @@ const SORTS = [
   { value: "published", label: "Published" },
 ];
 
-export default function Design3Page() {
+export default function Design3Page({ archiveMode }) {
   const d = useLeaderboardData();
   const navigate = useNavigate();
   const basePath = useBasePath();
+  const params = useParams();
   const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 1024;
   const [sidebarOpen, setSidebarOpen] = useState(isDesktop);
   const [catSearch, setCatSearch] = useState("");
@@ -54,6 +56,23 @@ export default function Design3Page() {
   const { user } = useAuth();
   const isLoggedIn = !!user;
   const requireAuth = () => window.dispatchEvent(new Event("open-auth-modal"));
+
+  // Archive mode: load archive data from URL params
+  const [archiveData, setArchiveData] = useState(null);
+  const [archiveLoading, setArchiveLoading] = useState(!!archiveMode);
+  useEffect(() => {
+    if (!archiveMode || !params.category) return;
+    const isWeekly = params.weekOrMonth?.startsWith("w");
+    const num = parseInt(params.weekOrMonth?.replace(/^[wm]/, ""), 10);
+    const API = process.env.REACT_APP_BACKEND_URL;
+    const url = isWeekly
+      ? `${API}/api/archive/${params.category}/${params.year}/w${num}`
+      : `${API}/api/archive/${params.category}/${params.year}/m${num}`;
+    setArchiveLoading(true);
+    axios.get(url).then(r => {
+      if (r.data.status !== "not_found") setArchiveData(r.data);
+    }).catch(() => {}).finally(() => setArchiveLoading(false));
+  }, [archiveMode, params.category, params.year, params.weekOrMonth]);
 
   useEffect(() => {
     const handler = (e) => { if (archiveRef.current && !archiveRef.current.contains(e.target)) setArchiveOpen(false); };
@@ -261,82 +280,104 @@ export default function Design3Page() {
         {/* Main content */}
         <main className="flex-1 min-w-0">
           <div className="px-5 sm:px-6 lg:px-8 pt-6 pb-12">
-            <div className="flex items-start justify-between mb-6">
-              <div>
-                {/* Mobile filters button */}
-                <button onClick={() => setSidebarOpen(true)}
-                  className="lg:hidden inline-flex items-center gap-1.5 mb-3 px-3 py-1.5 rounded-sm border border-slate-200 text-xs font-medium text-slate-600 hover:border-slate-400 transition-colors">
-                  <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
-                </button>
-                <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight text-slate-900">
-                  {d.activeArchive ? `${d.categoryName} — ${d.activeArchive.label}` : `${d.categoryName} Paper Rankings`}
-                </h1>
-                <div className="flex items-center gap-3 text-sm text-slate-500 mt-0.5">
-                    <span>{d.totalPapers} papers</span>
-                    {d.isRanking && <><span className="text-slate-300">·</span><span className="inline-flex items-center gap-1 text-blue-600 animate-pulse"><Activity className="h-3 w-3" /> Ranking</span></>}
-                </div>
-              </div>
-              {d.archives.length > 0 && d.category && (
-                <div className="relative shrink-0 mt-1" ref={archiveRef}>
-                  <button onClick={() => setArchiveOpen(v => !v)}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm border text-xs font-medium transition-all ${
-                      d.activeArchive ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-500 hover:border-slate-400"
-                    }`}>
-                    <Archive className="h-3 w-3" />
-                    {d.activeArchive ? d.activeArchive.label : "Live"}
-                    <ChevronDown className={`h-3 w-3 transition-transform ${archiveOpen ? "rotate-180" : ""}`} />
-                  </button>
-                  {archiveOpen && (
-                    <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-sm shadow-lg min-w-[220px] max-h-[320px] overflow-y-auto py-1">
-                      <button onClick={() => { d.clearArchive(); setArchiveOpen(false); }}
-                        className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${!d.activeArchive ? "bg-blue-50 text-blue-700 font-medium" : "hover:bg-slate-50 text-slate-600"}`}>
-                        Live rankings
-                      </button>
-                      <div className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Archive</div>
-                      {d.archives.map(a => {
-                        const slug = a.period_type === "weekly" ? `w${a.week}` : `m${a.month}`;
-                        return (
-                          <button key={`${a.category}-${a.year}-${slug}`}
-                            onClick={() => { navigate(`${basePath}/leaderboard/${a.category}/${a.year}/${slug}`); setArchiveOpen(false); }}
-                            className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 transition-colors flex items-center justify-between">
-                            <span>{a.label}</span>
-                            <span className="text-[10px] text-slate-400 ml-3">{a.paper_count}</span>
-                          </button>
-                        );
-                      })}
+            {(() => {
+              const isArchive = archiveMode && archiveData;
+              const archiveLabel = archiveData?.label || "";
+              const archiveCat = params.category || "";
+              const archiveCatName = d.categories.find(c => c.id === archiveCat)?.name || archiveCat;
+              const displayTitle = isArchive ? `${archiveCatName} — ${archiveLabel}` : (d.activeArchive ? `${d.categoryName} — ${d.activeArchive.label}` : `${d.categoryName} Paper Rankings`);
+              const displayLeaderboard = isArchive ? (archiveData.leaderboard || []) : d.leaderboard;
+              const displayLoading = archiveMode ? archiveLoading : d.loading;
+              const displayPapers = isArchive ? displayLeaderboard.length : d.totalPapers;
+
+              return (
+                <>
+                  <div className="flex items-start justify-between mb-6">
+                    <div>
+                      {/* Mobile filters button */}
+                      {!archiveMode && (
+                        <button onClick={() => setSidebarOpen(true)}
+                          className="lg:hidden inline-flex items-center gap-1.5 mb-3 px-3 py-1.5 rounded-sm border border-slate-200 text-xs font-medium text-slate-600 hover:border-slate-400 transition-colors">
+                          <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
+                        </button>
+                      )}
+                      {isArchive && (
+                        <a onClick={(e) => { e.preventDefault(); navigate(`${basePath}/leaderboard?cat=${archiveCat}&period=all`); }} href="#"
+                          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 mb-3 transition-colors cursor-pointer">
+                          ← Back to live leaderboard
+                        </a>
+                      )}
+                      <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight text-slate-900">{displayTitle}</h1>
+                      <div className="flex items-center gap-3 text-sm text-slate-500 mt-0.5">
+                        <span>{displayPapers} papers</span>
+                        {!isArchive && d.isRanking && <><span className="text-slate-300">·</span><span className="inline-flex items-center gap-1 text-blue-600 animate-pulse"><Activity className="h-3 w-3" /> Ranking</span></>}
+                      </div>
+                    </div>
+                    {!isArchive && d.archives.length > 0 && d.category && (
+                      <div className="relative shrink-0 mt-1" ref={archiveRef}>
+                        <button onClick={() => setArchiveOpen(v => !v)}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm border text-xs font-medium transition-all ${
+                            d.activeArchive ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-500 hover:border-slate-400"
+                          }`}>
+                          <Archive className="h-3 w-3" />
+                          {d.activeArchive ? d.activeArchive.label : "Live"}
+                          <ChevronDown className={`h-3 w-3 transition-transform ${archiveOpen ? "rotate-180" : ""}`} />
+                        </button>
+                        {archiveOpen && (
+                          <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-sm shadow-lg min-w-[220px] max-h-[320px] overflow-y-auto py-1">
+                            <button onClick={() => { d.clearArchive(); setArchiveOpen(false); }}
+                              className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${!d.activeArchive ? "bg-blue-50 text-blue-700 font-medium" : "hover:bg-slate-50 text-slate-600"}`}>
+                              Live rankings
+                            </button>
+                            <div className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Archive</div>
+                            {d.archives.map(a => {
+                              const slug = a.period_type === "weekly" ? `w${a.week}` : `m${a.month}`;
+                              return (
+                                <button key={`${a.category}-${a.year}-${slug}`}
+                                  onClick={() => { navigate(`${basePath}/leaderboard/${a.category}/${a.year}/${slug}`); setArchiveOpen(false); }}
+                                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 transition-colors flex items-center justify-between">
+                                  <span>{a.label}</span>
+                                  <span className="text-[10px] text-slate-400 ml-3">{a.paper_count}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Selected tags display */}
+                  {!isArchive && d.hasSelectedTags && (
+                    <div className="mb-4 flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-slate-500">Filtering by:</span>
+                      {d.selectedTags.map(t => (
+                        <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-xs bg-blue-50 text-blue-700 border border-blue-200">
+                          {t}
+                          <button onClick={() => toggleTag(t)} className="hover:text-blue-900"><X className="h-3 w-3" /></button>
+                        </span>
+                      ))}
+                      <span className="text-[10px] text-slate-400">{d.tagMode === "and" ? "AND" : "OR"}</span>
                     </div>
                   )}
-                </div>
-              )}
-            </div>
 
-            {/* Selected tags display */}
-            {d.hasSelectedTags && (
-              <div className="mb-4 flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-slate-500">Filtering by:</span>
-                {d.selectedTags.map(t => (
-                  <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-xs bg-blue-50 text-blue-700 border border-blue-200">
-                    {t}
-                    <button onClick={() => toggleTag(t)} className="hover:text-blue-900"><X className="h-3 w-3" /></button>
-                  </span>
-                ))}
-                <span className="text-[10px] text-slate-400">{d.tagMode === "and" ? "AND" : "OR"}</span>
-              </div>
-            )}
-
-            {/* Table */}
-            <div className="border border-slate-200 bg-white rounded-sm overflow-hidden">
-              <LeaderboardTableNew
-                leaderboard={d.leaderboard} loading={d.loading}
-                sortKey={d.sortKey} sortDir={d.sortDir} onSort={d.handleSort}
-                showRatingCol={d.showRatingCol} showGapCol={d.showGapCol}
-                hasSelectedTags={d.hasSelectedTags} globalStats={d.globalStats}
-                isArchive={!!d.activeArchive} nextCursor={d.nextCursor}
-                loadMore={d.loadMore} loadingMore={d.loadingMore} keyword={d.keyword}
-                onCategoryClick={isLoggedIn ? (cat) => { d.setCategory(cat); d.setSelectedTags([]); d.setTagFilterOpen(false); d.clearArchive(); } : () => requireAuth()}
-                activeCodes={activeCodes}
-              />
-            </div>
+                  {/* Table */}
+                  <div className="border border-slate-200 bg-white rounded-sm overflow-hidden">
+                    <LeaderboardTableNew
+                      leaderboard={displayLeaderboard} loading={displayLoading}
+                      sortKey={d.sortKey} sortDir={d.sortDir} onSort={d.handleSort}
+                      showRatingCol={isArchive ? displayLeaderboard.some(e => e.ai_rating) : d.showRatingCol}
+                      showGapCol={isArchive ? displayLeaderboard.some(e => e.gap_score != null) : d.showGapCol}
+                      hasSelectedTags={d.hasSelectedTags} globalStats={d.globalStats}
+                      isArchive={!!isArchive || !!d.activeArchive} nextCursor={isArchive ? null : d.nextCursor}
+                      loadMore={isArchive ? null : d.loadMore} loadingMore={d.loadingMore} keyword={d.keyword}
+                      onCategoryClick={isLoggedIn ? (cat) => { d.setCategory(cat); d.setSelectedTags([]); d.setTagFilterOpen(false); d.clearArchive(); } : () => requireAuth()}
+                      activeCodes={activeCodes}
+                    />
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </main>
       </div>

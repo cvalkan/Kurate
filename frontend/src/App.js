@@ -24,7 +24,6 @@ function GlobalAuthModal() {
 import HomePage from "@/pages/HomePage";
 import Design3Page from "@/pages/Design3Page";
 import PaperDesignB from "@/pages/PaperDesignB";
-import NewArchivePage from "@/pages/NewArchivePage";
 import TopNavLayout from "@/components/TopNavLayout";
 
 // Pages — existing (wrapped with TopNavLayout)
@@ -109,7 +108,7 @@ function AppRouter() {
       <Routes>
         {/* New design pages */}
         <Route path="/leaderboard" element={<Design3Page />} />
-        <Route path="/leaderboard/:category/:year/:weekOrMonth" element={<NewArchivePage />} />
+        <Route path="/leaderboard/:category/:year/:weekOrMonth" element={<Design3Page archiveMode />} />
         <Route path="/paper/:id" element={<PaperDesignB />} />
 
         {/* Existing pages wrapped with TopNav */}
