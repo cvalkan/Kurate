@@ -10,7 +10,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
  * Reads initial state from URL search params (cat, period, sort, dir, q, tags, tag_mode).
  */
 export function useLeaderboardData() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [categories, setCategories] = useState([]);
   const [featured, setFeatured] = useState([]);
   const [allTags, setAllTags] = useState([]);
@@ -43,6 +43,19 @@ export function useLeaderboardData() {
 
   const isTagMode = tagFilterOpen || selectedTags.length > 0;
   const hasSelectedTags = selectedTags.length > 0;
+
+  // Sync filter state to URL params (so back button / links preserve state)
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (category) p.set("cat", category);
+    if (period && period !== "week") p.set("period", period);
+    if (sortKey && sortKey !== "rank") p.set("sort", sortKey);
+    if (sortDir && sortDir !== "asc") p.set("dir", sortDir);
+    if (debouncedKeyword) p.set("q", debouncedKeyword);
+    if (selectedTags.length > 0) p.set("tags", selectedTags.join(","));
+    if (selectedTags.length > 0 && tagMode !== "or") p.set("tag_mode", tagMode);
+    setSearchParams(p, { replace: true });
+  }, [category, period, sortKey, sortDir, debouncedKeyword, selectedTags, tagMode, setSearchParams]);
 
   // Debounce search
   useEffect(() => {
