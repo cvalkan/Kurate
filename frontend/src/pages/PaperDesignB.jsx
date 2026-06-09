@@ -55,7 +55,7 @@ function SummaryBlock({ text, fallbackRatings }) {
       <div className="text-sm leading-relaxed space-y-2">
         {clean.split("\n").filter(l => l.trim()).map((line, i) => {
           const h = line.match(/^#{1,3}\s+(.+)$/) || line.match(/^\*\*(.+?)\*\*$/);
-          if (h) return <h4 key={i} className="hp-sans font-semibold text-sm mt-4 first:mt-0">{h[1].replace(/\*\*/g, "")}</h4>;
+          if (h) return <h4 key={i} className="hp-sans font-heading font-semibold text-sm mt-4 first:mt-0">{h[1].replace(/\*\*/g, "")}</h4>;
           const bullet = line.match(/^[-*]\s+(.+)$/);
           if (bullet) { const html = renderLatex(bullet[1].replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")); return <li key={i} className="ml-4 list-disc" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />; }
           const html = renderLatex(line.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>"));
@@ -189,7 +189,10 @@ export default function PaperDesignB() {
           const range = paddedMax - paddedMin || 1;
 
           const TIER_COLORS = {
-            "Top 3": { color: "#D97706", bg: "#FFFBEB" },
+            "Gold": { color: "#D4A012", bg: "#FEFCE8" },
+            "Silver": { color: "#6B7280", bg: "#F3F4F6" },
+            "Bronze": { color: "#CD7F32", bg: "#FFF7ED" },
+            "Top 3": { color: "#D4A012", bg: "#FEFCE8" },
             "Top 5": { color: "#2563EB", bg: "#EFF6FF" },
             "Top 10": { color: "#059669", bg: "#ECFDF5" },
             "Top 20": { color: "#6366F1", bg: "#EEF2FF" },

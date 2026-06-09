@@ -54,7 +54,8 @@ code, .mono {
     letter-spacing: -0.005em;
 }
 /* Override for card headings that should stay sans-serif */
-.kurate-homepage h3.hp-sans {
+.kurate-homepage h3.hp-sans,
+.kurate-homepage h4.hp-sans {
     font-family: "IBM Plex Sans", system-ui, sans-serif;
     letter-spacing: normal;
 }
