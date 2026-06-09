@@ -214,8 +214,9 @@ export default function PaperDesignB() {
                 {badges.length > 0 ? badges.map((b, i) => {
                   const tc = TIER_COLORS[b.tier] || { color: b.tier_color || "#64748B", bg: "#F8FAFC" };
                   return (
-                    <div key={i} className="flex items-center justify-between px-4 py-2.5 border-b" style={{ backgroundColor: tc.bg, borderBottomColor: `${tc.color}33` }}>
-                      <div className="hidden md:flex items-center justify-between w-full">
+                    <div key={i} className="border-b" style={{ backgroundColor: tc.bg, borderBottomColor: `${tc.color}33` }}>
+                      {/* Desktop: rank + category + badge */}
+                      <div className="hidden md:flex items-center justify-between px-4 py-2.5">
                         <div className="flex items-center gap-1.5 text-sm">
                           <span className="font-bold text-slate-900">#{paper.current_rank || b.rank}</span>
                           <span className="text-slate-400">of {paper.total_in_category || "\u2014"}</span>
@@ -227,13 +228,8 @@ export default function PaperDesignB() {
                           {b.tier} · {b.archive_label}
                         </span>
                       </div>
-                      <div className="flex md:hidden items-center justify-between w-full">
-                        <div className="flex items-center gap-1.5 text-sm">
-                          <span className="font-bold text-slate-900">#{paper.current_rank || b.rank}</span>
-                          <span className="text-slate-400">of {paper.total_in_category || "\u2014"}</span>
-                          <span className="text-slate-300 mx-0.5">·</span>
-                          <span className="text-slate-500">{paper.category_name || paper.categories?.[0] || ""}</span>
-                        </div>
+                      {/* Mobile: badge only */}
+                      <div className="flex md:hidden items-center justify-center gap-1.5 px-4 py-2.5">
                         <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: tc.color }}>
                           <Award className="h-4 w-4" />
                           {b.tier} · {b.archive_label}
@@ -242,14 +238,14 @@ export default function PaperDesignB() {
                     </div>
                   );
                 }) : paper.current_rank ? (
-                  <div className="flex items-center justify-between px-4 py-2.5 border-b bg-slate-50/80">
-                    <div className="hidden md:flex items-center gap-1.5 text-sm">
+                  <div className="border-b bg-slate-50/80">
+                    <div className="hidden md:flex items-center gap-1.5 text-sm px-4 py-2.5">
                       <span className="font-bold text-slate-900">#{paper.current_rank}</span>
                       <span className="text-slate-400">of {paper.total_in_category || "\u2014"}</span>
                       <span className="text-slate-300 mx-0.5">·</span>
                       <span className="text-slate-500">{paper.category_name || paper.categories?.[0] || ""}</span>
                     </div>
-                    <div className="md:hidden text-xs text-slate-500">
+                    <div className="md:hidden text-xs text-slate-500 px-4 py-2.5 text-center">
                       #{paper.current_rank} of {paper.total_in_category || "\u2014"} · {paper.category_name || paper.categories?.[0] || ""}
                     </div>
                   </div>
@@ -261,7 +257,7 @@ export default function PaperDesignB() {
                   <Trophy className="h-3.5 w-3.5 text-blue-600" /> Tournament Score
                 </div>
                 <div className="flex items-baseline gap-2 mb-3">
-                  <span className="text-5xl font-bold tracking-tight text-slate-900">{displayScore || "\u2014"}</span>
+                  <span className="text-5xl font-semibold tracking-tight text-slate-900">{displayScore || "\u2014"}</span>
                   {displayCi && <span className="text-lg text-slate-400">±{displayCi}</span>}
                 </div>
                 {/* Confidence interval bar */}
