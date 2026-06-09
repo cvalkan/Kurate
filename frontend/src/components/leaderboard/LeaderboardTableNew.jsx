@@ -89,17 +89,17 @@ export function LeaderboardTableNew({
     <>
       <table className="w-full">
         <thead>
-          <tr className="text-slate-500 bg-slate-50 border-b border-slate-100 whitespace-nowrap">
-            <th className="pl-3 sm:pl-5 pr-2 py-2.5 text-center w-10 text-[10px] font-bold uppercase tracking-wider">#</th>
-            <th className="px-2 py-2.5 text-left"><SortHeader label="Paper" sortKey="title" current={sortKey} dir={sortDir} onSort={onSort} tip={COL_TIPS.title} /></th>
-            <th className="px-2 py-2.5 text-right"><SortHeader label="Score" sortKey="score" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.score} /></th>
-            <th className="px-2 py-2.5 text-right hidden lg:table-cell"><SortHeader label="CI" sortKey="wilson_margin" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.wilson_margin} /></th>
-            <th className="px-2 py-2.5 text-right hidden md:table-cell"><SortHeader label="Match" sortKey="comparisons" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.comparisons} /></th>
-            <th className="px-2 py-2.5 text-right hidden md:table-cell"><SortHeader label="Win%" sortKey="win_rate" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.win_rate} /></th>
-            {showRatingCol && <th className="px-2 py-2.5 text-right hidden lg:table-cell"><SortHeader label="Rating" sortKey="ai_rating" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.ai_rating} /></th>}
-            {showGapCol && <th className="px-2 py-2.5 text-right hidden xl:table-cell"><SortHeader label="Gap" sortKey="gap_score" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.gap_score} /></th>}
-            <th className="px-2 py-2.5 text-right hidden sm:table-cell"><SortHeader label="Published" sortKey="published" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.published} /></th>
-            <th className="pr-2 sm:pr-4 py-2.5 w-8"></th>
+          <tr className="text-slate-500 bg-slate-50 border-b border-slate-100 whitespace-nowrap align-bottom">
+            <th className="pl-3 sm:pl-5 pr-2 py-2.5 text-center w-10 text-[10px] font-bold uppercase tracking-wider align-bottom">#</th>
+            <th className="px-2 py-2.5 text-left align-bottom"><SortHeader label="Paper" sortKey="title" current={sortKey} dir={sortDir} onSort={onSort} tip={COL_TIPS.title} /></th>
+            <th className="px-2 py-2.5 text-right align-bottom"><SortHeader label="Score" sortKey="score" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.score} /></th>
+            <th className="px-2 py-2.5 text-right hidden lg:table-cell align-bottom"><SortHeader label="CI" sortKey="wilson_margin" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.wilson_margin} /></th>
+            <th className="px-2 py-2.5 text-right hidden md:table-cell align-bottom"><SortHeader label="Match" sortKey="comparisons" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.comparisons} /></th>
+            <th className="px-2 py-2.5 text-right hidden md:table-cell align-bottom"><SortHeader label="Win%" sortKey="win_rate" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.win_rate} /></th>
+            {showRatingCol && <th className="px-2 py-2.5 text-right hidden lg:table-cell align-bottom"><SortHeader label="Rating" sortKey="ai_rating" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.ai_rating} /></th>}
+            {showGapCol && <th className="px-2 py-2.5 text-right hidden xl:table-cell align-bottom"><SortHeader label="Gap" sortKey="gap_score" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.gap_score} /></th>}
+            <th className="px-2 py-2.5 text-right hidden sm:table-cell align-bottom"><SortHeader label="Published" sortKey="published" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.published} /></th>
+            <th className="pr-2 sm:pr-4 py-2.5 w-8 align-bottom"></th>
           </tr>
         </thead>
         <tbody>

@@ -156,7 +156,7 @@ function LeaderboardRow({ paper, rankType, onCategoryClick, activeCodes, basePat
         <span className="font-serif text-base font-medium text-blue-600">{paper.rank}</span>
       </td>
       <td className="px-2 py-3">
-        <Link to={`${basePath}/paper/${paper.id}`} className="text-sm font-medium text-slate-900 leading-snug line-clamp-2 pr-2 hover:text-blue-700 transition-colors" data-testid={`paper-link-${paper.rank}`}>
+        <Link to={`${basePath}/paper/${paper.id}`} state={{ from: basePath || "/" }} className="text-sm font-medium text-slate-900 leading-snug line-clamp-2 pr-2 hover:text-blue-700 transition-colors" data-testid={`paper-link-${paper.rank}`}>
           <LatexTitle text={paper.title} />
         </Link>
         <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 flex-wrap">

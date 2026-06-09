@@ -234,21 +234,6 @@ export default function Design3Page() {
                 ))}
               </div>
             </SidebarSection>
-
-            {/* Sort By */}
-            <SidebarSection title="Sort By" defaultOpen={false}>
-              <div className="space-y-0.5">
-                {SORTS.map(s => (
-                  <button key={s.value} onClick={() => d.handleSort(s.value)}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-sm text-sm transition-colors flex items-center justify-between ${
-                      (d.sortKey === s.value || (d.sortKey === "rank" && s.value === "score")) ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-50"
-                    }`}>
-                    <span>{s.label}</span>
-                    {d.sortKey === s.value && <span className="text-[10px] text-blue-500">{d.sortDir === "asc" ? "\u2191" : "\u2193"}</span>}
-                  </button>
-                ))}
-              </div>
-            </SidebarSection>
               </>
             )}
           </aside>
