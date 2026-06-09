@@ -19,12 +19,15 @@ const COL_TIPS = {
   published: "arXiv publication date.",
 };
 
-function SortTh({ label, sortKey, current, dir, onSort, className = "", tip, children }) {
+function SortTh({ label, sortKey, current, dir, onSort, className = "", tip }) {
   const active = current === sortKey;
   const content = (
     <th onClick={() => onSort(sortKey)}
       className={`px-2 py-2.5 uppercase text-[10px] font-bold tracking-wider cursor-pointer select-none hover:text-slate-900 transition-colors whitespace-nowrap ${active ? "text-slate-900" : "text-slate-500"} ${className}`}>
-      {label}{active && (dir === "asc" ? " ↑" : " ↓")}
+      <span className="relative">
+        {label}
+        {active && <span className="absolute -right-3.5 top-0">{dir === "asc" ? "↑" : "↓"}</span>}
+      </span>
     </th>
   );
   if (!tip) return content;
@@ -178,7 +181,7 @@ export function LeaderboardTableNew({
                 <td className="pr-2 sm:pr-4 py-3 align-baseline">
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); isLoggedIn ? toggleBookmark(p.id) : requireAuth(); }}
-                    className={`transition-colors ${isBookmarked ? "text-blue-600" : "text-slate-300 hover:text-blue-600"}`}
+                    className={`mt-[5px] inline-block transition-colors ${isBookmarked ? "text-blue-600" : "text-slate-300 hover:text-blue-600"}`}
                     title={isBookmarked ? "Remove bookmark" : "Bookmark"}
                   >
                     <Bookmark className="h-3.5 w-3.5" fill={isBookmarked ? "currentColor" : "none"} />
