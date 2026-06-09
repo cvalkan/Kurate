@@ -26,7 +26,6 @@ function SortDiv({ label, sortKey, current, dir, onSort, className = "", tip }) 
       className={`uppercase text-[10px] font-bold tracking-wider cursor-pointer select-none hover:text-slate-900 transition-colors whitespace-nowrap ${active ? "text-slate-900" : "text-slate-500"} ${className}`}>
       <span className="relative">
         {label}
-        {active && <span className="absolute -right-3.5 top-0">{dir === "asc" ? "↑" : "↓"}</span>}
       </span>
     </div>
   );
@@ -189,7 +188,7 @@ export function LeaderboardTableNew({
                 className={`transition-colors ${isBookmarked ? "text-blue-600" : "text-slate-300 hover:text-blue-600"}`}
                 title={isBookmarked ? "Remove bookmark" : "Bookmark"}
               >
-                <Bookmark className="h-3.5 w-3.5" fill={isBookmarked ? "currentColor" : "none"} />
+                <Bookmark className="h-3.5 w-3.5 mt-[2px]" fill={isBookmarked ? "currentColor" : "none"} />
               </button>
             </div>
           </div>
