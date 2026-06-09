@@ -18,9 +18,17 @@ export function FaqSection() {
       <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8 py-20">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           <div className="lg:col-span-4">
-            <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">Frequently Asked Questions</div>
-            <h2 className="font-serif text-3xl sm:text-4xl font-medium text-slate-900 leading-tight">Methodology, scope, and how to interpret Kurate signals.</h2>
-            <p className="mt-4 text-base text-slate-600 leading-relaxed">Practical answers about what the platform does, how rankings are produced, and how they should be used in research workflows.</p>
+            <div className="lg:sticky lg:top-24">
+              <div className="text-xs font-medium uppercase tracking-[0.12em] text-blue-600 mb-2">Frequently Asked Questions</div>
+              <h2 className="font-serif text-3xl sm:text-4xl font-medium text-slate-900 leading-tight">Methodology, scope, and how to interpret Kurate signals.</h2>
+              <p className="mt-4 text-base text-slate-600 leading-relaxed">Practical answers about what the platform does, how rankings are produced, and how they should be used in research workflows.</p>
+              <div className="mt-8 border border-slate-200 rounded-sm p-4">
+                <p className="text-sm text-slate-600 mb-3">Still have questions?</p>
+                <a href="/contact" className="inline-flex items-center justify-center rounded-sm border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+                  Contact us
+                </a>
+              </div>
+            </div>
           </div>
           <div className="lg:col-span-8">
             <Accordion type="single" collapsible className="w-full border-t border-slate-200">
