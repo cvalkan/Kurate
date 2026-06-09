@@ -35,7 +35,7 @@ export default function TopNav() {
   const NAV = isHomepage
     ? [
         { to: "#rankings", label: "Rankings" },
-        { to: "#categories", label: "Categories" },
+        { to: "#categories", label: "Fields" },
         { to: "#methodology", label: "Methodology" },
         { to: "#faq", label: "FAQ" },
         { to: "#about", label: "About" },
