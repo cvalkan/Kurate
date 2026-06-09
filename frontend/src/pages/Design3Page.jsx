@@ -139,7 +139,6 @@ export default function Design3Page() {
                       <div className="px-2.5 py-1.5 text-sm text-slate-400">All Categories</div>
                     </div>
                     <div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Cross-Field</div></div>
-                    <div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Sort By</div></div>
                   </div>
                 </div>
               </>

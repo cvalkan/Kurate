@@ -209,7 +209,7 @@ export default function PaperDesignB() {
                 <button onClick={() => toggleBookmark(paper.id)} className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-sm border text-sm font-medium transition-colors ${isBookmarked ? "bg-blue-50 text-blue-700 border-blue-200" : "text-slate-600 border-slate-200 hover:border-slate-400"}`}>
                   <Bookmark className="h-3.5 w-3.5" fill={isBookmarked ? "currentColor" : "none"} /> {isBookmarked ? "Bookmarked" : "Bookmark"}
                 </button>
-                <Link to={`/share/${paper.id}`} className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-sm border border-slate-200 text-sm font-medium text-slate-600 hover:border-slate-400 transition-colors">
+                <Link to={`${basePath}/share/${paper.id}`} className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-sm border border-slate-200 text-sm font-medium text-slate-600 hover:border-slate-400 transition-colors">
                   <Share2 className="h-3.5 w-3.5" /> Share
                 </Link>
               </div>

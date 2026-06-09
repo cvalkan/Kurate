@@ -53,6 +53,7 @@ import PaperDesignB from "@/pages/PaperDesignB";
 import NewMethodologyPage from "@/pages/NewMethodologyPage";
 import NewCorrelationPage from "@/pages/NewCorrelationPage";
 import NewValidationPage from "@/pages/NewValidationPage";
+import NewBadgePage from "@/pages/NewBadgePage";
 import Navbar from "@/components/Navbar";
 import { BookmarkProvider } from "@/contexts/BookmarkContext";
 
@@ -82,6 +83,8 @@ function AppRouter() {
           <Route path="/new/methodology" element={<NewMethodologyPage />} />
           <Route path="/new/correlation" element={<NewCorrelationPage />} />
           <Route path="/new/validation" element={<NewValidationPage />} />
+          <Route path="/new/share/:paperId" element={<NewBadgePage />} />
+          <Route path="/new/badge/:category/:year/:slug/:paperId" element={<NewBadgePage />} />
         </Routes>
         <NewSiteAuthModal />
         <Toaster position="bottom-right" />
