@@ -81,14 +81,14 @@ export function LeaderboardTableNew({
 
   // Fixed grid columns — same approach as old LeaderboardTable
   const cols = [];
-  cols.push("2.5rem", "1fr"); // # + Paper
-  cols.push(isMobile ? "3.5rem" : "4rem"); // Score
-  if (!isMobile && !isTablet) cols.push("3.5rem"); // CI
-  if (!isMobile) cols.push("3rem"); // Match
-  if (!isMobile) cols.push("3.5rem"); // Win%
-  if (showRatingCol && !isMobile && !isTablet) cols.push("3.5rem"); // Rating
-  if (showGapCol && !isMobile && !isTablet) cols.push("3rem"); // Gap
-  if (!isMobile) cols.push("5.5rem"); // Published
+  cols.push("2rem", "1fr"); // # + Paper
+  cols.push(isMobile ? "3rem" : "3.5rem"); // Score
+  if (!isMobile && !isTablet) cols.push("2.5rem"); // CI
+  if (!isMobile) cols.push("2.5rem"); // Match
+  if (!isMobile) cols.push("3rem"); // Win%
+  if (showRatingCol && !isMobile && !isTablet) cols.push("3rem"); // Rating
+  if (showGapCol && !isMobile && !isTablet) cols.push("2.5rem"); // Gap
+  if (!isMobile) cols.push("5rem"); // Published
   cols.push("1.5rem"); // Bookmark
   const gridStyle = { gridTemplateColumns: cols.join(" ") };
   const gridBase = "grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4";
@@ -188,7 +188,7 @@ export function LeaderboardTableNew({
                 className={`transition-colors ${isBookmarked ? "text-blue-600" : "text-slate-300 hover:text-blue-600"}`}
                 title={isBookmarked ? "Remove bookmark" : "Bookmark"}
               >
-                <Bookmark className="h-3.5 w-3.5 mt-[2px]" fill={isBookmarked ? "currentColor" : "none"} />
+                <Bookmark className="h-3.5 w-3.5 mt-[4px]" fill={isBookmarked ? "currentColor" : "none"} />
               </button>
             </div>
           </div>
