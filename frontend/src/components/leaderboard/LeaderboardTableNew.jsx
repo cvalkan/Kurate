@@ -1,6 +1,6 @@
 import { useRef, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ArrowUp, ArrowDown, Bookmark } from "lucide-react";
+import { Bookmark } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { LatexTitle } from "@/components/LatexTitle";
 import { useBasePath } from "@/contexts/BasePathContext";
@@ -19,18 +19,18 @@ const COL_TIPS = {
   published: "arXiv publication date.",
 };
 
-function SortHeader({ label, sortKey, current, dir, onSort, className = "", tip }) {
+function SortTh({ label, sortKey, current, dir, onSort, className = "", tip, children }) {
   const active = current === sortKey;
-  const btn = (
-    <button onClick={() => onSort(sortKey)} className={`inline-flex items-center gap-0.5 uppercase text-[10px] font-bold tracking-wider hover:text-slate-900 transition-colors w-full ${active ? "text-slate-900" : ""} ${className}`}>
-      {label}
-      <span className={active ? "" : "invisible"}>{dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}</span>
-    </button>
+  const content = (
+    <th onClick={() => onSort(sortKey)}
+      className={`px-2 py-2.5 uppercase text-[10px] font-bold tracking-wider cursor-pointer select-none hover:text-slate-900 transition-colors whitespace-nowrap ${active ? "text-slate-900" : "text-slate-500"} ${className}`}>
+      {label}{active && (dir === "asc" ? " ↑" : " ↓")}
+    </th>
   );
-  if (!tip) return btn;
+  if (!tip) return content;
   return (
     <Tooltip>
-      <TooltipTrigger asChild>{btn}</TooltipTrigger>
+      <TooltipTrigger asChild>{content}</TooltipTrigger>
       <TooltipContent side="bottom" className="max-w-xs"><p className="text-xs">{tip}</p></TooltipContent>
     </Tooltip>
   );
@@ -89,19 +89,17 @@ export function LeaderboardTableNew({
     <>
       <table className="w-full">
         <thead>
-          <tr className="text-slate-500 bg-slate-50 border-b border-slate-100 whitespace-nowrap align-bottom">
-            <th className="pl-3 sm:pl-5 pr-2 py-2.5 text-center w-10 align-bottom">
-              <span className="inline-flex items-center gap-0.5 uppercase text-[10px] font-bold tracking-wider">#<span className="invisible"><ArrowDown className="h-3 w-3" /></span></span>
-            </th>
-            <th className="px-2 py-2.5 text-left align-bottom"><SortHeader label="Paper" sortKey="title" current={sortKey} dir={sortDir} onSort={onSort} tip={COL_TIPS.title} /></th>
-            <th className="px-2 py-2.5 text-right align-bottom"><SortHeader label="Score" sortKey="score" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.score} /></th>
-            <th className="px-2 py-2.5 text-right hidden lg:table-cell align-bottom"><SortHeader label="CI" sortKey="wilson_margin" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.wilson_margin} /></th>
-            <th className="px-2 py-2.5 text-right hidden md:table-cell align-bottom"><SortHeader label="Match" sortKey="comparisons" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.comparisons} /></th>
-            <th className="px-2 py-2.5 text-right hidden md:table-cell align-bottom"><SortHeader label="Win%" sortKey="win_rate" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.win_rate} /></th>
-            {showRatingCol && <th className="px-2 py-2.5 text-right hidden lg:table-cell align-bottom"><SortHeader label="Rating" sortKey="ai_rating" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.ai_rating} /></th>}
-            {showGapCol && <th className="px-2 py-2.5 text-right hidden xl:table-cell align-bottom"><SortHeader label="Gap" sortKey="gap_score" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.gap_score} /></th>}
-            <th className="px-2 py-2.5 text-right hidden sm:table-cell align-bottom"><SortHeader label="Published" sortKey="published" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.published} /></th>
-            <th className="pr-2 sm:pr-4 py-2.5 w-8 align-bottom"></th>
+          <tr className="bg-slate-50 border-b border-slate-100">
+            <th className="pl-3 sm:pl-5 pr-2 py-2.5 text-center w-10 text-[10px] font-bold uppercase tracking-wider text-slate-500">#</th>
+            <SortTh label="Paper" sortKey="title" current={sortKey} dir={sortDir} onSort={onSort} className="text-left" tip={COL_TIPS.title} />
+            <SortTh label="Score" sortKey="score" current={sortKey} dir={sortDir} onSort={onSort} className="text-right" tip={COL_TIPS.score} />
+            <SortTh label="CI" sortKey="wilson_margin" current={sortKey} dir={sortDir} onSort={onSort} className="text-right hidden lg:table-cell" tip={COL_TIPS.wilson_margin} />
+            <SortTh label="Match" sortKey="comparisons" current={sortKey} dir={sortDir} onSort={onSort} className="text-right hidden md:table-cell" tip={COL_TIPS.comparisons} />
+            <SortTh label="Win%" sortKey="win_rate" current={sortKey} dir={sortDir} onSort={onSort} className="text-right hidden md:table-cell" tip={COL_TIPS.win_rate} />
+            {showRatingCol && <SortTh label="Rating" sortKey="ai_rating" current={sortKey} dir={sortDir} onSort={onSort} className="text-right hidden lg:table-cell" tip={COL_TIPS.ai_rating} />}
+            {showGapCol && <SortTh label="Gap" sortKey="gap_score" current={sortKey} dir={sortDir} onSort={onSort} className="text-right hidden xl:table-cell" tip={COL_TIPS.gap_score} />}
+            <SortTh label="Published" sortKey="published" current={sortKey} dir={sortDir} onSort={onSort} className="text-right hidden sm:table-cell" tip={COL_TIPS.published} />
+            <th className="pr-2 sm:pr-4 py-2.5 w-8"></th>
           </tr>
         </thead>
         <tbody>
@@ -183,7 +181,7 @@ export function LeaderboardTableNew({
                     className={`transition-colors ${isBookmarked ? "text-blue-600" : "text-slate-300 hover:text-blue-600"}`}
                     title={isBookmarked ? "Remove bookmark" : "Bookmark"}
                   >
-                    <Bookmark className="h-3.5 w-3.5 mt-[1px]" fill={isBookmarked ? "currentColor" : "none"} />
+                    <Bookmark className="h-3.5 w-3.5" fill={isBookmarked ? "currentColor" : "none"} />
                   </button>
                 </td>
               </tr>
