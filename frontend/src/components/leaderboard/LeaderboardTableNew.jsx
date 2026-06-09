@@ -1,5 +1,5 @@
 import { useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { ArrowUp, ArrowDown, Bookmark } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { LatexTitle } from "@/components/LatexTitle";
@@ -44,6 +44,7 @@ export function LeaderboardTableNew({
 }) {
   const sentinelRef = useRef(null);
   const basePath = useBasePath();
+  const location = useLocation();
   const { bookmarkedIds, toggleBookmark } = useBookmarks();
   const { user } = useAuth();
   const isLoggedIn = !!user;
@@ -110,7 +111,7 @@ export function LeaderboardTableNew({
                   <span className="font-serif text-base font-medium text-blue-600">{getRank(p, i)}</span>
                 </td>
                 <td className="px-2 py-3">
-                  <Link to={`${basePath}/paper/${p.id}`} className="text-sm font-medium text-slate-900 hover:text-blue-700 leading-snug line-clamp-2">
+                  <Link to={`${basePath}/paper/${p.id}`} state={{ from: location.pathname + location.search }} className="text-sm font-medium text-slate-900 hover:text-blue-700 leading-snug line-clamp-2">
                     <LatexTitle text={p.title} />
                   </Link>
                   <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 flex-wrap">
