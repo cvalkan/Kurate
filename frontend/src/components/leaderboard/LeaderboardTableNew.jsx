@@ -22,7 +22,7 @@ const COL_TIPS = {
 function SortHeader({ label, sortKey, current, dir, onSort, className = "", tip }) {
   const active = current === sortKey;
   const btn = (
-    <button onClick={() => onSort(sortKey)} className={`inline-flex items-center gap-0.5 uppercase text-[10px] font-bold tracking-wider hover:text-slate-900 transition-colors ${active ? "text-slate-900" : ""} ${className}`}>
+    <button onClick={() => onSort(sortKey)} className={`inline-flex items-center gap-0.5 uppercase text-[10px] font-bold tracking-wider hover:text-slate-900 transition-colors w-full ${active ? "text-slate-900" : ""} ${className}`}>
       {label}
       <span className={active ? "" : "invisible"}>{dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}</span>
     </button>
@@ -177,13 +177,13 @@ export function LeaderboardTableNew({
                 <td className="px-2 py-3 text-right align-baseline text-xs text-slate-500 hidden sm:table-cell whitespace-nowrap">
                   {p.published ? new Date(p.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }) : "\u2014"}
                 </td>
-                <td className="pr-2 sm:pr-4 py-3 text-center align-baseline">
+                <td className="pr-2 sm:pr-4 py-3 align-baseline">
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); isLoggedIn ? toggleBookmark(p.id) : requireAuth(); }}
                     className={`transition-colors ${isBookmarked ? "text-blue-600" : "text-slate-300 hover:text-blue-600"}`}
                     title={isBookmarked ? "Remove bookmark" : "Bookmark"}
                   >
-                    <Bookmark className="h-3.5 w-3.5" fill={isBookmarked ? "currentColor" : "none"} />
+                    <Bookmark className="h-3.5 w-3.5 mt-[1px]" fill={isBookmarked ? "currentColor" : "none"} />
                   </button>
                 </td>
               </tr>
