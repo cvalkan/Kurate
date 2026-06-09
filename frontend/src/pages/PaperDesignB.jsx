@@ -113,7 +113,12 @@ export default function PaperDesignB() {
     <div className="kurate-homepage">
       <TopNav />
       <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8 pt-8 pb-16">
-        <a onClick={(e) => { e.preventDefault(); window.history.length > 1 ? navigate(-1) : navigate(`${basePath}/leaderboard`); }} href="#" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 mb-6 transition-colors cursor-pointer">
+        <a onClick={(e) => {
+          e.preventDefault();
+          const cat = paper.categories?.[0];
+          if (cat) navigate(`${basePath}/leaderboard?cat=${cat}&period=all`);
+          else navigate(`${basePath}/leaderboard`);
+        }} href="#" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 mb-6 transition-colors cursor-pointer">
           <ArrowLeft className="h-4 w-4" /> Back to Rankings
         </a>
 
