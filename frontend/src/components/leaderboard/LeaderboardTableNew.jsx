@@ -24,7 +24,7 @@ function SortHeader({ label, sortKey, current, dir, onSort, className = "", tip 
   const btn = (
     <button onClick={() => onSort(sortKey)} className={`inline-flex items-center gap-0.5 uppercase text-[10px] font-bold tracking-wider hover:text-slate-900 transition-colors ${active ? "text-slate-900" : ""} ${className}`}>
       {label}
-      {active && (dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+      <span className={active ? "" : "invisible"}>{dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}</span>
     </button>
   );
   if (!tip) return btn;
