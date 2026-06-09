@@ -396,17 +396,15 @@ export default function PaperDesignB() {
                       <>
                         {visibleMatches.map(m => (
                           <div key={m.id} className="px-5 py-3 border-b border-slate-100 last:border-0 hover:bg-slate-50/70 transition-colors">
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className={`text-xs font-medium shrink-0 ${m.won ? "text-emerald-600" : "text-red-400"}`}>{m.won ? "Won" : "Lost"}</span>
-                                <span className="text-sm text-slate-700 truncate">vs. {m.opponent_title}</span>
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0 text-xs text-slate-400">
-                                <span>{typeof m.model_used === "object" ? m.model_used.model : (m.model_used || "")}</span>
-                                {m.created_at && <span className="whitespace-nowrap">{new Date(m.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>}
-                              </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs font-medium shrink-0 ${m.won ? "text-emerald-600" : "text-red-400"}`}>{m.won ? "Won" : "Lost"}</span>
+                              <span className="text-sm text-slate-700">vs. {m.opponent_title}</span>
                             </div>
                             {m.reasoning && <p className="text-xs text-slate-500 leading-relaxed mt-1.5 ml-12">{m.reasoning}</p>}
+                            <div className="flex items-center gap-2 mt-1.5 ml-12 text-[11px] text-slate-400">
+                              <span>{typeof m.model_used === "object" ? m.model_used.model : (m.model_used || "")}</span>
+                              {m.created_at && <><span>·</span><span>{new Date(m.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span></>}
+                            </div>
                           </div>
                         ))}
                         {!showAllMatches && validMatches.length > 10 && (
