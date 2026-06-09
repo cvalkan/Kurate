@@ -6,10 +6,16 @@ import {
 } from "@/components/site/ContentSections";
 import { FaqSection } from "@/components/site/FaqSection";
 import SiteFooter from "@/components/site/SiteFooter";
+import { Helmet } from "react-helmet";
 
 export default function HomePage() {
   return (
     <div className="kurate-homepage">
+      <Helmet>
+        <title>Kurate.org — AI Paper Rankings</title>
+        <meta name="description" content="AI-powered scientific paper rankings across live arXiv categories. Three LLMs judge which preprints have the highest potential impact." />
+        <link rel="canonical" href="https://kurate.org" />
+      </Helmet>
       <TopNav />
       <HeroPanel />
       <RecentRankings />

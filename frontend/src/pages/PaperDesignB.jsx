@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import DOMPurify from "dompurify";
+import { Helmet } from "react-helmet";
 import { ArrowLeft, ExternalLink, Clock, Sparkles, Trophy, Share2, Bookmark, Target, Award } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useBookmarks } from "@/contexts/BookmarkContext";
@@ -111,8 +112,34 @@ export default function PaperDesignB() {
     { key: "clarity", label: "Clarity" },
   ];
 
+  const authorsStr = (paper.authors || []).slice(0, 3).join(", ") + (paper.authors?.length > 3 ? " et al." : "");
+  const catStr = paper.categories?.join(", ") || "";
+
   return (
     <div className="kurate-homepage">
+      <Helmet>
+        <title>{paper.title} | Kurate.org</title>
+        <meta name="description" content={`${authorsStr} | ${catStr} | AI-ranked by scientific impact on Kurate.org`} />
+        <link rel="canonical" href={`https://kurate.org/paper/${id}`} />
+        <meta property="og:title" content={`${paper.title} | Kurate.org`} />
+        <meta property="og:description" content={`by ${authorsStr} | ${catStr} | AI-ranked by scientific impact`} />
+        <meta property="og:url" content={`https://kurate.org/paper/${id}`} />
+        <meta property="og:type" content="article" />
+        <meta property="og:site_name" content="Kurate.org" />
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content={`${paper.title} | Kurate.org`} />
+        <meta name="twitter:description" content={`by ${authorsStr} | AI-ranked on Kurate.org`} />
+        <script type="application/ld+json">{JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "ScholarlyArticle",
+          "name": paper.title,
+          "author": (paper.authors || []).slice(0, 5).map(a => ({"@type": "Person", "name": a})),
+          "datePublished": paper.published?.slice(0, 10),
+          "url": `https://kurate.org/paper/${id}`,
+          "isPartOf": {"@type": "WebSite", "name": "Kurate.org", "url": "https://kurate.org"},
+          ...(paper.arxiv_id && {"sameAs": `https://arxiv.org/abs/${paper.arxiv_id}`}),
+        })}</script>
+      </Helmet>
       <TopNav />
       <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8 pt-8 pb-16">
         <a onClick={(e) => { e.preventDefault(); navigate(backUrl); }} href="#" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 mb-6 transition-colors cursor-pointer">

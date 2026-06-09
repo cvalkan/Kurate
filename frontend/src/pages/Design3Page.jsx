@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { LeaderboardTableNew } from "@/components/leaderboard/LeaderboardTableNew";
 import TopNav from "@/components/site/TopNav";
 import SiteFooter from "@/components/site/SiteFooter";
+import { Helmet } from "react-helmet";
 
 function SidebarSection({ title, defaultOpen = true, children }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -97,6 +98,11 @@ export default function Design3Page() {
 
   return (
     <div className="kurate-homepage">
+      <Helmet>
+        <title>{d.categoryName} Paper Rankings | Kurate.org</title>
+        <meta name="description" content={`AI-ranked ${d.categoryName} scientific preprints. ${d.totalPapers} papers compared by three LLMs.`} />
+        <link rel="canonical" href={`https://kurate.org/leaderboard${d.category ? `?cat=${d.category}` : ""}`} />
+      </Helmet>
       <TopNav />
       <div className="flex min-h-[calc(100vh-65px)]">
         {/* Sidebar — inline on desktop, overlay drawer on mobile */}
