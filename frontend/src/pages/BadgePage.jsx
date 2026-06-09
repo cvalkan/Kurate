@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet";
 import axios from "axios";
 import { Trophy, ExternalLink, Share2, Copy, Check, Heart, LogIn, Mail, Loader2, Send, Edit3, Download } from "lucide-react";
@@ -17,7 +17,7 @@ const ORIGIN = typeof window !== "undefined" ? window.location.origin : "";
  * - Period-specific: /api/badge/{cat}/{year}/{slug}/{paperId}  → flat fields
  * - Universal share: /api/badge/paper/{paperId}/share          → badge nested
  */
-function normalizeBadgeData(raw, { category, year, slug, paperId, isShareMode }) {
+function normalizeBadgeData(raw, { category, year, slug, paperId, isShareMode, basePath = "" }) {
   const badge = raw.badge || {};
   return {
     title: raw.title,
@@ -46,10 +46,15 @@ function normalizeBadgeData(raw, { category, year, slug, paperId, isShareMode })
       : isShareMode
         ? `${ORIGIN}/api/badge/paper/${paperId}/share/page`
         : `${ORIGIN}/api/badge/${category}/${year}/${slug}/${paperId}/share`,
-    leaderboard_url: isShareMode
-      ? (badge.leaderboard_url || `/?cat=${raw.category}&period=all`)
-      : `/leaderboard/${category}/${year}/${slug}`,
-    alltime_leaderboard_url: `/?cat=${raw.category || category}&period=all`,
+    leaderboard_url: (() => {
+      if (!isShareMode) return `${basePath}/leaderboard/${category}/${year}/${slug}`;
+      const apiUrl = badge.leaderboard_url || "";
+      // Rewrite /leaderboard/... to basePath-aware URL
+      if (apiUrl.startsWith("/leaderboard/")) return `${basePath}${apiUrl}`;
+      if (apiUrl) return apiUrl;
+      return `${basePath}/leaderboard?cat=${raw.category}&period=all`;
+    })(),
+    alltime_leaderboard_url: `${basePath}/leaderboard?cat=${raw.category || category}&period=all`,
   };
 }
 
@@ -77,6 +82,8 @@ function openLinkedIn(text, url) {
 
 export default function BadgePage() {
   const { category, year, slug, paperId } = useParams();
+  const location = useLocation();
+  const basePath = location.pathname.startsWith("/new") ? "/new" : "";
   const isShareMode = !category && !year && !slug;
   const { user, getAuthHeaders } = useAuth();
   const [data, setData] = useState(null);
@@ -94,7 +101,7 @@ export default function BadgePage() {
       ? `${API}/api/badge/paper/${paperId}/share`
       : `${API}/api/badge/${category}/${year}/${slug}/${paperId}`;
     axios.get(url)
-      .then(res => setData(normalizeBadgeData(res.data, { category, year, slug, paperId, isShareMode })))
+      .then(res => setData(normalizeBadgeData(res.data, { category, year, slug, paperId, isShareMode, basePath })))
       .catch(() => setData(null))
       .finally(() => setLoading(false));
   }, [category, year, slug, paperId, isShareMode]);
@@ -235,7 +242,7 @@ export default function BadgePage() {
 
         {/* Navigation links */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-accent mb-8">
-          <a href={`/paper/${data.paper_id}`} className="hover:underline">Paper details</a>
+          <a href={`${basePath}/paper/${data.paper_id}`} className="hover:underline">Paper details</a>
           {data.leaderboard_url && data.leaderboard_url !== data.alltime_leaderboard_url && (
             <>
               <span className="text-border">·</span>
