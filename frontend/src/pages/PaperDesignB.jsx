@@ -117,7 +117,7 @@ export default function PaperDesignB() {
         </Link>
 
         {/* Title + meta — always full width above both columns */}
-        <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight text-slate-900 leading-tight mb-3">
+        <h1 className="font-heading text-xl md:text-2xl font-semibold tracking-tight text-slate-900 leading-tight mb-3">
           <LatexTitle text={paper.title} />
         </h1>
         <p className="text-sm text-slate-600 mb-3">{paper.authors?.join(", ")}</p>
@@ -214,37 +214,54 @@ export default function PaperDesignB() {
                 {badges.length > 0 ? badges.map((b, i) => {
                   const tc = TIER_COLORS[b.tier] || { color: b.tier_color || "#64748B", bg: "#F8FAFC" };
                   return (
-                    <div key={i} className="flex items-center justify-between px-5 py-2.5 border-b border-slate-200" style={{ backgroundColor: tc.bg }}>
-                      <div className="flex items-center gap-1.5 text-sm">
-                        <span className="font-bold text-slate-900">#{paper.current_rank || b.rank}</span>
-                        <span className="text-slate-500">of {paper.total_in_category || "\u2014"}</span>
-                        <span className="text-slate-300 mx-0.5">·</span>
-                        <span className="text-slate-500">{paper.category_name || paper.categories?.[0] || ""}</span>
+                    <div key={i} className="flex items-center justify-between px-4 py-2.5 border-b" style={{ backgroundColor: tc.bg, borderBottomColor: `${tc.color}33` }}>
+                      <div className="hidden md:flex items-center justify-between w-full">
+                        <div className="flex items-center gap-1.5 text-sm">
+                          <span className="font-bold text-slate-900">#{paper.current_rank || b.rank}</span>
+                          <span className="text-slate-400">of {paper.total_in_category || "\u2014"}</span>
+                          <span className="text-slate-300 mx-0.5">·</span>
+                          <span className="text-slate-500">{paper.category_name || paper.categories?.[0] || ""}</span>
+                        </div>
+                        <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: tc.color }}>
+                          <Award className="h-4 w-4" />
+                          {b.tier} · {b.archive_label}
+                        </span>
                       </div>
-                      <span className="flex items-center gap-1 text-sm font-semibold" style={{ color: tc.color }}>
-                        <Award className="h-3.5 w-3.5" />
-                        {b.tier} · {b.archive_label}
-                      </span>
+                      <div className="flex md:hidden items-center justify-between w-full">
+                        <div className="flex items-center gap-1.5 text-sm">
+                          <span className="font-bold text-slate-900">#{paper.current_rank || b.rank}</span>
+                          <span className="text-slate-400">of {paper.total_in_category || "\u2014"}</span>
+                          <span className="text-slate-300 mx-0.5">·</span>
+                          <span className="text-slate-500">{paper.category_name || paper.categories?.[0] || ""}</span>
+                        </div>
+                        <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: tc.color }}>
+                          <Award className="h-4 w-4" />
+                          {b.tier} · {b.archive_label}
+                        </span>
+                      </div>
                     </div>
                   );
                 }) : paper.current_rank ? (
-                  <div className="flex items-center justify-between px-5 py-2.5 border-b border-slate-200 bg-slate-50">
-                    <div className="flex items-center gap-1.5 text-sm">
+                  <div className="flex items-center justify-between px-4 py-2.5 border-b bg-slate-50/80">
+                    <div className="hidden md:flex items-center gap-1.5 text-sm">
                       <span className="font-bold text-slate-900">#{paper.current_rank}</span>
                       <span className="text-slate-400">of {paper.total_in_category || "\u2014"}</span>
                       <span className="text-slate-300 mx-0.5">·</span>
                       <span className="text-slate-500">{paper.category_name || paper.categories?.[0] || ""}</span>
+                    </div>
+                    <div className="md:hidden text-xs text-slate-500">
+                      #{paper.current_rank} of {paper.total_in_category || "\u2014"} · {paper.category_name || paper.categories?.[0] || ""}
                     </div>
                   </div>
                 ) : null}
 
                 {/* Tournament Score — inside the same bordered box */}
                 <div className="p-5">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-900 mb-2 flex items-center gap-1.5">
+                <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Trophy className="h-3.5 w-3.5 text-blue-600" /> Tournament Score
                 </div>
                 <div className="flex items-baseline gap-2 mb-3">
-                  <span className="font-serif text-5xl font-medium text-slate-900">{displayScore || "\u2014"}</span>
+                  <span className="text-5xl font-bold tracking-tight text-slate-900">{displayScore || "\u2014"}</span>
                   {displayCi && <span className="text-lg text-slate-400">±{displayCi}</span>}
                 </div>
                 {/* Confidence interval bar */}
@@ -278,11 +295,11 @@ export default function PaperDesignB() {
               {/* Rating */}
               {ratings?.score && (
                 <div className="border border-slate-200 rounded-sm p-5">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-900 mb-2 flex items-center gap-1.5">
+                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <Target className="h-3.5 w-3.5 text-blue-600" /> Rating
                   </div>
                   <div className="flex items-baseline gap-1 mb-4">
-                    <span className="font-serif text-4xl font-medium text-slate-700">{ratings.score}</span>
+                    <span className="text-4xl font-bold tracking-tight text-slate-700">{ratings.score}</span>
                     <span className="text-sm text-slate-400">/ 10</span>
                   </div>
                   <div className="space-y-2.5">
@@ -321,7 +338,7 @@ export default function PaperDesignB() {
                   {/* Abstract */}
                   {paper.abstract && (
                     <div className="mb-8 border border-slate-200 rounded-sm p-5">
-                      <h3 className="hp-sans text-[10px] font-bold uppercase tracking-wider text-slate-900 mb-3">Abstract</h3>
+                      <h3 className="hp-sans text-xs font-medium text-slate-500 uppercase tracking-wider mb-3">Abstract</h3>
                       <p className="text-sm leading-relaxed text-slate-700" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderLatex(paper.abstract)) }} />
                     </div>
                   )}
@@ -331,7 +348,7 @@ export default function PaperDesignB() {
                     <div className="mb-8 border border-slate-200 rounded-sm p-5">
                       <div className="flex items-center gap-1.5 mb-4">
                         <Sparkles className="h-3.5 w-3.5 text-blue-600" />
-                        <h3 className="hp-sans text-[10px] font-bold uppercase tracking-wider text-slate-900">AI Impact Assessments</h3>
+                        <h3 className="hp-sans text-xs font-medium text-slate-500 uppercase tracking-wider">AI Impact Assessments</h3>
                         <span className="text-[10px] text-slate-400 ml-1">({summaryEntries.length} models)</span>
                       </div>
                       <Tabs defaultValue={summaryEntries[0].tabId}>
@@ -351,7 +368,7 @@ export default function PaperDesignB() {
                   {/* Comparison History */}
                   <div className="border border-slate-200 rounded-sm overflow-hidden">
                     <div className="px-5 py-3 bg-slate-50 border-b border-slate-200">
-                      <h3 className="hp-sans text-[10px] font-bold uppercase tracking-wider text-slate-900">Comparison History ({validMatches.length})</h3>
+                      <h3 className="hp-sans text-xs font-medium text-slate-500 uppercase tracking-wider">Comparison History ({validMatches.length})</h3>
                     </div>
                     {validMatches.length === 0 ? (
                       <div className="py-10 text-center text-sm text-slate-400">No comparisons yet.</div>
