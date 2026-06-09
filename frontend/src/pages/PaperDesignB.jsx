@@ -146,31 +146,33 @@ export default function PaperDesignB() {
           <ArrowLeft className="h-4 w-4" /> Back to Rankings
         </a>
 
-        {/* Title + meta — always full width above both columns */}
-        <h1 className="font-heading text-xl md:text-2xl font-semibold tracking-tight text-slate-900 leading-tight mb-3 max-w-3xl">
-          <LatexTitle text={paper.title} />
-        </h1>
-        <p className="text-sm text-slate-600 mb-3">{paper.authors?.join(", ")}</p>
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          {paper.published && (
-            <span className="inline-flex items-center gap-1 text-xs text-slate-500 px-2 py-0.5 rounded-sm border border-slate-200">
-              <Clock className="h-3 w-3" />
-              {new Date(paper.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
-            </span>
-          )}
-          {paper.arxiv_id && (
-            <a href={paper.link || `https://arxiv.org/abs/${paper.arxiv_id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
-              arXiv:{paper.arxiv_id} <ExternalLink className="h-3 w-3" />
-            </a>
+        {/* Title + meta — constrained to left column width */}
+        <div className="lg:w-7/12">
+          <h1 className="font-heading text-xl md:text-2xl font-semibold tracking-tight text-slate-900 leading-tight mb-3">
+            <LatexTitle text={paper.title} />
+          </h1>
+          <p className="text-sm text-slate-600 mb-3">{paper.authors?.join(", ")}</p>
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            {paper.published && (
+              <span className="inline-flex items-center gap-1 text-xs text-slate-500 px-2 py-0.5 rounded-sm border border-slate-200">
+                <Clock className="h-3 w-3" />
+                {new Date(paper.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+              </span>
+            )}
+            {paper.arxiv_id && (
+              <a href={paper.link || `https://arxiv.org/abs/${paper.arxiv_id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                arXiv:{paper.arxiv_id} <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </div>
+          {paper.categories?.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 mb-6">
+              {paper.categories.map((cat, i) => (
+                <span key={cat} className={`inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[10px] font-medium ${i === 0 ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-slate-50 text-slate-500 border-slate-200"}`}>{cat}</span>
+              ))}
+            </div>
           )}
         </div>
-        {paper.categories?.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 mb-6">
-            {paper.categories.map((cat, i) => (
-              <span key={cat} className={`inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[10px] font-medium ${i === 0 ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-slate-50 text-slate-500 border-slate-200"}`}>{cat}</span>
-            ))}
-          </div>
-        )}
 
         {/* Version toggle */}
         {paper.sibling_versions?.length >= 2 && (

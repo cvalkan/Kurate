@@ -57,11 +57,13 @@ export default function Design3Page({ archiveMode }) {
   const isLoggedIn = !!user;
   const requireAuth = () => window.dispatchEvent(new Event("open-auth-modal"));
 
-  // Archive mode: load archive data from URL params
+  // Archive mode: load archive data and set category for the hook
   const [archiveData, setArchiveData] = useState(null);
   const [archiveLoading, setArchiveLoading] = useState(!!archiveMode);
   useEffect(() => {
     if (!archiveMode || !params.category) return;
+    // Set the category on the hook so it fetches archives list for this category
+    if (params.category !== d.category) d.setCategory(params.category);
     const isWeekly = params.weekOrMonth?.startsWith("w");
     const num = parseInt(params.weekOrMonth?.replace(/^[wm]/, ""), 10);
     const API = process.env.REACT_APP_BACKEND_URL;
@@ -72,7 +74,7 @@ export default function Design3Page({ archiveMode }) {
     axios.get(url).then(r => {
       if (r.data.status !== "not_found") setArchiveData(r.data);
     }).catch(() => {}).finally(() => setArchiveLoading(false));
-  }, [archiveMode, params.category, params.year, params.weekOrMonth]);
+  }, [archiveMode, params.category, params.year, params.weekOrMonth]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handler = (e) => { if (archiveRef.current && !archiveRef.current.contains(e.target)) setArchiveOpen(false); };
@@ -313,29 +315,30 @@ export default function Design3Page({ archiveMode }) {
                         {!isArchive && d.isRanking && <><span className="text-slate-300">·</span><span className="inline-flex items-center gap-1 text-blue-600 animate-pulse"><Activity className="h-3 w-3" /> Ranking</span></>}
                       </div>
                     </div>
-                    {!isArchive && d.archives.length > 0 && d.category && (
+                    {((archiveMode && archiveData) || (!archiveMode && d.archives.length > 0 && d.category)) && (
                       <div className="relative shrink-0 mt-1" ref={archiveRef}>
                         <button onClick={() => setArchiveOpen(v => !v)}
                           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm border text-xs font-medium transition-all ${
-                            d.activeArchive ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-500 hover:border-slate-400"
+                            isArchive ? "bg-blue-50 text-blue-700 border-blue-200" : "border-slate-200 text-slate-500 hover:border-slate-400"
                           }`}>
                           <Archive className="h-3 w-3" />
-                          {d.activeArchive ? d.activeArchive.label : "Live"}
+                          {isArchive ? archiveLabel : (d.activeArchive ? d.activeArchive.label : "Live")}
                           <ChevronDown className={`h-3 w-3 transition-transform ${archiveOpen ? "rotate-180" : ""}`} />
                         </button>
                         {archiveOpen && (
                           <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-sm shadow-lg min-w-[220px] max-h-[320px] overflow-y-auto py-1">
-                            <button onClick={() => { d.clearArchive(); setArchiveOpen(false); }}
-                              className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${!d.activeArchive ? "bg-blue-50 text-blue-700 font-medium" : "hover:bg-slate-50 text-slate-600"}`}>
+                            <button onClick={() => { navigate(`${basePath}/leaderboard?cat=${isArchive ? archiveCat : d.category}&period=all`); setArchiveOpen(false); }}
+                              className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${!isArchive && !d.activeArchive ? "bg-blue-50 text-blue-700 font-medium" : "hover:bg-slate-50 text-slate-600"}`}>
                               Live rankings
                             </button>
                             <div className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Archive</div>
                             {d.archives.map(a => {
                               const slug = a.period_type === "weekly" ? `w${a.week}` : `m${a.month}`;
+                              const isCurrent = isArchive && params.weekOrMonth === slug && params.year === String(a.year);
                               return (
                                 <button key={`${a.category}-${a.year}-${slug}`}
                                   onClick={() => { navigate(`${basePath}/leaderboard/${a.category}/${a.year}/${slug}`); setArchiveOpen(false); }}
-                                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 transition-colors flex items-center justify-between">
+                                  className={`w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center justify-between ${isCurrent ? "bg-blue-50 text-blue-700 font-medium" : "hover:bg-slate-50"}`}>
                                   <span>{a.label}</span>
                                   <span className="text-[10px] text-slate-400 ml-3">{a.paper_count}</span>
                                 </button>
