@@ -81,15 +81,15 @@ export function LeaderboardTableNew({
 
   // Fixed grid columns — same approach as old LeaderboardTable
   const cols = [];
-  cols.push("2rem", "1fr"); // # + Paper
-  cols.push(isMobile ? "3rem" : "3.5rem"); // Score
-  if (!isMobile && !isTablet) cols.push("2.5rem"); // CI
-  if (!isMobile) cols.push("2.5rem"); // Match
-  if (!isMobile) cols.push("3rem"); // Win%
-  if (showRatingCol && !isMobile && !isTablet) cols.push("3rem"); // Rating
-  if (showGapCol && !isMobile && !isTablet) cols.push("2.5rem"); // Gap
-  if (!isMobile) cols.push("5rem"); // Published
-  cols.push("1.5rem"); // Bookmark
+  cols.push("1.5rem", "1fr"); // # + Paper
+  cols.push(isMobile ? "2.5rem" : "3rem"); // Score
+  if (!isMobile && !isTablet) cols.push("2.2rem"); // CI
+  if (!isMobile) cols.push("2.2rem"); // Match
+  if (!isMobile) cols.push("2.5rem"); // Win%
+  if (showRatingCol && !isMobile && !isTablet) cols.push("2.5rem"); // Rating
+  if (showGapCol && !isMobile && !isTablet) cols.push("2.2rem"); // Gap
+  if (!isMobile) cols.push("4.5rem"); // Published
+  cols.push("1.2rem"); // Bookmark
   const gridStyle = { gridTemplateColumns: cols.join(" ") };
   const gridBase = "grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4";
 
