@@ -81,15 +81,15 @@ export function LeaderboardTableNew({
 
   // Fixed grid columns — same approach as old LeaderboardTable
   const cols = [];
-  cols.push("1.5rem", "1fr"); // # + Paper
-  cols.push(isMobile ? "2.5rem" : "3rem"); // Score
-  if (!isMobile && !isTablet) cols.push("2.2rem"); // CI
-  if (!isMobile) cols.push("2.2rem"); // Match
-  if (!isMobile) cols.push("2.5rem"); // Win%
-  if (showRatingCol && !isMobile && !isTablet) cols.push("2.5rem"); // Rating
-  if (showGapCol && !isMobile && !isTablet) cols.push("2.2rem"); // Gap
-  if (!isMobile) cols.push("4.5rem"); // Published
-  cols.push("1.2rem"); // Bookmark
+  cols.push("1.75rem", "1fr"); // # + Paper
+  cols.push(isMobile ? "2.75rem" : "3.25rem"); // Score
+  if (!isMobile && !isTablet) cols.push("2.45rem"); // CI
+  if (!isMobile) cols.push("2.45rem"); // Match
+  if (!isMobile) cols.push("2.75rem"); // Win%
+  if (showRatingCol && !isMobile && !isTablet) cols.push("2.75rem"); // Rating
+  if (showGapCol && !isMobile && !isTablet) cols.push("2.45rem"); // Gap
+  if (!isMobile) cols.push("4.75rem"); // Published
+  cols.push("1.45rem"); // Bookmark
   const gridStyle = { gridTemplateColumns: cols.join(" ") };
   const gridBase = "grid gap-1 sm:gap-2 px-2 sm:px-3 md:px-4";
 
