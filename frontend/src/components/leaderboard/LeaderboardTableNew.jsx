@@ -86,19 +86,7 @@ export function LeaderboardTableNew({
   return (
     <TooltipProvider delayDuration={200}>
     <>
-      <table className="w-full table-fixed">
-        <colgroup>
-          <col className="w-12" />{/* # */}
-          <col />{/* Paper — gets remaining space */}
-          <col className="w-16" />{/* Score */}
-          <col className="w-14" />{/* CI */}
-          <col className="w-14" />{/* Match */}
-          <col className="w-14" />{/* Win% */}
-          {showRatingCol && <col className="w-16" />}{/* Rating */}
-          {showGapCol && <col className="w-14" />}{/* Gap */}
-          <col className="w-24" />{/* Published */}
-          <col className="w-8" />{/* Bookmark */}
-        </colgroup>
+      <table className="w-full">
         <thead>
           <tr className="text-slate-500 bg-slate-50 border-b border-slate-100 whitespace-nowrap">
             <th className="pl-5 pr-2 py-2.5 text-center w-10 text-[10px] font-bold uppercase tracking-wider">#</th>
