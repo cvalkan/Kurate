@@ -163,7 +163,6 @@ function LeaderboardRow({ paper, rankType, onCategoryClick, activeCodes, basePat
           <span>{paper.authors.slice(0, 2).join(", ")}{paper.authors.length > 2 ? ` +${paper.authors.length - 2}` : ""}</span>
           {primary && primary !== "\u2014" && (
             <>
-              <span className="text-slate-300">·</span>
               <button
                 type="button"
                 onClick={() => onCategoryClick(primary)}
