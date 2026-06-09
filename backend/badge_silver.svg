@@ -65,7 +65,7 @@
       <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
       <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" fill="#1d4ed8" fill-opacity="0.15"/>
     </g>
-    <text x="30" y="22" font-family="Inter, sans-serif" font-size="19" font-weight="700" fill="#1d4ed8">Ku<tspan fill="#1a1a2e">rate.org</tspan></text>
+    <text x="28" y="22" font-family="Inter, 'Liberation Sans', sans-serif" font-size="19" font-weight="800" fill="#2563eb">Ku<tspan fill="#1e293b">rate</tspan><tspan fill="#64748b">.org</tspan></text>
   </g>
 
   <!-- Silver coin -->
