@@ -1,8 +1,9 @@
 import { useMemo, useState, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Search, X, PanelLeftClose, PanelLeft, Tag, Archive, ChevronDown, ChevronRight, Activity, LockOpen, ArrowRight, Lock, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useLeaderboardData } from "@/hooks/useLeaderboardData";
+import { useBasePath } from "@/contexts/BasePathContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { LeaderboardTableNew } from "@/components/leaderboard/LeaderboardTableNew";
 import TopNav from "@/components/site/TopNav";
@@ -40,6 +41,8 @@ const SORTS = [
 
 export default function Design3Page() {
   const d = useLeaderboardData();
+  const navigate = useNavigate();
+  const basePath = useBasePath();
   const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 1024;
   const [sidebarOpen, setSidebarOpen] = useState(isDesktop);
   const [catSearch, setCatSearch] = useState("");
@@ -288,7 +291,7 @@ export default function Design3Page() {
                         const slug = a.period_type === "weekly" ? `w${a.week}` : `m${a.month}`;
                         return (
                           <button key={`${a.category}-${a.year}-${slug}`}
-                            onClick={() => { d.loadArchive(a); setArchiveOpen(false); }}
+                            onClick={() => { navigate(`${basePath}/leaderboard/${a.category}/${a.year}/${slug}`); setArchiveOpen(false); }}
                             className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 transition-colors flex items-center justify-between">
                             <span>{a.label}</span>
                             <span className="text-[10px] text-slate-400 ml-3">{a.paper_count}</span>

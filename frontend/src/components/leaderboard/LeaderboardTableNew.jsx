@@ -90,7 +90,9 @@ export function LeaderboardTableNew({
       <table className="w-full">
         <thead>
           <tr className="text-slate-500 bg-slate-50 border-b border-slate-100 whitespace-nowrap align-bottom">
-            <th className="pl-3 sm:pl-5 pr-2 py-2.5 text-center w-10 text-[10px] font-bold uppercase tracking-wider align-bottom">#</th>
+            <th className="pl-3 sm:pl-5 pr-2 py-2.5 text-center w-10 align-bottom">
+              <span className="inline-flex items-center gap-0.5 uppercase text-[10px] font-bold tracking-wider">#<span className="invisible"><ArrowDown className="h-3 w-3" /></span></span>
+            </th>
             <th className="px-2 py-2.5 text-left align-bottom"><SortHeader label="Paper" sortKey="title" current={sortKey} dir={sortDir} onSort={onSort} tip={COL_TIPS.title} /></th>
             <th className="px-2 py-2.5 text-right align-bottom"><SortHeader label="Score" sortKey="score" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.score} /></th>
             <th className="px-2 py-2.5 text-right hidden lg:table-cell align-bottom"><SortHeader label="CI" sortKey="wilson_margin" current={sortKey} dir={sortDir} onSort={onSort} className="justify-end" tip={COL_TIPS.wilson_margin} /></th>

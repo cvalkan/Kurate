@@ -315,15 +315,6 @@ export default function PaperDesignB() {
                 </div>
               )}
 
-              {/* Rank info */}
-              {paper.current_rank && (
-                <div className="border border-slate-200 rounded-sm p-4 text-center">
-                  <span className="text-sm text-slate-500">Ranked </span>
-                  <span className="font-serif text-lg font-medium text-blue-600">#{paper.current_rank}</span>
-                  <span className="text-sm text-slate-500"> of {paper.total_in_category || "\u2014"}</span>
-                  <span className="text-sm text-slate-400"> in {paper.category_name || paper.categories?.[0] || ""}</span>
-                </div>
-              )}
             </div>
           );
 
