@@ -152,7 +152,7 @@ function LeaderboardRow({ paper, rankType, onCategoryClick, activeCodes, basePat
 
   return (
     <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70 transition-colors" data-testid={`paper-row-${paper.id}`}>
-      <td className="pl-5 pr-2 py-3 w-10 text-center align-baseline">
+      <td className="pl-3 sm:pl-5 pr-2 py-3 w-10 text-center align-baseline">
         <span className="font-serif text-base font-medium text-blue-600">{paper.rank}</span>
       </td>
       <td className="px-2 py-3">
@@ -194,7 +194,7 @@ function LeaderboardRow({ paper, rankType, onCategoryClick, activeCodes, basePat
       <td className="px-2 py-3 text-right whitespace-nowrap align-baseline">
         <span className="text-sm font-semibold text-slate-900 tabular-nums">{display}</span>
       </td>
-      <td className="pl-2 pr-5 py-3 text-right whitespace-nowrap text-xs text-slate-500 hidden sm:table-cell align-baseline">
+      <td className="pl-2 pr-3 sm:pr-5 py-3 text-right whitespace-nowrap text-xs text-slate-500 hidden sm:table-cell align-baseline">
         {formatPublished(paper.published_at)}
       </td>
     </tr>
@@ -373,7 +373,7 @@ export default function HeroPanel() {
           {/* RIGHT - Top Papers leaderboard */}
           <div className="lg:col-span-7">
             <div className="border border-slate-200 bg-white rounded-sm overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
+              <div className="flex items-center justify-between px-3 sm:px-5 py-3 border-b border-slate-200 bg-slate-50">
                 <div className="flex items-center gap-2 min-w-0">
                   <Sparkles className="h-4 w-4 text-blue-600 shrink-0" strokeWidth={1.5} />
                   <h2 className="font-serif text-lg font-medium text-slate-900 truncate">Top Papers</h2>
@@ -389,10 +389,10 @@ export default function HeroPanel() {
               <table className="w-full" data-testid="leaderboard-table">
                 <thead>
                   <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-white border-b border-slate-100 whitespace-nowrap">
-                    <th className="pl-5 pr-2 py-2.5 text-center w-10">#</th>
+                    <th className="pl-3 sm:pl-5 pr-2 py-2.5 text-center w-10">#</th>
                     <th className="px-2 py-2.5 text-left">Paper</th>
                     <th className="px-2 py-2.5 text-right" title={COL_TOOLTIP[rankType]}>{COL_LABEL[rankType]}</th>
-                    <th className="pl-2 pr-5 py-2.5 text-right hidden sm:table-cell">Published</th>
+                    <th className="pl-2 pr-3 sm:pr-5 py-2.5 text-right hidden sm:table-cell">Published</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -405,7 +405,7 @@ export default function HeroPanel() {
                   {papers.map((p) => <LeaderboardRow key={p.id} paper={p} rankType={rankType} onCategoryClick={setCategory} activeCodes={activeCodes} basePath={basePath} />)}
                 </tbody>
               </table>
-              <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-xs text-slate-500">
+              <div className="px-3 sm:px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-xs text-slate-500">
                 <span className="inline-flex items-center gap-1.5">
                   <Clock className="h-3 w-3" /> Updated {metrics?.latest_update || ""}
                 </span>
