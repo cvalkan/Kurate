@@ -26,6 +26,7 @@ const TYPES = [
   { value: "fetch_cycle", label: "Fetch cycle" },
   { value: "archive_created", label: "Archive" },
   { value: "convergence", label: "Convergence" },
+  { value: "cache_warm", label: "Cache warm" },
   { value: "error", label: "Errors only" },
 ];
 
