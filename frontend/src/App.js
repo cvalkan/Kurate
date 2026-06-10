@@ -1,7 +1,7 @@
 import "@/App.css";
 import "katex/dist/katex.min.css";
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { BasePathProvider } from "@/contexts/BasePathContext";
@@ -89,6 +89,14 @@ function AppRouter() {
         <Toaster position="bottom-right" />
       </BasePathProvider>
     );
+  }
+
+  // Redirect old /?cat=... URLs to /leaderboard?cat=...
+  if (location.pathname === "/" && location.search && (
+    location.search.includes("cat=") || location.search.includes("tags=") ||
+    location.search.includes("sort=") || location.search.includes("period=")
+  )) {
+    return <Navigate to={`/leaderboard${location.search}`} replace />;
   }
 
   // Homepage — has its own TopNav + SiteFooter

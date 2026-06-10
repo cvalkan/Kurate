@@ -19,7 +19,7 @@ export function useLeaderboardData() {
     const t = searchParams.get("tags");
     return t ? t.split(",").filter(Boolean) : [];
   });
-  const [tagMode, setTagMode] = useState(searchParams.get("tag_mode") || "or");
+  const [tagMode, setTagMode] = useState(searchParams.get("tagMode") || searchParams.get("tag_mode") || "or");
   const [tagFilterOpen, setTagFilterOpen] = useState(!!searchParams.get("tags"));
   const [period, setPeriod] = useState(searchParams.get("period") || "week");
   const [keyword, setKeyword] = useState(searchParams.get("q") || "");
@@ -38,7 +38,7 @@ export function useLeaderboardData() {
   const [showGapCol, setShowGapCol] = useState(true);
   const [archives, setArchives] = useState([]);
   const [activeArchive, setActiveArchive] = useState(null);
-  const [globalStats, setGlobalStats] = useState(false);
+  const [globalStats, setGlobalStats] = useState(searchParams.get("global") !== "0");
   const abortRef = useRef(null);
 
   const isTagMode = tagFilterOpen || selectedTags.length > 0;
@@ -53,9 +53,10 @@ export function useLeaderboardData() {
     if (sortDir && sortDir !== "asc") p.set("dir", sortDir);
     if (debouncedKeyword) p.set("q", debouncedKeyword);
     if (selectedTags.length > 0) p.set("tags", selectedTags.join(","));
-    if (selectedTags.length > 0 && tagMode !== "or") p.set("tag_mode", tagMode);
+    if (selectedTags.length > 0 && tagMode !== "or") p.set("tagMode", tagMode);
+    if (selectedTags.length > 0 && !globalStats) p.set("global", "0");
     setSearchParams(p, { replace: true });
-  }, [category, period, sortKey, sortDir, debouncedKeyword, selectedTags, tagMode, setSearchParams]);
+  }, [category, period, sortKey, sortDir, debouncedKeyword, selectedTags, tagMode, globalStats, setSearchParams]);
 
   // Debounce search
   useEffect(() => {
