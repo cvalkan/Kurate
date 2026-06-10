@@ -116,14 +116,7 @@ export function useLeaderboardData() {
         setTotalInPeriod(d.total_in_period || 0);
         setTotalMatches(d.total_matches || 0);
         setIsRanking(d.is_ranking || false);
-        // Support both cursor and offset pagination
-        if (d.next_cursor) {
-          setNextCursor(d.next_cursor);
-        } else if (d.next_offset != null) {
-          setNextCursor(`offset:${d.next_offset}`);
-        } else {
-          setNextCursor(null);
-        }
+        setNextCursor(d.leaderboard?.length >= 50 ? "more" : null);
         setShowRatingCol(d.show_rating_column !== false);
         setShowGapCol(d.show_gap_column !== false);
         setArchives(d.archives || []);
@@ -133,7 +126,7 @@ export function useLeaderboardData() {
     return () => ctrl.abort();
   }, [category, period, debouncedKeyword, sortKey, sortDir, categories.length, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, activeArchive]);
 
-  // Load more (infinite scroll)
+  // Load more (infinite scroll) — always uses offset, matching old design
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore || activeArchive) return;
     setLoadingMore(true);
@@ -150,26 +143,16 @@ export function useLeaderboardData() {
       }
       params.set("period", period);
       params.set("limit", "50");
-      // Support both cursor and offset pagination
-      if (nextCursor.startsWith("offset:")) {
-        params.set("offset", nextCursor.replace("offset:", ""));
-      } else {
-        params.set("cursor", nextCursor);
-      }
+      params.set("offset", String(leaderboard.length));
       if (debouncedKeyword) params.set("search", debouncedKeyword);
       if (sortKey && sortKey !== "rank") { params.set("sort_by", sortKey); params.set("sort_dir", sortDir); }
       const res = await axios.get(`${API}/api/leaderboard?${params}`);
-      setLeaderboard(prev => [...prev, ...(res.data.leaderboard || [])]);
-      if (res.data.next_cursor) {
-        setNextCursor(res.data.next_cursor);
-      } else if (res.data.next_offset != null) {
-        setNextCursor(`offset:${res.data.next_offset}`);
-      } else {
-        setNextCursor(null);
-      }
+      const newEntries = res.data.leaderboard || [];
+      setLeaderboard(prev => [...prev, ...newEntries]);
+      setNextCursor(newEntries.length >= 50 ? "more" : null);
     } catch { /* ignore */ }
     setLoadingMore(false);
-  }, [nextCursor, loadingMore, category, period, debouncedKeyword, sortKey, sortDir, selectedTags, tagMode, hasSelectedTags, globalStats, activeArchive]);
+  }, [nextCursor, loadingMore, category, period, debouncedKeyword, sortKey, sortDir, selectedTags, tagMode, hasSelectedTags, globalStats, activeArchive, leaderboard.length]);
 
   // Load archive
   const loadArchive = useCallback(async (archive) => {

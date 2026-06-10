@@ -66,7 +66,7 @@ async def warm_leaderboard_cache():
         categories = sorted(c for c in (settings.get("active_categories") or []) if c and c.strip())
         total_queries = (len(categories) + 1) * len(PERIODS) + 3
         logger.info(f"Cache warm starting: {len(categories)} categories × {len(PERIODS)} periods + homepage = {total_queries} queries")
-        await _log_to_admin("Cache warm started", f"{total_queries} queries ({len(categories)} categories × {len(PERIODS)} periods + homepage)")
+        await _log_to_admin("started", f"{total_queries} queries ({len(categories)} categories × {len(PERIODS)} periods + homepage)")
 
         # Single client, reused for all requests. Responses are not stored.
         async with httpx.AsyncClient(base_url="http://localhost:8001", timeout=60) as client:
@@ -112,15 +112,15 @@ async def warm_leaderboard_cache():
 
         if failed == 0:
             logger.info(f"Cache warm complete: {success}/{total_queries} ok in {elapsed:.1f}s")
-            await _log_to_admin("Cache warm complete", f"{success}/{total_queries} ok in {elapsed:.1f}s")
+            await _log_to_admin("complete", f"{success}/{total_queries} ok in {elapsed:.1f}s")
         else:
             logger.warning(f"Cache warm done: {success} ok, {failed} failed in {elapsed:.1f}s. Errors: {'; '.join(errors[:5])}")
-            await _log_to_admin("Cache warm partial", f"{success} ok, {failed} failed in {elapsed:.1f}s. {'; '.join(errors[:5])}", success=False)
+            await _log_to_admin("partial failure", f"{success} ok, {failed} failed in {elapsed:.1f}s. {'; '.join(errors[:5])}", success=False)
 
     except Exception as e:
         elapsed = time.time() - t0
         logger.error(f"Cache warm aborted after {elapsed:.1f}s: {type(e).__name__}: {e}", exc_info=True)
-        await _log_to_admin("Cache warm aborted", f"{type(e).__name__}: {e} (after {elapsed:.1f}s)", success=False)
+        await _log_to_admin("aborted", f"{type(e).__name__}: {e} (after {elapsed:.1f}s)", success=False)
     finally:
         _warming = False
 
@@ -138,7 +138,7 @@ async def warm_on_startup():
             logger.error(f"Cache warm startup attempt {attempt+1} failed: {type(e).__name__}: {e}")
         await asyncio.sleep(10)
     logger.error("Cache warm startup: all 3 attempts failed — users will hit cold cache")
-    await _log_to_admin("Cache warm startup failed", "All 3 attempts failed — users will hit cold cache", success=False)
+    await _log_to_admin("startup failed", "All 3 attempts failed — users will hit cold cache", success=False)
 
 
 def trigger_warm():
