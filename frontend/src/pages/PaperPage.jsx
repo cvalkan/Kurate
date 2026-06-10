@@ -73,7 +73,7 @@ function SummaryBlock({ text, fallbackRatings }) {
   );
 }
 
-export default function PaperDesignB() {
+export default function PaperPage() {
   const { id } = useParams();
   const basePath = useBasePath();
   const navigate = useNavigate();

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useLeaderboardData } from "@/hooks/useLeaderboardData";
 import { useBasePath } from "@/contexts/BasePathContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { LeaderboardTableNew } from "@/components/leaderboard/LeaderboardTableNew";
+import { RankedTable } from "@/components/leaderboard/RankedTable";
 import TopNav from "@/components/site/TopNav";
 import SiteFooter from "@/components/site/SiteFooter";
 import { Helmet } from "react-helmet";
@@ -41,7 +41,7 @@ const SORTS = [
   { value: "published", label: "Published" },
 ];
 
-export default function Design3Page({ archiveMode }) {
+export default function LeaderboardPage({ archiveMode }) {
   const d = useLeaderboardData();
   const navigate = useNavigate();
   const basePath = useBasePath();
@@ -373,7 +373,7 @@ export default function Design3Page({ archiveMode }) {
 
                   {/* Table */}
                   <div className="border border-slate-200 bg-white rounded-sm overflow-hidden">
-                    <LeaderboardTableNew
+                    <RankedTable
                       leaderboard={displayLeaderboard} loading={displayLoading}
                       sortKey={d.sortKey} sortDir={d.sortDir} onSort={d.handleSort}
                       showRatingCol={isArchive ? displayLeaderboard.some(e => e.ai_rating) : d.showRatingCol}

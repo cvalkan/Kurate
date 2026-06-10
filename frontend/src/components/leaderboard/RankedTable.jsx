@@ -38,7 +38,7 @@ function SortDiv({ label, sortKey, current, dir, onSort, className = "", tip }) 
   );
 }
 
-export function LeaderboardTableNew({
+export function RankedTable({
   leaderboard, loading, sortKey, sortDir, onSort,
   showRatingCol, showGapCol, hasSelectedTags, globalStats, isArchive,
   nextCursor, loadMore, loadingMore, keyword,

@@ -22,8 +22,8 @@ function GlobalAuthModal() {
 
 // Pages — new design
 import HomePage from "@/pages/HomePage";
-import Design3Page from "@/pages/Design3Page";
-import PaperDesignB from "@/pages/PaperDesignB";
+import LeaderboardPage from "@/pages/LeaderboardPage";
+import PaperPage from "@/pages/PaperPage";
 import TopNavLayout from "@/components/TopNavLayout";
 
 // Pages — existing (wrapped with TopNavLayout)
@@ -102,7 +102,7 @@ function AppRouter() {
     if (hasFilterParams) {
       return (
         <BasePathProvider value="">
-          <Design3Page />
+          <LeaderboardPage />
           <GlobalAuthModal />
           <Toaster position="bottom-right" />
         </BasePathProvider>
@@ -122,9 +122,9 @@ function AppRouter() {
     <BasePathProvider value="">
       <Routes>
         {/* Leaderboard also at /leaderboard for direct links */}
-        <Route path="/leaderboard" element={<Design3Page />} />
-        <Route path="/leaderboard/:category/:year/:weekOrMonth" element={<Design3Page archiveMode />} />
-        <Route path="/paper/:id" element={<PaperDesignB />} />
+        <Route path="/leaderboard" element={<LeaderboardPage />} />
+        <Route path="/leaderboard/:category/:year/:weekOrMonth" element={<LeaderboardPage archiveMode />} />
+        <Route path="/paper/:id" element={<PaperPage />} />
 
         {/* Existing pages wrapped with TopNav */}
         <Route path="/methodology" element={<TopNavLayout><MethodologyPage /></TopNavLayout>} />
