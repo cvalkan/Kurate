@@ -33,6 +33,11 @@ def _set_cache(key: str, data):
     _cache[key] = {"ts": _time.time(), "data": data}
 
 
+def clear_homepage_cache():
+    """Called when data changes to invalidate homepage cache."""
+    _cache.clear()
+
+
 def _field_for(code: str, group: str) -> str:
     c = code.lower()
     g = (group or "").lower()

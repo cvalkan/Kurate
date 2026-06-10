@@ -91,6 +91,12 @@ def notify_data_changed():
         mark_live_analysis_dirty()
     except Exception:
         pass
+    # Re-warm all leaderboard caches in background
+    try:
+        from services.cache_warmer import trigger_warm
+        trigger_warm()
+    except Exception:
+        pass
 
 # Tag query cache — keyed on (frozenset(tags), period, tag_mode, global_stats, show_all)
 _tag_cache = {}  # key -> {"ts": float, "result": dict}
