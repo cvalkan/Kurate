@@ -116,7 +116,14 @@ export function useLeaderboardData() {
         setTotalInPeriod(d.total_in_period || 0);
         setTotalMatches(d.total_matches || 0);
         setIsRanking(d.is_ranking || false);
-        setNextCursor(d.next_cursor || null);
+        // Support both cursor and offset pagination
+        if (d.next_cursor) {
+          setNextCursor(d.next_cursor);
+        } else if (d.next_offset != null) {
+          setNextCursor(`offset:${d.next_offset}`);
+        } else {
+          setNextCursor(null);
+        }
         setShowRatingCol(d.show_rating_column !== false);
         setShowGapCol(d.show_gap_column !== false);
         setArchives(d.archives || []);
@@ -138,15 +145,28 @@ export function useLeaderboardData() {
         if (globalStats) params.set("global_stats", "true");
       } else if (category) {
         params.set("category", category);
+      } else {
+        params.set("show_all", "true");
       }
       params.set("period", period);
       params.set("limit", "50");
-      params.set("cursor", nextCursor);
+      // Support both cursor and offset pagination
+      if (nextCursor.startsWith("offset:")) {
+        params.set("offset", nextCursor.replace("offset:", ""));
+      } else {
+        params.set("cursor", nextCursor);
+      }
       if (debouncedKeyword) params.set("search", debouncedKeyword);
       if (sortKey && sortKey !== "rank") { params.set("sort_by", sortKey); params.set("sort_dir", sortDir); }
       const res = await axios.get(`${API}/api/leaderboard?${params}`);
       setLeaderboard(prev => [...prev, ...(res.data.leaderboard || [])]);
-      setNextCursor(res.data.next_cursor || null);
+      if (res.data.next_cursor) {
+        setNextCursor(res.data.next_cursor);
+      } else if (res.data.next_offset != null) {
+        setNextCursor(`offset:${res.data.next_offset}`);
+      } else {
+        setNextCursor(null);
+      }
     } catch { /* ignore */ }
     setLoadingMore(false);
   }, [nextCursor, loadingMore, category, period, debouncedKeyword, sortKey, sortDir, selectedTags, tagMode, hasSelectedTags, globalStats, activeArchive]);

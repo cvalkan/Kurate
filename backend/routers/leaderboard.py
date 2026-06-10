@@ -904,8 +904,12 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
         last_doc = doc
 
     next_cursor = None
+    next_offset = None
     if entries and last_doc and len(entries) == limit:
-        next_cursor = _encode_cursor(last_doc.get("ts_score", 0), last_doc.get("paper_id", ""))
+        if is_default_sort and not search:
+            next_cursor = _encode_cursor(last_doc.get("ts_score", 0), last_doc.get("paper_id", ""))
+        else:
+            next_offset = offset + limit
 
     return {
         "leaderboard": entries,
@@ -918,6 +922,8 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
         "tags": None,
         "tag_mode": None,
         "show_all": True,
+        "next_cursor": next_cursor,
+        "next_offset": next_offset,
         "next_cursor": next_cursor,
     }
 
