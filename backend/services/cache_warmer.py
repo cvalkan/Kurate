@@ -96,13 +96,13 @@ async def warm_leaderboard_cache():
             # 1. All Categories × all periods
             for period in PERIODS:
                 await _warm(f"/api/leaderboard?show_all=true&period={period}&limit=50", f"all/{period}")
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(1.0)
 
-            # 2. Each category × all periods
+            # 2. Each category × all periods — slower pace to avoid competing with user requests
             for cat in categories:
                 for period in PERIODS:
                     await _warm(f"/api/leaderboard?category={cat}&period={period}&limit=50", f"{cat}/{period}")
-                    await asyncio.sleep(0.4)
+                    await asyncio.sleep(0.8)
 
             # 3. Homepage endpoints
             for ep in ["/api/homepage/categories", "/api/homepage/metrics", "/api/homepage/recent"]:
