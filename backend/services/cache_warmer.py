@@ -48,8 +48,8 @@ async def warm_leaderboard_cache():
     if _warming:
         logger.debug("Cache warm: already in progress, skipping")
         return
-    if time.time() - _last_warm_at < 60:
-        logger.debug("Cache warm: warmed <60s ago, skipping")
+    if time.time() - _last_warm_at < 120:
+        logger.debug("Cache warm: warmed <120s ago, skipping")
         return
 
     _warming = True

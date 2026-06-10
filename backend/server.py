@@ -1066,8 +1066,6 @@ async def _follower_lightweight_startup():
     
     asyncio.create_task(_prewarm_summary_bias_caches())
     asyncio.create_task(_prewarm_summarizer_ratings())
-    from services.cache_warmer import warm_on_startup
-    asyncio.create_task(warm_on_startup())
     
     await asyncio.sleep(10)
     force_gc("follower lightweight startup complete")

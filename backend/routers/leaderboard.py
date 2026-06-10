@@ -861,6 +861,13 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
         query = _build_period_filter(period)
     # Exclude frozen older paper versions
     query["is_latest_version"] = {"$ne": False}
+    # Exclude very old papers (pre-2024) from the all-papers cross-category view
+    if "published" not in query:
+        query["published"] = {"$gte": "2024-01-01"}
+    else:
+        # Period filter already set a $gte on published — ensure it's at least 2024
+        if query["published"].get("$gte", "") < "2024-01-01":
+            query["published"]["$gte"] = "2024-01-01"
 
     if search:
         import re as _re
