@@ -30,8 +30,8 @@ export default function TopNav() {
   const { user, logout } = useAuth();
   const isLoggedIn = !!user;
 
-  // Context-aware nav: homepage gets section anchors, other pages get full page links
-  const isHomepage = location.pathname === basePath || location.pathname === `${basePath}/`;
+  // Context-aware nav: homepage (no filter params) gets section anchors, other pages get full page links
+  const isHomepage = (location.pathname === basePath || location.pathname === `${basePath}/`) && !location.search;
   const NAV = isHomepage
     ? [
         { to: "#rankings", label: "Rankings" },
