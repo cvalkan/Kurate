@@ -18,6 +18,7 @@ from core.config import logger, db
 
 _warming = False
 _last_warm_at = 0
+_startup_complete = False  # Suppress selective warms until full startup warm finishes
 
 PERIODS = ["recent", "week", "month", "all"]
 
@@ -127,16 +128,19 @@ async def warm_leaderboard_cache():
 
 async def warm_on_startup():
     """Startup warm — waits for DB to settle, then warms with retries."""
+    global _startup_complete
     await asyncio.sleep(15)
     for attempt in range(3):
         try:
             await warm_leaderboard_cache()
             if _last_warm_at > 0:
+                _startup_complete = True
                 return  # Success
             logger.warning(f"Cache warm startup attempt {attempt+1}: completed but no timestamp set")
         except Exception as e:
             logger.error(f"Cache warm startup attempt {attempt+1} failed: {type(e).__name__}: {e}")
         await asyncio.sleep(10)
+    _startup_complete = True  # Allow selective warms even if startup failed
     logger.error("Cache warm startup: all 3 attempts failed — users will hit cold cache")
     await _log_to_admin("startup failed", "All 3 attempts failed — users will hit cold cache", success=False)
 
@@ -192,6 +196,8 @@ def trigger_warm_category(category: str = None):
     """Non-blocking trigger — warm only the affected category."""
     if not category:
         return
+    if not _startup_complete:
+        return  # Skip — full startup warm will cover this
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
