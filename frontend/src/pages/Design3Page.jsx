@@ -311,7 +311,14 @@ export default function Design3Page({ archiveMode }) {
                       )}
                       <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight text-slate-900">{displayTitle}</h1>
                       <div className="flex items-center gap-3 text-sm text-slate-500 mt-0.5">
-                        <span>{displayPapers} papers</span>
+                        <span>
+                          {isArchive
+                            ? `${displayLeaderboard.length} papers`
+                            : d.totalInPeriod > 0 && d.totalInPeriod < d.totalPapers
+                              ? `${d.totalInPeriod} of ${d.totalPapers} papers`
+                              : `${displayPapers} papers`
+                          }
+                        </span>
                         {!isArchive && d.isRanking && <><span className="text-slate-300">·</span><span className="inline-flex items-center gap-1 text-blue-600 animate-pulse"><Activity className="h-3 w-3" /> Ranking</span></>}
                       </div>
                     </div>
