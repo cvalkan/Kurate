@@ -37,11 +37,11 @@ export function FaqSection() {
                 <AccordionItem key={i} value={`item-${i}`} className="border-b border-slate-200">
                   <AccordionTrigger
                     data-testid={`faq-trigger-${i}`}
-                    className="font-serif text-lg text-slate-900 font-medium hover:text-blue-600 hover:no-underline transition-colors text-left py-5"
+                    className="font-serif text-lg text-slate-900 font-medium hover:text-blue-600 hover:no-underline transition-colors text-left py-3"
                   >
                     {f.q}
                   </AccordionTrigger>
-                  <AccordionContent data-testid={`faq-content-${i}`} className="text-base text-slate-600 leading-relaxed pb-5">
+                  <AccordionContent data-testid={`faq-content-${i}`} className="text-base text-slate-600 leading-relaxed pb-3">
                     {f.a}
                   </AccordionContent>
                 </AccordionItem>
