@@ -15,7 +15,7 @@ const COL_TIPS = {
   comparisons: "Number of pairwise LLM comparisons.",
   win_rate: "Percentage of comparisons won.",
   ai_rating: "Standalone AI quality rating (1 to 10).",
-  gap_score: "Difference between tournament rank percentile and AI rating percentile.",
+  gap_score: "Difference between tournament rank percentile and AI rating percentile. High positive Gap may indicate hype or overselling despite methodological weaknesses.",
   published: "arXiv publication date.",
 };
 

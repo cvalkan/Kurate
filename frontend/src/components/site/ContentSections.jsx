@@ -71,7 +71,7 @@ const CAPS = [
   { icon: Layers, t: "Category-based leaderboards", d: "Papers are organised within live arXiv categories so rankings can be read in their proper field context." },
   { icon: BarChart3, t: "Score: comparative tournament ranking", d: "Score is the comparative tournament-based ranking score derived from AI-assisted paper comparisons within a category." },
   { icon: Telescope, t: "Rating: standalone scientific impact (1 to 10)", d: "Rating is a standalone scientific impact rating on a 1 to 10 scale. It is independent of the tournament and does not come from pairwise comparison." },
-  { icon: Filter, t: "Gap: percentile difference between Score and Rating", d: "Gap shows how far the comparative Score sits from the standalone Rating, expressed as a percentile difference between the two signals." },
+  { icon: Filter, t: "Gap: percentile difference between Score and Rating", d: "Gap shows how far the comparative Score sits from the standalone Rating, expressed as a percentile difference between the two signals. A high positive Gap may indicate a hyped topic or a paper that oversells its contribution despite methodological weaknesses. A high negative Gap may point to a methodologically strong paper in a niche area that is harder to distinguish in head-to-head matchups." },
   { icon: Clock3, t: "Recent rankings & search", d: "Recently ranked papers and updated categories are surfaced on the homepage, with search and time-period filtering across papers." },
 ];
 
