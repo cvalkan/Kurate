@@ -10,12 +10,12 @@ import { useAuth } from "@/contexts/AuthContext";
 const COL_TIPS = {
   rank: "Position in current view.",
   title: "Paper title. Click to sort alphabetically.",
-  score: "TrueSkill score from pairwise comparisons. Higher = stronger.",
-  wilson_margin: "95% confidence interval. Lower = more certain.",
-  comparisons: "Number of pairwise LLM comparisons.",
-  win_rate: "Percentage of comparisons won.",
-  ai_rating: "Standalone AI quality rating (1 to 10).",
-  gap_score: "Difference between tournament rank percentile and AI rating percentile. High positive Gap may indicate hype or overselling despite methodological weaknesses.",
+  score: "Scientific impact score from AI-assisted pairwise comparisons. Three LLMs independently judge which paper has higher potential impact. Higher score means the paper consistently wins head-to-head matchups within its category.",
+  wilson_margin: "95% confidence interval of the Score. A lower value means more comparisons have been completed and the Score is more reliable. A high value means the paper needs more matchups to stabilise.",
+  comparisons: "Number of pairwise LLM comparisons this paper has participated in.",
+  win_rate: "Percentage of head-to-head comparisons won.",
+  ai_rating: "Standalone scientific impact rating (1 to 10). Assesses significance, rigor, novelty, and clarity independently of pairwise comparisons. Unlike Score, this does not depend on how the paper performs against other papers.",
+  gap_score: "Percentile difference between tournament Score and standalone Rating. A high positive Gap may indicate a hyped topic or a paper that oversells its contribution despite methodological weaknesses. A high negative Gap may point to a methodologically strong paper that is harder to distinguish in head-to-head matchups.",
   published: "arXiv publication date.",
 };
 
