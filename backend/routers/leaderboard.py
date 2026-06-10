@@ -84,12 +84,12 @@ def _invalidate_match_counts():
 def notify_data_changed(category: str = None):
     """Single source of truth for cache invalidation when data changes.
     
-    Clears ALL caches, then triggers selective re-warm for the affected category.
+    Surgical invalidation: only clears the affected category + show_all entries.
+    Other categories stay cached.
     """
-    # 1. Clear all caches
     _cache_dirty.set()
     _invalidate_match_counts()
-    _invalidate_leaderboard_response_cache()
+    _invalidate_leaderboard_response_cache(category)
     try:
         from routers.homepage import clear_homepage_cache
         clear_homepage_cache()
@@ -719,9 +719,17 @@ async def _get_archives_for_category(category: str, settings: dict) -> list:
 # Simple response cache for leaderboard queries (invalidated on data change, no TTL)
 _leaderboard_response_cache = {}
 
-def _invalidate_leaderboard_response_cache():
-    """Called by notify_data_changed to clear the response cache."""
-    _leaderboard_response_cache.clear()
+def _invalidate_leaderboard_response_cache(category: str = None):
+    """Surgical cache invalidation.
+    If category is given, only clear that category's entries + show_all entries.
+    If no category, clear everything (admin bulk actions)."""
+    if category:
+        prefix_cat = f"cat:{category}:"
+        to_delete = [k for k in _leaderboard_response_cache if k.startswith(prefix_cat) or k.startswith("all:")]
+        for k in to_delete:
+            del _leaderboard_response_cache[k]
+    else:
+        _leaderboard_response_cache.clear()
 
 def _lb_cache_get(key):
     entry = _leaderboard_response_cache.get(key)

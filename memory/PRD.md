@@ -17,13 +17,11 @@ Build and maintain an AI paper-judging system using multiple LLM judges to rank 
 - Preview and production follower pods now pre-warm leaderboard caches on boot
 - Updated `cache_warmer.py` docstring to reflect two-tier architecture (full warm on startup, selective per-category warm on data changes)
 
-### Infinite Scroll Performance Fix (Jun 10, 2026) — COMPLETE
-- Root cause: New leaderboard hook used `limit=50` (old used `PAGE_SIZE=200`), causing 4× more network requests
-- Frontend never used keyset cursor pagination — always offset-based O(N) skip
-- Fix: Increased limit to 200, added keyset cursor pagination for default sort (O(1)), fallback to offset for custom sorts/search
-- Cache warmer updated to use `limit=200` to match frontend requests
-- Backend: `next_cursor` only returned for default sort + no search (prevents invalid cursor usage)
-- Fixed duplicate `next_cursor` key in `_db_all_papers_leaderboard_impl` response
+### Cache Invalidation Fix + Scroll Prefetch (Jun 10, 2026) — COMPLETE
+- Root cause of "sometimes fast, sometimes laggy" scroll: `notify_data_changed()` was calling `.clear()` on the entire response cache (~187 entries) every time any category got new matches (~every 60s). Only ~9 entries were re-warmed, leaving the rest cold.
+- Fix: Surgical invalidation — only clears affected category + show_all entries. Other 44 categories stay cached.
+- Scheduler calls (hot path) pass `category` → surgical. Admin calls (rare) pass `None` → full clear.
+- Restored IntersectionObserver rootMargin from 200px to 400px (matching old design) for smoother scroll prefetch.
 
 ### Inactive Category Filtering (Jun 10, 2026) — COMPLETE
 - `show_all` total_papers count now only includes active categories (was counting ALL rankings)

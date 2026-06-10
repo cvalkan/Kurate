@@ -67,7 +67,7 @@ export function RankedTable({
     if (!sentinel || !loadMore || !nextCursor || loadingMore) return;
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) loadMore();
-    }, { rootMargin: "200px" });
+    }, { rootMargin: "400px" });
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [loadMore, nextCursor, loadingMore]);
