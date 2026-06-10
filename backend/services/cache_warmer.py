@@ -27,7 +27,7 @@ async def _log_to_admin(event: str, detail: str, success: bool = True):
         await db.system_logs.insert_one({
             "ts": datetime.now(timezone.utc),
             "event": "cache_warm",
-            "level": "info" if success else "warning",
+            "level": "event",
             "label": event,
             "detail": detail,
             "success": success,
