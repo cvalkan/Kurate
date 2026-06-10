@@ -191,6 +191,12 @@ export default function PaperPage() {
             </div>
           </div>
         )}
+        {/* Version badge when version > 1 but no sibling toggle */}
+        {(!paper.sibling_versions || paper.sibling_versions.length < 2) && paper.current_version > 1 && (
+          <div className="flex items-center gap-2 mb-4">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[11px] font-mono font-medium bg-amber-50 text-amber-700 border border-amber-200">v{paper.current_version}</span>
+          </div>
+        )}
 
         {/* Frozen version banner */}
         {paper.is_latest_version === false && (() => {

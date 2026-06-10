@@ -830,7 +830,7 @@ async def _db_all_papers_leaderboard(period: str, limit: int, offset: int, searc
         result = await _db_all_papers_leaderboard_impl(period, limit, offset, search, cursor, sort_by, sort_dir)
         return result
     except Exception as e:
-        logger.error(f"All-papers leaderboard query failed: {e}")
+        logger.error(f"All-papers leaderboard query failed: {e}", exc_info=True)
         return {
             "leaderboard": [], "total_papers": 0, "total_in_period": 0,
             "total_matches": 0, "is_ranking": False, "period": period,
@@ -1212,11 +1212,15 @@ async def get_paper_detail(paper_id: str):
         return await db.rankings.count_documents({"category": primary_cat})
 
     async def fetch_siblings():
-        if not paper.get("arxiv_id_base"):
+        import re as _re
+        base = paper.get("arxiv_id_base")
+        if not base and paper.get("arxiv_id"):
+            base = _re.sub(r'v\d+$', '', paper["arxiv_id"])
+        if not base:
             return []
         siblings = []
         async for sib in db.papers.find(
-            {"arxiv_id_base": paper["arxiv_id_base"]},
+            {"arxiv_id_base": base},
             {"_id": 0, "id": 1, "arxiv_id": 1, "current_version": 1,
              "is_latest_version": 1, "added_at": 1, "frozen_at": 1}
         ).sort("current_version", 1):
@@ -1228,6 +1232,22 @@ async def get_paper_detail(paper_id: str):
                 "added_at": sib.get("added_at"),
                 "frozen_at": sib.get("frozen_at"),
             })
+        # If no siblings found by arxiv_id_base, try matching by derived base from arxiv_id
+        if len(siblings) < 2 and paper.get("arxiv_id"):
+            siblings = []
+            async for sib in db.papers.find(
+                {"arxiv_id": {"$regex": f"^{_re.escape(base)}v?"}},
+                {"_id": 0, "id": 1, "arxiv_id": 1, "current_version": 1,
+                 "is_latest_version": 1, "added_at": 1, "frozen_at": 1}
+            ).sort("current_version", 1):
+                siblings.append({
+                    "paper_id": sib["id"],
+                    "arxiv_id": sib.get("arxiv_id"),
+                    "version": sib.get("current_version", 1),
+                    "is_latest": sib.get("is_latest_version", True),
+                    "added_at": sib.get("added_at"),
+                    "frozen_at": sib.get("frozen_at"),
+                })
         return siblings if len(siblings) >= 2 else []
 
     # All 5 queries run simultaneously

@@ -1158,22 +1158,32 @@ async def _prewarm_leaderboard_cache():
     - Top 5 featured categories + week
     This ensures the first real user always hits warm cache.
     """
-    await asyncio.sleep(8)  # Let DB connections and indexes settle
+    await asyncio.sleep(15)  # Let DB connections and indexes settle
     try:
         import httpx
         from core.auth import get_settings
-        async with httpx.AsyncClient(base_url="http://localhost:8001", timeout=30) as client:
-            # 1. Pre-warm "All Paper Rankings" (the slowest query)
-            r = await client.get("/api/leaderboard?show_all=true&period=week&limit=50")
-            logger.info(f"Leaderboard prewarm: show_all/week → {r.status_code}")
+        async with httpx.AsyncClient(base_url="http://localhost:8001", timeout=60) as client:
+            # 1. Pre-warm "All Paper Rankings" — retry up to 3 times
+            for attempt in range(3):
+                try:
+                    r = await client.get("/api/leaderboard?show_all=true&period=week&limit=50")
+                    logger.info(f"Leaderboard prewarm: show_all/week → {r.status_code} (attempt {attempt+1})")
+                    if r.status_code == 200:
+                        break
+                except Exception as e:
+                    logger.warning(f"Leaderboard prewarm attempt {attempt+1} failed: {e}")
+                    await asyncio.sleep(5)
             
             # 2. Pre-warm featured categories
             settings = await get_settings()
             featured = settings.get("featured_categories", [])[:5]
             for cat in featured:
-                r = await client.get(f"/api/leaderboard?category={cat}&period=week&limit=50")
-                logger.info(f"Leaderboard prewarm: {cat}/week → {r.status_code}")
-                await asyncio.sleep(0.5)  # Don't hammer DB
+                try:
+                    r = await client.get(f"/api/leaderboard?category={cat}&period=week&limit=50")
+                    logger.info(f"Leaderboard prewarm: {cat}/week → {r.status_code}")
+                except Exception:
+                    pass
+                await asyncio.sleep(0.5)
             
             # 3. Pre-warm homepage endpoints
             await client.get("/api/homepage/categories")
