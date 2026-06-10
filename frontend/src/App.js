@@ -25,6 +25,7 @@ import HomePage from "@/pages/HomePage";
 import LeaderboardPage from "@/pages/LeaderboardPage";
 import PaperPage from "@/pages/PaperPage";
 import TopNavLayout from "@/components/TopNavLayout";
+import TopNav from "@/components/site/TopNav";
 
 // Pages — existing (wrapped with TopNavLayout)
 import CorrelationPage from "@/pages/CorrelationPage";
@@ -71,7 +72,7 @@ function AppRouter() {
   if (location.pathname.startsWith("/admin") || location.pathname.startsWith("/test/")) {
     return (
       <BasePathProvider value="">
-        <TopNavLayout>
+        <TopNav />
           <main className="pb-12">
             <Routes>
               <Route path="/admin" element={<AdminLoginPage />} />
@@ -84,7 +85,6 @@ function AppRouter() {
               <Route path="/test/sim-mem" element={<SimulatedMemChart />} />
             </Routes>
           </main>
-        </TopNavLayout>
         <GlobalAuthModal />
         <Toaster position="bottom-right" />
       </BasePathProvider>
