@@ -15,6 +15,7 @@ import httpx
 from datetime import datetime, timezone
 from core.config import logger, db
 
+
 _warming = False
 _last_warm_at = 0
 
@@ -161,14 +162,12 @@ async def warm_category(category: str):
     Runs ~9 queries (1 category × 4 periods + show_all × 4 periods + 1 homepage).
     Takes ~5s — negligible DB impact.
     """
-    global _last_warm_at
     try:
         from routers.homepage import clear_homepage_cache
         clear_homepage_cache()
         async with httpx.AsyncClient(base_url="http://localhost:8001", timeout=60) as client:
             success = 0
             failed = 0
-            # Warm the changed category × all periods
             for period in PERIODS:
                 try:
                     r = await client.get(f"/api/leaderboard?category={category}&period={period}&limit=50")
@@ -177,7 +176,6 @@ async def warm_category(category: str):
                 except Exception:
                     failed += 1
                 await asyncio.sleep(0.3)
-            # Warm show_all × all periods (cross-category view includes this category)
             for period in PERIODS:
                 try:
                     r = await client.get(f"/api/leaderboard?show_all=true&period={period}&limit=50")
@@ -186,9 +184,10 @@ async def warm_category(category: str):
                 except Exception:
                     failed += 1
                 await asyncio.sleep(0.3)
-            # Refresh homepage
             await client.get("/api/homepage/metrics")
-            logger.info(f"Cache warm ({category}): {success} ok, {failed} failed")
+            detail = f"{category}: {success} ok, {failed} failed"
+            logger.info(f"Cache warm ({detail})")
+            await _log_to_admin(f"category update ({category})", detail, success=(failed == 0))
     except Exception as e:
         logger.warning(f"Cache warm ({category}) failed: {e}")
 
