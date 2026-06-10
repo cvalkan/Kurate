@@ -900,6 +900,11 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
         query = _build_period_filter(period)
     # Exclude frozen older paper versions
     query["is_latest_version"] = {"$ne": False}
+    # Only include papers from active categories
+    settings = await get_settings()
+    active_cats = [c for c in (settings.get("active_categories") or []) if c and c.strip()]
+    if active_cats:
+        query["category"] = {"$in": active_cats}
     # Exclude very old papers (pre-2025) from the all-papers cross-category view
     if "published" not in query:
         query["published"] = {"$gte": "2025-01-01"}
