@@ -1064,6 +1064,7 @@ async def _follower_lightweight_startup():
     
     asyncio.create_task(_prewarm_summary_bias_caches())
     asyncio.create_task(_prewarm_summarizer_ratings())
+    asyncio.create_task(_prewarm_leaderboard_cache())
     
     await asyncio.sleep(10)
     force_gc("follower lightweight startup complete")
@@ -1128,6 +1129,7 @@ async def _staggered_startup_tasks():
     # Summary bias caches are lightweight and safe to prewarm.
     asyncio.create_task(_prewarm_summary_bias_caches())
     asyncio.create_task(_prewarm_summarizer_ratings())
+    asyncio.create_task(_prewarm_leaderboard_cache())
 
     # Final GC after all startup tasks — critical for follower pod which
     # won't run scheduler loops that trigger periodic GC
@@ -1146,6 +1148,40 @@ async def _prewarm_all_experiment_caches():
     logger.info("All experiment caches loaded from precomputed JSON (no computation)")
     app.state.prewarm_status = {"done": True, "step": ""}
 
+
+
+async def _prewarm_leaderboard_cache():
+    """Pre-warm leaderboard cache on startup for the most common views.
+    
+    Fires requests to the leaderboard endpoint for:
+    - show_all + week (default "All Paper Rankings" view)
+    - Top 5 featured categories + week
+    This ensures the first real user always hits warm cache.
+    """
+    await asyncio.sleep(8)  # Let DB connections and indexes settle
+    try:
+        import httpx
+        from core.auth import get_settings
+        async with httpx.AsyncClient(base_url="http://localhost:8001", timeout=30) as client:
+            # 1. Pre-warm "All Paper Rankings" (the slowest query)
+            r = await client.get("/api/leaderboard?show_all=true&period=week&limit=50")
+            logger.info(f"Leaderboard prewarm: show_all/week → {r.status_code}")
+            
+            # 2. Pre-warm featured categories
+            settings = await get_settings()
+            featured = settings.get("featured_categories", [])[:5]
+            for cat in featured:
+                r = await client.get(f"/api/leaderboard?category={cat}&period=week&limit=50")
+                logger.info(f"Leaderboard prewarm: {cat}/week → {r.status_code}")
+                await asyncio.sleep(0.5)  # Don't hammer DB
+            
+            # 3. Pre-warm homepage endpoints
+            await client.get("/api/homepage/categories")
+            await client.get("/api/homepage/metrics")
+            await client.get("/api/homepage/recent")
+            logger.info("Leaderboard prewarm: homepage endpoints done")
+    except Exception as e:
+        logger.warning(f"Leaderboard prewarm failed (will retry on demand): {e}")
 
 async def _prewarm_summarizer_ratings():
     """Prewarm summarizer rating distributions cache on startup."""
