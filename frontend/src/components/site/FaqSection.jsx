@@ -10,6 +10,8 @@ const FAQS = [
   { q: "Is Kurate based on arXiv?", a: "Kurate currently focuses on preprints distributed through arXiv-compatible data sources." },
   { q: "Can Kurate help with literature discovery?", a: "Kurate can support early-stage literature scanning and paper discovery, but formal literature reviews should still use systematic academic methods and expert judgement." },
   { q: "How often are rankings updated?", a: "Rankings are updated continuously as new papers are processed by the platform. The Paper Rankings panel reflects the latest update timestamp." },
+  { q: "What are archive pages?", a: "Archive pages are weekly snapshots of category leaderboards, frozen at a specific point in time. They let you see how papers were ranked during a particular week, even as live rankings continue to evolve. You can access them via the Live/Archive selector on any category leaderboard." },
+  { q: "What are badges?", a: "Badges are awarded to papers that reach the top positions in a weekly archive snapshot. A paper ranked in the Top 3 receives a Gold badge, Top 5 Silver, Top 10 Bronze, and Top 20 an honourable mention. Badges are permanent and shareable. You can find them on each paper's detail page." },
 ];
 
 export function FaqSection() {
