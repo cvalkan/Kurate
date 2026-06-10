@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { Link } from "react-router-dom";
+import axios from "axios";
 import { Search, ArrowRight, BookOpen, Sparkles, Clock, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -230,15 +231,38 @@ export default function HeroPanel() {
     return () => clearTimeout(id);
   }, [q, debouncedQ]);
 
-  // Fetch papers — stale-while-revalidate (don't clear papers on filter change)
+  // Fetch papers from the leaderboard API (same source of truth as the full leaderboard)
   useEffect(() => {
     let cancelled = false;
     const fetchPapers = async () => {
       setLoading(true);
       try {
-        const res = await homepageApi.papers({ category, period, rank_type: rankType, q: debouncedQ, limit: 10 });
+        const API = process.env.REACT_APP_BACKEND_URL;
+        const params = new URLSearchParams();
+        if (category && category !== "all") params.set("category", category);
+        params.set("period", period);
+        params.set("limit", "10");
+        if (debouncedQ) params.set("search", debouncedQ);
+        if (rankType && rankType !== "score") {
+          params.set("sort_by", rankType);
+          params.set("sort_dir", "desc");
+        }
+        const res = await axios.get(`${API}/api/leaderboard?${params}`);
         if (!cancelled) {
-          setPapers(res.results);
+          const entries = (res.data.leaderboard || []).map((p, i) => ({
+            id: p.id,
+            rank: i + 1,
+            title: p.title || "",
+            authors: p.authors || [],
+            arxiv_id: p.arxiv_id || "",
+            category_code: p.primary_category || "",
+            categories: p.categories || [],
+            score: p.ts_score || p.score || 0,
+            ai_rating: typeof p.ai_rating === "object" ? p.ai_rating?.score : (p.ai_rating || 0),
+            gap_score: p.gap_score || 0,
+            published_at: p.published,
+          }));
+          setPapers(entries);
           setLoading(false);
         }
       } catch {

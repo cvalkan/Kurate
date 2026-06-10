@@ -48,7 +48,7 @@ export function useLeaderboardData() {
   useEffect(() => {
     const p = new URLSearchParams();
     if (category) p.set("cat", category);
-    if (period && period !== "week") p.set("period", period);
+    p.set("period", period);
     if (sortKey && sortKey !== "rank") p.set("sort", sortKey);
     if (sortDir && sortDir !== "asc") p.set("dir", sortDir);
     if (debouncedKeyword) p.set("q", debouncedKeyword);
