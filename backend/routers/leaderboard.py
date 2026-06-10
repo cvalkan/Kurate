@@ -707,11 +707,8 @@ async def _get_archives_for_category(category: str, settings: dict) -> list:
     return _filter_archives_by_frequency(archives, category, settings)
 
 
-import time as _time
-
-# Simple response cache for leaderboard queries (keyed on params, 5-min TTL)
+# Simple response cache for leaderboard queries (invalidated on data change, no TTL)
 _leaderboard_response_cache = {}
-_LB_CACHE_TTL = 300  # 5 minutes
 
 def _invalidate_leaderboard_response_cache():
     """Called by notify_data_changed to clear the response cache."""
@@ -719,12 +716,12 @@ def _invalidate_leaderboard_response_cache():
 
 def _lb_cache_get(key):
     entry = _leaderboard_response_cache.get(key)
-    if entry and (_time.time() - entry["ts"]) < _LB_CACHE_TTL:
+    if entry:
         return entry["data"]
     return None
 
 def _lb_cache_set(key, data):
-    _leaderboard_response_cache[key] = {"ts": _time.time(), "data": data}
+    _leaderboard_response_cache[key] = {"data": data}
 
 
 async def _db_category_leaderboard(category: str, period: str, limit: int, offset: int, search: str = None, cursor: str = None, sort_by: str = None, sort_dir: str = None):

@@ -12,25 +12,23 @@ Performance optimizations (targeting 30k+ papers on Atlas):
 from fastapi import APIRouter, Query
 from typing import Optional
 from datetime import datetime, timezone, timedelta
-import time as _time
 from core.config import db, logger, CATEGORIES
 
 router = APIRouter(prefix="/api/homepage")
 
-# ── In-memory cache (60s TTL) ──
-_cache = {}  # key -> {"ts": float, "data": any}
-_CACHE_TTL = 60
+# ── In-memory cache (invalidated on data change, no TTL) ──
+_cache = {}  # key -> {"data": any}
 
 
 def _cached(key: str):
     entry = _cache.get(key)
-    if entry and (_time.time() - entry["ts"]) < _CACHE_TTL:
+    if entry:
         return entry["data"]
     return None
 
 
 def _set_cache(key: str, data):
-    _cache[key] = {"ts": _time.time(), "data": data}
+    _cache[key] = {"data": data}
 
 
 def clear_homepage_cache():
@@ -178,111 +176,6 @@ async def homepage_metrics():
     _set_cache("metrics", result)
     return result
 
-
-# Projection — only fields the frontend needs (reduces Atlas → app network transfer)
-_PAPER_PROJ = {
-    "_id": 0, "paper_id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
-    "link": 1, "category": 1, "categories": 1, "ts_score": 1,
-    "ai_rating": 1, "gap_score": 1, "wins": 1, "losses": 1,
-    "comparisons": 1, "published": 1, "win_rate": 1,
-}
-
-
-@router.get("/papers")
-async def homepage_papers(
-    category: Optional[str] = "all",
-    period: Optional[str] = "all",
-    rank_type: Optional[str] = "score",
-    q: Optional[str] = None,
-    limit: int = Query(default=10, ge=1, le=200),
-):
-    """Filtered, sorted papers. No count_documents — homepage only shows top N."""
-    from core.arxiv_categories import get_group
-
-    query = {"is_latest_version": {"$ne": False}}
-    if category and category != "all":
-        query["category"] = category
-
-    if period and period != "all":
-        if period == "recent":
-            # Match the leaderboard: rolling 48h window from latest added_at within scope
-            anchor_query = {"added_at": {"$nin": ["", None]}}
-            if category and category != "all":
-                anchor_query["category"] = category
-            latest = await db.rankings.find_one(
-                anchor_query,
-                {"_id": 0, "added_at": 1},
-                sort=[("added_at", -1)],
-            )
-            if latest and latest.get("added_at"):
-                try:
-                    anchor = datetime.fromisoformat(str(latest["added_at"]).replace("Z", "+00:00"))
-                    cutoff = (anchor - timedelta(hours=48)).isoformat()
-                except (ValueError, TypeError):
-                    cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
-            else:
-                cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
-            query["added_at"] = {"$gte": cutoff}
-        else:
-            days_map = {"week": 7, "month": 30}
-            days = days_map.get(period, 0)
-            if days > 0:
-                cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-                query["published"] = {"$gte": cutoff.isoformat()}
-
-    if q and q.strip():
-        import re as _re
-        escaped = _re.escape(q.strip())
-        query["$or"] = [
-            {"title": {"$regex": escaped, "$options": "i"}},
-            {"authors": {"$regex": escaped, "$options": "i"}},
-            {"arxiv_id": {"$regex": escaped, "$options": "i"}},
-            {"category": {"$regex": escaped, "$options": "i"}},
-        ]
-
-    sort_field = "ts_score"
-    if rank_type == "ai_rating":
-        sort_field = "ai_rating"
-    elif rank_type == "gap_score":
-        sort_field = "gap_score"
-
-    # Secondary sort by ts_score to break ties (e.g., when all gap_scores are 0)
-    sort_order = [(sort_field, -1)]
-    if sort_field != "ts_score":
-        sort_order.append(("ts_score", -1))
-
-    cursor = db.rankings.find(query, _PAPER_PROJ).sort(sort_order).limit(limit)
-
-    results = []
-    rank = 1
-    async for doc in cursor:
-        cat = doc.get("category", "")
-        group = get_group(cat)
-        field = _field_for(cat, group)
-
-        results.append({
-            "id": doc.get("paper_id"),
-            "rank": rank,
-            "title": (doc.get("title") or "").strip(),
-            "authors": doc.get("authors", []),
-            "arxiv_id": doc.get("arxiv_id", ""),
-            "link": doc.get("link", ""),
-            "category_code": cat or "",
-            "categories": doc.get("categories", [cat] if cat else []),
-            "field": field,
-            "score": doc.get("ts_score", 0),
-            "ai_rating": doc.get("ai_rating") or 0,
-            "gap_score": doc.get("gap_score") or 0,
-            "wins": doc.get("wins", 0),
-            "losses": doc.get("losses", 0),
-            "comparisons": doc.get("comparisons", 0),
-            "published_at": doc.get("published"),
-            "year": str(doc.get("published", ""))[:4] if doc.get("published") else "",
-            "signal_badge": f"{int(doc.get('win_rate', 0))}% win rate",
-        })
-        rank += 1
-
-    return {"total": len(results), "results": results}
 
 
 @router.get("/recent")
