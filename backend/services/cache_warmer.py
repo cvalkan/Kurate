@@ -4,6 +4,10 @@ Pre-warms all category × period combinations so every user hits warm cache.
 Triggered on:
   - Server startup (after DB connection settles)
   - Data changes (new match, new papers ingested, archive sealed)
+
+Memory: Each HTTP request reads the response but doesn't store it — the cache
+lives in the leaderboard router's internal dict, not here. The httpx client
+streams responses and discards them after status check.
 """
 import asyncio
 import time
@@ -20,66 +24,78 @@ async def warm_leaderboard_cache():
     """Warm all leaderboard cache entries. Safe to call concurrently — deduplicates."""
     global _warming, _last_warm_at
 
-    # Skip if already warming or warmed < 60s ago
     if _warming:
-        logger.info("Leaderboard warm: already in progress, skipping")
+        logger.debug("Cache warm: already in progress, skipping")
         return
     if time.time() - _last_warm_at < 60:
-        logger.info("Leaderboard warm: warmed <60s ago, skipping")
+        logger.debug("Cache warm: warmed <60s ago, skipping")
         return
 
     _warming = True
     t0 = time.time()
+    success = 0
+    failed = 0
+    errors = []
+
     try:
         from core.auth import get_settings
         from routers.homepage import clear_homepage_cache
         clear_homepage_cache()
         settings = await get_settings()
         categories = sorted(c for c in (settings.get("active_categories") or []) if c and c.strip())
+        total_queries = (len(categories) + 1) * len(PERIODS) + 3
+        logger.info(f"Cache warm starting: {len(categories)} categories × {len(PERIODS)} periods + homepage = {total_queries} queries")
 
+        # Single client, reused for all requests. Responses are not stored.
         async with httpx.AsyncClient(base_url="http://localhost:8001", timeout=60) as client:
-            success = 0
-            failed = 0
 
-            # 1. All Categories × all periods
-            for period in PERIODS:
+            async def _warm(url: str, label: str):
+                nonlocal success, failed
                 try:
-                    r = await client.get(f"/api/leaderboard?show_all=true&period={period}&limit=50")
+                    r = await client.get(url)
+                    # Read and discard body to free memory
+                    _ = r.status_code
                     if r.status_code == 200:
                         success += 1
                     else:
                         failed += 1
-                except Exception:
+                        errors.append(f"{label}: HTTP {r.status_code}")
+                        logger.warning(f"Cache warm {label}: HTTP {r.status_code}")
+                except httpx.TimeoutException:
                     failed += 1
+                    errors.append(f"{label}: timeout")
+                    logger.warning(f"Cache warm {label}: timeout (60s)")
+                except Exception as e:
+                    failed += 1
+                    errors.append(f"{label}: {type(e).__name__}")
+                    logger.warning(f"Cache warm {label}: {type(e).__name__}: {e}")
+
+            # 1. All Categories × all periods
+            for period in PERIODS:
+                await _warm(f"/api/leaderboard?show_all=true&period={period}&limit=50", f"all/{period}")
                 await asyncio.sleep(0.3)
 
             # 2. Each category × all periods
             for cat in categories:
                 for period in PERIODS:
-                    try:
-                        r = await client.get(f"/api/leaderboard?category={cat}&period={period}&limit=50")
-                        if r.status_code == 200:
-                            success += 1
-                        else:
-                            failed += 1
-                    except Exception:
-                        failed += 1
+                    await _warm(f"/api/leaderboard?category={cat}&period={period}&limit=50", f"{cat}/{period}")
                     await asyncio.sleep(0.2)
 
             # 3. Homepage endpoints
             for ep in ["/api/homepage/categories", "/api/homepage/metrics", "/api/homepage/recent"]:
-                try:
-                    await client.get(ep)
-                    success += 1
-                except Exception:
-                    failed += 1
+                await _warm(ep, ep.split("/")[-1])
 
-            elapsed = time.time() - t0
-            _last_warm_at = time.time()
-            logger.info(f"Leaderboard warm complete: {success} ok, {failed} failed, {elapsed:.1f}s")
+        elapsed = time.time() - t0
+        _last_warm_at = time.time()
+
+        if failed == 0:
+            logger.info(f"Cache warm complete: {success}/{total_queries} ok in {elapsed:.1f}s")
+        else:
+            logger.warning(f"Cache warm done: {success} ok, {failed} failed in {elapsed:.1f}s. Errors: {'; '.join(errors[:5])}")
 
     except Exception as e:
-        logger.warning(f"Leaderboard warm failed: {e}")
+        elapsed = time.time() - t0
+        logger.error(f"Cache warm aborted after {elapsed:.1f}s: {type(e).__name__}: {e}", exc_info=True)
     finally:
         _warming = False
 
@@ -90,10 +106,13 @@ async def warm_on_startup():
     for attempt in range(3):
         try:
             await warm_leaderboard_cache()
-            return
+            if _last_warm_at > 0:
+                return  # Success
+            logger.warning(f"Cache warm startup attempt {attempt+1}: completed but no timestamp set")
         except Exception as e:
-            logger.warning(f"Startup warm attempt {attempt+1} failed: {e}")
-            await asyncio.sleep(10)
+            logger.error(f"Cache warm startup attempt {attempt+1} failed: {type(e).__name__}: {e}")
+        await asyncio.sleep(10)
+    logger.error("Cache warm startup: all 3 attempts failed — users will hit cold cache")
 
 
 def trigger_warm():
@@ -102,7 +121,8 @@ def trigger_warm():
         loop = asyncio.get_event_loop()
         if loop.is_running():
             loop.create_task(warm_leaderboard_cache())
+            logger.debug("Cache warm triggered (data changed)")
         else:
-            asyncio.run(warm_leaderboard_cache())
-    except Exception:
-        pass
+            logger.warning("Cache warm trigger: no running event loop")
+    except Exception as e:
+        logger.error(f"Cache warm trigger failed: {type(e).__name__}: {e}")
