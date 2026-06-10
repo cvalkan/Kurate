@@ -635,9 +635,18 @@ async def seed_rankings(db, category: str = None):
 
     log_mem(f"seed_rankings start ({len(cats)} categories)")
     total_seeded = 0
+
+    # Use the same matchable filter as the comparison pipeline
+    from services.scheduler import get_matchable_paper_ids
+    summary_source = settings.get("summary_source", "claude")
+
     for cat in cats:
+        matchable_ids = await get_matchable_paper_ids(cat, summary_source)
+        if not matchable_ids:
+            continue
+
         papers = await collect_all(db.papers.find(
-            {"categories.0": cat, "summaries": {"$exists": True, "$ne": {}}},
+            {"categories.0": cat, "id": {"$in": list(matchable_ids)}},
             {"_id": 0, "id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
              "link": 1, "published": 1, "added_at": 1, "categories": 1,
              "ai_rating": 1},
@@ -739,6 +748,22 @@ async def seed_rankings(db, category: str = None):
         if ops:
             await db.rankings.bulk_write(ops, ordered=False)
             total_seeded += len(ops)
+
+        # Remove ranking entries for papers that are no longer matchable
+        # (e.g., missing required summary, or is_latest_version=False)
+        from core.config import logger
+        matchable_paper_ids = {entry["id"] for entry in lb}
+        stale_rankings = []
+        async for rdoc in db.rankings.find(
+            {"category": cat, "paper_id": {"$nin": list(matchable_paper_ids)}},
+            {"_id": 0, "paper_id": 1, "comparisons": 1},
+        ):
+            # Only remove if the paper has 0 comparisons (preserve history for matched papers)
+            if rdoc.get("comparisons", 0) == 0:
+                stale_rankings.append(rdoc["paper_id"])
+        if stale_rankings:
+            await db.rankings.delete_many({"paper_id": {"$in": stale_rankings}, "category": cat})
+            logger.info(f"[{cat}] Removed {len(stale_rankings)} unmatchable 0-comp ranking entries")
 
         await asyncio.sleep(0)  # Yield between categories
 

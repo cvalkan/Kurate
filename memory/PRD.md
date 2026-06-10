@@ -23,9 +23,10 @@ Build and maintain an AI paper-judging system using multiple LLM judges to rank 
 - Scheduler calls (hot path) pass `category` → surgical. Admin calls (rare) pass `None` → full clear.
 - Restored IntersectionObserver rootMargin from 200px to 400px (matching old design) for smoother scroll prefetch.
 
-### Inactive Category Filtering (Jun 10, 2026) — COMPLETE
-- `show_all` total_papers count now only includes active categories (was counting ALL rankings)
-- Dormant category papers (e.g., q-fin.CP) excluded from "Explore All Papers" view
+### Unmatchable Papers on Leaderboard Fix (Jun 10, 2026) — COMPLETE
+- Root cause: `seed_rankings` used `"summaries": {"$exists": True}` (any summary) to seed papers into rankings, but the comparison pipeline requires specifically `anthropic:claude-opus-4-6:thinking`. Papers with only GPT/Gemini summaries appeared on leaderboard with 0 matches but were invisible to the scheduler (goals "met").
+- Fix: `seed_rankings` now uses `get_matchable_paper_ids()` (same filter as comparison pipeline). Also cleans up 0-comp ranking entries for papers that are no longer matchable.
+- GazeVLA duplicate (v1+v2 both showing): v1 had `is_latest_version: False` on paper doc but `MISSING` on ranking doc — cleanup removes it since it's not in matchable set.
 
 ### Bulk Tournament Unpause (Jun 10, 2026) — COMPLETE
 - Added `POST /api/admin/tournaments/unpause-all` endpoint
