@@ -380,9 +380,9 @@ export default function HeroPanel() {
                 <Link
                   to={`${basePath}/leaderboard?period=all`}
                   data-testid="hero-full-leaderboard-link"
-                  className="text-xs font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-1 whitespace-nowrap"
+                  className="text-sm font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-1 whitespace-nowrap"
                 >
-                  Full leaderboard <ArrowRight className="h-3 w-3" />
+                  Full leaderboard <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
               <table className="w-full" data-testid="leaderboard-table">
