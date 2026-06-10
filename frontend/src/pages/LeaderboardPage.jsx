@@ -314,9 +314,11 @@ export default function LeaderboardPage({ archiveMode }) {
                         <span>
                           {isArchive
                             ? `${displayLeaderboard.length} papers`
-                            : d.period !== "all" && d.totalInPeriod !== d.totalPapers
-                              ? `${d.totalInPeriod} of ${d.totalPapers} papers`
-                              : `${displayPapers} papers`
+                            : d.debouncedKeyword
+                              ? `${d.totalInPeriod} papers found`
+                              : d.period !== "all" && d.totalInPeriod !== d.totalPapers
+                                ? `${d.totalInPeriod} of ${d.totalPapers} papers`
+                                : `${displayPapers} papers`
                           }
                         </span>
                         {!isArchive && d.isRanking && <><span className="text-slate-300">·</span><span className="inline-flex items-center gap-1 text-blue-600 animate-pulse"><Activity className="h-3 w-3" /> Ranking</span></>}
