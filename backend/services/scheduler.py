@@ -1046,7 +1046,7 @@ async def _handle_revision(paper_id: str, new_arxiv_data: dict, new_version: int
 
     # --- 4. Invalidate caches ---
     from routers.leaderboard import notify_data_changed
-    notify_data_changed()
+    notify_data_changed(category=category)
 
     logger.info(f"Revision v{new_version} for base {base}: created new paper {new_paper_id} "
                 f"(previous v{existing.get('current_version', 1)} paper {paper_id} frozen)")
@@ -1343,7 +1343,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
 
         if result["new_papers"] > 0 or result["summaries_generated"] > 0 or result["rankings_inserted"] > 0:
             from routers.leaderboard import notify_data_changed
-            notify_data_changed()
+            notify_data_changed(category=category)
             wake_scheduler()
             # Invalidate admin stats cache (token usage, model breakdown changes with new data)
             from routers.admin import _invalidate_admin_cache
@@ -1775,7 +1775,7 @@ async def _generate_paper_summaries(category: str = None, force: bool = False):
         logger.info(f"[{category}] Summary generation done: {', '.join(parts)}")
         if generated > 0:
             from routers.leaderboard import notify_data_changed
-            notify_data_changed()
+            notify_data_changed(category=category)
             wake_scheduler()  # New summaries → papers now eligible for comparison
 
     # Finalize progress tracker
@@ -2063,7 +2063,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                     logger.warning(f"[{category}] Gap recompute failed: {e}")
                 # Signal leaderboard cache to refresh
                 from routers.leaderboard import notify_data_changed
-                notify_data_changed()
+                notify_data_changed(category=category)
                 # Invalidate admin progress cache for this category
                 from routers.admin import _invalidate_admin_cache
                 _invalidate_admin_cache(category)

@@ -143,13 +143,63 @@ async def warm_on_startup():
 
 
 def trigger_warm():
-    """Non-blocking trigger — call from scheduler after data changes."""
+    """Non-blocking trigger — full warm (startup only)."""
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
             loop.create_task(warm_leaderboard_cache())
-            logger.debug("Cache warm triggered (data changed)")
+            logger.debug("Cache warm triggered (full)")
         else:
             logger.warning("Cache warm trigger: no running event loop")
     except Exception as e:
         logger.error(f"Cache warm trigger failed: {type(e).__name__}: {e}")
+
+
+async def warm_category(category: str):
+    """Warm only the affected category × all periods + show_all × all periods.
+    
+    Runs ~9 queries (1 category × 4 periods + show_all × 4 periods + 1 homepage).
+    Takes ~5s — negligible DB impact.
+    """
+    global _last_warm_at
+    try:
+        from routers.homepage import clear_homepage_cache
+        clear_homepage_cache()
+        async with httpx.AsyncClient(base_url="http://localhost:8001", timeout=60) as client:
+            success = 0
+            failed = 0
+            # Warm the changed category × all periods
+            for period in PERIODS:
+                try:
+                    r = await client.get(f"/api/leaderboard?category={category}&period={period}&limit=50")
+                    if r.status_code == 200: success += 1
+                    else: failed += 1
+                except Exception:
+                    failed += 1
+                await asyncio.sleep(0.3)
+            # Warm show_all × all periods (cross-category view includes this category)
+            for period in PERIODS:
+                try:
+                    r = await client.get(f"/api/leaderboard?show_all=true&period={period}&limit=50")
+                    if r.status_code == 200: success += 1
+                    else: failed += 1
+                except Exception:
+                    failed += 1
+                await asyncio.sleep(0.3)
+            # Refresh homepage
+            await client.get("/api/homepage/metrics")
+            logger.info(f"Cache warm ({category}): {success} ok, {failed} failed")
+    except Exception as e:
+        logger.warning(f"Cache warm ({category}) failed: {e}")
+
+
+def trigger_warm_category(category: str = None):
+    """Non-blocking trigger — warm only the affected category."""
+    if not category:
+        return
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            loop.create_task(warm_category(category))
+    except Exception:
+        pass

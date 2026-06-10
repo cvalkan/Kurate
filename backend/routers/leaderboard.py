@@ -81,7 +81,7 @@ def _invalidate_match_counts():
     _match_count_cache.clear()
 
 
-def notify_data_changed():
+def notify_data_changed(category: str = None):
     """Call this when matches or papers are added/changed. Triggers a cache refresh."""
     _cache_dirty.set()
     _invalidate_match_counts()
@@ -91,10 +91,10 @@ def notify_data_changed():
         mark_live_analysis_dirty()
     except Exception:
         pass
-    # Re-warm all leaderboard caches in background
+    # Re-warm caches for the affected category
     try:
-        from services.cache_warmer import trigger_warm
-        trigger_warm()
+        from services.cache_warmer import trigger_warm_category
+        trigger_warm_category(category)
     except Exception:
         pass
 
