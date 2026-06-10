@@ -4,7 +4,7 @@ import axios from "axios";
 import { Search, ArrowRight, BookOpen, Sparkles, Clock, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { homepageApi, accentFor, PERIODS, RANK_TYPES } from "@/lib/homepage-api";
+import { homepageApi, PERIODS, RANK_TYPES } from "@/lib/homepage-api";
 import { LatexTitle } from "@/components/LatexTitle";
 import { useBasePath } from "@/contexts/BasePathContext";
 
