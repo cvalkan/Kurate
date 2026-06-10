@@ -901,6 +901,7 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
     # Exclude frozen older paper versions
     query["is_latest_version"] = {"$ne": False}
     # Only include papers from active categories
+    from core.auth import get_settings
     settings = await get_settings()
     active_cats = [c for c in (settings.get("active_categories") or []) if c and c.strip()]
     if active_cats:
