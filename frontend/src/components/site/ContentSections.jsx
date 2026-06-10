@@ -76,7 +76,7 @@ const CAPS = [
 ];
 
 const COMING_SOON = [
-  "Extended novelty and significance signals",
+  "Extended novelty, significance, and other metrics",
   "Field-level validation reporting",
   "Non-tournament ranking mechanisms",
   "Cross-model agreement metrics",
