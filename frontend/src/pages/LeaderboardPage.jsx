@@ -314,7 +314,7 @@ export default function LeaderboardPage({ archiveMode }) {
                         <span>
                           {isArchive
                             ? `${displayLeaderboard.length} papers`
-                            : d.totalInPeriod > 0 && d.totalInPeriod < d.totalPapers
+                            : d.period !== "all" && d.totalInPeriod !== d.totalPapers
                               ? `${d.totalInPeriod} of ${d.totalPapers} papers`
                               : `${displayPapers} papers`
                           }
