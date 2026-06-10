@@ -53,6 +53,7 @@ async def warm_leaderboard_cache():
         return
 
     _warming = True
+    _last_warm_at = time.time()  # Set early to prevent triggers during warm
     t0 = time.time()
     success = 0
     failed = 0
