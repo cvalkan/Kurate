@@ -91,10 +91,10 @@ def notify_data_changed():
         mark_live_analysis_dirty()
     except Exception:
         pass
-    # Clear homepage cache on data change (lightweight, no DB queries)
+    # Re-warm all leaderboard caches in background
     try:
-        from routers.homepage import clear_homepage_cache
-        clear_homepage_cache()
+        from services.cache_warmer import trigger_warm
+        trigger_warm()
     except Exception:
         pass
 
