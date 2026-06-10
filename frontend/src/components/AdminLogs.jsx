@@ -157,6 +157,11 @@ export function AdminLogs() {
       if (status === "success") usageFilter.success = true;
       else if (status === "failed") usageFilter.success = false;
 
+      // Skip flags — must be declared before use
+      const skipEvents = status === "failed" || ["summary", "match", "email_extract", "error"].includes(type);
+      const skipErrors = status === "success" || ["fetch_cycle", "convergence", "archive", "cache_warm"].includes(type);
+      const skipLlm = ["fetch_cycle", "convergence", "archive", "cache_warm"].includes(type);
+
       // Always fetch llm_usage (with server-side filter) unless viewing event-only types
       if (!skipLlm) {
         fetches.push(
@@ -165,11 +170,6 @@ export function AdminLogs() {
           }).then(r => (r.data.docs || []).map(d => normalizeRow(d, "llm"))).catch(() => [])
         );
       }
-
-      // Skip events/errors when filters exclude them
-      const skipEvents = status === "failed" || ["summary", "match", "email_extract", "error"].includes(type);
-      const skipErrors = status === "success" || ["fetch_cycle", "convergence", "archive", "cache_warm"].includes(type);
-      const skipLlm = ["fetch_cycle", "convergence", "archive", "cache_warm"].includes(type);
 
       if (!skipEvents) {
         // Build server-side filter for system_logs based on event type
