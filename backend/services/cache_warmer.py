@@ -1,9 +1,10 @@
 """Leaderboard cache warming.
 
-Pre-warms all category × period combinations so every user hits warm cache.
-Triggered on:
-  - Server startup (after DB connection settles)
-  - Data changes (new match, new papers ingested, archive sealed)
+Full warm (warm_on_startup): runs once on server boot — hits all category × period
+combinations so every user hits warm cache from the first request.
+
+Selective warm (trigger_warm_category): called after a match completes or data
+changes — re-warms only the affected category + show_all views (~9 queries).
 
 Memory: Each HTTP request reads the response but doesn't store it — the cache
 lives in the leaderboard router's internal dict, not here. The httpx client
