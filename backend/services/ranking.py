@@ -865,14 +865,19 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
             w_rating = env.create_rating(mu=w_mu, sigma=w_sigma)
             l_rating = env.create_rating(mu=l_mu, sigma=l_sigma)
             new_w, new_l = trueskill.rate_1vs1(w_rating, l_rating)
+            # Compute ts_score inline so it's always fresh
+            w_conservative = new_w.mu - 3 * new_w.sigma
+            l_conservative = new_l.mu - 3 * new_l.sigma
+            w_ts_score = round(max(0, w_conservative) * TS_SCALE + SCORE_BASE_CONST)
+            l_ts_score = round(max(0, l_conservative) * TS_SCALE + SCORE_BASE_CONST)
             # CAS: only write if ts_mu hasn't changed since we read
             res_w = await db.rankings.update_one(
                 {"paper_id": winner_id, "category": category, "ts_mu": w_mu},
-                {"$set": {"ts_mu": new_w.mu, "ts_sigma": new_w.sigma}},
+                {"$set": {"ts_mu": new_w.mu, "ts_sigma": new_w.sigma, "ts_score": w_ts_score, "score": w_ts_score}},
             )
             res_l = await db.rankings.update_one(
                 {"paper_id": loser_id, "category": category, "ts_mu": l_mu},
-                {"$set": {"ts_mu": new_l.mu, "ts_sigma": new_l.sigma}},
+                {"$set": {"ts_mu": new_l.mu, "ts_sigma": new_l.sigma, "ts_score": l_ts_score, "score": l_ts_score}},
             )
             if res_w.modified_count == 0 or res_l.modified_count == 0:
                 logger.warning(f"TrueSkill CAS conflict in {category}: w={winner_id[:12]} l={loser_id[:12]}")
@@ -1067,6 +1072,13 @@ async def rerank_category_light(db, category: str):
 
     _elapsed = _time.perf_counter() - _t0
     log_mem(f"rerank_category_light({category}) done ({len(entries)} papers, {_elapsed:.1f}s)")
+
+    # Invalidate caches so users see fresh scores
+    try:
+        from routers.leaderboard import _invalidate_leaderboard_response_cache
+        _invalidate_leaderboard_response_cache()
+    except Exception:
+        pass
 
     from core.memlog import force_gc
     force_gc()
