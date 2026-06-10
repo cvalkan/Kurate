@@ -95,6 +95,8 @@ export function useLeaderboardData() {
       params.set("show_all", "true");
     } else if (category) {
       params.set("category", category);
+    } else {
+      params.set("show_all", "true");
     }
 
     params.set("period", period);
