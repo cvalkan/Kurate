@@ -85,6 +85,7 @@ def notify_data_changed(category: str = None):
     """Call this when matches or papers are added/changed. Triggers a cache refresh."""
     _cache_dirty.set()
     _invalidate_match_counts()
+    _invalidate_leaderboard_response_cache()
     # Trigger background recompute of All Categories model analysis
     try:
         from services.model_analysis import mark_live_analysis_dirty
@@ -706,10 +707,36 @@ async def _get_archives_for_category(category: str, settings: dict) -> list:
     return _filter_archives_by_frequency(archives, category, settings)
 
 
+import time as _time
+
+# Simple response cache for leaderboard queries (keyed on params, 5-min TTL)
+_leaderboard_response_cache = {}
+_LB_CACHE_TTL = 300  # 5 minutes
+
+def _invalidate_leaderboard_response_cache():
+    """Called by notify_data_changed to clear the response cache."""
+    _leaderboard_response_cache.clear()
+
+def _lb_cache_get(key):
+    entry = _leaderboard_response_cache.get(key)
+    if entry and (_time.time() - entry["ts"]) < _LB_CACHE_TTL:
+        return entry["data"]
+    return None
+
+def _lb_cache_set(key, data):
+    _leaderboard_response_cache[key] = {"ts": _time.time(), "data": data}
+
+
 async def _db_category_leaderboard(category: str, period: str, limit: int, offset: int, search: str = None, cursor: str = None, sort_by: str = None, sort_dir: str = None):
     """Serve primary category leaderboard from DB rankings collection."""
+    cache_key = f"cat:{category}:{period}:{limit}:{offset}:{search}:{cursor}:{sort_by}:{sort_dir}"
+    cached = _lb_cache_get(cache_key)
+    if cached is not None:
+        return cached
     try:
         result = await _db_category_leaderboard_impl(category, period, limit, offset, search, cursor, sort_by, sort_dir)
+        if result.get("leaderboard"):
+            _lb_cache_set(cache_key, result)
         return result
     except Exception as e:
         logger.error(f"Leaderboard query failed for {category}: {e}")
@@ -832,8 +859,14 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
 
 async def _db_all_papers_leaderboard(period: str, limit: int, offset: int, search: str = None, cursor: str = None, sort_by: str = None, sort_dir: str = None):
     """Serve cross-category 'all papers' leaderboard from DB rankings."""
+    cache_key = f"all:{period}:{limit}:{offset}:{search}:{cursor}:{sort_by}:{sort_dir}"
+    cached = _lb_cache_get(cache_key)
+    if cached is not None:
+        return cached
     try:
         result = await _db_all_papers_leaderboard_impl(period, limit, offset, search, cursor, sort_by, sort_dir)
+        if result.get("leaderboard"):
+            _lb_cache_set(cache_key, result)
         return result
     except Exception as e:
         logger.error(f"All-papers leaderboard query failed: {e}", exc_info=True)

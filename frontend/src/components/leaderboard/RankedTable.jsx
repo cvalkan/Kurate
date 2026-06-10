@@ -95,8 +95,11 @@ export function RankedTable({
 
   if (loading && leaderboard.length === 0) {
     return (
-      <div className="space-y-2 p-4">
-        {[...Array(8)].map((_, i) => <div key={i} className="h-12 bg-slate-50 rounded-sm animate-pulse" />)}
+      <div className="py-12 text-center">
+        <div className="inline-flex items-center gap-2 text-sm text-slate-500">
+          <div className="h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          Loading papers...
+        </div>
       </div>
     );
   }
