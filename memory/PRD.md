@@ -12,38 +12,51 @@ Build and maintain an AI paper-judging system using multiple LLM judges to rank 
 
 ## What's Been Implemented
 
+### Cache Warming on Follower Pods (Jun 10, 2026) — COMPLETE
+- Moved `warm_on_startup()` to follower startup path (followers serve HTTP traffic)
+- Preview and production follower pods now pre-warm leaderboard caches on boot
+- Updated `cache_warmer.py` docstring to reflect two-tier architecture (full warm on startup, selective per-category warm on data changes)
+
+### Infinite Scroll Performance Fix (Jun 10, 2026) — COMPLETE
+- Root cause: New leaderboard hook used `limit=50` (old used `PAGE_SIZE=200`), causing 4× more network requests
+- Frontend never used keyset cursor pagination — always offset-based O(N) skip
+- Fix: Increased limit to 200, added keyset cursor pagination for default sort (O(1)), fallback to offset for custom sorts/search
+- Cache warmer updated to use `limit=200` to match frontend requests
+- Backend: `next_cursor` only returned for default sort + no search (prevents invalid cursor usage)
+- Fixed duplicate `next_cursor` key in `_db_all_papers_leaderboard_impl` response
+
+### Inactive Category Filtering (Jun 10, 2026) — COMPLETE
+- `show_all` total_papers count now only includes active categories (was counting ALL rankings)
+- Dormant category papers (e.g., q-fin.CP) excluded from "Explore All Papers" view
+
+### Bulk Tournament Unpause (Jun 10, 2026) — COMPLETE
+- Added `POST /api/admin/tournaments/unpause-all` endpoint
+- Unpaused 6 paused tournaments on production via admin API
+- All 45 production categories now have comparisons running
+
+### New Homepage (Jun 7, 2026) — COMPLETE
+- Merged new homepage design from `new_homepage` branch
+- `"/"` now renders the new homepage (TopNav, HeroPanel, RecentRankings, etc.)
+- Original LeaderboardPage moved to `/leaderboard`
+
 ### OAI-PMH Migration (Jun 5-6, 2026) — COMPLETE
-- Phase 1: Fixed dates + versioned arxiv_ids for 1,083 papers ✅
-- Phase 2: Removed 1,956 ghost papers + 24,842 matches ✅
-- Phase 3: Recomputed TrueSkill for 25 affected categories ✅
-- Correct REST API dates fetched → `/app/oai_dates_results.jsonl`
-- Admin endpoint: `POST /api/admin/fix-oai-dates?dry_run=true&phase=0|1|2|3&category=`
+- Fixed dates + versioned arxiv_ids for 1,083 papers
+- Removed 1,956 ghost papers + 24,842 matches
+- Recomputed TrueSkill for 25 affected categories
 
 ### Code Audit & Cleanup (Jun 6, 2026)
-- Archived 48 unused files to `/app/archive/` (36 scripts, 6 frontend components, 7 docs)
-- Removed 27 stale `mode: {$exists: False}` filters
-- Removed dead functions: `_backfill_daily_stats_chunk`, `_get/_set_admin_cached`, `estimate_category`, `_collect_cursor_docs`
-- Cleaned 18 stale tournament docs via `POST /api/admin/cleanup-stale-tournaments`
-- Fixed duplicate category names in fetch_cycle logs
-- Fixed duplicate failure entries in AdminLogs frontend
-- 429 → fail-fast (no retry) in arxiv.py
+- Archived 48 unused files to `/app/archive/`
+- Removed stale filters, dead functions, duplicate logs
 
 ### Fetch Pipeline (Jun 3-6)
-- REST API with round-robin schedule, now at 6h fetch interval
-- Global 3s throttle, 429 fail-fast (no retry, waits for next cycle)
-- Per-category backoff keys cleaned up on startup
+- REST API with round-robin schedule, 6h fetch interval
+- Global 3s throttle, 429 fail-fast
 
 ### Admin Stats (SSOT, Jun 3)
 - Scalable admin statistics with pre-aggregated daily_stats materialized views
-- Durable drip seed, cursor pagination, exact reconciliation at scale
-
-## Active Scripts
-- `fix_oai_dates.py` — OAI migration (3 phases)
-- `backfill_archive_scores.py` — Archive score backfill
-- `backfill_model_openskill.py` — OpenSkill backfill  
-- `within_label_match_pipeline.py` — Within-label matching
 
 ## Pending / Next
+- P1: Extend prompt schema with 5 categorical metrics (paper_type, contribution_type, code_available, research_maturity, comparative_result)
 - P1: SI source of truth consolidation
 - P1: Handle 9 dormant categories (reactivate or purge?)
 - P2: admin.py / scheduler.py file splits (structural refactor)
@@ -54,26 +67,20 @@ Build and maintain an AI paper-judging system using multiple LLM judges to rank 
 
 ## Known Issues
 - TweetAPI returns 401 (external account limitation)
-- Compound indexes on matches still include `mode` field (harmless, drop on Atlas if desired)
+- X (Twitter) TweetAPI 504 errors (blocked on user external dashboard)
+- Compound indexes on matches still include `mode` field (harmless)
 
 ## Key Files
-- `/app/backend/routers/admin.py` — Admin endpoints (4,173 lines)
-- `/app/backend/routers/admin2_stats.py` — SSOT stats
-- `/app/backend/routers/homepage.py` — Homepage API endpoints (metrics, papers, categories, recent)
-- `/app/backend/services/scheduler.py` — Fetch + compare pipeline (2,406 lines)
-- `/app/backend/services/arxiv.py` — arXiv REST API client
-- `/app/backend/scripts/fix_oai_dates.py` — Migration script
-- `/app/archive/` — Archived unused scripts, components, docs
-- `/app/frontend/src/pages/HomePage.jsx` — New homepage page
-- `/app/frontend/src/components/site/` — Homepage site components (TopNav, HeroPanel, ContentSections, FaqSection, SiteFooter)
-- `/app/frontend/src/lib/homepage-api.js` — Homepage API client
+- `/app/backend/routers/admin.py` — Admin endpoints (~4,260 lines)
+- `/app/backend/routers/leaderboard.py` — Leaderboard API (keyset pagination, caching)
+- `/app/backend/services/scheduler.py` — Fetch + compare pipeline (~2,420 lines)
+- `/app/backend/services/cache_warmer.py` — Leaderboard cache pre-warming
+- `/app/frontend/src/hooks/useLeaderboardData.js` — Centralized leaderboard state/API hook
+- `/app/frontend/src/components/leaderboard/RankedTable.jsx` — Shared table with IntersectionObserver scroll
+- `/app/frontend/src/components/site/TopNav.jsx` — Primary site navigation
 
-### New Homepage (Jun 7, 2026) — COMPLETE
-- Merged new homepage design from `new_homepage` branch
-- `"/"` now renders the new homepage (TopNav, HeroPanel, RecentRankings, Capabilities, HowItWorks, WhyCategories, WhatMakesDifferent, WhoFor, TrustPanel, FAQ, SiteFooter)
-- Original LeaderboardPage moved to `/leaderboard`
-- All 70+ existing routes unchanged and working
-- Backend: Created `/api/homepage/*` endpoints (categories, metrics, papers, recent) querying live MongoDB
-- Frontend: 5 new site components + HomePage page + homepage-api client
-- Trophy icon alignment fixed to match existing Navbar
-- EB Garamond serif font added for homepage headings
+## Important Notes
+- **Preview vs Production**: Separate MongoDB databases. Code changes in preview require deployment to take effect on production.
+- **Frontend Build**: Preview serves STATIC build (`npx serve -s build`). Source changes do NOT hot-reload. Must run `yarn build` + restart frontend after code changes.
+- **Caching**: No TTLs. Cache cleared via `notify_data_changed()`, re-warmed via `trigger_warm_category()`.
+- **Startup**: Preview pods boot as FOLLOWERS. Both leader and follower now run `warm_on_startup()`.

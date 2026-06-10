@@ -1526,6 +1526,18 @@ async def toggle_tournament_compare(tournament_id: str):
     return {"compare_paused": new_paused}
 
 
+@router.post("/tournaments/unpause-all", dependencies=[Depends(verify_admin)])
+async def unpause_all_tournaments():
+    """Unpause comparisons for ALL tournaments at once."""
+    result = await db.tournaments.update_many(
+        {"compare_paused": True},
+        {"$set": {"compare_paused": False, "status": "active", "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    if result.modified_count > 0:
+        wake_scheduler()
+    return {"unpaused": result.modified_count}
+
+
 
 # --- Category Management ---
 

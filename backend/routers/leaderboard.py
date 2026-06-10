@@ -973,7 +973,6 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
         "show_all": True,
         "next_cursor": next_cursor,
         "next_offset": next_offset,
-        "next_cursor": next_cursor,
     }
 
 
