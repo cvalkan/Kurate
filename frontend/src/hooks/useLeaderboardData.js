@@ -76,9 +76,8 @@ export function useLeaderboardData() {
     }).catch(() => {});
   }, []);
 
-  // Fetch leaderboard
+  // Fetch leaderboard — fires immediately, doesn't wait for categories
   useEffect(() => {
-    if (categories.length === 0) return;
     if (activeArchive) return; // Archive data is loaded separately
     if (abortRef.current) abortRef.current.abort();
     const ctrl = new AbortController();
@@ -124,7 +123,7 @@ export function useLeaderboardData() {
       })
       .catch(() => { if (!ctrl.signal.aborted) setLoading(false); });
     return () => ctrl.abort();
-  }, [category, period, debouncedKeyword, sortKey, sortDir, categories.length, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, activeArchive]);
+  }, [category, period, debouncedKeyword, sortKey, sortDir, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, activeArchive]);
 
   // Load more (infinite scroll) — always uses offset, matching old design
   const loadMore = useCallback(async () => {
