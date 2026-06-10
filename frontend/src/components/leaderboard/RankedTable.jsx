@@ -76,7 +76,7 @@ export function RankedTable({
   const getScore = (p) => isGlobal && p.global_score !== undefined ? p.global_score : (p.ts_score || p.score);
   const getWinRate = (p) => isGlobal && p.global_win_rate !== undefined ? p.global_win_rate : p.win_rate;
   const getComparisons = (p) => isGlobal && p.global_comparisons !== undefined ? p.global_comparisons : p.comparisons;
-  const getCi = (p) => isGlobal ? null : p.ci;
+  const getCi = (p) => p.ci;
   const getRank = (p, i) => i + 1;
 
   // Fixed grid columns — same approach as old LeaderboardTable
