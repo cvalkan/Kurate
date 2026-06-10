@@ -199,11 +199,28 @@ async def homepage_papers(
         query["category"] = category
 
     if period and period != "all":
-        days_map = {"recent": 3, "week": 7, "month": 30}
-        days = days_map.get(period, 0)
-        if days > 0:
-            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-            query["published"] = {"$gte": cutoff.isoformat()}
+        if period == "recent":
+            # Match the leaderboard: rolling 48h window from latest added_at
+            latest = await db.rankings.find_one(
+                {"added_at": {"$nin": ["", None]}},
+                {"_id": 0, "added_at": 1},
+                sort=[("added_at", -1)],
+            )
+            if latest and latest.get("added_at"):
+                try:
+                    anchor = datetime.fromisoformat(str(latest["added_at"]).replace("Z", "+00:00"))
+                    cutoff = (anchor - timedelta(hours=48)).isoformat()
+                except (ValueError, TypeError):
+                    cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+            else:
+                cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+            query["added_at"] = {"$gte": cutoff}
+        else:
+            days_map = {"week": 7, "month": 30}
+            days = days_map.get(period, 0)
+            if days > 0:
+                cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+                query["published"] = {"$gte": cutoff.isoformat()}
 
     if q and q.strip():
         import re as _re
