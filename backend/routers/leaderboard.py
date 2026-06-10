@@ -82,17 +82,26 @@ def _invalidate_match_counts():
 
 
 def notify_data_changed(category: str = None):
-    """Call this when matches or papers are added/changed. Triggers a cache refresh."""
+    """Single source of truth for cache invalidation when data changes.
+    
+    Clears ALL caches, then triggers selective re-warm for the affected category.
+    """
+    # 1. Clear all caches
     _cache_dirty.set()
     _invalidate_match_counts()
     _invalidate_leaderboard_response_cache()
-    # Trigger background recompute of All Categories model analysis
+    try:
+        from routers.homepage import clear_homepage_cache
+        clear_homepage_cache()
+    except Exception:
+        pass
+    # 2. Trigger background recompute of model analysis
     try:
         from services.model_analysis import mark_live_analysis_dirty
         mark_live_analysis_dirty()
     except Exception:
         pass
-    # Re-warm caches for the affected category
+    # 3. Re-warm caches for the affected category
     try:
         from services.cache_warmer import trigger_warm_category
         trigger_warm_category(category)

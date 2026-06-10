@@ -62,8 +62,6 @@ async def warm_leaderboard_cache():
 
     try:
         from core.auth import get_settings
-        from routers.homepage import clear_homepage_cache
-        clear_homepage_cache()
         settings = await get_settings()
         categories = sorted(c for c in (settings.get("active_categories") or []) if c and c.strip())
         total_queries = (len(categories) + 1) * len(PERIODS) + 3
@@ -163,8 +161,6 @@ async def warm_category(category: str):
     Takes ~5s — negligible DB impact.
     """
     try:
-        from routers.homepage import clear_homepage_cache
-        clear_homepage_cache()
         async with httpx.AsyncClient(base_url="http://localhost:8001", timeout=60) as client:
             success = 0
             failed = 0
