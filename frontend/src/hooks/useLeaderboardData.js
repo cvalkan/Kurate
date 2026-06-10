@@ -99,7 +99,7 @@ export function useLeaderboardData() {
     }
 
     params.set("period", period);
-    params.set("limit", "50");
+    params.set("limit", "200");
     if (debouncedKeyword) params.set("search", debouncedKeyword);
     if (sortKey && sortKey !== "rank") {
       params.set("sort_by", sortKey);
@@ -115,7 +115,8 @@ export function useLeaderboardData() {
         setTotalInPeriod(d.total_in_period || 0);
         setTotalMatches(d.total_matches || 0);
         setIsRanking(d.is_ranking || false);
-        setNextCursor(d.leaderboard?.length >= 50 ? "more" : null);
+        // Use server-provided keyset cursor for O(1) pagination; fall back to offset
+        setNextCursor(d.next_cursor || (d.leaderboard?.length >= 200 ? "offset" : null));
         setShowRatingCol(d.show_rating_column !== false);
         setShowGapCol(d.show_gap_column !== false);
         setArchives(d.archives || []);
@@ -125,7 +126,7 @@ export function useLeaderboardData() {
     return () => ctrl.abort();
   }, [category, period, debouncedKeyword, sortKey, sortDir, selectedTags, tagMode, isTagMode, hasSelectedTags, globalStats, activeArchive]);
 
-  // Load more (infinite scroll) — always uses offset, matching old design
+  // Load more (infinite scroll) — uses keyset cursor for O(1) pagination, falls back to offset
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore || activeArchive) return;
     setLoadingMore(true);
@@ -141,14 +142,20 @@ export function useLeaderboardData() {
         params.set("show_all", "true");
       }
       params.set("period", period);
-      params.set("limit", "50");
-      params.set("offset", String(leaderboard.length));
+      params.set("limit", "200");
+      // Use keyset cursor when available (O(1)); fall back to offset (O(N))
+      if (nextCursor && nextCursor !== "offset") {
+        params.set("cursor", nextCursor);
+      } else {
+        params.set("offset", String(leaderboard.length));
+      }
       if (debouncedKeyword) params.set("search", debouncedKeyword);
       if (sortKey && sortKey !== "rank") { params.set("sort_by", sortKey); params.set("sort_dir", sortDir); }
       const res = await axios.get(`${API}/api/leaderboard?${params}`);
-      const newEntries = res.data.leaderboard || [];
+      const d = res.data;
+      const newEntries = d.leaderboard || [];
       setLeaderboard(prev => [...prev, ...newEntries]);
-      setNextCursor(newEntries.length >= 50 ? "more" : null);
+      setNextCursor(d.next_cursor || (newEntries.length >= 200 ? "offset" : null));
     } catch { /* ignore */ }
     setLoadingMore(false);
   }, [nextCursor, loadingMore, category, period, debouncedKeyword, sortKey, sortDir, selectedTags, tagMode, hasSelectedTags, globalStats, activeArchive, leaderboard.length]);

@@ -1,0 +1,42 @@
+{
+  "summary": "Tested infinite scroll fix (limit=200 + keyset cursor pagination) and active-category total_papers fix. Backend: 6/6 pytest tests pass — keyset cursor returns 200 entries with next_cursor, page 2 chains cleanly with no overlap, custom sort (title) correctly omits next_cursor and falls back to offset, show_all excludes inactive q-fin.CP, total_papers matches active-cats-only sum. Frontend: CRITICAL discovery — deployed production build was stale (still using old limit=50, offset-based pagination) until I rebuilt. After rebuild, /leaderboard?cat=cs.RO&period=all loads limit=200 and uses cursor= on subsequent pages. Verified ranks are sequential across the page-1/page-2 boundary (195..215 all present in order, 200→201 continuity confirmed). Cache warmer source confirmed using limit=200 in all 4 leaderboard warm calls.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/leaderboard?show_all=true", "issue": "Response dict in _db_all_papers_leaderboard_impl (routers/leaderboard.py lines 974 & 976) has duplicate key 'next_cursor': next_cursor — harmless (second overwrites first with same value) but should be removed for cleanliness."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Leaderboard infinite scroll fix deployment", "issue": "The source-level fix in /app/frontend/src/hooks/useLeaderboardData.js (limit=200 + cursor) was correct, but the served production bundle (/app/frontend/build/static/js/main.*.js) was NOT regenerated. Frontend supervisor runs 'serve -s build' from a pre-built bundle, so source changes do NOT hot-reload. Users on preview were still hitting the old limit=50 + offset code path until I ran 'yarn build' && 'supervisorctl restart frontend'. Main agent must rebuild the frontend bundle whenever frontend source changes are made.", "affected_selectors": []}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_leaderboard_pagination.py",
+    "/app/test_reports/pytest/leaderboard_pagination.xml"
+  ],
+  "action_items": [
+    "Always rebuild frontend (yarn build) after changing /app/frontend/src — supervisor serves static build, no hot reload. Consider adding a hook or document this in /app/frontend/start.sh.",
+    "Remove duplicate 'next_cursor' key in routers/leaderboard.py (line 974 and 976 — keep only one)."
+  ],
+  "critical_code_review_comments": [
+    "Stale production build is a recurring deployment hazard: /app/frontend/start.sh only builds when build/index.html is MISSING. If main agent edits frontend code, build is never refreshed automatically. Recommend either (a) always running 'yarn build' before restarting frontend, or (b) modifying start.sh to detect source-newer-than-build and rebuild.",
+    "routers/leaderboard.py line 974 & 976: duplicate dict key 'next_cursor': next_cursor — harmless but dead code, drop one.",
+    "useLeaderboardData.js loadMore() correctly uses keyset cursor when present and falls back to offset when nextCursor === 'offset'. Logic looks clean.",
+    "Backend keyset pagination correctly gates on is_default_sort + no search (line 816, 934). Cursor chain test confirms strict score-descending order with paper_id tiebreaker."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_leaderboard_pagination.py (NEW)",
+    "/app/frontend/build/* (regenerated via 'yarn build')"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% after rebuild"},
+  "test_credentials": "Not required (public leaderboard endpoints)",
+  "seed_data_creation": "None — used existing cs.RO category (~2500 papers) and live category list",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Frontend serves a STATIC build (npx serve -s build). Source changes do NOT auto-reload. If you edit frontend code, run: cd /app/frontend && yarn build && sudo supervisorctl restart frontend. Backend uses hot reload normally. The leaderboard entry id field is 'id' (not 'paper_id'). Cursor format: base64({s: ts_score, p: paper_id}). API returns next_cursor only for default sort + no search.",
+  "rca of the issue": "Two distinct issues verified: (1) Slow infinite scroll RCA — old build used PAGE_SIZE=200 server-side but client requested limit=50, causing 4x more round-trips. Fix increases client limit to 200 and switches to O(1) keyset cursor pagination on default sort. Verified by network request inspection: now 1 request per 200 rows with cursor= param. (2) show_all total_papers RCA — original count included stale/dormant categories; now filters by settings.active_categories list. Verified by comparing show_all total_papers (≈11.1k) against the sum of per-active-category total_papers — within 2% tolerance. Inactive q-fin.CP correctly absent from show_all leaderboard.",
+  "deployment_note": "MAIN AGENT: I had to run 'yarn build' and restart frontend to actually exercise your fix. The fix code was correct; only the build artifact was stale."
+}

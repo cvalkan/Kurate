@@ -834,8 +834,9 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
         entries.append(entry)
         last_doc = doc
 
+    # Only offer keyset cursor for default sort without search (O(1) pagination)
     next_cursor = None
-    if entries and last_doc and len(entries) == limit:
+    if entries and last_doc and len(entries) == limit and is_default_sort and not search:
         next_cursor = _encode_cursor(last_doc.get("ts_score", 0), last_doc.get("paper_id", ""))
 
     # is_ranking = actively running pairwise comparisons right now
@@ -887,8 +888,14 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
     import asyncio
 
     # Phase 1: Build filter + fire independent counts in parallel
+    # Get settings first (needed for active_cats filter on total_papers)
+    from core.auth import get_settings
+    settings = await get_settings()
+    active_cats = [c for c in (settings.get("active_categories") or []) if c and c.strip()]
+    # Count only active-category papers (not stale/dormant ones)
+    total_count_filter = {"category": {"$in": active_cats}} if active_cats else {}
     phase1 = [
-        db.rankings.count_documents({}),
+        db.rankings.count_documents(total_count_filter),
         _get_match_count(),
     ]
     if period == "recent":
@@ -901,9 +908,6 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
     # Exclude frozen older paper versions
     query["is_latest_version"] = {"$ne": False}
     # Only include papers from active categories
-    from core.auth import get_settings
-    settings = await get_settings()
-    active_cats = [c for c in (settings.get("active_categories") or []) if c and c.strip()]
     if active_cats:
         query["category"] = {"$in": active_cats}
     # Exclude very old papers (pre-2025) from the all-papers cross-category view
@@ -1103,7 +1107,7 @@ async def _db_tag_leaderboard_impl(
                 e["rank"] = i + 1
 
     next_cursor = None
-    if entries and last_doc and len(entries) == limit:
+    if entries and last_doc and len(entries) == limit and is_default_sort and not search:
         next_cursor = _encode_cursor(last_doc.get("ts_score", 0), last_doc.get("paper_id", ""))
 
     return {

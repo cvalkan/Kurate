@@ -96,13 +96,13 @@ async def warm_leaderboard_cache():
 
             # 1. All Categories × all periods
             for period in PERIODS:
-                await _warm(f"/api/leaderboard?show_all=true&period={period}&limit=50", f"all/{period}")
+                await _warm(f"/api/leaderboard?show_all=true&period={period}&limit=200", f"all/{period}")
                 await asyncio.sleep(0.5)
 
             # 2. Each category × all periods
             for cat in categories:
                 for period in PERIODS:
-                    await _warm(f"/api/leaderboard?category={cat}&period={period}&limit=50", f"{cat}/{period}")
+                    await _warm(f"/api/leaderboard?category={cat}&period={period}&limit=200", f"{cat}/{period}")
                     await asyncio.sleep(0.4)
 
             # 3. Homepage endpoints
@@ -171,7 +171,7 @@ async def warm_category(category: str):
             failed = 0
             for period in PERIODS:
                 try:
-                    r = await client.get(f"/api/leaderboard?category={category}&period={period}&limit=50")
+                    r = await client.get(f"/api/leaderboard?category={category}&period={period}&limit=200")
                     if r.status_code == 200: success += 1
                     else: failed += 1
                 except Exception:
@@ -179,7 +179,7 @@ async def warm_category(category: str):
                 await asyncio.sleep(0.3)
             for period in PERIODS:
                 try:
-                    r = await client.get(f"/api/leaderboard?show_all=true&period={period}&limit=50")
+                    r = await client.get(f"/api/leaderboard?show_all=true&period={period}&limit=200")
                     if r.status_code == 200: success += 1
                     else: failed += 1
                 except Exception:
