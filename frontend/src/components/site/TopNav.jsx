@@ -115,7 +115,7 @@ export default function TopNav() {
 
             {/* CTA */}
             <Link
-              to={`${basePath}/leaderboard`}
+              to={`${basePath}/`}
               data-testid="explore-rankings-button"
               className="inline-flex items-center justify-center gap-1.5 rounded-sm bg-blue-600 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white hover:bg-blue-700 transition-colors"
             >

@@ -78,7 +78,7 @@ export default function PaperDesignB() {
   const basePath = useBasePath();
   const navigate = useNavigate();
   const location = useLocation();
-  const backUrl = location.state?.from || `${basePath}/leaderboard`;
+  const backUrl = location.state?.from || `${basePath}/`;
   const { bookmarkedIds, toggleBookmark } = useBookmarks();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);

@@ -52,9 +52,9 @@ function normalizeBadgeData(raw, { category, year, slug, paperId, isShareMode, b
       // Rewrite /leaderboard/... to basePath-aware URL
       if (apiUrl.startsWith("/leaderboard/")) return `${basePath}${apiUrl}`;
       if (apiUrl) return apiUrl;
-      return `${basePath}/leaderboard?cat=${raw.category}&period=all`;
+      return `${basePath}/?cat=${raw.category}&period=all`;
     })(),
-    alltime_leaderboard_url: `${basePath}/leaderboard?cat=${raw.category || category}&period=all`,
+    alltime_leaderboard_url: `${basePath}/?cat=${raw.category || category}&period=all`,
   };
 }
 

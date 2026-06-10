@@ -1618,7 +1618,7 @@ async def sitemap_pages():
 
     urls = []
     for path, freq, pri in [
-        ("", "daily", "1.0"), ("/leaderboard", "daily", "1.0"),
+        ("", "daily", "1.0"),
         ("/correlation", "daily", "0.8"),
         ("/methodology", "monthly", "0.6"), ("/validation", "weekly", "0.7"),
         ("/prompts", "monthly", "0.4"), ("/contact", "monthly", "0.4"),
@@ -1626,7 +1626,7 @@ async def sitemap_pages():
     ]:
         urls.append(f'  <url><loc>{base}{path}</loc><changefreq>{freq}</changefreq><priority>{pri}</priority></url>')
     for cat in active_cats:
-        urls.append(f'  <url><loc>{base}/leaderboard?cat={cat}</loc><changefreq>daily</changefreq><priority>0.9</priority></url>')
+        urls.append(f'  <url><loc>{base}/?cat={cat}</loc><changefreq>daily</changefreq><priority>0.9</priority></url>')
 
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
     xml += "\n".join(urls) + "\n</urlset>"

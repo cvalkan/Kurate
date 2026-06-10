@@ -122,7 +122,7 @@ export default function Design3Page({ archiveMode }) {
       <Helmet>
         <title>{d.categoryName} Paper Rankings | Kurate.org</title>
         <meta name="description" content={`AI-ranked ${d.categoryName} scientific preprints. ${d.totalPapers} papers compared by three LLMs.`} />
-        <link rel="canonical" href={`https://kurate.org/leaderboard${d.category ? `?cat=${d.category}` : ""}`} />
+        <link rel="canonical" href={`https://kurate.org/${d.category ? `?cat=${d.category}` : ""}`} />
       </Helmet>
       <TopNav />
       <div className="flex min-h-[calc(100vh-65px)]">
@@ -304,7 +304,7 @@ export default function Design3Page({ archiveMode }) {
                         </button>
                       )}
                       {isArchive && (
-                        <a onClick={(e) => { e.preventDefault(); navigate(`${basePath}/leaderboard?cat=${archiveCat}&period=all`); }} href="#"
+                        <a onClick={(e) => { e.preventDefault(); navigate(`${basePath}/?cat=${archiveCat}&period=all`); }} href="#"
                           className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 mb-3 transition-colors cursor-pointer">
                           ← Back to live leaderboard
                         </a>
@@ -334,7 +334,7 @@ export default function Design3Page({ archiveMode }) {
                         </button>
                         {archiveOpen && (
                           <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-sm shadow-lg min-w-[220px] max-h-[320px] overflow-y-auto py-1">
-                            <button onClick={() => { navigate(`${basePath}/leaderboard?cat=${isArchive ? archiveCat : d.category}&period=all`); setArchiveOpen(false); }}
+                            <button onClick={() => { navigate(`${basePath}/?cat=${isArchive ? archiveCat : d.category}&period=all`); setArchiveOpen(false); }}
                               className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${!isArchive && !d.activeArchive ? "bg-blue-50 text-blue-700 font-medium" : "hover:bg-slate-50 text-slate-600"}`}>
                               Live rankings
                             </button>

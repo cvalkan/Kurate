@@ -47,7 +47,7 @@ export function RecentRankings() {
                 <div className="mt-auto pt-5 flex items-center justify-between text-xs text-slate-500">
                   <span>{card.count} papers{card.time_label ? ` · ${card.time_label}` : ""}</span>
                   <Link
-                    to={card.category_code ? `${basePath}/leaderboard?cat=${card.category_code}` : `${basePath}/leaderboard`}
+                    to={card.category_code ? `${basePath}/?cat=${card.category_code}` : `${basePath}/leaderboard`}
                     data-testid={`recent-view-${card.key}`}
                     className="font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-1"
                   >

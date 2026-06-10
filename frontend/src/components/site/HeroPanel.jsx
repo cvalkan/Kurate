@@ -259,7 +259,7 @@ export default function HeroPanel() {
     if (rankType !== "score") { p.set("sort", rankType); p.set("dir", "desc"); }
     return p.toString();
   })();
-  const leaderboardUrl = leaderboardParams ? `${basePath}/leaderboard?${leaderboardParams}` : `${basePath}/leaderboard`;
+  const leaderboardUrl = leaderboardParams ? `${basePath}/?${leaderboardParams}` : `${basePath}/leaderboard`;
 
   return (
     <section id="rankings" className="bg-white">
@@ -378,7 +378,7 @@ export default function HeroPanel() {
                   <h2 className="font-serif text-lg font-medium text-slate-900 truncate">Top Papers</h2>
                 </div>
                 <Link
-                  to={`${basePath}/leaderboard?period=all`}
+                  to={`${basePath}/?period=all`}
                   data-testid="hero-full-leaderboard-link"
                   className="text-sm font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-1 whitespace-nowrap"
                 >
@@ -408,7 +408,7 @@ export default function HeroPanel() {
                 <span className="inline-flex items-center gap-1.5">
                   <Clock className="h-3 w-3" /> Updated {metrics?.latest_update || ""}
                 </span>
-                <Link to={`${basePath}/leaderboard?period=all`} data-testid="hero-view-all-link" className="font-medium text-blue-600 hover:text-blue-700">View all →</Link>
+                <Link to={`${basePath}/?period=all`} data-testid="hero-view-all-link" className="font-medium text-blue-600 hover:text-blue-700">View all →</Link>
               </div>
             </div>
           </div>

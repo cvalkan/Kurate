@@ -91,16 +91,23 @@ function AppRouter() {
     );
   }
 
-  // Redirect old /?cat=... URLs to /leaderboard?cat=...
-  if (location.pathname === "/" && location.search && (
-    location.search.includes("cat=") || location.search.includes("tags=") ||
-    location.search.includes("sort=") || location.search.includes("period=")
-  )) {
-    return <Navigate to={`/leaderboard${location.search}`} replace />;
-  }
-
-  // Homepage — has its own TopNav + SiteFooter
+  // Homepage at "/" (no filter params) — has its own TopNav + SiteFooter
+  // Leaderboard at "/" with params (/?cat=cs.RO) — same URL as old design
   if (location.pathname === "/") {
+    const hasFilterParams = location.search && (
+      location.search.includes("cat=") || location.search.includes("tags=") ||
+      location.search.includes("sort=") || location.search.includes("period=") ||
+      location.search.includes("q=")
+    );
+    if (hasFilterParams) {
+      return (
+        <BasePathProvider value="">
+          <Design3Page />
+          <GlobalAuthModal />
+          <Toaster position="bottom-right" />
+        </BasePathProvider>
+      );
+    }
     return (
       <BasePathProvider value="">
         <HomePage />
@@ -114,7 +121,7 @@ function AppRouter() {
   return (
     <BasePathProvider value="">
       <Routes>
-        {/* New design pages */}
+        {/* Leaderboard also at /leaderboard for direct links */}
         <Route path="/leaderboard" element={<Design3Page />} />
         <Route path="/leaderboard/:category/:year/:weekOrMonth" element={<Design3Page archiveMode />} />
         <Route path="/paper/:id" element={<PaperDesignB />} />
