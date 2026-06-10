@@ -28,10 +28,15 @@ Build and maintain an AI paper-judging system using multiple LLM judges to rank 
 - Fix: `seed_rankings` now uses `get_matchable_paper_ids()` (same filter as comparison pipeline). Also cleans up 0-comp ranking entries for papers that are no longer matchable.
 - GazeVLA duplicate (v1+v2 both showing): v1 had `is_latest_version: False` on paper doc but `MISSING` on ranking doc — cleanup removes it since it's not in matchable set.
 
-### Bulk Tournament Unpause (Jun 10, 2026) — COMPLETE
-- Added `POST /api/admin/tournaments/unpause-all` endpoint
-- Unpaused 6 paused tournaments on production via admin API
-- All 45 production categories now have comparisons running
+### Skip Counts on Pagination (Jun 10, 2026) — COMPLETE
+- Root cause of 5-9s loadMore: every scroll page re-ran `count_documents({$in: [45 cats]})` on Atlas — 9 seconds per call. The frontend already has counts from page 1.
+- Fix: When `offset > 0` or `cursor` is provided, skip all count_documents calls and return `-1` for totals. Applied to both show_all and per-category paths.
+- Result: show_all page 2 via offset went from 9s → 276ms.
+
+### Tournament Column in Category Status (Jun 10, 2026) — COMPLETE
+- Added `compare_activity` field to `/api/admin/category-status` response (from scheduler's live `current_activity`)
+- Added `compare_paused` field
+- Frontend shows: Comparing… (blue), Converged (green), Paused (orange), Exhausted (amber), or the raw activity text
 
 ### New Homepage (Jun 7, 2026) — COMPLETE
 - Merged new homepage design from `new_homepage` branch

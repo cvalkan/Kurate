@@ -771,27 +771,41 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
     import asyncio
     from core.auth import get_settings
 
-    # Phase 1: Fire all independent operations in parallel to minimize event-loop wait
-    phase1 = [
-        get_settings(),
-        db.rankings.count_documents({"category": category}),
-        _get_match_count(category),
-        _get_community_correlation(category),
-    ]
-    if period == "recent":
-        phase1.append(_build_recent_filter({"category": category}))
-        settings, total_in_cat, match_count, community_corr, recent_filter = await asyncio.gather(*phase1)
-    else:
-        settings, total_in_cat, match_count, community_corr = await asyncio.gather(*phase1)
-        recent_filter = None
+    is_pagination = (offset > 0) or bool(cursor)
 
-    if total_in_cat == 0:
-        return {
-            "leaderboard": [], "total_papers": 0, "total_in_period": 0,
-            "total_matches": 0, "is_ranking": False, "period": period,
-            "category": category, "tags": None, "tag_mode": None,
-            "warming_up": True, "message": "Leaderboard data is loading, please wait...",
-        }
+    if is_pagination:
+        # Skip expensive counts on loadMore — frontend already has them
+        settings = await get_settings()
+        total_in_cat = -1
+        match_count = -1
+        community_corr = None
+        if period == "recent":
+            recent_filter = await _build_recent_filter({"category": category})
+        else:
+            recent_filter = None
+        archives = []
+    else:
+        # Phase 1: Fire all independent operations in parallel
+        phase1 = [
+            get_settings(),
+            db.rankings.count_documents({"category": category}),
+            _get_match_count(category),
+            _get_community_correlation(category),
+        ]
+        if period == "recent":
+            phase1.append(_build_recent_filter({"category": category}))
+            settings, total_in_cat, match_count, community_corr, recent_filter = await asyncio.gather(*phase1)
+        else:
+            settings, total_in_cat, match_count, community_corr = await asyncio.gather(*phase1)
+            recent_filter = None
+
+        if total_in_cat == 0:
+            return {
+                "leaderboard": [], "total_papers": 0, "total_in_period": 0,
+                "total_matches": 0, "is_ranking": False, "period": period,
+                "category": category, "tags": None, "tag_mode": None,
+                "warming_up": True, "message": "Leaderboard data is loading, please wait...",
+            }
 
     query = {"category": category}
     # Exclude frozen older paper versions — denormalized flag on ranking rows.
@@ -812,11 +826,14 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
             {"authors": {"$regex": _s, "$options": "i"}},
         ]
 
-    # Phase 2: Query-dependent count + archives in parallel
-    total_in_period, archives = await asyncio.gather(
-        db.rankings.count_documents(query),
-        _get_archives_for_category(category, settings),
-    )
+    # Phase 2: Query-dependent count + archives (skip on pagination)
+    if is_pagination:
+        total_in_period = -1
+    else:
+        total_in_period, archives = await asyncio.gather(
+            db.rankings.count_documents(query),
+            _get_archives_for_category(category, settings),
+        )
 
     mongo_sort, is_default_sort = _resolve_sort(sort_by, sort_dir)
 
@@ -894,35 +911,43 @@ async def _db_all_papers_leaderboard(period: str, limit: int, offset: int, searc
 
 async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, search: str = None, cursor: str = None, sort_by: str = None, sort_dir: str = None):
     import asyncio
-
-    # Phase 1: Build filter + fire independent counts in parallel
-    # Get settings first (needed for active_cats filter on total_papers)
     from core.auth import get_settings
     settings = await get_settings()
     active_cats = [c for c in (settings.get("active_categories") or []) if c and c.strip()]
-    # Count only active-category papers (not stale/dormant ones)
-    total_count_filter = {"category": {"$in": active_cats}} if active_cats else {}
-    phase1 = [
-        db.rankings.count_documents(total_count_filter),
-        _get_match_count(),
-    ]
-    if period == "recent":
-        phase1.append(_build_recent_filter())
-        total_papers, total_matches, recent_filter = await asyncio.gather(*phase1)
-        query = recent_filter
+
+    # Pagination request (offset > 0 or cursor) — skip expensive count_documents.
+    # The frontend already has totals from the initial load.
+    is_pagination = (offset > 0) or bool(cursor)
+
+    if is_pagination:
+        total_papers = -1
+        total_matches = -1
+        total_in_period = -1
+        if period == "recent":
+            query = await _build_recent_filter()
+        else:
+            query = _build_period_filter(period)
     else:
-        total_papers, total_matches = await asyncio.gather(*phase1)
-        query = _build_period_filter(period)
+        total_count_filter = {"category": {"$in": active_cats}} if active_cats else {}
+        phase1 = [
+            db.rankings.count_documents(total_count_filter),
+            _get_match_count(),
+        ]
+        if period == "recent":
+            phase1.append(_build_recent_filter())
+            total_papers, total_matches, recent_filter = await asyncio.gather(*phase1)
+            query = recent_filter
+        else:
+            total_papers, total_matches = await asyncio.gather(*phase1)
+            query = _build_period_filter(period)
+
     # Exclude frozen older paper versions
     query["is_latest_version"] = {"$ne": False}
-    # Only include papers from active categories
     if active_cats:
         query["category"] = {"$in": active_cats}
-    # Exclude very old papers (pre-2025) from the all-papers cross-category view
     if "published" not in query:
         query["published"] = {"$gte": "2025-01-01"}
     else:
-        # Period filter already set a $gte on published — ensure it's at least 2025
         if query["published"].get("$gte", "") < "2025-01-01":
             query["published"]["$gte"] = "2025-01-01"
 
@@ -934,7 +959,8 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
             {"authors": {"$regex": _s, "$options": "i"}},
         ]
 
-    total_in_period = await db.rankings.count_documents(query)
+    if not is_pagination:
+        total_in_period = await db.rankings.count_documents(query)
 
     mongo_sort, is_default_sort = _resolve_sort(sort_by, sort_dir)
 

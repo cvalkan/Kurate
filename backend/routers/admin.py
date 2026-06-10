@@ -2559,6 +2559,11 @@ async def category_status():
         t = t_docs.get(cat, {})
         fetch_paused = bool(t.get("fetch_paused"))
         tournament_paused = t.get("status") == "paused"
+        compare_paused = bool(t.get("compare_paused"))
+
+        # Get scheduler's live comparison activity for this category
+        cat_sched = _get_cat_status(cat)
+        compare_activity = cat_sched.get("current_activity", "")
 
         is_fetching = cat in _fetching_cats
         last_log = last_logs.get(cat)
@@ -2609,6 +2614,8 @@ async def category_status():
             "last_action_at": last_action_at,
             "fetch_paused": fetch_paused,
             "tournament_paused": tournament_paused,
+            "compare_paused": compare_paused,
+            "compare_activity": compare_activity,
         })
 
     summary = {}

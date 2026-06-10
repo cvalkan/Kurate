@@ -567,6 +567,7 @@ function ArxivHealthTable() {
               <th className="px-3 py-2 text-right font-medium" style={{ width: "80px" }}>Matches</th>
               <th className="px-3 py-2 text-left font-medium" style={{ width: "110px" }}>Last fetch</th>
               <th className="px-3 py-2 text-left font-medium" style={{ width: "100px" }}>Next due</th>
+              <th className="px-3 py-2 text-left font-medium" style={{ width: "130px" }}>Tournament</th>
               <th className="px-3 py-2 text-left font-medium">Last action</th>
             </tr>
           </thead>
@@ -589,6 +590,21 @@ function ArxivHealthTable() {
                         : <span className="text-muted-foreground">{fmtAgo(r.next_due, true)}</span>
                     ) : <span className="text-muted-foreground">—</span>}
                   </td>
+                  <td className="px-3 py-1.5 whitespace-nowrap">
+                    {r.compare_paused ? (
+                      <span className="text-orange-500">Paused</span>
+                    ) : r.compare_activity?.startsWith("Comparing") ? (
+                      <span className="text-blue-600">Comparing…</span>
+                    ) : r.compare_activity?.includes("Goals met") ? (
+                      <span className="text-green-600">Converged</span>
+                    ) : r.compare_activity?.includes("Pair-exhausted") ? (
+                      <span className="text-amber-600">Exhausted</span>
+                    ) : r.compare_activity ? (
+                      <span className="text-muted-foreground">{r.compare_activity}</span>
+                    ) : (
+                      <span className="text-green-600">Active</span>
+                    )}
+                  </td>
                   <td className="px-3 py-1.5">
                     <div className="flex items-center gap-1.5">
                       {r.last_action_at && <span className="text-muted-foreground shrink-0">{fmtAgo(r.last_action_at)}</span>}
@@ -604,7 +620,7 @@ function ArxivHealthTable() {
               );
             })}
             {(data.categories || []).length === 0 && (
-              <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">No active categories.</td></tr>
+              <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">No active categories.</td></tr>
             )}
           </tbody>
         </table>
