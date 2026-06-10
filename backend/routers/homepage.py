@@ -200,9 +200,12 @@ async def homepage_papers(
 
     if period and period != "all":
         if period == "recent":
-            # Match the leaderboard: rolling 48h window from latest added_at
+            # Match the leaderboard: rolling 48h window from latest added_at within scope
+            anchor_query = {"added_at": {"$nin": ["", None]}}
+            if category and category != "all":
+                anchor_query["category"] = category
             latest = await db.rankings.find_one(
-                {"added_at": {"$nin": ["", None]}},
+                anchor_query,
                 {"_id": 0, "added_at": 1},
                 sort=[("added_at", -1)],
             )
