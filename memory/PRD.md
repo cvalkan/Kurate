@@ -23,10 +23,17 @@ Build and maintain an AI paper-judging system using multiple LLM judges to rank 
 - Scheduler calls (hot path) pass `category` → surgical. Admin calls (rare) pass `None` → full clear.
 - Restored IntersectionObserver rootMargin from 200px to 400px (matching old design) for smoother scroll prefetch.
 
-### Unmatchable Papers on Leaderboard Fix (Jun 10, 2026) — COMPLETE
-- Root cause: `seed_rankings` used `"summaries": {"$exists": True}` (any summary) to seed papers into rankings, but the comparison pipeline requires specifically `anthropic:claude-opus-4-6:thinking`. Papers with only GPT/Gemini summaries appeared on leaderboard with 0 matches but were invisible to the scheduler (goals "met").
-- Fix: `seed_rankings` now uses `get_matchable_paper_ids()` (same filter as comparison pipeline). Also cleans up 0-comp ranking entries for papers that are no longer matchable.
-- GazeVLA duplicate (v1+v2 both showing): v1 had `is_latest_version: False` on paper doc but `MISSING` on ranking doc — cleanup removes it since it's not in matchable set.
+### Rank Refactoring (Jun 11, 2026) — COMPLETE
+- Eliminated stored `rank`, `rank_ts`, `rank_wr` fields from all write paths
+- Eliminated `score` field writes (was always identical to `ts_score`)
+- Removed dead `_compute_ranks()` function
+- All rank displays now use dynamic position-based ranking:
+  - Leaderboard: position in MongoDB sort results
+  - Paper detail: `count_documents({ts_score: {$gt: X}}) + 1`
+  - Badges: same dynamic count_documents
+- Frontend loadMore renumbers entries client-side for continuous ranks across pages
+- `rerank_category_light` still runs (computes ts_score, wilson_margin, os_score) but no longer writes rank/score fields
+- Tested: 6/6 backend tests pass, frontend visual verification confirms continuous ranks
 
 ### Skip Counts on Pagination (Jun 10, 2026) — COMPLETE
 - Root cause of 5-9s loadMore: every scroll page re-ran `count_documents({$in: [45 cats]})` on Atlas — 9 seconds per call. The frontend already has counts from page 1.
