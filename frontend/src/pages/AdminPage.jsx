@@ -1076,7 +1076,7 @@ function UserList() {
         </div>
       ) : (
         <div className="border border-border rounded-lg overflow-hidden">
-          <div className="grid grid-cols-[1fr_8rem_4.5rem_4.5rem_5.5rem_5rem_3rem_4.5rem] gap-2 px-4 py-2.5 bg-secondary/50 text-[10px] font-medium text-muted-foreground border-b border-border">
+          <div className="grid grid-cols-[1fr_8rem_4.5rem_4.5rem_5.5rem_7.5rem_3.5rem_5rem] gap-2 px-4 py-2.5 bg-secondary/50 text-[10px] font-medium text-muted-foreground border-b border-border">
             <SortHeader field="email">Email</SortHeader>
             <SortHeader field="name">Name</SortHeader>
             <div>Provider</div>
@@ -1091,7 +1091,7 @@ function UserList() {
               const status = getUserStatus(u);
               const isActive = u.active !== false;
               return (
-                <div key={u.user_id} className={`grid grid-cols-[1fr_8rem_4.5rem_4.5rem_5.5rem_5rem_3rem_4.5rem] gap-2 px-4 py-2 border-b border-border/50 text-xs items-center ${!isActive ? "opacity-50" : ""}`} data-testid={`user-row-${u.user_id}`}>
+                <div key={u.user_id} className={`grid grid-cols-[1fr_8rem_4.5rem_4.5rem_5.5rem_7.5rem_3.5rem_5rem] gap-2 px-4 py-2 border-b border-border/50 text-xs items-center ${!isActive ? "opacity-50" : ""}`} data-testid={`user-row-${u.user_id}`}>
                   <div className="truncate">{u.email}</div>
                   <div className="truncate text-muted-foreground">{u.name || "\u2014"}</div>
                   <div>
