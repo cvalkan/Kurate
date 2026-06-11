@@ -1343,7 +1343,7 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
 
         if result["new_papers"] > 0 or result["summaries_generated"] > 0 or result["rankings_inserted"] > 0:
             from routers.leaderboard import notify_data_changed
-            notify_data_changed(category=category)
+            notify_data_changed(category=category, papers_changed=True)
             wake_scheduler()
             # Invalidate admin stats cache (token usage, model breakdown changes with new data)
             from routers.admin import _invalidate_admin_cache

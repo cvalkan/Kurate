@@ -398,7 +398,7 @@ async def _run_single_paper_pipeline(paper_id: str, category: str):
 
                     from routers.leaderboard import notify_data_changed
                     from services.scheduler import wake_scheduler
-                    notify_data_changed()
+                    notify_data_changed(papers_changed=True)
                     wake_scheduler()
             else:
                 logger.warning(f"[add-paper] Claude thinking summary missing for '{paper.get('title', '')[:40]}' — ranking not inserted")

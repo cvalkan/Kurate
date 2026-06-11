@@ -81,15 +81,17 @@ def _invalidate_match_counts():
     _match_count_cache.clear()
 
 
-def notify_data_changed(category: str = None):
+def notify_data_changed(category: str = None, papers_changed: bool = False):
     """Single source of truth for cache invalidation when data changes.
     
     Surgical invalidation: only clears the affected category + show_all entries.
-    Other categories stay cached.
+    Count cache is only cleared when papers_changed=True (fetch cycles, admin adds/removes).
     """
     _cache_dirty.set()
     _invalidate_match_counts()
     _invalidate_leaderboard_response_cache(category)
+    if papers_changed:
+        _invalidate_count_cache()
     try:
         from routers.homepage import clear_homepage_cache
         clear_homepage_cache()
@@ -740,22 +742,23 @@ def _lb_cache_get(key):
 def _lb_cache_set(key, data):
     _leaderboard_response_cache[key] = {"data": data}
 
-# Separate count cache — counts change only on fetch cycles (new papers), not on every match.
-# 2-minute TTL avoids re-running expensive count_documents({$in: [45 cats]}) on Atlas
-# during warm cycles that fire after every match completion.
-_count_cache = {}  # key -> {"count": int, "ts": float}
-_COUNT_CACHE_TTL = 120  # 2 minutes
+# Separate count cache — counts change only when papers are added/removed (fetch cycles),
+# NOT on every match. Invalidated explicitly by notify_data_changed(papers_changed=True).
+_count_cache = {}  # key -> {"count": int}
+
+def _invalidate_count_cache():
+    """Clear count cache. Called only when paper counts change (fetch cycles, admin actions)."""
+    _count_cache.clear()
 
 async def _cached_count(query: dict, label: str = "") -> int:
-    """count_documents with a 2-minute memory cache. Safe because counts only
-    change on fetch cycles (new papers added), not on match completions."""
+    """count_documents with indefinite memory cache. Only cleared when papers change."""
     import hashlib, json
     key = hashlib.md5(json.dumps(query, sort_keys=True, default=str).encode()).hexdigest()
     cached = _count_cache.get(key)
-    if cached and (time.time() - cached["ts"]) < _COUNT_CACHE_TTL:
+    if cached is not None:
         return cached["count"]
     count = await db.rankings.count_documents(query)
-    _count_cache[key] = {"count": count, "ts": time.time()}
+    _count_cache[key] = {"count": count}
     return count
 
 
