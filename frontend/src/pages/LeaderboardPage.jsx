@@ -202,13 +202,11 @@ export default function LeaderboardPage({ archiveMode }) {
                     <div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Cross-Field</div></div>
                   </div>
                 </div>
-                {/* Suggest teaser (greyed out, locked) */}
-                <div className="px-4 py-3 border-t border-slate-100 opacity-40 pointer-events-none">
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <Lightbulb className="h-3.5 w-3.5 text-blue-500" />
-                    <span>Suggest a field</span>
-                    <Lock className="h-3 w-3 ml-auto text-slate-400" />
-                  </div>
+                {/* Suggest teaser (same button, greyed out) */}
+                <div className="p-4 border-t border-slate-100">
+                  <button onClick={requireAuth} className="w-full inline-flex items-center justify-center gap-2 rounded-sm border border-slate-200 px-3 py-2 text-xs font-medium text-slate-400 opacity-50 cursor-not-allowed">
+                    <Lightbulb className="h-3.5 w-3.5" /> Suggest a field <Lock className="h-3 w-3" />
+                  </button>
                 </div>
               </>
             ) : (
