@@ -611,7 +611,7 @@ function ArxivHealthTable() {
                       if (a.includes("Goals met") || a === "No new pairs needed")
                         return <span className="text-green-600">{a}</span>;
                       if (a.includes("Pair-exhausted"))
-                        return <span className="text-green-600">{a}</span>;
+                        return <span className="text-green-600">Pairs exhausted</span>;
                       if (a.includes("Insufficient") || a === "Not enough papers")
                         return <span className="text-amber-600">{a}</span>;
                       if (a.includes("summaries") || a.includes("Scanning") || a.includes("Downloading"))
