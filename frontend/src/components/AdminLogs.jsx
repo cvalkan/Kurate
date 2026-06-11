@@ -567,8 +567,8 @@ function ArxivHealthTable() {
               <th className="px-3 py-2 text-right font-medium" style={{ width: "80px" }}>Matches</th>
               <th className="px-3 py-2 text-left font-medium" style={{ width: "110px" }}>Last fetch</th>
               <th className="px-3 py-2 text-left font-medium" style={{ width: "100px" }}>Next due</th>
-              <th className="px-3 py-2 text-left font-medium" style={{ width: "130px" }}>Tournament</th>
               <th className="px-3 py-2 text-left font-medium">Last action</th>
+              <th className="px-3 py-2 text-left font-medium" style={{ width: "130px" }}>Tournament</th>
             </tr>
           </thead>
           <tbody>
@@ -590,21 +590,6 @@ function ArxivHealthTable() {
                         : <span className="text-muted-foreground">{fmtAgo(r.next_due, true)}</span>
                     ) : <span className="text-muted-foreground">—</span>}
                   </td>
-                  <td className="px-3 py-1.5 whitespace-nowrap">
-                    {r.compare_paused ? (
-                      <span className="text-orange-500">Paused</span>
-                    ) : r.compare_activity?.startsWith("Comparing") ? (
-                      <span className="text-blue-600">Comparing…</span>
-                    ) : r.compare_activity?.includes("Goals met") ? (
-                      <span className="text-green-600">Converged</span>
-                    ) : r.compare_activity?.includes("Pair-exhausted") ? (
-                      <span className="text-amber-600">Exhausted</span>
-                    ) : r.compare_activity ? (
-                      <span className="text-muted-foreground">{r.compare_activity}</span>
-                    ) : (
-                      <span className="text-green-600">Active</span>
-                    )}
-                  </td>
                   <td className="px-3 py-1.5">
                     <div className="flex items-center gap-1.5">
                       {r.last_action_at && <span className="text-muted-foreground shrink-0">{fmtAgo(r.last_action_at)}</span>}
@@ -615,6 +600,28 @@ function ArxivHealthTable() {
                       )}
                       {!r.last_action && <span className="text-muted-foreground">—</span>}
                     </div>
+                  </td>
+                  <td className="px-3 py-1.5 whitespace-nowrap">
+                    {(() => {
+                      const a = r.compare_activity || "";
+                      if (r.compare_paused || a.includes("paused") || a === "System paused" || a === "Tournament paused")
+                        return <span className="text-orange-500">Paused</span>;
+                      if (a.startsWith("Comparing") || a.includes("total matches"))
+                        return <span className="text-emerald-600 font-medium">Ranking</span>;
+                      if (a.includes("Goals met") || a === "No new pairs needed")
+                        return <span className="text-green-600">Converged</span>;
+                      if (a.includes("Pair-exhausted"))
+                        return <span className="text-amber-600">Needs papers</span>;
+                      if (a.includes("Insufficient") || a === "Not enough papers" || a.includes("Too few"))
+                        return <span className="text-amber-600">Too few papers</span>;
+                      if (a.includes("Waiting for summaries") || a.includes("Generating summaries") || a.includes("Scanning for missing"))
+                        return <span className="text-blue-600">Preparing</span>;
+                      if (a.includes("Downloading PDF"))
+                        return <span className="text-blue-600">Downloading</span>;
+                      if (a === "Idle" || !a)
+                        return <span className="text-muted-foreground">Idle</span>;
+                      return <span className="text-muted-foreground">{a}</span>;
+                    })()}
                   </td>
                 </tr>
               );

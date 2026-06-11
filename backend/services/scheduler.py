@@ -1345,9 +1345,6 @@ async def run_fetch_cycle(category: str = "cs.RO", force: bool = False):
             from routers.leaderboard import notify_data_changed
             notify_data_changed(category=category, papers_changed=True)
             wake_scheduler()
-            # Invalidate admin stats cache (token usage, model breakdown changes with new data)
-            from routers.admin import _invalidate_admin_cache
-            _invalidate_admin_cache(category)
 
         # Determine overall status
         if result["errors"]:
@@ -2064,9 +2061,6 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                 # Signal leaderboard cache to refresh
                 from routers.leaderboard import notify_data_changed
                 notify_data_changed(category=category)
-                # Invalidate admin progress cache for this category
-                from routers.admin import _invalidate_admin_cache
-                _invalidate_admin_cache(category)
                 # Recompute convergence in background (non-blocking)
                 asyncio.create_task(_recompute_convergence_bg(category))
             elif completed == 0 and failed == 0:
