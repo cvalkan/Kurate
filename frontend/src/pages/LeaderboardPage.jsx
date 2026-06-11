@@ -1,7 +1,8 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Search, X, PanelLeftClose, PanelLeft, Tag, Archive, ChevronDown, ChevronRight, Activity, LockOpen, ArrowRight, Lock, SlidersHorizontal } from "lucide-react";
+import { Search, X, PanelLeftClose, PanelLeft, Tag, Archive, ChevronDown, ChevronRight, Activity, LockOpen, ArrowRight, Lock, SlidersHorizontal, Layers, CalendarRange, Bookmark, Lightbulb } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useLeaderboardData } from "@/hooks/useLeaderboardData";
 import { useBasePath } from "@/contexts/BasePathContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -131,7 +132,7 @@ export default function LeaderboardPage({ archiveMode }) {
           <div className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={() => setSidebarOpen(false)} />
         )}
         {sidebarOpen && (
-          <aside className="fixed inset-y-0 left-0 z-50 w-72 bg-white overflow-y-auto shadow-lg lg:static lg:z-auto lg:shrink-0 lg:border-r lg:border-slate-200 lg:shadow-none pt-14 sm:pt-16 lg:pt-0">
+          <aside className="fixed inset-y-0 left-0 z-50 w-72 bg-white overflow-y-auto shadow-lg lg:sticky lg:top-[65px] lg:z-auto lg:shrink-0 lg:border-r lg:border-slate-200 lg:shadow-none lg:h-[calc(100vh-65px)] pt-14 sm:pt-16 lg:pt-0">
             {/* Mobile drawer header */}
             <div className="flex items-center justify-between p-4 border-b border-slate-100 lg:hidden">
               <span className="text-sm font-semibold text-slate-900">Filters</span>
@@ -146,8 +147,34 @@ export default function LeaderboardPage({ archiveMode }) {
                       <LockOpen className="h-3.5 w-3.5 text-blue-600 shrink-0" />
                       <span className="text-xs font-semibold text-slate-900">Sign up for free</span>
                     </div>
-                    <p className="text-[11px] text-slate-600 leading-relaxed mb-3">Unlock search, filters, categories, archives, and bookmarks.</p>
-                    <button onClick={requireAuth} className="w-full inline-flex items-center justify-center gap-1.5 rounded-sm bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors">
+                    <p className="text-[11px] text-slate-600 leading-relaxed mb-1">
+                      Unlock search, filters, categories, archives, and{" "}
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button type="button" className="underline decoration-dotted underline-offset-2 decoration-slate-400 cursor-help text-slate-700">more</button>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" align="start" className="max-w-xs p-3">
+                            <p className="text-xs font-semibold mb-2">What you get with a free account</p>
+                            <ul className="space-y-1.5">
+                              {[
+                                { icon: Layers, label: "Browse all categories", detail: "All arXiv & ChemRxiv fields" },
+                                { icon: CalendarRange, label: "Monthly & all-time rankings", detail: "Beyond the default last-7-day window" },
+                                { icon: Tag, label: "Cross-category tag filters", detail: "Filter by tag combinations" },
+                                { icon: Bookmark, label: "Bookmark papers", detail: "Build personalized reading lists" },
+                                { icon: Lightbulb, label: "Suggest new fields", detail: "Vote on which categories to add" },
+                              ].map(({ icon: Icon, label, detail }) => (
+                                <li key={label} className="flex items-start gap-2">
+                                  <Icon className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-600" />
+                                  <div><div className="text-xs font-medium leading-tight">{label}</div><div className="text-[11px] opacity-80 leading-tight">{detail}</div></div>
+                                </li>
+                              ))}
+                            </ul>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </p>
+                    <button onClick={requireAuth} className="w-full inline-flex items-center justify-center gap-1.5 rounded-sm bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors mt-2">
                       Sign up <ArrowRight className="h-3 w-3" />
                     </button>
                   </div>
@@ -294,6 +321,16 @@ export default function LeaderboardPage({ archiveMode }) {
 
               return (
                 <>
+                  {/* Mobile CTA — slim bar for logged-out users (sidebar hidden on mobile) */}
+                  {!isLoggedIn && (
+                    <div className="lg:hidden flex items-center justify-between gap-3 mb-4 px-3 py-2 rounded-sm bg-blue-50 border border-blue-100">
+                      <span className="text-[11px] text-slate-600"><LockOpen className="h-3 w-3 text-blue-600 inline mr-1 -mt-px" />Unlock all filters, categories & bookmarks</span>
+                      <button onClick={requireAuth} className="shrink-0 inline-flex items-center gap-1 rounded-sm bg-blue-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-blue-700 transition-colors">
+                        Sign up <ArrowRight className="h-2.5 w-2.5" />
+                      </button>
+                    </div>
+                  )}
+
                   <div className="flex items-start justify-between mb-6">
                     <div>
                       {/* Mobile filters button */}
