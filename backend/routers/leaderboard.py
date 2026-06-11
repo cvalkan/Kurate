@@ -740,6 +740,26 @@ def _lb_cache_get(key):
 def _lb_cache_set(key, data):
     _leaderboard_response_cache[key] = {"data": data}
 
+# Separate count cache — counts change only on fetch cycles (new papers), not on every match.
+# 2-minute TTL avoids re-running expensive count_documents({$in: [45 cats]}) on Atlas
+# during warm cycles that fire after every match completion.
+_count_cache = {}  # key -> {"count": int, "ts": float}
+_COUNT_CACHE_TTL = 120  # 2 minutes
+
+async def _cached_count(query: dict, label: str = "") -> int:
+    """count_documents with a 2-minute memory cache. Safe because counts only
+    change on fetch cycles (new papers added), not on match completions."""
+    import hashlib, json
+    key = hashlib.md5(json.dumps(query, sort_keys=True, default=str).encode()).hexdigest()
+    cached = _count_cache.get(key)
+    if cached and (time.time() - cached["ts"]) < _COUNT_CACHE_TTL:
+        return cached["count"]
+    count = await db.rankings.count_documents(query)
+    _count_cache[key] = {"count": count, "ts": time.time()}
+    return count
+
+
+
 
 async def _db_category_leaderboard(category: str, period: str, limit: int, offset: int, search: str = None, cursor: str = None, sort_by: str = None, sort_dir: str = None):
     """Serve primary category leaderboard from DB rankings collection."""
@@ -788,7 +808,7 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
         # Phase 1: Fire all independent operations in parallel
         phase1 = [
             get_settings(),
-            db.rankings.count_documents({"category": category}),
+            _cached_count({"category": category}, f"cat_{category}_total"),
             _get_match_count(category),
             _get_community_correlation(category),
         ]
@@ -831,7 +851,7 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
         total_in_period = -1
     else:
         total_in_period, archives = await asyncio.gather(
-            db.rankings.count_documents(query),
+            _cached_count(query, f"cat_{category}_period"),
             _get_archives_for_category(category, settings),
         )
 
@@ -930,7 +950,7 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
     else:
         total_count_filter = {"category": {"$in": active_cats}} if active_cats else {}
         phase1 = [
-            db.rankings.count_documents(total_count_filter),
+            _cached_count(total_count_filter, "show_all_total"),
             _get_match_count(),
         ]
         if period == "recent":
@@ -960,7 +980,7 @@ async def _db_all_papers_leaderboard_impl(period: str, limit: int, offset: int, 
         ]
 
     if not is_pagination:
-        total_in_period = await db.rankings.count_documents(query)
+        total_in_period = await _cached_count(query, "show_all_period")
 
     mongo_sort, is_default_sort = _resolve_sort(sort_by, sort_dir)
 
