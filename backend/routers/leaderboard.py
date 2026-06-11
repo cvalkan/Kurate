@@ -1456,9 +1456,19 @@ async def get_paper_detail(paper_id: str):
 
     if ranking_doc and primary_cat:
         from routers.badges import CATEGORIES as _CAT_NAMES
-        rank_ts = ranking_doc.get("rank_ts") or ranking_doc.get("rank")
-        if rank_ts:
-            paper["current_rank"] = rank_ts
+        # Compute rank dynamically from score position (stored rank may be stale)
+        ts_score = ranking_doc.get("ts_score")
+        if ts_score is not None:
+            higher_count = await db.rankings.count_documents({
+                "category": primary_cat,
+                "is_latest_version": {"$ne": False},
+                "ts_score": {"$gt": ts_score},
+            })
+            paper["current_rank"] = higher_count + 1
+        else:
+            rank_ts = ranking_doc.get("rank_ts") or ranking_doc.get("rank")
+            if rank_ts:
+                paper["current_rank"] = rank_ts
         paper["total_in_category"] = total_in_cat
         paper["category_name"] = _CAT_NAMES.get(primary_cat, primary_cat)
 
