@@ -562,8 +562,8 @@ async def get_categories():
 # ─── DB-Backed Leaderboard Serving (Phase 2) ────────────────────────────────
 
 # Projection for rankings queries — exclude MongoDB _id, include all serving fields
-_RANK_PROJ = {"_id": 0, "paper_id": 1, "category": 1, "rank": 1, "rank_ts": 1,
-              "score": 1, "ts_score": 1, "ts_mu": 1, "ts_sigma": 1,
+_RANK_PROJ = {"_id": 0, "paper_id": 1, "category": 1,
+              "ts_score": 1, "ts_mu": 1, "ts_sigma": 1,
               "ci": 1, "wilson_margin": 1, "win_rate": 1, "wins": 1, "losses": 1,
               "comparisons": 1, "title": 1, "authors": 1, "arxiv_id": 1, "link": 1,
               "published": 1, "added_at": 1, "ai_rating": 1, "gap_score": 1,
@@ -592,11 +592,10 @@ def _decode_cursor(cursor: str) -> tuple:
 
 def _rank_doc_to_entry(doc: dict) -> dict:
     """Convert a rankings DB document to a leaderboard entry.
-    Uses rank_ts (TrueSkill rank) as the primary rank — the canonical ranking metric."""
+    Rank is always assigned by the caller (position in sorted results)."""
     entry = {
         "id": doc["paper_id"],
-        "rank": doc.get("rank_ts", doc.get("rank", 0)),
-        "rank_ts": doc.get("rank_ts", doc.get("rank", 0)),
+        "rank": 0,  # Placeholder — caller always overwrites with position
         "title": doc.get("title", ""),
         "authors": doc.get("authors", []),
         "arxiv_id": doc.get("arxiv_id", ""),
@@ -604,7 +603,7 @@ def _rank_doc_to_entry(doc: dict) -> dict:
         "published": doc.get("published", ""),
         "primary_category": doc.get("category", ""),
         "categories": doc.get("categories", []),
-        "score": doc.get("ts_score", doc.get("score", 1200)),
+        "score": doc.get("ts_score", 1200),
         "ts_score": doc.get("ts_score", 1200),
         "ts_sigma": doc.get("ts_sigma"),
         "ci": round(doc.get("ts_sigma", 25.0 / 3) * 2 * 10, 0),
@@ -628,8 +627,8 @@ def _rank_doc_to_entry(doc: dict) -> dict:
 
 # Mapping from frontend sort keys to MongoDB field names + default direction
 _SORT_FIELD_MAP = {
-    "rank": ("rank", 1),
-    "score": ("ts_score", -1),  # WR no longer selectable — redirect to TS
+    "rank": ("ts_score", -1),  # Rank = sort by score (position in results)
+    "score": ("ts_score", -1),
     "win_rate": ("win_rate", -1),
     "comparisons": ("comparisons", -1),
     "wilson_margin": ("ts_sigma", 1),
@@ -1288,7 +1287,7 @@ async def get_paper_detail(paper_id: str):
         ranking = await db.rankings.find_one(
             {"paper_id": paper_id},
             {"_id": 0, "wins": 1, "losses": 1, "comparisons": 1,
-             "score": 1, "rank": 1, "rank_ts": 1, "win_rate": 1, "ci": 1, "wilson_margin": 1,
+             "win_rate": 1, "ci": 1, "wilson_margin": 1,
              "ts_score": 1, "ts_sigma": 1, "os_score": 1, "os_sigma": 1, "revision_badge": 1}
         )
         # Fallback to defi_rankings for DeFi papers
@@ -1464,10 +1463,6 @@ async def get_paper_detail(paper_id: str):
                 "ts_score": {"$gt": ts_score},
             })
             paper["current_rank"] = higher_count + 1
-        else:
-            rank_ts = ranking_doc.get("rank_ts") or ranking_doc.get("rank")
-            if rank_ts:
-                paper["current_rank"] = rank_ts
         paper["total_in_category"] = total_in_cat
         paper["category_name"] = _CAT_NAMES.get(primary_cat, primary_cat)
 

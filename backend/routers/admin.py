@@ -3929,7 +3929,7 @@ async def get_revision_feed(admin=Depends(verify_admin), limit: int = Query(50, 
         latest = next((v for v in versions if v.get("is_latest_version") is not False), versions[-1])
         ranking = await db.rankings.find_one(
             {"paper_id": latest["id"]},
-            {"_id": 0, "rank_ts": 1, "ts_score": 1, "comparisons": 1, "win_rate": 1}
+            {"_id": 0, "ts_score": 1, "comparisons": 1, "win_rate": 1}
         ) or {}
         match_count = await db.matches.count_documents({
             "$or": [{"paper1_id": latest["id"]}, {"paper2_id": latest["id"]}],
@@ -3946,7 +3946,6 @@ async def get_revision_feed(admin=Depends(verify_admin), limit: int = Query(50, 
             "total_versions": len(versions),
             "active_matches": match_count,
             "current_ranking": {
-                "rank_ts": ranking.get("rank_ts"),
                 "ts_score": ranking.get("ts_score"),
                 "comparisons": ranking.get("comparisons"),
                 "win_rate": ranking.get("win_rate"),

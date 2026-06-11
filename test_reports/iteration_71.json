@@ -1,0 +1,35 @@
+{
+  "summary": "Verified dynamic rank refactoring: all leaderboard paths now compute rank from position (no stored rank/rank_ts fields). Backend pytest: 6/6 passed, 1 skipped due to expected DB inconsistency (papers in rankings but not in papers collection — mentioned in problem statement). Frontend infinite scroll verified visually: ranks 1588-1601 displayed continuously across page boundary 1400/1600 with NO gap and NO restart at 1.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_dynamic_rank.py",
+    "/app/test_reports/pytest/dynamic_rank.xml"
+  ],
+  "action_items": [
+    "Consider adding data-testid attributes to rank cells in the leaderboard table for future automated testing; current ranks are bare <span> elements without testids.",
+    "Some rankings docs reference paper_ids missing from papers collection (preview DB partial data) — paper detail returns 404 for those. Not a refactor regression but worth a data integrity sweep."
+  ],
+  "critical_code_review_comments": [
+    "_rank_doc_to_entry returning rank=0 as placeholder is fragile — if a future caller forgets to overwrite, users would see rank=0. Consider a guard or sentinel that raises if not overwritten before serialization.",
+    "Paper detail current_rank uses count_documents({ts_score: {$gt: X}}) + 1 — for papers tied at the same ts_score, all tied papers report the same rank (competition ranking). Leaderboard uses ts_score+paper_id tiebreak, so a paper's leaderboard position may differ from current_rank by up to N (where N is tie group size). Tests passed because the top entry was unique. Worth documenting as 'minimum rank among ties' behavior.",
+    "rerank_category_light writes ci = wilson_margin (line 1048-1049) — both fields now hold the same Wilson-margin value, but _rank_doc_to_entry computes its own 'ci' as ts_sigma*2*10 ignoring the stored ci. Stored ci is effectively dead. Either remove the write or stop computing on read."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_dynamic_rank.py (NEW)"
+  ],
+  "success_rate": {"backend": "100% (6/6, 1 skipped expected)", "frontend": "100% (visual verification of continuous ranks)"},
+  "test_credentials": "Not required (public leaderboard + paper detail endpoints)",
+  "seed_data_creation": "None — used existing cs.RO (~2500 papers)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Dynamic rank refactor validated. Tests confirm: (1) /api/leaderboard ranks are sequential 1..N within page, (2) ts_score monotonically non-increasing in default sort, (3) custom sort (comparisons desc) produces sequential ranks ordered by comparisons, (4) offset pagination assigns ranks offset+1..offset+limit, (5) cursor pagination returns ranks starting at 1 on each page (frontend renumbers via useLeaderboardData.js loadMore startRank=leaderboard.length+1), (6) /api/papers/{id} returns current_rank matching leaderboard position via count_documents({ts_score:{$gt:X}})+1, (7) no 'rank_ts' field in responses. Visual frontend test showed ranks 1588-1601 continuous (no gap/restart).",
+  "rca of the issue": "N/A — feature verification, no bugs found."
+}

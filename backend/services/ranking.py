@@ -533,28 +533,6 @@ def _compute_ts_elo(entries: list) -> dict:
     return ts_elo
 
 
-def _compute_ranks(entries: list, ts_elo: dict) -> tuple:
-    """Sort entries by WR score and TS score, return (rank_wr, rank_ts) dicts."""
-    import hashlib
-    wr_sorted = sorted(
-        entries,
-        key=lambda e: (e.get("score", SCORE_BASE_CONST),
-                       hashlib.sha256(e.get("title", e["paper_id"]).encode()).hexdigest()),
-        reverse=True,
-    )
-    rank_wr = {e["paper_id"]: rank for rank, e in enumerate(wr_sorted, 1)}
-
-    ts_sorted = sorted(
-        entries,
-        key=lambda e: (ts_elo.get(e["paper_id"], SCORE_BASE_CONST),
-                       hashlib.sha256(e.get("title", e["paper_id"]).encode()).hexdigest()),
-        reverse=True,
-    )
-    rank_ts = {e["paper_id"]: rank for rank, e in enumerate(ts_sorted, 1)}
-
-    return rank_wr, rank_ts
-
-
 def _compute_gap_scores(entries: list, ts_elo: dict) -> tuple:
     """Compute WR and TS gap scores (percentile difference vs AI rating).
     
@@ -714,10 +692,6 @@ async def seed_rankings(db, category: str = None):
             doc = {
                 "paper_id": entry["id"],
                 "category": cat,
-                "rank": entry["rank"],
-                "rank_wr": entry["rank"],
-                "rank_ts": entry["rank"],
-                "score": entry["score"],
                 "ts_mu": 25.0,
                 "ts_sigma": 25.0 / 3,
                 "ts_score": SCORE_BASE_CONST,
@@ -898,11 +872,11 @@ async def update_rankings_for_match(db, category: str, winner_id: str, loser_id:
             # CAS: only write if ts_mu hasn't changed since we read
             res_w = await db.rankings.update_one(
                 {"paper_id": winner_id, "category": category, "ts_mu": w_mu},
-                {"$set": {"ts_mu": new_w.mu, "ts_sigma": new_w.sigma, "ts_score": w_ts_score, "score": w_ts_score}},
+                {"$set": {"ts_mu": new_w.mu, "ts_sigma": new_w.sigma, "ts_score": w_ts_score}},
             )
             res_l = await db.rankings.update_one(
                 {"paper_id": loser_id, "category": category, "ts_mu": l_mu},
-                {"$set": {"ts_mu": new_l.mu, "ts_sigma": new_l.sigma, "ts_score": l_ts_score, "score": l_ts_score}},
+                {"$set": {"ts_mu": new_l.mu, "ts_sigma": new_l.sigma, "ts_score": l_ts_score}},
             )
             if res_w.modified_count == 0 or res_l.modified_count == 0:
                 logger.warning(f"TrueSkill CAS conflict in {category}: w={winner_id[:12]} l={loser_id[:12]}")
@@ -1050,15 +1024,6 @@ async def rerank_category_light(db, category: str):
     # Compute TrueSkill Elo scores
     ts_elo = _compute_ts_elo(entries)
 
-    # Rank by TS score (canonical rank)
-    ts_sorted = sorted(
-        entries,
-        key=lambda e: (ts_elo.get(e["paper_id"], SCORE_BASE_CONST),
-                       hashlib.sha256(e.get("title", e["paper_id"]).encode()).hexdigest()),
-        reverse=True,
-    )
-    rank_ts = {e["paper_id"]: rank for rank, e in enumerate(ts_sorted, 1)}
-
     # Compute OpenSkill score (for correlation page only)
     os_elo = {}
     for e in entries:
@@ -1079,9 +1044,6 @@ async def rerank_category_light(db, category: str):
         wm = wilson_margin_pct(w, n)
         update = {
             "ts_score": ts_score_val,
-            "score": ts_score_val,
-            "rank": rank_ts[pid],
-            "rank_ts": rank_ts[pid],
             "ci": wm,
             "wilson_margin": wm,
         }
@@ -1191,18 +1153,14 @@ async def rerank_category(db, category: str):
 
     # Step 3: Compute all derived values (same as light version)
     ts_elo = _compute_ts_elo(entries)
-    rank_wr, rank_ts = _compute_ranks(entries, ts_elo)
     gap_wr, gap_ts = _compute_gap_scores(entries, ts_elo)
 
-    # Step 4: Single bulk write — ranks + ts_score + gap scores
+    # Step 4: Single bulk write — ts_score + gap scores
     ops = []
     for e in entries:
         pid = e["paper_id"]
         update = {
             "ts_score": ts_elo.get(pid, SCORE_BASE_CONST),
-            "rank": rank_wr[pid],
-            "rank_wr": rank_wr[pid],
-            "rank_ts": rank_ts[pid],
         }
         if pid in gap_wr:
             update["gap_score"] = gap_wr[pid]
@@ -1237,12 +1195,6 @@ async def insert_ranking_for_paper(db, paper_doc: dict):
 
     cat = paper_doc.get("categories", ["unknown"])[0] if paper_doc.get("categories") else "unknown"
 
-    # Get current max rank for this category
-    last = await db.rankings.find_one(
-        {"category": cat}, sort=[("rank", -1)], projection={"_id": 0, "rank": 1}
-    )
-    next_rank = (last["rank"] + 1) if last else 1
-
     # Always read ai_rating fresh from DB (not from paper_doc which may be stale
     # if summary generation wrote the rating after this doc was loaded)
     fresh = await db.papers.find_one({"id": paper_doc["id"]}, {"_id": 0, "ai_rating": 1})
@@ -1258,9 +1210,6 @@ async def insert_ranking_for_paper(db, paper_doc: dict):
         {"$set": {
             "paper_id": paper_doc["id"],
             "category": cat,
-            "rank": next_rank,
-            "rank_ts": next_rank,
-            "score": SCORE_BASE_CONST,
             "ts_mu": 25.0,
             "ts_sigma": 25.0 / 3,
             "ts_score": SCORE_BASE_CONST,

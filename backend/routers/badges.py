@@ -544,11 +544,19 @@ async def get_paper_share_data(paper_id: str):
     primary_cat = paper_doc.get("categories", [None])[0]
     ranking = await db.rankings.find_one(
         {"paper_id": paper_id},
-        {"_id": 0, "rank_ts": 1, "rank": 1, "ts_score": 1, "score": 1, "win_rate": 1, "comparisons": 1, "category": 1},
+        {"_id": 0, "ts_score": 1, "win_rate": 1, "comparisons": 1, "category": 1},
     )
 
-    # Use TS rank (TrueSkill) — the canonical ranking metric
-    rank = ranking.get("rank_ts", ranking.get("rank")) if ranking else None
+    # Compute rank dynamically from score position (stored rank can be stale)
+    ts_score = ranking.get("ts_score") if ranking else None
+    if ts_score is not None and primary_cat:
+        higher = await db.rankings.count_documents({
+            "category": primary_cat, "is_latest_version": {"$ne": False},
+            "ts_score": {"$gt": ts_score},
+        })
+        rank = higher + 1
+    else:
+        rank = None
     total = await db.rankings.count_documents({"category": primary_cat}) if primary_cat else 0
 
     ai_rating = paper_doc.get("ai_rating")
@@ -634,9 +642,17 @@ async def get_paper_share_page(paper_id: str, request: Request):
     primary_cat = paper_doc.get("categories", [None])[0]
     ranking = await db.rankings.find_one(
         {"paper_id": paper_id},
-        {"_id": 0, "rank_ts": 1, "rank": 1, "ts_score": 1, "score": 1, "win_rate": 1, "comparisons": 1},
+        {"_id": 0, "ts_score": 1, "win_rate": 1, "comparisons": 1},
     )
-    rank = ranking.get("rank_ts", ranking.get("rank")) if ranking else None
+    ts_score = ranking.get("ts_score") if ranking else None
+    if ts_score is not None and primary_cat:
+        higher = await db.rankings.count_documents({
+            "category": primary_cat, "is_latest_version": {"$ne": False},
+            "ts_score": {"$gt": ts_score},
+        })
+        rank = higher + 1
+    else:
+        rank = None
     total = await db.rankings.count_documents({"category": primary_cat}) if primary_cat else 0
 
     badge_data = await _find_paper_badge(paper_id)
@@ -716,12 +732,20 @@ async def get_paper_share_image(paper_id: str):
     primary_cat = paper_doc.get("categories", [None])[0]
     ranking = await db.rankings.find_one(
         {"paper_id": paper_id},
-        {"_id": 0, "rank_ts": 1, "rank": 1, "ts_score": 1, "score": 1, "win_rate": 1, "comparisons": 1},
+        {"_id": 0, "ts_score": 1, "win_rate": 1, "comparisons": 1},
     )
     if not ranking:
         raise HTTPException(404, "Paper has no ranking")
 
-    live_rank = ranking.get("rank_ts", ranking.get("rank", 999))
+    ts_score = ranking.get("ts_score")
+    if ts_score is not None and primary_cat:
+        higher = await db.rankings.count_documents({
+            "category": primary_cat, "is_latest_version": {"$ne": False},
+            "ts_score": {"$gt": ts_score},
+        })
+        live_rank = higher + 1
+    else:
+        live_rank = 999
     live_total = await db.rankings.count_documents({"category": primary_cat}) if primary_cat else 0
 
     # Use archive badge data if it exists — ALL numbers from the snapshot

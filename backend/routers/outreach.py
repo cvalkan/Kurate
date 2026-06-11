@@ -367,8 +367,8 @@ async def get_discoveries(
             "title": p.get("title", ""),
             "authors": p.get("authors", []),
             "arxiv_id": p.get("arxiv_id", ""),
-            "rank": p.get("rank") or (i + 1),
-            "ts_score": p.get("score") or p.get("ts_score"),
+            "rank": i + 1,
+            "ts_score": p.get("ts_score"),
             "ai_rating": p.get("ai_rating"),
             "comparisons": p.get("comparisons", 0),
             "discovered": disc is not None,
@@ -1323,7 +1323,7 @@ async def _get_papers_for_period(category: str, period: str, top_n: int) -> list
     async for doc in db.rankings.find(
         query,
         {"_id": 0, "paper_id": 1, "title": 1, "authors": 1, "arxiv_id": 1,
-         "rank": 1, "ts_score": 1, "ai_rating": 1, "comparisons": 1,
+         "ts_score": 1, "ai_rating": 1, "comparisons": 1,
          "category": 1, "added_at": 1, "link": 1},
     ).sort("ts_score", -1).limit(top_n):
         doc["id"] = doc.pop("paper_id")

@@ -154,7 +154,10 @@ export function useLeaderboardData() {
       const res = await axios.get(`${API}/api/leaderboard?${params}`);
       const d = res.data;
       const newEntries = d.leaderboard || [];
-      setLeaderboard(prev => [...prev, ...newEntries]);
+      // Renumber ranks to continue from where previous page left off
+      const startRank = leaderboard.length + 1;
+      const renumbered = newEntries.map((e, i) => ({ ...e, rank: startRank + i }));
+      setLeaderboard(prev => [...prev, ...renumbered]);
       setNextCursor(d.next_cursor || (newEntries.length >= 200 ? "offset" : null));
     } catch { /* ignore */ }
     setLoadingMore(false);
