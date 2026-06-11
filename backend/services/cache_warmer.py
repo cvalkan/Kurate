@@ -160,10 +160,13 @@ def trigger_warm():
 
 
 async def warm_category(category: str):
-    """Warm only the affected category × all periods + show_all × all periods.
+    """Warm only the affected category × all periods.
     
-    Runs ~9 queries (1 category × 4 periods + show_all × 4 periods + 1 homepage).
-    Takes ~5s — negligible DB impact.
+    Does NOT re-warm show_all views — those are expensive (count_documents across
+    45 categories) and will be populated naturally by user requests. LoadMore
+    requests skip counts anyway, so only the first page 1 hit is slightly slower.
+    
+    Runs ~4 queries (1 category × 4 periods). Takes ~2s.
     """
     try:
         async with httpx.AsyncClient(base_url="http://localhost:8001", timeout=60) as client:
@@ -177,15 +180,6 @@ async def warm_category(category: str):
                 except Exception:
                     failed += 1
                 await asyncio.sleep(0.3)
-            for period in PERIODS:
-                try:
-                    r = await client.get(f"/api/leaderboard?show_all=true&period={period}&limit=200")
-                    if r.status_code == 200: success += 1
-                    else: failed += 1
-                except Exception:
-                    failed += 1
-                await asyncio.sleep(0.3)
-            await client.get("/api/homepage/metrics")
             detail = f"{category}: {success} ok, {failed} failed"
             logger.info(f"Cache warm ({detail})")
             await _log_to_admin(f"category update ({category})", detail, success=(failed == 0))
