@@ -2563,7 +2563,7 @@ async def category_status():
 
         # Get scheduler's live comparison activity for this category
         cat_sched = _get_cat_status(cat)
-        compare_activity = cat_sched.get("current_activity", "")
+        compare_activity = cat_sched.get("compare_activity") or cat_sched.get("current_activity", "")
 
         is_fetching = cat in _fetching_cats
         last_log = last_logs.get(cat)

@@ -173,9 +173,18 @@ def _get_cat_status(category: str) -> dict:
             "papers_count": 0,
             "matches_count": 0,
             "current_activity": "Idle",
+            "compare_activity": "",
             "next_fetch_at": None,
         }
     return _category_status[category]
+
+
+def _set_compare_activity(category: str, activity: str):
+    """Set the compare-loop activity for a category (survives fetch cycle resets)."""
+    s = _get_cat_status(category)
+    s["compare_activity"] = activity
+    s["current_activity"] = activity
+
 
 
 
@@ -697,7 +706,7 @@ async def _compare_loop_inner():
                 # Mark paused categories
                 paused_cats = all_tournament_cats - set(active_cats)
                 for cat in paused_cats:
-                    _get_cat_status(cat)["current_activity"] = "Tournament paused"
+                    _set_compare_activity(cat, "Tournament paused")
 
                 unmet_cats = []
                 for cat in active_cats:
@@ -707,17 +716,17 @@ async def _compare_loop_inner():
                         if total > paper_count:
                             _get_cat_status(cat)["current_activity"] = f"Generating summaries ({paper_count}/{total} ready, need {min_papers})"
                         else:
-                            _get_cat_status(cat)["current_activity"] = f"Insufficient papers ({paper_count}/{min_papers})"
+                            _set_compare_activity(cat, f"Insufficient papers ({paper_count}/{min_papers})")
                         continue
                     tid = f"cat={cat}|mode=standard"
                     t_doc = await db.tournaments.find_one({"tournament_id": tid}, {"_id": 0, "compare_paused": 1})
                     if t_doc and t_doc.get("compare_paused"):
-                        _get_cat_status(cat)["current_activity"] = "Comparisons paused"
+                        _set_compare_activity(cat, "Comparisons paused")
                         continue
                     try:
                         if not await _check_goals_met(category=cat):
                             if _is_pair_exhausted(cat):
-                                _get_cat_status(cat)["current_activity"] = "Pair-exhausted — waiting for new papers"
+                                _set_compare_activity(cat, "Pair-exhausted — waiting for new papers")
                             else:
                                 unmet_cats.append(cat)
                     except Exception:
@@ -786,11 +795,11 @@ async def _compare_loop_inner():
                     _compare_loop_diag["_prev_had_unmet"] = False
                     for cat in active_cats:
                         if _get_cat_status(cat).get("papers_count", 0) >= min_papers:
-                            _get_cat_status(cat)["current_activity"] = "Goals met — idle"
+                            _set_compare_activity(cat, "Goals met — idle")
             elif is_paused:
                 _compare_loop_diag["last_cycle_results"] = {"_system_paused": True}
                 for cat in all_tournament_cats:
-                    _get_cat_status(cat)["current_activity"] = "System paused"
+                    _set_compare_activity(cat, "System paused")
 
         except Exception as e:
             logger.error(f"Compare loop error: {e}")
@@ -1800,6 +1809,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
         cat_status = _get_cat_status(category)
         cat_status["is_processing"] = True
         cat_status["current_activity"] = "Comparing papers..."
+        cat_status["compare_activity"] = "Comparing papers..."
 
         try:
             settings = await get_settings()
@@ -1831,6 +1841,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
 
             if len(all_papers) < 2:
                 cat_status["current_activity"] = "Not enough papers"
+                cat_status["compare_activity"] = "Not enough papers"
                 return {"status": "not_enough_papers"}
 
             # Filter out papers without the required summary for the current source.
@@ -1852,6 +1863,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
             all_papers = papers_with_summaries
             if len(all_papers) < 2:
                 cat_status["current_activity"] = "Waiting for summaries"
+                cat_status["compare_activity"] = "Waiting for summaries"
                 return {"status": "waiting_for_summaries", "papers_without_summaries": papers_without}
 
             # Download any missing PDFs for this category
@@ -1905,6 +1917,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
 
             if not pairs:
                 cat_status["current_activity"] = "No new pairs needed"
+                cat_status["compare_activity"] = "No new pairs needed"
                 _mark_pair_exhausted(category)
                 return {"status": "no_pairs"}
 
@@ -2011,6 +2024,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
                     await update_rankings_for_match(db, category, w_id, l_id, model_used=model_used)
                 cat_status["matches_count"] = total_matches + completed + failed
                 cat_status["current_activity"] = f"Comparing... {total_matches + completed + failed} total matches"
+                cat_status["compare_activity"] = cat_status["current_activity"]
 
             # Periodically check for pause
             async def _pause_checker():
@@ -2042,6 +2056,7 @@ async def run_comparison_round(max_pairs_override=None, category: str = "cs.RO",
             now_iso = datetime.now(timezone.utc).isoformat()
             cat_status["last_process_at"] = now_iso
             cat_status["current_activity"] = f"{total_matches + completed} total matches"
+            cat_status["compare_activity"] = cat_status["current_activity"]
             logger.info(f"[{category}] Comparison round: {completed} ok, {failed} failed")
             log_mem(f"comparison_round({category}) done (ok={completed}, fail={failed}, total={total_matches + completed})")
 
