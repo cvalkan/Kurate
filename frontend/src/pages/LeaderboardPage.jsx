@@ -7,6 +7,7 @@ import { useLeaderboardData } from "@/hooks/useLeaderboardData";
 import { useBasePath } from "@/contexts/BasePathContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { RankedTable } from "@/components/leaderboard/RankedTable";
+import { SuggestionModal } from "@/components/SuggestionModal";
 import TopNav from "@/components/site/TopNav";
 import SiteFooter from "@/components/site/SiteFooter";
 import { Helmet } from "react-helmet";
@@ -52,6 +53,7 @@ export default function LeaderboardPage({ archiveMode }) {
   const [catSearch, setCatSearch] = useState("");
   const [tagSearch, setTagSearch] = useState("");
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [suggestOpen, setSuggestOpen] = useState(false);
   const archiveRef = useRef(null);
   const activeCodes = useMemo(() => new Set(d.categories.map(c => c.id)), [d.categories]);
   const { user } = useAuth();
@@ -159,10 +161,11 @@ export default function LeaderboardPage({ archiveMode }) {
                             <ul className="space-y-1.5">
                               {[
                                 { icon: Layers, label: "Browse all categories", detail: "All arXiv & ChemRxiv fields" },
-                                { icon: CalendarRange, label: "Monthly & all-time rankings", detail: "Beyond the default last-7-day window" },
+                                { icon: CalendarRange, label: "All time periods", detail: "Newly Added, Last 30 Days, All Time" },
                                 { icon: Tag, label: "Cross-category tag filters", detail: "Filter by tag combinations" },
+                                { icon: Archive, label: "Weekly & monthly archives", detail: "Browse frozen historical snapshots" },
                                 { icon: Bookmark, label: "Bookmark papers", detail: "Build personalized reading lists" },
-                                { icon: Lightbulb, label: "Suggest new fields", detail: "Vote on which categories to add" },
+                                { icon: Lightbulb, label: "Suggest new fields", detail: "Propose categories to add" },
                               ].map(({ icon: Icon, label, detail }) => (
                                 <li key={label} className="flex items-start gap-2">
                                   <Icon className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-600" />
@@ -290,6 +293,12 @@ export default function LeaderboardPage({ archiveMode }) {
                 ))}
               </div>
             </SidebarSection>
+                {/* Suggest a field link */}
+                <div className="p-4 border-t border-slate-100">
+                  <button onClick={() => setSuggestOpen(true)} className="inline-flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-slate-600 transition-colors">
+                    <Lightbulb className="h-3 w-3" /> Suggest a field
+                  </button>
+                </div>
               </>
             )}
           </aside>
@@ -324,7 +333,34 @@ export default function LeaderboardPage({ archiveMode }) {
                   {/* Mobile CTA — slim bar for logged-out users (sidebar hidden on mobile) */}
                   {!isLoggedIn && (
                     <div className="lg:hidden flex items-center justify-between gap-3 mb-4 px-3 py-2 rounded-sm bg-blue-50 border border-blue-100">
-                      <span className="text-[11px] text-slate-600"><LockOpen className="h-3 w-3 text-blue-600 inline mr-1 -mt-px" />Unlock all filters, categories & bookmarks</span>
+                      <span className="text-[11px] text-slate-600">
+                        <LockOpen className="h-3 w-3 text-blue-600 inline mr-1 -mt-px" />Unlock filters, categories &{" "}
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button type="button" className="underline decoration-dotted underline-offset-2 decoration-slate-400 cursor-help text-slate-700">more</button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" align="start" className="max-w-xs p-3">
+                              <p className="text-xs font-semibold mb-2">What you get with a free account</p>
+                              <ul className="space-y-1.5">
+                                {[
+                                  { icon: Layers, label: "Browse all categories", detail: "All arXiv & ChemRxiv fields" },
+                                  { icon: CalendarRange, label: "All time periods", detail: "Newly Added, Last 30 Days, All Time" },
+                                  { icon: Tag, label: "Cross-category tag filters", detail: "Filter by tag combinations" },
+                                  { icon: Archive, label: "Weekly & monthly archives", detail: "Browse frozen historical snapshots" },
+                                  { icon: Bookmark, label: "Bookmark papers", detail: "Build personalized reading lists" },
+                                  { icon: Lightbulb, label: "Suggest new fields", detail: "Propose categories to add" },
+                                ].map(({ icon: Icon, label, detail }) => (
+                                  <li key={label} className="flex items-start gap-2">
+                                    <Icon className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-600" />
+                                    <div><div className="text-xs font-medium leading-tight">{label}</div><div className="text-[11px] opacity-80 leading-tight">{detail}</div></div>
+                                  </li>
+                                ))}
+                              </ul>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </span>
                       <button onClick={requireAuth} className="shrink-0 inline-flex items-center gap-1 rounded-sm bg-blue-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-blue-700 transition-colors">
                         Sign up <ArrowRight className="h-2.5 w-2.5" />
                       </button>
@@ -430,6 +466,7 @@ export default function LeaderboardPage({ archiveMode }) {
           </div>
         </main>
       </div>
+      <SuggestionModal open={suggestOpen} onClose={() => setSuggestOpen(false)} />
     </div>
   );
 }
