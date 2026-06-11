@@ -876,9 +876,8 @@ async def _db_category_leaderboard_impl(category: str, period: str, limit: int, 
     last_doc = None
     async for doc in cursor_obj:
         entry = _rank_doc_to_entry(doc)
-        if period != "all" or search:
-            entry["rank"] = rank_offset
-            rank_offset += 1
+        entry["rank"] = rank_offset
+        rank_offset += 1
         entries.append(entry)
         last_doc = doc
 
