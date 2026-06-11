@@ -605,20 +605,20 @@ function ArxivHealthTable() {
                     {(() => {
                       const a = r.compare_activity || "";
                       if (r.compare_paused || a.includes("paused") || a === "System paused" || a === "Tournament paused")
-                        return <span className="text-orange-500">Paused</span>;
+                        return <span className="text-orange-500">{a || "Paused"}</span>;
                       if (a.startsWith("Comparing") || a.includes("total matches"))
-                        return <span className="text-emerald-600 font-medium">Ranking</span>;
-                      if (a.includes("Goals met") || a === "No new pairs needed" || a.includes("Pair-exhausted"))
-                        return <span className="text-green-600">Converged</span>;
-                      if (a.includes("Insufficient") || a === "Not enough papers" || a.includes("Too few"))
-                        return <span className="text-amber-600">Too few papers</span>;
-                      if (a.includes("Waiting for summaries") || a.includes("Generating summaries") || a.includes("Scanning for missing"))
-                        return <span className="text-blue-600">Preparing</span>;
-                      if (a.includes("Downloading PDF"))
-                        return <span className="text-blue-600">Downloading</span>;
-                      if (a === "Idle" || !a)
-                        return <span className="text-muted-foreground">Idle</span>;
-                      return <span className="text-muted-foreground">{a}</span>;
+                        return <span className="text-emerald-600 font-medium">{a}</span>;
+                      if (a.includes("Goals met") || a === "No new pairs needed")
+                        return <span className="text-green-600">{a}</span>;
+                      if (a.includes("Pair-exhausted"))
+                        return <span className="text-green-600">{a}</span>;
+                      if (a.includes("Insufficient") || a === "Not enough papers")
+                        return <span className="text-amber-600">{a}</span>;
+                      if (a.includes("summaries") || a.includes("Scanning") || a.includes("Downloading"))
+                        return <span className="text-blue-600">{a}</span>;
+                      if (a.includes("Fetch failed"))
+                        return <span className="text-red-500">{a}</span>;
+                      return <span className="text-muted-foreground">{a || "Idle"}</span>;
                     })()}
                   </td>
                 </tr>
